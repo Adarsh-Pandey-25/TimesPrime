@@ -14,9 +14,12 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>("en");
 
+  // Necessary hydration guard: localStorage doesn't exist during SSR, so the
+  // saved language can only be read after mount, same as ThemeContext.
   useEffect(() => {
     const saved = localStorage.getItem("timesprime_language") as Language;
     if (saved === "en" || saved === "hi") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLanguageState(saved);
     }
   }, []);

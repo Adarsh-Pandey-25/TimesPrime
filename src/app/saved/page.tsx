@@ -9,6 +9,7 @@ import { Article } from "@/types";
 import { Bookmark, Trash2, ArrowLeft, Layers } from "lucide-react";
 import { getBookmarks, clearAllBookmarks } from "@/lib/bookmarks";
 import { useTheme } from "@/context/ThemeContext";
+import { assignDedupedTopicImages } from "@/lib/topicImages";
 
 export default function SavedArticlesPage() {
   const { theme } = useTheme();
@@ -33,6 +34,8 @@ export default function SavedArticlesPage() {
       setSavedArticles([]);
     }
   };
+
+  const dedupedImages = assignDedupedTopicImages(savedArticles);
 
   return (
     <div
@@ -88,6 +91,7 @@ export default function SavedArticlesPage() {
               <ArticleCard
                 key={article.article_id || article.link}
                 article={article}
+                imageUrl={dedupedImages.get(article)}
               />
             ))}
           </div>

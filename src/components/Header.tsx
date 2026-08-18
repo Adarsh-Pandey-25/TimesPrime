@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Newspaper, Globe, Menu, X, Sun, Moon, Search, User, ChevronDown, Bookmark } from "lucide-react";
+import { Globe, Menu, X, Sun, Moon, Search, ChevronDown, Bookmark } from "lucide-react";
 import { Language, TRANSLATIONS } from "@/lib/translations";
 import CategoryMegaMenu from "@/components/CategoryMegaMenu";
 import { Article } from "@/types";
@@ -78,7 +79,12 @@ export default function Header({
     }, 250);
   };
 
+  // Necessary hydration guard: the server can't know the client's clock, so
+  // `mounted`/`time` start as SSR-safe placeholders and are only set for
+  // real once mounted client-side. There's no alternative to a synchronous
+  // setState here that wouldn't reintroduce a server/client mismatch.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     setTime(new Date());
     const timer = setInterval(() => {
@@ -174,28 +180,26 @@ export default function Header({
             }}
             className="group flex items-center space-x-2 sm:space-x-3 cursor-pointer"
           >
-            <div className="flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-md shadow-red-500/20 transition-transform group-hover:scale-105">
-              <Newspaper className="h-5 w-5 sm:h-7 sm:w-7" />
-            </div>
-            <div>
-              <span className="font-serif text-xl sm:text-2xl lg:text-3xl font-black tracking-tight">
-                TIMES<span className="text-red-600">PRIME</span>
-              </span>
-              <div className="text-[8px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                SABSE TEZ • {t.globalNewsHub}
-              </div>
-            </div>
+            <Image
+              src={isDark ? "/logo-dark.png" : "/logo-light.png"}
+              alt="TimesPrime"
+              width={1574}
+              height={261}
+              priority
+              sizes="300px"
+              className="h-9 w-auto sm:h-11 transition-transform group-hover:scale-105"
+            />
           </Link>
         </div>
 
         {/* Center: Desktop Search Input */}
-        <div className="hidden md:flex flex-1 justify-center max-w-md mx-4">
+        <div className="hidden md:flex flex-1 justify-center max-w-lg mx-4">
           <form onSubmit={handleSearchSubmit} className="relative w-full">
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={activeLang === "hi" ? "समाचार खोजें..." : "Search news..."}
+              placeholder={activeLang === "hi" ? "समाचार, विषय, स्रोत खोजें..." : "Search news, topics, sources..."}
               className={`w-full rounded-xl border py-2 pl-4 pr-10 text-xs font-medium focus:outline-none transition-colors ${
                 isDark
                   ? "border-[#383d45] bg-[#272a2f] text-white placeholder-slate-400 focus:border-red-500"
@@ -215,18 +219,18 @@ export default function Header({
         {/* Right Side Actions with Date & Time stacked ABOVE buttons */}
         <div className="flex flex-col items-end justify-center shrink-0 space-y-1">
           {/* Live Date & Time Widget (Placed directly ABOVE the action icons) */}
-          <div className="flex items-center space-x-1.5 text-[10px] sm:text-[11px] font-bold translate-x-0 -translate-y-1 sm:translate-x-8 sm:-translate-y-1.5">
+          <div className="flex items-center space-x-1.5 text-[11px] sm:text-xs font-bold translate-x-0 -translate-y-1 sm:translate-x-8 sm:-translate-y-1.5">
             {mounted ? (
               <>
-                <span className="font-extrabold text-red-600 dark:text-red-400">
+                <span className="font-black text-red-600 dark:text-red-400">
                   {time.toLocaleDateString(activeLang === "hi" ? "hi-IN" : "en-US", {
                     weekday: "short",
                     month: "short",
                     day: "numeric",
                   })}
                 </span>
-                <span className="text-slate-300 dark:text-slate-600">•</span>
-                <span className="font-mono text-slate-600 dark:text-slate-300 font-bold">
+                <span className="text-slate-300 dark:text-slate-600 mx-1">|</span>
+                <span className="font-sans text-slate-700 dark:text-slate-200 font-bold">
                   {time.toLocaleTimeString(activeLang === "hi" ? "hi-IN" : "en-US", {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -262,7 +266,7 @@ export default function Header({
               }`}
               title={activeLang === "en" ? "हिंदी में बदलें" : "Switch to English"}
             >
-              <Globe className="h-4 w-4 text-red-600" />
+              <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
             </button>
 
             {/* Saved Articles (Icon Only) */}
@@ -275,9 +279,9 @@ export default function Header({
               }`}
               title="View Saved Articles"
             >
-              <Bookmark className="h-4 w-4 text-red-600" />
+              <Bookmark className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
               {bookmarkCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-black text-white">
+                <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white shadow-sm ring-2 ring-white dark:ring-[#1f2226]">
                   {bookmarkCount}
                 </span>
               )}
@@ -293,17 +297,8 @@ export default function Header({
               }`}
               title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
-              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {isDark ? <Sun className="h-4 w-4 sm:h-5 sm:w-5" /> : <Moon className="h-4 w-4 sm:h-5 sm:w-5" />}
             </button>
-
-            {/* Login Button (Icon Only) */}
-            <Link
-              href="/admin"
-              className="hidden sm:flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-600/20 transition-all"
-              title={activeLang === "hi" ? "लॉगिन / एडमिन" : "Login / Admin"}
-            >
-              <User className="h-4 w-4" />
-            </Link>
 
             {/* Mobile Hamburger Menu Toggle Button */}
             <button
@@ -358,32 +353,31 @@ export default function Header({
               : "bg-white text-slate-900 border-r border-slate-200"
           }`}>
             {/* Drawer Header with Logo & Close Button */}
-            <div className={`flex items-center justify-between px-5 py-4 border-b ${
-              isDark ? "bg-[#1f2227] border-[#2b2f36]" : "bg-slate-50 border-slate-200"
+            <div className={`flex items-center justify-between px-5 py-4 border-b bg-gradient-to-r ${
+              isDark ? "from-[#1f2227] to-[#181a1d] border-[#2b2f36]" : "from-slate-50 to-white border-slate-200"
             }`}>
               <div className="flex items-center space-x-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-md">
-                  <Newspaper className="h-4 w-4" />
-                </div>
-                <div>
-                  <span className="font-serif text-lg font-black tracking-tight">
-                    TIMES<span className="text-red-600">PRIME</span>
-                  </span>
-                  <span className="block text-[8px] font-bold uppercase tracking-widest text-slate-400">
-                    {t.globalNewsHub}
-                  </span>
-                </div>
+                <Image
+                  src={isDark ? "/logo-dark.png" : "/logo-light.png"}
+                  alt="TimesPrime"
+                  width={1574}
+                  height={261}
+                  className="h-8 w-auto"
+                />
               </div>
 
-              {/* Close X Button */}
+              {/* Close Button + Label */}
               <button
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+                className={`flex items-center gap-1.5 rounded-full pl-3 pr-1.5 py-1.5 transition-colors ${
                   isDark ? "bg-[#2b2f36] text-slate-200 hover:bg-red-600 hover:text-white" : "bg-slate-200 text-slate-700 hover:bg-red-600 hover:text-white"
                 }`}
                 title="Close Menu"
               >
-                <X className="h-5 w-5" />
+                <span className="text-xs font-bold">{activeLang === "hi" ? "बंद करें" : "Close"}</span>
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/10">
+                  <X className="h-4 w-4" />
+                </span>
               </button>
             </div>
 
@@ -397,7 +391,7 @@ export default function Header({
                 <span className="text-[10px] font-black uppercase tracking-widest text-red-600 block px-1">
                   {activeLang === "hi" ? "समाचार श्रेणियां" : "News Categories"}
                 </span>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {CATEGORY_IDS.map((catId) => {
                     const isActive = activeCategory === catId;
                     return (
@@ -486,16 +480,6 @@ export default function Header({
                     {isDark ? "Dark" : "Light"}
                   </span>
                 </button>
-
-                {/* Login / Admin */}
-                <Link
-                  href="/admin"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex w-full items-center justify-center space-x-2 rounded-xl bg-red-600 hover:bg-red-700 text-white py-3 px-4 text-xs font-black shadow-md shadow-red-600/30 transition-all mt-3"
-                >
-                  <User className="h-4 w-4" />
-                  <span>{activeLang === "hi" ? "लॉगिन / एडमिन डैशबोर्ड" : "Login / Admin Dashboard"}</span>
-                </Link>
               </div>
 
               {/* Social Links */}
@@ -520,7 +504,7 @@ export default function Header({
         onMouseLeave={handleMouseLeaveNav}
         className="relative overflow-visible shadow-md transition-colors duration-200 border-t border-b border-red-800/40 bg-gradient-to-r from-[#b91c1c] via-[#c21d28] to-[#b91c1c] text-white"
       >
-        <div className="mx-auto flex max-w-[1500px] items-center px-2 py-1 sm:px-4 md:px-6 lg:px-10 overflow-x-auto scrollbar-hide gap-1 sm:gap-1.5">
+        <div className="mx-auto flex max-w-[1500px] items-center px-2 py-2 sm:px-4 md:px-6 lg:px-10 overflow-x-auto scrollbar-hide gap-1 sm:gap-1.5">
           {CATEGORY_IDS.map((catId) => {
             const isActive = activeCategory === catId;
             const isHovered = hoveredCategory === catId;
@@ -537,7 +521,7 @@ export default function Header({
                     if (onSelectCategory) onSelectCategory(catId);
                     setHoveredCategory(null);
                   }}
-                  className={`flex items-center space-x-1 sm:space-x-1.5 whitespace-nowrap rounded-full px-3.5 sm:px-4 py-1.5 font-sans text-[11px] sm:text-xs font-extrabold uppercase tracking-widest transition-all duration-200 cursor-pointer ${
+                  className={`flex items-center space-x-1 sm:space-x-1.5 whitespace-nowrap rounded-full px-3.5 sm:px-4 py-1.5 font-sans text-[11px] sm:text-[13px] font-extrabold uppercase tracking-widest transition-all duration-200 cursor-pointer ${
                     isActive
                       ? "bg-white text-[#b91c1c] shadow-md shadow-black/20 font-black scale-[1.03]"
                       : isHovered
@@ -548,6 +532,12 @@ export default function Header({
                   <span>{label}</span>
                   <ChevronDown className={`h-2.5 w-2.5 sm:h-3 sm:w-3 transition-transform hidden sm:block ${isHovered ? "rotate-180 text-white" : isActive ? "text-[#b91c1c]" : "opacity-75"}`} />
                 </Link>
+                {isActive && (
+                  <span
+                    className="absolute -bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white"
+                    aria-hidden="true"
+                  />
+                )}
               </div>
             );
           })}

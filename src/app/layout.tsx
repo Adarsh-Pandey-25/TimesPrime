@@ -31,6 +31,9 @@ export const metadata: Metadata = {
   description: "Stay updated with real-time headlines, top news, and AI-curated summaries from around the globe.",
   keywords: ["news", "headlines", "world news", "technology", "business", "entertainment", "sports"],
   authors: [{ name: "TimesPrime Team" }],
+  icons: {
+    icon: "/favicon.png",
+  },
   openGraph: {
     title: "TimesPrime News - Premium News Aggregator",
     description: "Stay updated with real-time headlines and AI-curated news.",

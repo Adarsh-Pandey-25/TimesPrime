@@ -10,7 +10,7 @@ import { useTheme } from "@/context/ThemeContext";
 
 import { useLanguage } from "@/context/LanguageContext";
 
-import { getTopicImageUrl } from "@/lib/topicImages";
+import { assignDedupedTopicImages } from "@/lib/topicImages";
 
 interface CategoryMegaMenuProps {
   category: string;
@@ -103,6 +103,8 @@ export default function CategoryMegaMenu({
     onClose();
   };
 
+  const dedupedImages = assignDedupedTopicImages(categoryArticles);
+
   return (
     <div
       onMouseLeave={onClose}
@@ -181,7 +183,7 @@ export default function CategoryMegaMenu({
               {categoryArticles.map((art, idx) => {
                 const slug = encodeURIComponent(art.article_id || art.title.slice(0, 30));
                 const titleText = translateHeadline(art.title, language);
-                const imgSrc = getTopicImageUrl(art.title, category, art.description, art.image_url);
+                const imgSrc = dedupedImages.get(art)!;
 
                 return (
                   <Link

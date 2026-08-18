@@ -1,5 +1,7 @@
+import * as Sentry from "@sentry/nextjs";
 import { Article } from "@/types";
 import { supabase, isSupabaseConfigured } from "./supabase";
+import { containsHindiScript } from "./newsConfig";
 
 export interface DBArticle extends Article {
   fetchedAt?: number;
@@ -7,6 +9,56 @@ export interface DBArticle extends Article {
 }
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * How long DB-backed news is considered fresh enough to serve without
+ * calling NewsData.io. Also the interval the background cron refreshes on.
+ */
+export const NEWS_FRESHNESS_WINDOW_MS = 30 * 60 * 1000;
+
+/**
+ * The category/query filter shared by every article read below.
+ *
+ * Deliberately one implementation rather than three copies: these filters
+ * must agree exactly, or the freshness check and the "new stories" count
+ * end up describing a different set of rows than the feed actually serves.
+ * Structurally typed so it works with any Supabase query builder without
+ * an `any`.
+ */
+interface ArticleQueryFilters<T> {
+  or(filters: string): T;
+  contains(column: string, value: string[]): T;
+}
+
+function applyArticleFilters<T extends ArticleQueryFilters<T>>(
+  builder: T,
+  category: string,
+  query: string
+): T {
+  if (query.trim()) {
+    const q = query.trim();
+    return builder.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
+  }
+  if (category === "india") {
+    return builder.or(`country.cs.{"in"},category.cs.{"india"}`);
+  }
+  if (category && category !== "general" && category !== "top") {
+    return builder.contains("category", [category]);
+  }
+  return builder;
+}
+
+/** Minimal row shape read by the freshness / new-count queries below. */
+interface ArticleTimestampRow {
+  created_at: string;
+  title: string;
+}
+
+/** Keeps only rows whose title script matches the requested language. */
+function matchesLanguageScript(title: string | undefined, language: string): boolean {
+  const titleIsHindi = containsHindiScript(title);
+  return language === "hi" ? titleIsHindi : !titleIsHindi;
+}
 
 /**
  * Automatically purges any article older than 7 days from Supabase.
@@ -27,12 +79,17 @@ export async function purgeOldArticles(): Promise<number> {
 
     if (error) {
       console.error("Supabase Purge Error:", error.message);
+      Sentry.captureMessage(`Supabase purge error: ${error.message}`, {
+        tags: { source: "supabase" },
+        extra: { operation: "purgeOldArticles" },
+      });
       return 0;
     }
 
     return data ? data.length : 0;
   } catch (err) {
     console.error("Failed to purge old articles from Supabase:", err);
+    Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "purgeOldArticles" } });
     return 0;
   }
 }
@@ -74,6 +131,10 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
 
     if (error) {
       console.error("Supabase Upsert Error:", error.message);
+      Sentry.captureMessage(`Supabase upsert error: ${error.message}`, {
+        tags: { source: "supabase" },
+        extra: { operation: "saveArticlesToDB", rowCount: rowsToUpsert.length },
+      });
       return incomingArticles;
     }
 
@@ -94,6 +155,7 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
     }));
   } catch (err) {
     console.error("Error saving to Supabase:", err);
+    Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "saveArticlesToDB" } });
     return incomingArticles;
   }
 }
@@ -113,39 +175,26 @@ export async function getDBArticles(
   await purgeOldArticles();
 
   try {
-    let queryBuilder = supabase
-      .from("articles")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (query.trim()) {
-      const q = query.trim();
-      queryBuilder = queryBuilder.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
-    } else if (category === "india") {
-      queryBuilder = queryBuilder.or(`country.cs.{"in"},category.cs.{"india"}`);
-    } else if (category && category !== "general" && category !== "top") {
-      queryBuilder = queryBuilder.contains("category", [category]);
-    }
+    const queryBuilder = applyArticleFilters(
+      supabase.from("articles").select("*").order("created_at", { ascending: false }),
+      category,
+      query
+    );
 
     const { data, error } = await queryBuilder.limit(80);
 
     if (error) {
       console.error("Supabase Select Error:", error.message);
+      Sentry.captureMessage(`Supabase select error: ${error.message}`, {
+        tags: { source: "supabase" },
+        extra: { operation: "getDBArticles", category, language },
+      });
       return [];
     }
 
-    const hasHindiScript = (str?: string) => str && /[\u0900-\u097F]/.test(str);
-
-    const filtered = (data || []).filter((row: any) => {
-      const titleIsHindi = hasHindiScript(row.title);
-      if (language === "hi") {
-        // Hindi mode: only show articles with Hindi script in title
-        return titleIsHindi;
-      } else {
-        // English mode: exclude any article with Hindi script in title
-        return !titleIsHindi;
-      }
-    });
+    const filtered = (data || []).filter((row: any) =>
+      matchesLanguageScript(row.title, language)
+    );
 
     return filtered.slice(0, 40).map((row: any) => ({
       article_id: row.article_id,
@@ -164,7 +213,110 @@ export async function getDBArticles(
     }));
   } catch (err) {
     console.error("Error fetching from Supabase:", err);
+    Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "getDBArticles", category, language } });
     return [];
+  }
+}
+
+/**
+ * Returns the `created_at` of the newest stored article matching the given
+ * category + language, or null when there is nothing stored (or Supabase
+ * isn't configured). Used to decide whether the DB is fresh enough to serve
+ * without calling NewsData.io.
+ *
+ * Rows are script-filtered in JS (same as getDBArticles) rather than SQL,
+ * so a stored English article can't make a Hindi feed look "fresh".
+ */
+export async function getLatestArticleTimestamp(
+  category: string = "general",
+  language: string = "en"
+): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
+
+  try {
+    const queryBuilder = applyArticleFilters(
+      supabase
+        .from("articles")
+        .select("created_at, title")
+        .order("created_at", { ascending: false }),
+      category,
+      ""
+    );
+
+    // Small window: we only need the newest row that passes the script
+    // filter, and matching-language rows cluster at the top of the ordering.
+    const { data, error } = await queryBuilder.limit(50);
+
+    if (error) {
+      console.error("Supabase Freshness Check Error:", error.message);
+      Sentry.captureMessage(`Supabase freshness check error: ${error.message}`, {
+        tags: { source: "supabase" },
+        extra: { operation: "getLatestArticleTimestamp", category, language },
+      });
+      return null;
+    }
+
+    const rows = (data ?? []) as unknown as ArticleTimestampRow[];
+    const match = rows.find((row) => matchesLanguageScript(row.title, language));
+    return match?.created_at ?? null;
+  } catch (err) {
+    console.error("Failed to read latest article timestamp:", err);
+    Sentry.captureException(err, {
+      tags: { source: "supabase" },
+      extra: { operation: "getLatestArticleTimestamp", category, language },
+    });
+    return null;
+  }
+}
+
+/**
+ * Counts stored articles newer than `since` for the "new stories" banner.
+ * Never calls NewsData.io and never throws — a failure just reports zero
+ * new stories, which degrades to "no banner" rather than a broken feed.
+ */
+export async function countArticlesSince(
+  since: string,
+  category: string = "general",
+  language: string = "en"
+): Promise<{ newCount: number; latestTimestamp: string | null }> {
+  if (!isSupabaseConfigured()) return { newCount: 0, latestTimestamp: null };
+
+  try {
+    const queryBuilder = applyArticleFilters(
+      supabase
+        .from("articles")
+        .select("created_at, title")
+        .gt("created_at", since)
+        .order("created_at", { ascending: false }),
+      category,
+      ""
+    );
+
+    const { data, error } = await queryBuilder.limit(100);
+
+    if (error) {
+      console.error("Supabase New-Count Error:", error.message);
+      Sentry.captureMessage(`Supabase new-count error: ${error.message}`, {
+        tags: { source: "supabase" },
+        extra: { operation: "countArticlesSince", category, language },
+      });
+      return { newCount: 0, latestTimestamp: null };
+    }
+
+    const rows = (data ?? []) as unknown as ArticleTimestampRow[];
+    const matching = rows.filter((row) => matchesLanguageScript(row.title, language));
+
+    return {
+      newCount: matching.length,
+      latestTimestamp: matching[0]?.created_at ?? null,
+    };
+  } catch (err) {
+    console.error("Failed to count new articles:", err);
+    Sentry.captureException(err, {
+      tags: { source: "supabase" },
+      extra: { operation: "countArticlesSince", category, language },
+    });
+    return { newCount: 0, latestTimestamp: null };
   }
 }
 
@@ -188,6 +340,14 @@ export async function getDBStats() {
       .from("articles")
       .select("*", { count: "exact", head: true });
 
+    if (error) {
+      console.error("Supabase Stats Error:", error.message);
+      Sentry.captureMessage(`Supabase stats error: ${error.message}`, {
+        tags: { source: "supabase" },
+        extra: { operation: "getDBStats" },
+      });
+    }
+
     return {
       configured: true,
       totalStoredArticles: count || 0,
@@ -195,7 +355,8 @@ export async function getDBStats() {
       databaseType: "Supabase Realtime PostgreSQL",
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     };
-  } catch {
+  } catch (err) {
+    Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "getDBStats" } });
     return {
       configured: true,
       totalStoredArticles: 0,

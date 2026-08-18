@@ -6,10 +6,14 @@ const CATEGORIES = ["top", "technology", "business", "sports", "entertainment", 
 
 export async function POST() {
   try {
-    const apiKey =
-      process.env.NEWSDATA_API_KEY ||
-      process.env.NEXT_PUBLIC_NEWSDATA_API_KEY ||
-      "pub_ac92279704bc46d5a24d552edbd6b6fb";
+    const apiKey = process.env.NEWSDATA_API_KEY || process.env.NEXT_PUBLIC_NEWSDATA_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { status: "error", message: "NEWSDATA_API_KEY is not configured on the server." },
+        { status: 500 }
+      );
+    }
 
     let totalSaved = 0;
 

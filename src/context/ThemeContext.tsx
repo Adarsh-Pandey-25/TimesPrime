@@ -32,7 +32,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Necessary hydration guard: localStorage doesn't exist during SSR, so the
+  // real theme can only be read after mount. Deferring to an effect (rather
+  // than reading synchronously during render) is what avoids a hydration
+  // mismatch here — there's no alternative that preserves current behavior.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const savedTheme = (localStorage.getItem("timesprime_theme") as Theme) || "light";
     setTheme(savedTheme);

@@ -11,6 +11,14 @@ body {
   font-family: var(--font-serif), "PT Serif", Georgia, serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  line-height: 1.6;
+}
+
+/* Sharper small-caps-like rendering for uppercase labels/badges (category
+   pills, nav labels, etc. all use Tailwind's .uppercase utility already). */
+.uppercase {
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1, "case" 1;
 }
 
 html.dark {
@@ -31,14 +39,43 @@ html, body {
   max-width: 100vw;
 }
 
+/* Smooth color/background transitions everywhere by default. Scoped inside
+   @layer base so Tailwind's utility layer (transition-all, transition-transform,
+   etc., which live in @layer utilities) always wins the cascade regardless
+   of source order — an element that already declares its own transition
+   utility is unaffected by this default. */
+@layer base {
+  *:not([class*="transition-"]) {
+    transition: color 0.15s ease, background-color 0.15s ease;
+  }
+}
+
+/* Accessible focus ring for keyboard navigation */
+:focus-visible {
+  outline: 2px solid #dc2626;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Brand-colored text selection */
+::selection {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+::-moz-selection {
+  background: #dc2626;
+  color: #ffffff;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -47,7 +84,7 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: rgba(220, 38, 38, 0.3);
 }
 
 /* Hide scrollbar for category horizontal scroll */
@@ -69,11 +106,50 @@ html, body {
 .animate-marquee {
   display: flex;
   width: max-content;
-  animation: marquee 55s linear infinite;
+  animation: marquee 50s linear infinite;
 }
 
 .animate-marquee:hover {
   animation-play-state: paused;
+}
+
+/* Flashing red background for the ticker's BREAKING NEWS label */
+@keyframes flash-bg {
+  0%, 100% { background-color: #dc2626; }
+  50% { background-color: #b91c1c; }
+}
+
+.animate-flash-bg {
+  animation: flash-bg 2s ease-in-out infinite;
+}
+
+/* Shifting red -> navy -> red gradient border for the AI Executive Summary
+   box (padding-box technique: the gradient lives on an outer wrapper, an
+   inner div with a solid/tinted background sits 2px inset to look like a border). */
+@keyframes gradient-border-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animate-gradient-border {
+  animation: gradient-border-shift 4s ease infinite;
+}
+
+/* Shimmer placeholder for loading images */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.img-skeleton {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 2000px 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+html.dark .img-skeleton {
+  background: linear-gradient(90deg, #26292f 25%, #2f333a 50%, #26292f 75%);
+  background-size: 2000px 100%;
 }
 
 /* Safe area insets for notched devices */
@@ -100,6 +176,10 @@ html, body {
   transition: min-height 0.3s ease;
 }
 
+[id^="ad-slot-"]:empty {
+  display: none !important;
+}
+
 [id^="ad-slot-"]:not(:empty) {
   min-height: 90px;
   display: flex;
@@ -110,5 +190,38 @@ html, body {
 @media (min-width: 768px) {
   [id^="ad-slot-"]:not(:empty) {
     min-height: 120px;
+  }
+}
+
+/* Print: clean article printing, no chrome */
+@media print {
+  header, footer, [id^="ad-slot-"] {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  a {
+    color: #000000 !important;
+    text-decoration: underline;
+  }
+}
+
+/* Respect the user's reduced-motion preference: kill the marquee and make
+   every transition/animation effectively instant rather than fully absent,
+   so code that waits on transitionend/animationend still behaves. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none !important;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

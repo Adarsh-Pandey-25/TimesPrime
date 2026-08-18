@@ -47,6 +47,9 @@ export default function Chatbot({ isOpen, onClose }: ChatbotProps) {
     setInput("");
     setLoading(true);
 
+    const aiMsgId = (Date.now() + 1).toString();
+    const timestamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -57,24 +60,47 @@ export default function Chatbot({ isOpen, onClose }: ChatbotProps) {
         body: JSON.stringify({ message: userMsg.text }),
       });
 
-      const data = await res.json();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      if (!res.body) {
+        throw new Error("No response body from server.");
+      }
 
-      const aiMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "ai",
-        text: data.reply || "I'm having trouble processing that request right now.",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
+      // Insert an empty AI bubble, then fill it in as text streams in.
+      setMessages((prev) => [...prev, { id: aiMsgId, sender: "ai", text: "", timestamp }]);
+      setLoading(false);
 
-      setMessages((prev) => [...prev, aiMsg]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        fullText += decoder.decode(value, { stream: true });
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiMsgId ? { ...m, text: fullText } : m))
+        );
+      }
+
+      if (!fullText.trim()) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId ? { ...m, text: "I'm having trouble processing that request right now." } : m
+          )
+        );
+      }
     } catch (err) {
-      const errorMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "ai",
-        text: "Sorry, I ran into a network error. Please try again.",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+      const reason = err instanceof Error ? err.message : "unknown network error";
+      setMessages((prev) => {
+        const already = prev.some((m) => m.id === aiMsgId);
+        const errorText = `Sorry, that request failed: ${reason}`;
+        return already
+          ? prev.map((m) => (m.id === aiMsgId ? { ...m, text: errorText } : m))
+          : [...prev, { id: aiMsgId, sender: "ai", text: errorText, timestamp }];
+      });
     } finally {
       setLoading(false);
     }

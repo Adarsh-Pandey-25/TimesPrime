@@ -4,9 +4,18 @@ import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import MarqueeTicker from "@/components/MarqueeTicker";
-import { CheckCircle2, Database, Trash2, ShieldCheck, RefreshCw } from "lucide-react";
+import { CheckCircle2, Database, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
 import { Language } from "@/lib/translations";
 import { useTheme } from "@/context/ThemeContext";
+
+interface DbStats {
+  configured: boolean;
+  totalStoredArticles: number;
+  retentionDays: number;
+  databaseType: string;
+  note?: string;
+  supabaseUrl?: string;
+}
 
 export default function AdminDashboardPage() {
   const { theme } = useTheme();
@@ -17,14 +26,19 @@ export default function AdminDashboardPage() {
   // Form State
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [link, setLink] = useState("");
+  const [categoryId, setCategoryId] = useState("general");
   const [imageUrl, setImageUrl] = useState("");
+  const [sourceName, setSourceName] = useState("");
   const [summary, setSummary] = useState("");
   const [content, setContent] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
+  const [publishedArticleId, setPublishedArticleId] = useState<string | null>(null);
 
   // Database Stats State
-  const [dbStats, setDbStats] = useState<any>(null);
+  const [dbStats, setDbStats] = useState<DbStats | null>(null);
   const [purging, setPurging] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [purgeMsg, setPurgeMsg] = useState("");
@@ -41,7 +55,10 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Necessary setState-in-effect: DB stats can only come from an async
+  // fetch, which can't run synchronously during render.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDbStats();
   }, []);
 
@@ -79,20 +96,55 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handlePublish = (e: React.FormEvent) => {
+  const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title) return;
+    setPublishError("");
 
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
+    if (!title.trim() || !link.trim() || !categoryId) {
+      setPublishError("Title, Source Link, and Category are required.");
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      const res = await fetch("/api/admin/publish-article", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          slug,
+          link,
+          category: categoryId,
+          image_url: imageUrl,
+          source_name: sourceName,
+          description: summary,
+          content,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPublishError(data.error || `Failed to publish (status ${res.status}).`);
+        return;
+      }
+
+      setPublishedArticleId(data.article?.article_id || null);
+      setSubmitted(true);
       setTitle("");
       setSlug("");
-      setCategoryId("");
+      setLink("");
+      setCategoryId("general");
       setImageUrl("");
+      setSourceName("");
       setSummary("");
       setContent("");
-    }, 4000);
+      setTimeout(() => setSubmitted(false), 6000);
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Network error while publishing.");
+    } finally {
+      setPublishing(false);
+    }
   };
 
   const isDark = theme === "dark";
@@ -194,6 +246,26 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
+          {/* Manual Controls */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              onClick={handleSeedSupabase}
+              disabled={seeding}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${seeding ? "animate-spin" : ""}`} />
+              {seeding ? "Syncing All Categories..." : "Sync All Categories Now"}
+            </button>
+            <button
+              onClick={handleManualPurge}
+              disabled={purging}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-bold text-slate-200 hover:bg-slate-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${purging ? "animate-spin" : ""}`} />
+              {purging ? "Purging..." : "Run 7-Day Purge Now"}
+            </button>
+          </div>
+
           {purgeMsg && (
             <div className="rounded-xl bg-emerald-950/80 border border-emerald-800 p-3 text-xs font-bold text-emerald-300">
               {purgeMsg}
@@ -206,8 +278,16 @@ export default function AdminDashboardPage() {
           <div className="flex items-center space-x-3 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 p-4 text-emerald-800 dark:text-emerald-200 shadow-sm">
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             <p className="text-sm font-semibold">
-              Article published successfully! Saved to 7-day database and live on TimesPrime.
+              Article published successfully — saved to Supabase{publishedArticleId ? ` as ${publishedArticleId}` : ""}.
             </p>
+          </div>
+        )}
+
+        {/* Error Alert */}
+        {publishError && (
+          <div className="flex items-center space-x-3 rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/60 p-4 text-red-800 dark:text-red-200 shadow-sm">
+            <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+            <p className="text-sm font-semibold">{publishError}</p>
           </div>
         )}
 
@@ -235,6 +315,25 @@ export default function AdminDashboardPage() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Enter headline..."
+                className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
+                  isDark
+                    ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
+                    : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
+                }`}
+              />
+            </div>
+
+            {/* Source Link */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Source Link (URL) *
+              </label>
+              <input
+                type="url"
+                required
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                placeholder="https://example.com/original-article"
                 className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
                   isDark
                     ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
@@ -286,22 +385,41 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Image URL */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                Image URL
-              </label>
-              <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://images.unsplash.com/photo-..."
-                className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-                  isDark
-                    ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                    : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-                }`}
-              />
+            {/* Image URL & Source Name Row */}
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  Image URL
+                </label>
+                <input
+                  type="url"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://images.unsplash.com/photo-..."
+                  className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
+                    isDark
+                      ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
+                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
+                  }`}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  Source Name
+                </label>
+                <input
+                  type="text"
+                  value={sourceName}
+                  onChange={(e) => setSourceName(e.target.value)}
+                  placeholder="TimesPrime Editorial"
+                  className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
+                    isDark
+                      ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
+                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
+                  }`}
+                />
+              </div>
             </div>
 
             {/* Short Summary */}
@@ -344,9 +462,11 @@ export default function AdminDashboardPage() {
             <div className="pt-2">
               <button
                 type="submit"
-                className="inline-flex items-center space-x-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors shadow-md shadow-blue-500/20"
+                disabled={publishing}
+                className="inline-flex items-center space-x-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors shadow-md shadow-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <span>Publish Article</span>
+                {publishing && <RefreshCw className="h-4 w-4 animate-spin" />}
+                <span>{publishing ? "Publishing..." : "Publish Article"}</span>
               </button>
             </div>
           </form>

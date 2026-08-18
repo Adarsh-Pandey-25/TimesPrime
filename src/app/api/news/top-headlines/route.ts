@@ -1,97 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { memoryCache } from "@/lib/cache";
+import { cache, CACHE_TTL_NEWS_SECONDS } from "@/lib/cache";
 import { paraphraseTitle, paraphraseText } from "@/lib/paraphraser";
 import { Article } from "@/types";
-import { saveArticlesToDB, getDBArticles } from "@/lib/db";
-
-const CACHE_TTL = 15 * 60 * 1000; // 15 minutes in ms
-
-const CATEGORY_MAP: Record<string, string> = {
-  general: "top",
-  tech: "technology",
-  technology: "technology",
-  business: "business",
-  entertainment: "entertainment",
-  sports: "sports",
-  science: "science",
-  health: "health",
-  politics: "politics",
-  world: "world",
-};
-
-// Fallback articles for smooth demo if API key isn't provided or fails
-const MOCK_ARTICLES: Article[] = [
-  {
-    article_id: "mock-1",
-    title: "Next.js 15 & React 19 Released: Revolutionizing Modern Web Applications",
-    link: "https://nextjs.org",
-    description: "The team behind Next.js announces major upgrades including improved server actions, faster bundler speeds, and enhanced dynamic caching.",
-    content: "Full article content covering Next.js innovations and how developers can utilize server components effectively.",
-    pubDate: new Date().toISOString(),
-    image_url: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&auto=format&fit=crop",
-    source_id: "tech-crunch",
-    source_name: "Tech News Daily",
-    category: ["technology"],
-    country: ["us"],
-    language: "english",
-  },
-  {
-    article_id: "mock-2",
-    title: "Global Markets Surge Following Tech Sector Earnings Breakthrough",
-    link: "https://bloomberg.com",
-    description: "Stock indexes worldwide hit record highs after key quarterly financial reports show unprecedented growth across cloud computing and semiconductor industries.",
-    content: "Detailed market breakdown and economic analysis.",
-    pubDate: new Date(Date.now() - 3600000).toISOString(),
-    image_url: "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1200&auto=format&fit=crop",
-    source_id: "financial-times",
-    source_name: "Global Financial Digest",
-    category: ["business"],
-    country: ["us"],
-    language: "english",
-  },
-  {
-    article_id: "mock-3",
-    title: "Breakthrough in Fusion Energy: Scientists Achieve Net Energy Gain Milestone",
-    link: "https://nature.com",
-    description: "Researchers at the international physics laboratory announce a pivotal step toward clean, practically limitless power generation.",
-    content: "Deep dive into fusion energy physics and global climate implications.",
-    pubDate: new Date(Date.now() - 7200000).toISOString(),
-    image_url: "https://images.unsplash.com/photo-1507668077129-56e32842fceb?w=1200&auto=format&fit=crop",
-    source_id: "science-mag",
-    source_name: "Science Horizon",
-    category: ["science"],
-    country: ["us"],
-    language: "english",
-  },
-  {
-    article_id: "mock-4",
-    title: "Championship Finals: Underdog Team Secures Victory in Thrilling Overtime",
-    link: "https://espn.com",
-    description: "In an unbelievable comeback victory, the home team snatched the trophy with seconds left on the clock.",
-    content: "Sports commentary and game highlights.",
-    pubDate: new Date(Date.now() - 10800000).toISOString(),
-    image_url: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1200&auto=format&fit=crop",
-    source_id: "sports-weekly",
-    source_name: "Sports Central",
-    category: ["sports"],
-    country: ["us"],
-    language: "english",
-  },
-  {
-    article_id: "mock-5",
-    title: "Artificial Intelligence in Healthcare: New Diagnostic Tool Detects Early Onset Conditions",
-    link: "https://healthline.com",
-    description: "A newly clinical-tested AI model provides doctors with unprecedented accuracy in early disease detection.",
-    content: "Medical technological advancements and patient case studies.",
-    pubDate: new Date(Date.now() - 14400000).toISOString(),
-    image_url: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&auto=format&fit=crop",
-    source_id: "health-journal",
-    source_name: "Health & Care",
-    category: ["health"],
-    country: ["us"],
-    language: "english",
-  },
-];
+import {
+  saveArticlesToDB,
+  getDBArticles,
+  getLatestArticleTimestamp,
+  NEWS_FRESHNESS_WINDOW_MS,
+} from "@/lib/db";
+import {
+  mapCategory,
+  MOCK_ARTICLES,
+  filterArticlesByLanguageScript,
+  dedupeArticlesByTitle,
+} from "@/lib/newsConfig";
 
 export async function GET(request: NextRequest) {
   try {
@@ -102,22 +24,68 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get("q") || searchParams.get("query") || "";
     const page = searchParams.get("page") || "";
 
-    const category = CATEGORY_MAP[categoryParam.toLowerCase()] || categoryParam;
+    const category = mapCategory(categoryParam);
 
     const refresh = searchParams.get("refresh") === "true";
     const cacheKey = `news_${country}_${category}_${language}_${query.trim().toLowerCase()}_${page}`;
-    const cachedData = refresh ? null : memoryCache.get(cacheKey, CACHE_TTL);
+    const cachedData = refresh ? null : await cache.get<Record<string, unknown>>(cacheKey);
 
     if (cachedData) {
-      return NextResponse.json({ ...cachedData, cached: true });
+      // Neither "supabase" nor "newsdata" would be truthful here — this
+      // response never touched either on this request.
+      return NextResponse.json(
+        { ...cachedData, cached: true },
+        { headers: { "X-Data-Source": "cache" } }
+      );
+    }
+
+    // ---- Supabase-first fast path -------------------------------------
+    // If the DB already holds recent articles for this category, serve them
+    // and skip NewsData.io entirely. Deliberately restricted to plain feed
+    // reads: search and pagination still go upstream, because the DB only
+    // holds a rolling window and would silently return worse results.
+    //
+    // `refresh=true` deliberately does NOT skip this path — it means "don't
+    // serve me the cached payload", not "call NewsData.io". The New Stories
+    // banner relies on that: the rows it is telling the user about are
+    // already in Supabase, so re-reading the DB is both correct and free.
+    // A genuinely stale DB still falls through to NewsData.io below.
+    const canServeFromDB = !query.trim() && !page;
+
+    if (canServeFromDB) {
+      const latestTimestamp = await getLatestArticleTimestamp(category, language);
+      const ageMs = latestTimestamp
+        ? Date.now() - new Date(latestTimestamp).getTime()
+        : Number.POSITIVE_INFINITY;
+
+      if (latestTimestamp && ageMs < NEWS_FRESHNESS_WINDOW_MS) {
+        const dbArticles = await getDBArticles(category, "", language);
+
+        if (dbArticles.length > 0) {
+          const freshData = {
+            status: "success",
+            totalResults: dbArticles.length,
+            results: dedupeArticlesByTitle(dbArticles),
+            nextPage: undefined,
+            retentionPolicy: "Supabase Realtime: Articles auto-purged after 7 days",
+          };
+          freshData.totalResults = freshData.results.length;
+
+          await cache.set(cacheKey, freshData, CACHE_TTL_NEWS_SECONDS);
+          return NextResponse.json(freshData, {
+            headers: { "X-Data-Source": "supabase" },
+          });
+        }
+      }
     }
 
     // Server-Side Isolated API Key (Never sent to client)
-    const apiKey =
-      process.env.NEWSDATA_API_KEY ||
-      "pub_ac92279704bc46d5a24d552edbd6b6fb";
+    const apiKey = process.env.NEWSDATA_API_KEY;
 
     if (!apiKey) {
+      console.error(
+        "NEWSDATA_API_KEY is not set — falling back to mock articles. Add it to .env.local."
+      );
       let filteredMocks = MOCK_ARTICLES;
       if (query.trim()) {
         const qLower = query.trim().toLowerCase();
@@ -137,8 +105,10 @@ export async function GET(request: NextRequest) {
         note: "Using mock data (NEWSDATA_API_KEY not configured)",
       };
 
-      memoryCache.set(cacheKey, mockResult);
-      return NextResponse.json(mockResult);
+      await cache.set(cacheKey, mockResult, CACHE_TTL_NEWS_SECONDS);
+      return NextResponse.json(mockResult, {
+        headers: { "X-Data-Source": "mock" },
+      });
     }
 
     // Call NewsData.io API
@@ -190,17 +160,17 @@ export async function GET(request: NextRequest) {
     }));
 
     // Script-level filter: ensure fetched articles match the requested language
-    const hasHindi = (s?: string) => s && /[\u0900-\u097F]/.test(s);
-    const cleanFetched = fetchedArticles.filter((art) => {
-      if (language === "hi") return hasHindi(art.title);
-      return !hasHindi(art.title);
-    });
+    const cleanFetched = filterArticlesByLanguageScript(fetchedArticles, language);
 
     // 1. Save and Auto-Purge Supabase Database (Keep only 7 days of news)
     await saveArticlesToDB(fetchedArticles);
 
-    // 2. Query accumulated valid articles from Supabase DB
-    const dbArticles = await getDBArticles(categoryParam, query.trim(), language);
+    // 2. Query accumulated valid articles from Supabase DB. Use the mapped
+    // `category` (e.g. "technology"), not the raw `categoryParam` alias
+    // (e.g. "tech") — DB rows are stored with NewsData's own category
+    // tags, which use the mapped taxonomy, so passing the unmapped alias
+    // here would silently match zero rows for any aliased category.
+    const dbArticles = await getDBArticles(category, query.trim(), language);
 
     // Use DB articles if available, otherwise use clean fetched articles
     let rawFinal = dbArticles.length > 0 ? dbArticles : (cleanFetched.length > 0 ? cleanFetched : fetchedArticles);
@@ -220,13 +190,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Deduplicate articles by title to prevent repeated headlines
-    const seenTitles = new Set<string>();
-    const finalArticles = rawFinal.filter((art) => {
-      const key = art.title.trim().toLowerCase();
-      if (seenTitles.has(key)) return false;
-      seenTitles.add(key);
-      return true;
-    });
+    const finalArticles = dedupeArticlesByTitle(rawFinal);
 
     const formattedData = {
       status: data.status || "success",
@@ -236,8 +200,10 @@ export async function GET(request: NextRequest) {
       retentionPolicy: "Supabase Realtime: Articles auto-purged after 7 days",
     };
 
-    memoryCache.set(cacheKey, formattedData);
-    return NextResponse.json(formattedData);
+    await cache.set(cacheKey, formattedData, CACHE_TTL_NEWS_SECONDS);
+    return NextResponse.json(formattedData, {
+      headers: { "X-Data-Source": "newsdata" },
+    });
   } catch (error: any) {
     console.error("Top headlines API error:", error);
     return NextResponse.json(
@@ -246,7 +212,7 @@ export async function GET(request: NextRequest) {
         message: error.message || "Failed to fetch top headlines",
         results: MOCK_ARTICLES,
       },
-      { status: 500 }
+      { status: 500, headers: { "X-Data-Source": "mock" } }
     );
   }
 }

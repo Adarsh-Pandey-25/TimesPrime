@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import * as cheerio from "cheerio";
+import * as Sentry from "@sentry/nextjs";
 import { paraphraseTitle, paraphraseText } from "@/lib/paraphraser";
+import { validateExternalUrl } from "@/lib/urlValidation";
+import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/lib/cache";
+import { urlToHostname } from "@/lib/sentryScrub";
 
-// In-memory scraping cache for 0ms instantaneous article loading
-const scrapeCache = new Map<string, { title: string; content: string[]; text: string; timestamp: number }>();
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour in-memory cache
+interface ScrapeCacheEntry {
+  title: string;
+  content: string[];
+  text: string;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,9 +25,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 1. Instant 0ms cache lookup
-    const cached = scrapeCache.get(targetUrl);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    const urlCheck = await validateExternalUrl(targetUrl);
+    if (!urlCheck.ok) {
+      return NextResponse.json(
+        { error: `Invalid target URL: ${urlCheck.reason}` },
+        { status: 400 }
+      );
+    }
+
+    const cacheKey = `scrape:${targetUrl}`;
+
+    // 1. Instant cache lookup
+    const cached = await cache.get<ScrapeCacheEntry>(cacheKey);
+    if (cached) {
       return NextResponse.json({
         url: targetUrl,
         title: cached.title,
@@ -63,13 +79,12 @@ export async function GET(request: NextRequest) {
     const fullText = paragraphs.join("\n\n");
     const resultContent = paragraphs.length > 0 ? paragraphs : ["Full article coverage is available at the publisher source."];
 
-    // Save to 0ms instant cache
-    scrapeCache.set(targetUrl, {
-      title: pageTitle,
-      content: resultContent,
-      text: fullText,
-      timestamp: Date.now(),
-    });
+    // Save to shared cache
+    await cache.set(
+      cacheKey,
+      { title: pageTitle, content: resultContent, text: fullText },
+      CACHE_TTL_SCRAPE_SECONDS
+    );
 
     // Save full article content to Supabase database asynchronously
     try {
@@ -93,6 +108,16 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.warn("Fast scrape fallback for:", error.message);
+
+    // Domain only — never send the full target URL (which may carry query
+    // params / tracking IDs) to Sentry.
+    const failedTargetUrl = new URL(request.url).searchParams.get("url");
+    const isTimeout = axios.isAxiosError(error) && error.code === "ECONNABORTED";
+    Sentry.captureException(error, {
+      tags: { source: "scraper", failureType: isTimeout ? "timeout" : "parse_or_fetch" },
+      extra: { targetDomain: failedTargetUrl ? urlToHostname(failedTargetUrl) : "unknown" },
+    });
+
     return NextResponse.json({
       url: request.url,
       title: "Full Story Coverage",

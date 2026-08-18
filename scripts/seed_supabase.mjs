@@ -1,6 +1,14 @@
-const supabaseUrl = "https://qwemjarwmkvmuurvtkom.supabase.co";
-const serviceRoleKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3ZW1qYXJ3bWt2bXV1cnZ0a29tIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NjQzNzk2MiwiZXhwIjoyMTAyMDEzOTYyfQ.WfDFiC7LCbIkFTYLqx_8xg4gRojKlO_QRfFLluTGfvU";
-const apiKey = "pub_ac92279704bc46d5a24d552edbd6b6fb";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const apiKey = process.env.NEWSDATA_API_KEY;
+
+if (!supabaseUrl || !serviceRoleKey || !apiKey) {
+  console.error(
+    "Missing required env vars. Run with: node --env-file=.env.local scripts/seed_supabase.mjs\n" +
+      "Required: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEWSDATA_API_KEY"
+  );
+  process.exit(1);
+}
 
 const CATEGORIES = ["top", "technology", "business", "sports", "entertainment", "health", "science"];
 
