@@ -50,6 +50,18 @@ function estimateReadMinutes(paragraphs: string[]): number {
   return Math.max(1, Math.round(wordCount / 200));
 }
 
+/** Bare hostname (no "www.") used both as the source label and the
+ * original-article domain — there's no separate publisher-name field
+ * available here, and a real hostname is more trustworthy than a guess. */
+function getSourceDomain(url?: string): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
 interface ArticleDetailViewProps {
   slug: string;
   targetUrl?: string;
@@ -88,6 +100,23 @@ export default function ArticleDetailView({
     !isScrapeFallbackContent(scrapedData.content);
 
   const readMinutes = hasScrapedContent ? estimateReadMinutes(scrapedData.content!) : 2;
+
+  const sourceDomain = getSourceDomain(targetUrl);
+
+  // Only the fallback (no real scraped content) branch auto-redirects —
+  // when we have real content, staying on TimesPrime is the whole point.
+  const shouldAutoRedirect = !hasScrapedContent && !!targetUrl;
+  const [redirectSeconds, setRedirectSeconds] = useState(5);
+
+  useEffect(() => {
+    if (!shouldAutoRedirect) return;
+    if (redirectSeconds <= 0) {
+      window.location.href = targetUrl!;
+      return;
+    }
+    const timer = setTimeout(() => setRedirectSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [shouldAutoRedirect, redirectSeconds, targetUrl]);
 
   // Poll State
   const [pollVoted, setPollVoted] = useState<string | null>(null);
@@ -375,6 +404,19 @@ export default function ArticleDetailView({
             {displayTitle}
           </h1>
 
+          {/* Source Attribution Line */}
+          {targetUrl && sourceDomain && (
+            <a
+              href={targetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+            >
+              <ExternalLink className="h-3 w-3" />
+              <span>{language === "hi" ? `स्रोत: ${sourceDomain}` : `Source: ${sourceDomain}`}</span>
+            </a>
+          )}
+
           {/* Subtitle description */}
           {scrapedData.description && (
             <p className="text-sm sm:text-base font-medium leading-relaxed text-slate-600 dark:text-slate-300">
@@ -472,6 +514,28 @@ export default function ArticleDetailView({
             </div>
           </div>
 
+          {/* Original Source Banner — shown for every article, not just
+              when the scraper falls back, so readers always know where
+              to go for the full publisher story. */}
+          {targetUrl && sourceDomain && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border-l-4 border-red-600 bg-[#1E3A5F] dark:bg-[#0f1923] px-5 py-4">
+              <p className="text-sm font-medium text-white/90 leading-relaxed">
+                {language === "hi"
+                  ? `📰 यह लेख ${sourceDomain} से लिया गया है। मूल खबर पढ़ने के लिए क्लिक करें।`
+                  : `📰 This article is sourced from ${sourceDomain}. Click to read the original story.`}
+              </p>
+              <a
+                href={targetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                {language === "hi" ? "मूल लेख पढ़ें →" : "Read Original Article →"}
+              </a>
+            </div>
+          )}
+
           {/* Article Story Paragraphs */}
           <article className="space-y-4 text-sm sm:text-base text-slate-800 dark:text-slate-200 font-sans" style={{ lineHeight: 1.8 }}>
             {hasScrapedContent ? (
@@ -503,15 +567,27 @@ export default function ArticleDetailView({
                     : "This article is hosted on the publisher's platform. Click below to read the complete coverage, analysis, and updates."}
                 </p>
                 {targetUrl && (
-                  <a
-                    href={targetUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-red-700 transition-colors shadow-xs"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    {language === "hi" ? "पूरा लेख पढ़ें →" : "Read Full Article →"}
-                  </a>
+                  <>
+                    <a
+                      href={targetUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 transition-colors shadow-xs"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {language === "hi" ? "पूरा लेख पढ़ें →" : "Read Full Article →"}
+                    </a>
+                    {shouldAutoRedirect && (
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {language === "hi"
+                          ? `${redirectSeconds} सेकंड में मूल लेख खुल रहा है... `
+                          : `Opening original article in ${redirectSeconds} second${redirectSeconds === 1 ? "" : "s"}... `}
+                        <a href={targetUrl} className="underline hover:text-red-600 dark:hover:text-red-400">
+                          {language === "hi" ? "यदि रीडायरेक्ट न हो तो यहां क्लिक करें" : "Click here if not redirected"}
+                        </a>
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
