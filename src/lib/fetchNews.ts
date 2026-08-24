@@ -83,8 +83,14 @@ export async function fetchInitialNews(
       language: art.language || language,
     }));
 
+    // Deliberately no "fall back to fetchedArticles" branch here — that used
+    // to silently reintroduce wrong-language titles whenever NewsData.io's
+    // own language tag was wrong and the script filter correctly produced
+    // zero matches (e.g. a Hindi-scripted headline leaking into an English
+    // SSR page load). MOCK_ARTICLES below is the correct empty-state
+    // fallback, not the raw unfiltered upstream response.
     const filtered = filterArticlesByLanguageScript(fetchedArticles, language);
-    const deduped = dedupeArticlesByTitle(filtered.length > 0 ? filtered : fetchedArticles);
+    const deduped = dedupeArticlesByTitle(filtered);
 
     return deduped.length > 0 ? deduped : MOCK_ARTICLES;
   } catch (error) {

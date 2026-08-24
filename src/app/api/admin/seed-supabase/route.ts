@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { saveArticlesToDB } from "@/lib/db";
 import { paraphraseTitle, paraphraseText } from "@/lib/paraphraser";
+import { logAdminAction } from "@/lib/adminLogger";
+
+// Auth is handled upstream by src/proxy.ts (matcher covers /api/admin/:path*),
+// so by the time a request reaches this handler it has already been validated.
 
 const CATEGORIES = ["top", "technology", "business", "sports", "entertainment", "health", "science"];
 
@@ -45,6 +49,11 @@ export async function POST() {
         // Continue loop for other categories
       }
     }
+
+    await logAdminAction("categories_seeded", `Seeded all categories`, {
+      categories_count: CATEGORIES.length,
+      total_articles: totalSaved,
+    });
 
     return NextResponse.json({
       status: "success",

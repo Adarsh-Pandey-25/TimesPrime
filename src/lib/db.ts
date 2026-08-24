@@ -60,6 +60,64 @@ function matchesLanguageScript(title: string | undefined, language: string): boo
   return language === "hi" ? titleIsHindi : !titleIsHindi;
 }
 
+// Publishers whose articles are Hindi-language even when a headline happens
+// to be transliterated/English (Devanagari detection alone misses those).
+// Matched against the article link's hostname, so subdomains still match
+// via endsWith (e.g. "khabar.ndtv.com" matches "ndtv.com" — kept broad
+// deliberately since ndtv.com's Hindi section lives on a subdomain, not a
+// distinct registrable domain).
+const HINDI_SOURCE_DOMAINS = [
+  "amarujala.com",
+  "timesnowhindi.com",
+  "navbharattimes.indiatimes.com",
+  "aajtak.in",
+  "bhaskar.com",
+  "livehindustan.com",
+  "jagran.com",
+  "hindi.news18.com",
+  "zeenews.india.com",
+  "hindi.oneindia.com",
+  "hindi.webdunia.com",
+  "patrika.com",
+];
+
+function isFromHindiSource(link: string | undefined): boolean {
+  if (!link) return false;
+  try {
+    const hostname = new URL(link).hostname.toLowerCase();
+    return HINDI_SOURCE_DOMAINS.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
+// Sources that gate nearly all article content behind a subscription, so
+// storing them just means the reader hits scrape-article's paywall branch
+// (see src/app/api/news/scrape-article/route.ts) every time — better to
+// not show them in the feed at all.
+//
+// Deliberately NOT domain-wide for every "premium" publisher: Supabase's
+// live data (checked August 2026) also has timesofindia.indiatimes.com
+// (68 rows), livemint.com (7), hindi.business-standard.com (7), and
+// thehindu.com (12), but those are metered/partial paywalls — most of
+// their content is freely readable, and only a labeled subset (e.g. TOI+)
+// is locked. Skipping their entire domain here would hide dozens of
+// legitimate free articles; per-article precision for those sources comes
+// from scrape-article's detectPaywall() at read time instead, not from
+// this list. This list is only for sources where practically everything
+// is behind the paywall, verified against the same live data.
+const HARD_PAYWALL_SOURCE_DOMAINS = ["wsj.com", "bloomberg.com"];
+
+function isFromHardPaywallSource(link: string | undefined): boolean {
+  if (!link) return false;
+  try {
+    const hostname = new URL(link).hostname.toLowerCase();
+    return HARD_PAYWALL_SOURCE_DOMAINS.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Automatically purges any article older than 7 days from Supabase.
  */
@@ -109,7 +167,12 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
   }
 
   try {
-    const rowsToUpsert = incomingArticles.map((art) => ({
+    // Hard-paywall sources never make it into the feed at all — see
+    // HARD_PAYWALL_SOURCE_DOMAINS above for why this list stays narrow.
+    const storableArticles = incomingArticles.filter((art) => !isFromHardPaywallSource(art.link));
+    if (storableArticles.length === 0) return [];
+
+    const rowsToUpsert = storableArticles.map((art) => ({
       article_id: art.article_id || art.link || art.title,
       title: art.title,
       link: art.link || "#",
@@ -121,7 +184,17 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
       source_name: art.source_name || "News Source",
       category: art.category || ["general"],
       country: art.country || ["us"],
-      language: art.language || "english",
+      // Devanagari script always wins over whatever language tag the
+      // source provided — NewsData.io tags some genuinely-Hindi articles
+      // (amarujala, timesnowhindi, etc.) as "en". Filtering already
+      // ignores the stored tag in favor of script detection; this just
+      // makes the stored value match what the app actually treats it as.
+      // Known Hindi source domains are a second signal for the case
+      // Devanagari detection alone misses: a Hindi publisher's headline
+      // that's transliterated/English with no Devanagari characters at all.
+      language: containsHindiScript(art.title) || art.language === "hi" || art.language === "hindi" || isFromHindiSource(art.link)
+        ? "hi"
+        : "en",
     }));
 
     const { data, error } = await supabase

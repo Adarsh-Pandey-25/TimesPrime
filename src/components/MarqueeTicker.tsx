@@ -114,7 +114,15 @@ export default function MarqueeTicker({ articles }: MarqueeTickerProps) {
           : "bg-[#0f1115] text-slate-100"
       }`}
     >
-      {/* Fixed Breaking News Red Label with Curved Border Radius & Glow */}
+      {/* Fixed ticker label. Deliberately NOT "Breaking News" — that text
+          collided with the real admin-curated breaking news banner
+          (src/components/BreakingNewsBanner.tsx), which sits directly
+          above this on every page: two bars both claiming "BREAKING NEWS"
+          for different content read as a bug. This ticker only ever
+          showed the regular India+World top-headlines feed, never
+          anything admin-flagged as urgent, so "Latest Updates" (already
+          used elsewhere in the app — see translations.ts) is the accurate
+          label. Curved border radius & glow kept as-is. */}
       <div className="animate-flash-bg z-10 flex shrink-0 h-full items-center space-x-1.5 sm:space-x-2 rounded-r-xl px-2.5 sm:px-4 text-xs font-black uppercase tracking-wider sm:tracking-widest text-white shadow-md shadow-red-600/25 border-r-2 border-red-500/60">
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-300 opacity-75"></span>
@@ -126,7 +134,7 @@ export default function MarqueeTicker({ articles }: MarqueeTickerProps) {
         </span>
         <Zap className="h-3.5 w-3.5 fill-amber-300 text-amber-300 shrink-0" />
         <span className="whitespace-nowrap">
-          {language === "hi" ? "ब्रेकिंग न्यूज़" : "BREAKING NEWS"}
+          {language === "hi" ? "ताजा अपडेट" : "LATEST UPDATES"}
         </span>
       </div>
 

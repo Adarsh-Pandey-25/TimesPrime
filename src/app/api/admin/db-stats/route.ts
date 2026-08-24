@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getDBStats, purgeOldArticles } from "@/lib/db";
+import { logAdminAction } from "@/lib/adminLogger";
+
+// Auth is handled upstream by src/proxy.ts (matcher covers /api/admin/:path*),
+// so by the time a request reaches this handler it has already been validated.
 
 export async function GET() {
   try {
@@ -20,6 +24,9 @@ export async function POST() {
   try {
     const removedCount = await purgeOldArticles();
     const stats = await getDBStats();
+
+    await logAdminAction("database_purged", `Purged old articles`, { deleted_count: removedCount });
+
     return NextResponse.json({
       status: "success",
       message: `Supabase database purged successfully. Removed ${removedCount} articles older than 7 days.`,

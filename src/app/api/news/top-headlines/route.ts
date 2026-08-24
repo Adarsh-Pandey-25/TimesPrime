@@ -172,8 +172,15 @@ export async function GET(request: NextRequest) {
     // here would silently match zero rows for any aliased category.
     const dbArticles = await getDBArticles(category, query.trim(), language);
 
-    // Use DB articles if available, otherwise use clean fetched articles
-    let rawFinal = dbArticles.length > 0 ? dbArticles : (cleanFetched.length > 0 ? cleanFetched : fetchedArticles);
+    // Use DB articles if available, otherwise the freshly-fetched articles
+    // that already passed the language-script filter above. Deliberately
+    // does NOT fall back to the raw unfiltered `fetchedArticles` when both
+    // are empty — that fallback used to silently reintroduce wrong-language
+    // titles (e.g. a Hindi-scripted headline under an English request)
+    // whenever NewsData.io's own language tagging was wrong and the script
+    // filter correctly zeroed out the result. Showing no results is correct
+    // here; showing wrong-language results is not.
+    let rawFinal = dbArticles.length > 0 ? dbArticles : cleanFetched;
 
     // If a search query is set, perform smart keyword matching over results
     if (query.trim()) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import * as cheerio from "cheerio";
+import type { CheerioAPI } from "cheerio";
 import * as Sentry from "@sentry/nextjs";
 import { paraphraseTitle, paraphraseText } from "@/lib/paraphraser";
 import { validateExternalUrl } from "@/lib/urlValidation";
@@ -11,9 +12,121 @@ interface ScrapeCacheEntry {
   title: string;
   content: string[];
   text: string;
+  isPaywalled?: boolean;
+  description?: string;
+  image?: string;
 }
 
 const MAX_CONTENT_CHARS = 5000;
+
+// DOM-level removal — runs BEFORE paragraph extraction, so anything inside
+// these containers can never reach $("p").each() as a paragraph at all.
+// More reliable than the text-pattern matching below: a removed node's
+// children are gone from the tree, regardless of what text they contain or
+// whether that text happens to match any of the patterns further down.
+const DOM_REMOVAL_SELECTORS = [
+  '[class*="author-bio"]',
+  '[class*="author-info"]',
+  '[class*="writer-info"]',
+  '[itemprop="author"]',
+  "nav",
+  "header",
+  "footer",
+  '[class*="breadcrumb"]',
+  '[role="navigation"]',
+];
+
+function removeNonContentNodes($: CheerioAPI): void {
+  for (const selector of DOM_REMOVAL_SELECTORS) {
+    $(selector).remove();
+  }
+}
+
+// Paywall detection — runs immediately after $ is loaded, before any DOM
+// removal or paragraph extraction. A paywalled page's visible HTML is
+// mostly a teaser plus a subscription prompt, not the actual article;
+// running the normal extraction pipeline on it produces junk or nothing at
+// all, which is the "blank content" bug this exists to prevent.
+interface PaywallDetectionResult {
+  isPaywalled: boolean;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+}
+
+// Class-name fragments commonly used for paywall/subscription-gate
+// wrappers. Broad substring matches deliberately: publishers name these
+// containers all sorts of things, but "paywall", "subscriber-only", and
+// "premium-content" show up across a wide range of CMSs and paywall
+// vendors (Piano, Tinypass/Zephr, in-house implementations).
+const PAYWALL_SELECTORS = [
+  '[class*="paywall"]',
+  '[class*="subscriber-only"]',
+  '[class*="premium-content"]',
+  ".tp-modal",
+  ".article-lock",
+];
+
+// Meta-tag signals used by publishers integrated with platform-level
+// subscription tooling (e.g. Meta's article:content_tier extension, used
+// by outlets like Washington Post) to mark a page as locked independent of
+// any visible DOM wrapper.
+function hasPaywallMetaTag($: CheerioAPI): boolean {
+  const contentTier = $('meta[property="article:content_tier"]').attr("content")?.toLowerCase();
+  if (contentTier === "locked") return true;
+
+  const access = $('meta[name="access"]').attr("content")?.toLowerCase();
+  if (access === "paid" || access === "subscription") return true;
+
+  return false;
+}
+
+// schema.org NewsArticle/Article markup's isAccessibleForFree flag — the
+// closest thing to an authoritative, publisher-declared paywall signal.
+// Scanned across every JSON-LD block on the page since publishers vary in
+// whether it's a top-level property or nested under an @graph array.
+function hasPaywallStructuredData($: CheerioAPI): boolean {
+  let found = false;
+  $('script[type="application/ld+json"]').each((_, el) => {
+    if (found) return;
+    const raw = $(el).html();
+    if (!raw || !raw.includes("isAccessibleForFree")) return;
+    try {
+      const parsed = JSON.parse(raw);
+      const nodes = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.["@graph"])
+          ? parsed["@graph"]
+          : [parsed];
+      for (const node of nodes) {
+        const value = node?.isAccessibleForFree;
+        if (value === false || value === "false" || value === "False") {
+          found = true;
+          break;
+        }
+      }
+    } catch {
+      // Malformed JSON-LD — ignore this block, other signals still apply.
+    }
+  });
+  return found;
+}
+
+function detectPaywall($: CheerioAPI): PaywallDetectionResult {
+  const isPaywalled =
+    PAYWALL_SELECTORS.some((selector) => $(selector).length > 0) ||
+    hasPaywallMetaTag($) ||
+    hasPaywallStructuredData($);
+
+  if (!isPaywalled) return { isPaywalled: false };
+
+  return {
+    isPaywalled: true,
+    ogTitle: $('meta[property="og:title"]').attr("content")?.trim(),
+    ogDescription: $('meta[property="og:description"]').attr("content")?.trim(),
+    ogImage: $('meta[property="og:image"]').attr("content")?.trim(),
+  };
+}
 
 // Paragraphs that start with one of these are author bios, bylines, or
 // site chrome that publishers wrap in the same <p> tags as real article
@@ -38,11 +151,80 @@ const JUNK_START_PATTERNS = [
   "follow us",
   "subscribe to",
   "copyright",
+  "© copyright", // "copyright" alone doesn't match when a leading © symbol precedes it — found via testing (starherald.com)
   "all rights reserved",
+
+  // App-download / subscription prompts — Hindi
+  "एप डाउनलोड करें",
+  "ऐप डाउनलोड करें",
+  "अमर उजाला एप",
+  "अमर उजाला ऐप", // spelling variant (ऐ vs ए) not covered by "अमर उजाला एप" above — found via testing
+  "hindi news app",
+  "वीडियो विज्ञापन देखें",
+  "वेबसाइट पर पढ़ना जारी रखें",
+  "खबरें लगातार पढ़ने के लिए",
+  "breaking news in hindi",
+  "get all india news in hindi",
+  "stay updated with us",
+  "डाउनलोड करें android",
+  "ios hindi news app",
+  "और अधिक पढ़ें",
+  "पूरी खबर पढ़ें",
+
+  // App-download / subscription prompts — English
+  "download our app",
+  "subscribe to our newsletter",
+  "follow us on", // already covered by "follow us" above (no "on") — kept for parity with the requested list
+  "get the latest news",
+  "read more at",
+  "click here to read",
+
+  // App-download / social prompts — Hindi (round 2)
+  "ऐप डाउनलोड", // broader than "ऐप डाउनलोड करें" above — catches other verb forms
+  "एप डाउनलोड", // broader than "एप डाउनलोड करें" above
+  // Deliberately startsWith-only, not contains: "सोशल मीडिया" ("social
+  // media") is common enough in genuine news prose (articles about social
+  // media policy, platforms, trends) that a mid-paragraph contains-check
+  // would filter real content, not just the "follow us on social media"
+  // boilerplate this is meant to catch.
+  "सोशल मीडिया",
+
+  // App-download / social prompts — English (round 2)
+  "follow the fresh indian express",
+  "follow us on whatsapp", // textually distinct from "follow us on" above — kept for parity with the requested list
+  "download the tne app",
+  "download the app",
+  "join our whatsapp",
+  "follow our whatsapp channel",
+  "get our newsletter",
+  "join our telegram",
+  "follow us on telegram", // textually distinct from "follow us on" above — kept for parity with the requested list
+  "enable notifications",
+  "get the latest news on whatsapp", // textually distinct from "get the latest news" above — kept for parity with the requested list
+  "push notifications", // moved from JUNK_CONTAINS_PATTERNS — was matching mid-sentence in legitimate tech paragraphs (e.g. "...update now supports richer push notifications...")
 ];
 
 // Substrings that flag junk anywhere in the paragraph, not just the start.
-const JUNK_CONTAINS_PATTERNS = ["cookie", "rights reserved"];
+// "यह भी पढ़ें" / "इसे भी पढ़ें" ("also read this") and "अपने मोबाइल पे"
+// ("on your mobile") are commonly embedded mid-paragraph as inline
+// cross-links or app-download callouts on Hindi publisher sites, not
+// necessarily leading a whole paragraph the way the start-patterns above do.
+const JUNK_CONTAINS_PATTERNS = [
+  "cookie",
+  "rights reserved",
+  "majority shareholder", // publisher-ownership boilerplate — found via testing (starherald.com: "A Lee Enterprises, Incorporated newspaper. Majority shareholder: ...")
+  "यह भी पढ़ें",
+  "इसे भी पढ़ें",
+  "अपने मोबाइल पे",
+  "व्हाट्सएप चैनल",
+  "व्हाट्सऐप",
+  "न्यूजलेटर सब्सक्राइब",
+  "टेलीग्राम",
+  "whatsapp channel",
+  "telegram channel",
+  "newsletter subscription",
+  "subscribe to our channel",
+];
 
 // Author-bio sentences ("Currently has 10 years of experience in
 // journalism...") rarely start with a fixed phrase, but reliably contain
@@ -52,7 +234,21 @@ const BIO_PATTERN_PAIRS: [string, string][] = [
   ["पत्रकारिता में", "अनुभव"],
 ];
 
-const SOCIAL_PROMPT_PATTERNS = ["follow on", "share on", "फॉलो करें"];
+const SOCIAL_PROMPT_PATTERNS = ["follow on", "share on", "फॉलो करें", "शेयर करें", "follow on whatsapp"];
+
+// Author-bio sentences that name the author ("Priya Sharma is a senior
+// reporter at...") can't be caught by a literal substring the way
+// BIO_PATTERN_PAIRS catches nameless bios — the name varies, only the
+// surrounding shape is fixed. These run as real regex, not .includes().
+const JUNK_REGEX_PATTERNS: RegExp[] = [
+  /\bis\s+(a|the)\s+(senior\s+|chief\s+|principal\s+|staff\s+)?(reporter|correspondent|journalist|columnist|editor)\s+(at|for|with)\b/i,
+  /\bcovers\s+.{0,40}\s+for\s+\S/i,
+  /\bhas\s+been\s+(writing|reporting|covering)\s+.{0,40}\s+(for|since)\b/i,
+  /\bfollow\s+\S+(\s+\S+)?\s+on\s+(twitter|instagram|facebook|linkedin)\b/i,
+  // Hindi equivalents
+  /वरिष्ठ\s+(पत्रकार|संवाददाता|लेखक|संपादक)\s+(हैं|है)/,
+  /(ट्विटर|इंस्टाग्राम|फेसबुक)\s+पर\s+फॉलो\s+करें/,
+];
 
 const MIN_PARAGRAPH_LENGTH = 40;
 
@@ -74,6 +270,10 @@ function isJunkParagraph(text: string): boolean {
   }
 
   if (SOCIAL_PROMPT_PATTERNS.some((pattern) => lower.includes(pattern.toLowerCase()))) {
+    return true;
+  }
+
+  if (JUNK_REGEX_PATTERNS.some((pattern) => pattern.test(text))) {
     return true;
   }
 
@@ -132,6 +332,9 @@ export async function GET(request: NextRequest) {
         title: cached.title,
         content: cached.content,
         text: cached.text,
+        isPaywalled: cached.isPaywalled ?? false,
+        description: cached.description,
+        image: cached.image,
         cached: true,
       });
     }
@@ -149,6 +352,46 @@ export async function GET(request: NextRequest) {
 
     const $ = cheerio.load(response.data);
 
+    // Paywall check runs before any extraction — a locked page's body
+    // isn't the article, so there's nothing worth running
+    // removeNonContentNodes/paragraph-extraction on. Whatever OG metadata
+    // survives outside the paywall is still returned, so the UI can show a
+    // real title/description instead of a blank page.
+    const paywall = detectPaywall($);
+    if (paywall.isPaywalled) {
+      const paywallTitle = paraphraseTitle(
+        paywall.ogTitle ||
+          $("h1").first().text().trim() ||
+          $("title").text().trim() ||
+          "Article Details"
+      );
+      const paywallDescription = paywall.ogDescription || "";
+      const paywallImage = paywall.ogImage || "";
+
+      await cache.set(
+        cacheKey,
+        {
+          title: paywallTitle,
+          content: [],
+          text: "",
+          isPaywalled: true,
+          description: paywallDescription,
+          image: paywallImage,
+        },
+        CACHE_TTL_SCRAPE_SECONDS
+      );
+
+      return NextResponse.json({
+        url: targetUrl,
+        title: paywallTitle,
+        content: [],
+        text: "",
+        isPaywalled: true,
+        description: paywallDescription,
+        image: paywallImage,
+      });
+    }
+
     // Extract title
     const rawTitle =
       $("h1").first().text().trim() ||
@@ -156,15 +399,27 @@ export async function GET(request: NextRequest) {
       "Article Details";
     const pageTitle = paraphraseTitle(rawTitle);
 
+    // Remove author-bio/nav/breadcrumb containers from the tree before
+    // paragraph extraction — see removeNonContentNodes for why this runs
+    // before the $("p").each() loop rather than after.
+    removeNonContentNodes($);
+
     // Extract paragraphs. Junk-filtering runs on the raw scraped text
     // (before paraphraseText) so a bio's rewording can't dodge a
     // start-pattern match that the original text would have hit.
+    const LINK_DENSITY_THRESHOLD = 0.8;
     const rawParagraphs: string[] = [];
     $("p").each((_, element) => {
       const text = $(element).text().trim();
-      if (text) {
-        rawParagraphs.push(text);
-      }
+      if (!text) return;
+
+      // Nav-like paragraph a selector above missed (e.g. a "related links"
+      // list rendered as a <p> instead of a proper <nav>): mostly hyperlink
+      // text isn't article content, regardless of what the words say.
+      const linkText = $(element).find("a").text().trim();
+      if (linkText.length / text.length >= LINK_DENSITY_THRESHOLD) return;
+
+      rawParagraphs.push(text);
     });
 
     const cleanedParagraphs = cleanContent(rawParagraphs).map((text) => paraphraseText(text));
@@ -177,7 +432,7 @@ export async function GET(request: NextRequest) {
     // Save to shared cache
     await cache.set(
       cacheKey,
-      { title: pageTitle, content: resultContent, text: fullText },
+      { title: pageTitle, content: resultContent, text: fullText, isPaywalled: false },
       CACHE_TTL_SCRAPE_SECONDS
     );
 
@@ -200,6 +455,7 @@ export async function GET(request: NextRequest) {
       title: pageTitle,
       content: resultContent,
       text: fullText || "Full article coverage.",
+      isPaywalled: false,
     });
   } catch (error: any) {
     console.warn("Fast scrape fallback for:", error.message);
@@ -218,6 +474,7 @@ export async function GET(request: NextRequest) {
       title: "Full Story Coverage",
       content: ["Full article coverage details for this report are available directly on the official publisher website below."],
       text: "Full story details.",
+      isPaywalled: false,
     });
   }
 }

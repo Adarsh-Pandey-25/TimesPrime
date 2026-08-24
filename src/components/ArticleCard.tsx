@@ -156,8 +156,8 @@ export default function ArticleCard({
     return (
       <Link
         href={detailUrl}
-        className={`group relative flex flex-col overflow-hidden rounded-2xl shadow-xl transition-all duration-300 cursor-pointer ${className} ${
-          isDark ? "bg-[#1e2124] text-slate-100" : "bg-white text-slate-900"
+        className={`group relative flex flex-col overflow-hidden rounded-2xl border-l-4 border-red-600/70 shadow-xl transition-all duration-300 hover:shadow-2xl cursor-pointer ${className} ${
+          isDark ? "bg-[#1e2124] text-slate-100" : "bg-white/95 backdrop-blur-sm text-slate-900"
         }`}
       >
         {/* CINEMATIC IMAGE with overlapping title */}
@@ -170,20 +170,25 @@ export default function ArticleCard({
               alt={displayTitle}
               fill
               sizes="100vw"
-              className="object-cover transition-transform duration-500 group-hover/img:scale-[1.05]"
+              className="object-cover transition-transform duration-500 group-hover/img:scale-110"
               onError={() => setImgFailed(true)}
-              priority
+              preload
+              fetchPriority="high"
             />
           )}
           {/* Bottom 40% dark gradient so the overlapping title stays readable */}
           <div className="absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none" />
 
           <div className="absolute top-3 left-3 flex items-center gap-1.5">
-            <span className="rounded-full bg-white/90 backdrop-blur-sm px-2.5 py-1 text-[10px] font-black text-red-600 uppercase tracking-wider shadow-sm animate-pulse">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur-sm px-2.5 py-1 text-[10px] font-black text-red-600 uppercase tracking-wider shadow-sm animate-pulse">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-600 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-600" />
+              </span>
               Featured
             </span>
             <span
-              className={`rounded-full ${categoryBadgeBgClass} backdrop-blur-sm px-2.5 py-1 text-[10px] font-black text-white uppercase tracking-wider shadow-sm`}
+              className={`rounded-full ${categoryBadgeBgClass} backdrop-blur-sm px-3 py-1 text-[11px] font-black text-white uppercase tracking-wider shadow-sm`}
             >
               {topicCategory}
             </span>
@@ -228,7 +233,7 @@ export default function ArticleCard({
                   <button
                     key={relArt.article_id || idx}
                     onClick={(e) => handleSubStoryClick(e, relArt)}
-                    className="w-full text-left flex items-start space-x-2 text-[11px] font-semibold text-slate-800 dark:text-slate-200 hover:text-red-600 dark:hover:text-red-400 transition-colors truncate"
+                    className="w-full text-left flex items-start space-x-2 text-sm font-semibold text-slate-800 dark:text-slate-200 hover:text-red-600 dark:hover:text-red-400 transition-colors truncate"
                   >
                     <span className="text-red-600 font-bold">•</span>
                     <span className="truncate">{relArt.title}</span>
@@ -243,9 +248,9 @@ export default function ArticleCard({
               isDark ? "border-[#34383f]" : "border-slate-100"
             }`}
           >
-            <span className="inline-flex items-center space-x-1 text-sm font-bold text-red-600 dark:text-red-400 group-hover:text-red-700">
+            <span className="inline-flex items-center space-x-1 text-sm font-semibold text-red-600 dark:text-red-400 group-hover:text-red-700">
               <span>{t.readFullArticle}</span>
-              <ExternalLink className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+              <ExternalLink className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-1" />
             </span>
 
             <button
@@ -271,7 +276,7 @@ export default function ArticleCard({
       className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-l-4 ${categoryBorderClass} p-5 transition-all duration-300 shadow-sm cursor-pointer ${className} ${
         isDark
           ? "border-[#34383f] bg-[#26292f] text-slate-100 hover:border-red-600/50 hover:bg-[#2a2d33] hover:shadow-xl hover:shadow-black/30"
-          : "border-slate-200 bg-[#FAFAFA] text-slate-900 hover:border-red-500/50 hover:shadow-xl hover:shadow-slate-300/40"
+          : "border-slate-200 bg-[#FAFAFA]/95 backdrop-blur-sm text-slate-900 hover:border-red-500/50 hover:shadow-xl hover:shadow-slate-300/40"
       }`}
     >
       {/* IMAGE CONTAINER */}
@@ -283,21 +288,22 @@ export default function ArticleCard({
             src={imgSrc}
             alt={displayTitle}
             fill
-            sizes="(max-width: 768px) 100vw, 33vw"
-            className="object-cover transition-transform duration-500 group-hover/img:scale-[1.08]"
+            sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, 25vw"
+            className="object-cover transition-transform duration-500 group-hover/img:scale-110"
             onError={() => setImgFailed(true)}
           />
         )}
-        {/* Bottom gradient overlay for depth — purely decorative here (no
-            overlaid text like the featured card), so skip it over the
-            placeholder rather than muddying the clean grey gradient. */}
+        {/* Bottom gradient overlay for depth — always visible, not just on
+            hover — purely decorative here (no overlaid text like the
+            featured card), so skip it over the placeholder rather than
+            muddying the clean grey gradient. */}
         {!imgFailed && (
-          <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none" />
+          <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
         )}
 
         <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
           <span
-            className={`rounded-full ${categoryBadgeBgClass} backdrop-blur-sm px-2.5 py-1 text-[10px] font-black text-white uppercase tracking-wider shadow-sm`}
+            className={`rounded-full ${categoryBadgeBgClass} backdrop-blur-sm px-3 py-1 text-[11px] font-black text-white uppercase tracking-wider shadow-sm`}
           >
             {topicCategory}
           </span>
@@ -325,7 +331,7 @@ export default function ArticleCard({
 
           <div className="border-t border-slate-100 dark:border-[#34383f]" />
 
-          <h2 className="font-serif font-extrabold leading-normal transition-colors group-hover:text-red-600 dark:group-hover:text-red-400 text-base sm:text-lg line-clamp-2">
+          <h2 className="font-serif font-extrabold leading-tight transition-colors group-hover:text-red-600 dark:group-hover:text-red-400 text-base sm:text-lg line-clamp-2">
             {displayTitle}
           </h2>
 
@@ -341,9 +347,9 @@ export default function ArticleCard({
             isDark ? "border-[#34383f]" : "border-slate-100"
           }`}
         >
-          <span className="inline-flex items-center space-x-1 text-xs sm:text-sm font-bold text-red-600 dark:text-red-400 group-hover:text-red-700">
+          <span className="inline-flex items-center space-x-1 text-xs sm:text-sm font-semibold text-red-600 dark:text-red-400 group-hover:text-red-700">
             <span>{t.readArticle}</span>
-            <ExternalLink className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+            <ExternalLink className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-1" />
           </span>
 
           <button

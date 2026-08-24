@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { logAdminAction } from "@/lib/adminLogger";
 
 // Auth is handled upstream by src/proxy.ts (matcher covers /api/admin/:path*),
 // so by the time a request reaches this handler it has already been validated.
@@ -88,6 +89,11 @@ export async function POST(request: NextRequest) {
       console.error("Publish article Supabase error:", error.message);
       return NextResponse.json({ error: `Database error: ${error.message}` }, { status: 500 });
     }
+
+    await logAdminAction("article_published", `Published: ${title.trim()}`, {
+      article_id: articleId,
+      title: title.trim(),
+    });
 
     return NextResponse.json({ status: "success", article: data });
   } catch (error: any) {

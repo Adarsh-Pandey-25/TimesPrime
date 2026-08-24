@@ -48,7 +48,12 @@ const SOCIAL_ICONS = [
 export default function Footer({ language: propsLang }: FooterProps) {
   const { theme } = useTheme();
   const { language: globalLang } = useLanguage();
-  const language = globalLang || propsLang || "en";
+  // Explicit allowlist rather than `x || "en"` fallback chaining: TRANSLATIONS
+  // only has "en"/"hi" keys, so any other truthy-but-unexpected value here
+  // (not just a falsy one) would index it to undefined and crash the whole
+  // footer on first `t.footer.X` access.
+  const rawLanguage = globalLang || propsLang;
+  const language: Language = rawLanguage === "hi" ? "hi" : "en";
   const t = TRANSLATIONS[language];
   const isDark = theme === "dark";
 
@@ -90,7 +95,7 @@ export default function Footer({ language: propsLang }: FooterProps) {
 
               <div className="space-y-2 pt-1">
                 <span className="text-[11px] font-bold uppercase tracking-wider block text-slate-400">
-                  {language === "hi" ? "हमें फॉलो करें:" : "Follow Us:"}
+                  {t.footer.followUs}
                 </span>
                 <div className="flex items-center space-x-2.5">
                   {SOCIAL_ICONS.map((social) => (
@@ -112,7 +117,7 @@ export default function Footer({ language: propsLang }: FooterProps) {
             {/* Column 2 — News Categories */}
             <div className="space-y-4 self-start">
               <h3 className="text-[10px] font-black uppercase tracking-widest border-l-2 border-red-600 pl-2 text-slate-400">
-                {language === "hi" ? "समाचार" : "News"}
+                {t.footer.newsHeading}
               </h3>
               <div className="flex flex-col gap-2 text-sm font-medium">
                 <Link href="/?category=general" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
@@ -136,7 +141,7 @@ export default function Footer({ language: propsLang }: FooterProps) {
             {/* Column 3 — More News */}
             <div className="space-y-4 self-start">
               <h3 className="text-[10px] font-black uppercase tracking-widest border-l-2 border-red-600 pl-2 text-slate-400">
-                {language === "hi" ? "अधिक समाचार" : "More News"}
+                {t.footer.moreNewsHeading}
               </h3>
               <div className="flex flex-col gap-2 text-sm font-medium">
                 <Link href="/?category=sports" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
@@ -152,7 +157,7 @@ export default function Footer({ language: propsLang }: FooterProps) {
                   <span>›</span> {t.categories.science}
                 </Link>
                 <Link href="/saved" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
-                  <span>›</span> {language === "hi" ? "सेव किए गए समाचार" : "Saved Articles"}
+                  <span>›</span> {t.footer.savedArticles}
                 </Link>
               </div>
             </div>
@@ -160,23 +165,23 @@ export default function Footer({ language: propsLang }: FooterProps) {
             {/* Column 4 — Company (placeholder links) */}
             <div className="space-y-4 self-start">
               <h3 className="text-[10px] font-black uppercase tracking-widest border-l-2 border-red-600 pl-2 text-slate-400">
-                {language === "hi" ? "कंपनी" : "Company"}
+                {t.footer.companyHeading}
               </h3>
               <div className="flex flex-col gap-2 text-sm font-medium">
                 <Link href="/about" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
-                  <span>›</span> {language === "hi" ? "हमारे बारे में" : "About Us"}
+                  <span>›</span> {t.footer.aboutUs}
                 </Link>
                 <Link href="/contact" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
-                  <span>›</span> {language === "hi" ? "संपर्क करें" : "Contact Us"}
+                  <span>›</span> {t.footer.contactUs}
                 </Link>
                 <Link href="#" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
-                  <span>›</span> {language === "hi" ? "विज्ञापन दें" : "Advertise With Us"}
+                  <span>›</span> {t.footer.advertiseWithUs}
                 </Link>
                 <Link href="/privacy" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
-                  <span>›</span> {language === "hi" ? "गोपनीयता नीति" : "Privacy Policy"}
+                  <span>›</span> {t.footer.privacyPolicy}
                 </Link>
                 <Link href="/terms" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
-                  <span>›</span> {language === "hi" ? "उपयोग की शर्तें" : "Terms of Use"}
+                  <span>›</span> {t.footer.termsOfUse}
                 </Link>
               </div>
             </div>
@@ -188,12 +193,12 @@ export default function Footer({ language: propsLang }: FooterProps) {
       <div className={isDark ? "w-full bg-[#080e14]" : "w-full bg-[#152A47]"}>
         <div className="mx-auto max-w-[1500px] px-3 py-4 sm:px-4 md:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm sm:text-base font-bold text-white text-center sm:text-left">
-            📰 {language === "hi" ? "जुड़े रहें — अपनी दैनिक समाचार डाइजेस्ट पाएं" : "Stay Informed — Get Your Daily News Digest"}
+            📰 {t.footer.newsletterStripTagline}
           </p>
 
           {newsletterSubmitted ? (
             <p className="flex items-center gap-2 rounded-lg bg-white/15 px-4 py-2 text-sm font-semibold text-white">
-              ✓ {language === "hi" ? "सदस्यता सफल!" : "You're subscribed!"}
+              ✓ {t.footer.subscribedSuccess}
             </p>
           ) : (
             <form onSubmit={handleNewsletterSubmit} className="flex items-center gap-2 w-full sm:w-auto justify-center">
@@ -201,14 +206,14 @@ export default function Footer({ language: propsLang }: FooterProps) {
                 <input
                   type="email"
                   required
-                  placeholder={language === "hi" ? "अपना ईमेल दर्ज करें" : "Enter your email"}
+                  placeholder={t.footer.newsletterEmailPlaceholder}
                   className="rounded-lg bg-white text-slate-900 placeholder-slate-400 px-4 py-2 text-sm flex-1 focus:outline-none"
                 />
                 <button
                   type="submit"
                   className="ml-0 rounded-lg bg-[#DC2626] text-white font-bold px-4 py-2 text-sm hover:bg-[#b91c1c] transition-colors"
                 >
-                  {language === "hi" ? "सदस्यता लें" : "Subscribe"}
+                  {t.footer.subscribe}
                 </button>
               </div>
             </form>
@@ -225,27 +230,27 @@ export default function Footer({ language: propsLang }: FooterProps) {
 
           <div className="flex items-center flex-wrap justify-center gap-x-2 gap-y-1.5 text-slate-400">
             <Link href="/privacy" className="hover:text-white transition-colors">
-              {language === "hi" ? "गोपनीयता नीति" : "Privacy Policy"}
+              {t.footer.privacyPolicy}
             </Link>
             <span>·</span>
             <Link href="/terms" className="hover:text-white transition-colors">
-              {language === "hi" ? "उपयोग की शर्तें" : "Terms of Use"}
+              {t.footer.termsOfUse}
             </Link>
             <span>·</span>
             <Link href="/contact" className="hover:text-white transition-colors">
-              {language === "hi" ? "संपर्क करें" : "Contact Us"}
+              {t.footer.contactUs}
             </Link>
             <span>·</span>
             <Link href="#" className="hover:text-white transition-colors">
-              {language === "hi" ? "आरएसएस फीड" : "RSS Feeds"}
+              {t.footer.rssFeeds}
             </Link>
             <span>·</span>
             <button
               onClick={scrollToTop}
               className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
-              title="Back to top"
+              title={t.footer.backToTop}
             >
-              <span>{language === "hi" ? "ऊपर जाएं" : "Back to top"}</span>
+              <span>{t.footer.backToTop}</span>
               <ArrowUp className="h-3 w-3" />
             </button>
           </div>

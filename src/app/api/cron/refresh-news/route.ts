@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { saveArticlesToDB } from "@/lib/db";
 import { fetchNewsDataArticles } from "@/lib/newsdata";
+import { logAdminAction } from "@/lib/adminLogger";
 
 /**
  * Background refresh: pulls every category from NewsData.io into Supabase.
@@ -101,6 +102,14 @@ export async function GET(request: NextRequest) {
       details.push({ category, ok: false, fetched: 0, saved: 0, error: message });
     }
   }
+
+  const articlesSaved = details.reduce((sum, d) => sum + d.saved, 0);
+
+  await logAdminAction("news_synced", `Cron synced news`, {
+    articles_count: articlesSaved,
+    refreshed,
+    failed,
+  });
 
   return NextResponse.json({
     refreshed,

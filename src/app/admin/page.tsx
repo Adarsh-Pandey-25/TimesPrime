@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import MarqueeTicker from "@/components/MarqueeTicker";
-import { CheckCircle2, Database, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Database, ShieldCheck, RefreshCw, AlertTriangle, LogOut } from "lucide-react";
 import { Language } from "@/lib/translations";
 import { useTheme } from "@/context/ThemeContext";
+import ArticlesTable from "@/components/admin/ArticlesTable";
+import CategoryStatsCard from "@/components/admin/CategoryStatsCard";
+import BreakingNewsManager from "@/components/admin/BreakingNewsManager";
+import SyncDashboard from "@/components/admin/SyncDashboard";
+import ActivityLog from "@/components/admin/ActivityLog";
 
 interface DbStats {
   configured: boolean;
@@ -18,6 +24,7 @@ interface DbStats {
 }
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const { theme } = useTheme();
   const [category, setCategory] = useState("general");
   const [language, setLanguage] = useState<Language>("en");
@@ -45,7 +52,7 @@ export default function AdminDashboardPage() {
 
   const fetchDbStats = async () => {
     try {
-      const res = await fetch("/api/admin/db-stats");
+      const res = await fetch("/api/admin/db-stats", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setDbStats(data.stats);
@@ -66,7 +73,7 @@ export default function AdminDashboardPage() {
     setSeeding(true);
     setPurgeMsg("");
     try {
-      const res = await fetch("/api/admin/seed-supabase", { method: "POST" });
+      const res = await fetch("/api/admin/seed-supabase", { method: "POST", credentials: "include" });
       const data = await res.json();
       if (res.ok) {
         setPurgeMsg(data.message || "All news categories synchronized to Supabase!");
@@ -83,7 +90,7 @@ export default function AdminDashboardPage() {
     setPurging(true);
     setPurgeMsg("");
     try {
-      const res = await fetch("/api/admin/db-stats", { method: "POST" });
+      const res = await fetch("/api/admin/db-stats", { method: "POST", credentials: "include" });
       const data = await res.json();
       if (res.ok) {
         setPurgeMsg(data.message || "7-Day Purge completed!");
@@ -110,6 +117,7 @@ export default function AdminDashboardPage() {
       const res = await fetch("/api/admin/publish-article", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           title,
           slug,
@@ -144,6 +152,14 @@ export default function AdminDashboardPage() {
       setPublishError(err instanceof Error ? err.message : "Network error while publishing.");
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/admin/logout", { method: "POST", credentials: "include" });
+    } finally {
+      router.push("/admin/login");
     }
   };
 
@@ -192,7 +208,20 @@ export default function AdminDashboardPage() {
               Manage live publishing, 7-day retention engine, and database auto-cleanup rules.
             </p>
           </div>
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-[#383d45] bg-white dark:bg-[#25282d] px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#2f333a] transition-colors shrink-0"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Logout
+          </button>
         </div>
+
+        <SyncDashboard />
+
+        <BreakingNewsManager />
+
+        <CategoryStatsCard />
 
         {/* 7-DAY DATABASE CONTROL PANEL CARD */}
         <div className="rounded-2xl border border-red-200 dark:border-[#383d45] bg-gradient-to-br from-slate-900 to-slate-950 text-white p-6 shadow-md space-y-4">
@@ -471,6 +500,10 @@ export default function AdminDashboardPage() {
             </div>
           </form>
         </div>
+
+        <ArticlesTable />
+
+        <ActivityLog />
       </main>
 
       <Footer language={language} />

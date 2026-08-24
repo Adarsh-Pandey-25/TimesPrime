@@ -8,7 +8,7 @@ import ArticleCard from "@/components/ArticleCard";
 import MarqueeTicker from "@/components/MarqueeTicker";
 import ThemeSpinner from "@/components/ThemeSpinner";
 import { Article } from "@/types";
-import { TrendingUp, Compass, Flame, Layers, RefreshCw, X } from "lucide-react";
+import { Flame, Layers, RefreshCw, X, ChevronDown } from "lucide-react";
 import { Language, TRANSLATIONS } from "@/lib/translations";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -361,21 +361,21 @@ export default function HomeClient({
         {/* Future ad integration: this container will expand when ads are served */}
       </div>
 
-      <main className="flex-1 mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 md:px-8 lg:px-12 space-y-10 sm:space-y-12 lg:space-y-16">
+      <main className="flex-1 mx-auto w-full max-w-[1500px] px-4 py-8 sm:py-10 sm:px-6 md:px-8 lg:px-12 space-y-10 sm:space-y-12 lg:space-y-16">
         {/* Category / Search Header Title */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-[#2b2f36] pb-3 sm:pb-4 gap-2">
           <div>
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-red-600">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 dark:text-red-400">
               {searchQuery ? `Search Results for "${searchQuery}"` : t.currentFeed}
             </span>
-            <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-extrabold capitalize">
+            <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-black capitalize">
               {searchQuery
                 ? `Results for "${searchQuery}"`
                 : category === "general"
                 ? t.topWorldStories
                 : t.categories[category as keyof typeof t.categories] || category}
             </h1>
-            <div className="mt-2 h-1 w-10 rounded-full bg-[#1E3A5F]" aria-hidden="true" />
+            <div className="mt-2 h-1 w-12 rounded-full bg-red-600" aria-hidden="true" />
           </div>
         </div>
 
@@ -398,8 +398,12 @@ export default function HomeClient({
           <>
             {/* Featured Hero Article Section */}
             {featuredArticle && !searchQuery && (
-              <section className="space-y-4 sm:space-y-5">
-                <div className="flex items-center space-x-2 text-xs sm:text-sm font-black uppercase tracking-wider text-red-600 dark:text-red-400 pt-1">
+              <section
+                className={`space-y-4 sm:space-y-5 rounded-2xl border p-4 sm:p-6 ${
+                  isDark ? "bg-[#1e2124] border-[#2b2f36]" : "bg-white border-slate-100"
+                }`}
+              >
+                <div className="flex items-center space-x-2 text-[11px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 pt-4 sm:pt-6">
                   <span className="relative flex h-2 w-2 shrink-0">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-600 opacity-75" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-red-600" />
@@ -424,15 +428,18 @@ export default function HomeClient({
 
             {/* Top Stories Grid */}
             {topStories.length > 0 && (
-              <section className="space-y-5 sm:space-y-6 mt-12 sm:mt-16">
+              <section className="space-y-5 sm:space-y-6 mt-10 sm:mt-12">
                 <hr className="border-slate-200 dark:border-[#2b2f36]" />
-                <div className="flex items-center justify-between border-b-2 border-[#1E3A5F] pb-2">
-                  <div className="flex items-center space-x-2 text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                    <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-[#1E3A5F] dark:text-[#4A7BAF]" />
-                    <span>{t.topStories}</span>
+                <div className="border-b-2 border-[#1E3A5F] pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                      <Flame className="h-4 w-4 sm:h-5 sm:w-5 text-[#1E3A5F] dark:text-[#4A7BAF]" />
+                      <span>{t.topStories}</span>
+                    </div>
                   </div>
+                  <div className="w-8 h-0.5 bg-red-600 mt-1 rounded-full" />
                 </div>
-                <div className={`grid gap-5 sm:gap-6 lg:gap-8 ${getTopStoriesGridClass(topStories.length)}`}>
+                <div className={`grid gap-5 sm:gap-6 lg:gap-8 pt-2 ${getTopStoriesGridClass(topStories.length)}`}>
                   {topStories.map((art) => (
                     <ArticleCard key={art.article_id || art.link} article={art} language={language} imageUrl={cardImageUrls.get(art)} />
                   ))}
@@ -447,16 +454,19 @@ export default function HomeClient({
 
             {/* Latest Stories Feed */}
             {latestStories.length > 0 && (
-              <section className="space-y-5 sm:space-y-6 mt-12 sm:mt-16">
+              <section className="space-y-5 sm:space-y-6 mt-10 sm:mt-12">
                 <hr className="border-slate-200 dark:border-[#2b2f36]" />
-                <div className="flex items-center justify-between border-b-2 border-[#1E3A5F] pb-2">
-                  <div className="flex items-center space-x-2 text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                    <Compass className="h-4 w-4 sm:h-5 sm:w-5 text-[#1E3A5F] dark:text-[#4A7BAF]" />
-                    <span>{t.latestUpdates}</span>
+                <div className="border-b-2 border-[#1E3A5F] pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                      <Flame className="h-4 w-4 sm:h-5 sm:w-5 text-[#1E3A5F] dark:text-[#4A7BAF]" />
+                      <span>{t.latestUpdates}</span>
+                    </div>
+                    <span className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400" suppressHydrationWarning>
+                      {formatUpdatedAgo(lastFetchedAt)}
+                    </span>
                   </div>
-                  <span className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400" suppressHydrationWarning>
-                    {formatUpdatedAgo(lastFetchedAt)}
-                  </span>
+                  <div className="w-8 h-0.5 bg-red-600 mt-1 rounded-full" />
                 </div>
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4 lg:gap-7">
                   {latestStories.slice(0, visibleLatestCount).map((art) => (
@@ -473,13 +483,10 @@ export default function HomeClient({
                   <div className="flex justify-center pt-2">
                     <button
                       onClick={() => setVisibleLatestCount((c) => c + 8)}
-                      className={`rounded-xl px-6 py-2.5 text-xs sm:text-sm font-bold uppercase tracking-wider transition-colors ${
-                        isDark
-                          ? "bg-[#25282d] text-slate-200 border border-[#34383f] hover:bg-[#2a2d33] hover:border-red-600/50"
-                          : "bg-white text-slate-700 border border-slate-200 hover:border-red-500/50 hover:shadow-md"
-                      }`}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-white dark:bg-[#25282d] border-2 border-slate-200 dark:border-[#383d45] text-slate-700 dark:text-slate-300 hover:border-red-600 hover:text-red-600 transition-all px-8 py-3 font-bold text-sm tracking-wide"
                     >
                       Load More Stories
+                      <ChevronDown className="h-4 w-4" />
                     </button>
                   </div>
                 )}
@@ -491,7 +498,7 @@ export default function HomeClient({
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 sm:p-12 text-center space-y-4">
                 <Layers className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-slate-400" />
                 <h3 className="font-serif text-lg sm:text-xl font-bold">
-                  No News Stories Found
+                  📰 No News Stories Found
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
                   Try switching categories or refreshing your feed to fetch the latest global news reports.

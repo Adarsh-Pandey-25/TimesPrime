@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Article } from "@/types";
@@ -26,7 +26,7 @@ import ArticleCard from "@/components/ArticleCard";
 
 import { useLanguage } from "@/context/LanguageContext";
 import { useTheme } from "@/context/ThemeContext";
-import { TRANSLATIONS, translateHeadline } from "@/lib/translations";
+import { TRANSLATIONS } from "@/lib/translations";
 import { assignDedupedTopicImages } from "@/lib/topicImages";
 
 // Generic placeholder sentences the scraper/route layer substitutes in when
@@ -72,6 +72,7 @@ interface ArticleDetailViewProps {
     image?: string;
     description?: string;
     text?: string;
+    isPaywalled?: boolean;
   };
   allArticles: Article[];
 }
@@ -94,18 +95,29 @@ export default function ArticleDetailView({
   const [aiLoading, setAiLoading] = useState(false);
   const [newsletterSubmitted, setNewsletterSubmitted] = useState(false);
 
+  const [translatedTitle, setTranslatedTitle] = useState<string | null>(null);
+  const [translatedDescription, setTranslatedDescription] = useState<string | null>(null);
+  const [translatedContent, setTranslatedContent] = useState<string[] | null>(null);
+  const translationCache = useRef<Map<string, { title: string; description: string; content: string[] }>>(
+    new Map()
+  );
+
   const hasScrapedContent =
     !!scrapedData.content &&
     scrapedData.content.length > 0 &&
     !isScrapeFallbackContent(scrapedData.content);
 
+  const isPaywalled = !!scrapedData.isPaywalled;
+
   const readMinutes = hasScrapedContent ? estimateReadMinutes(scrapedData.content!) : 2;
 
   const sourceDomain = getSourceDomain(targetUrl);
 
-  // Only the fallback (no real scraped content) branch auto-redirects —
-  // when we have real content, staying on TimesPrime is the whole point.
-  const shouldAutoRedirect = !hasScrapedContent && !!targetUrl;
+  // Only the generic fallback (no real scraped content, and not a known
+  // paywall) auto-redirects. A paywalled article gets its own distinct UI
+  // below and must NOT auto-redirect — the reader should choose whether to
+  // leave for the publisher's site, not get bounced there automatically.
+  const shouldAutoRedirect = !hasScrapedContent && !isPaywalled && !!targetUrl;
   const [redirectSeconds, setRedirectSeconds] = useState(5);
 
   useEffect(() => {
@@ -158,7 +170,73 @@ export default function ArticleDetailView({
   const displayArticles = filteredList.length > 0 ? filteredList : articlesList;
 
   const rawTitle = scrapedData.title || (slug.length < 50 ? slug : "Featured Story");
-  const displayTitle = translateHeadline(rawTitle, language);
+
+  // Real English->Hindi translation of this article's own content (title,
+  // description, body paragraphs) — separate from the language-based
+  // filtering used everywhere else in this file. translateHeadline was a
+  // no-op stub; scraped content has always been whatever language the
+  // publisher wrote it in, regardless of the UI's language toggle. Cached
+  // per raw title so re-toggling the same article doesn't re-hit the
+  // translate API.
+  useEffect(() => {
+    // No cleanup needed on flipping back to English: displayTitle/
+    // displayDescription/displayContent below only ever read the
+    // translated state when language === "hi", so leaving stale Hindi
+    // text sitting unused in state is harmless — and a real article
+    // switch re-runs this effect anyway (rawTitle changes).
+    if (language !== "hi") return;
+
+    const cached = translationCache.current.get(rawTitle);
+    if (cached) {
+      setTranslatedTitle(cached.title);
+      setTranslatedDescription(cached.description);
+      setTranslatedContent(cached.content);
+      return;
+    }
+
+    let cancelled = false;
+
+    const translateArticle = async () => {
+      try {
+        const description = scrapedData.description || "";
+        const paragraphs = hasScrapedContent ? scrapedData.content! : [];
+        const texts = [rawTitle, description, ...paragraphs];
+
+        const res = await fetch("/api/translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ texts, target: "hi" }),
+        });
+        if (!res.ok || cancelled) return;
+
+        const data = await res.json();
+        const translated: string[] = Array.isArray(data.translated) ? data.translated : [];
+        if (cancelled || translated.length === 0) return;
+
+        const [titleResult, descriptionResult, ...contentResult] = translated;
+        const entry = { title: titleResult, description: descriptionResult, content: contentResult };
+
+        translationCache.current.set(rawTitle, entry);
+        setTranslatedTitle(entry.title);
+        setTranslatedDescription(entry.description);
+        setTranslatedContent(entry.content);
+      } catch {
+        // Swallow — English content stays visible on any translation failure.
+      }
+    };
+
+    translateArticle();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [language, rawTitle, scrapedData.description, hasScrapedContent, scrapedData.content]);
+
+  const displayTitle = language === "hi" && translatedTitle ? translatedTitle : rawTitle;
+  const displayDescription =
+    language === "hi" && translatedDescription ? translatedDescription : scrapedData.description;
+  const displayContent = language === "hi" && translatedContent ? translatedContent : scrapedData.content;
+
   const primaryImage = imageUrl || scrapedData.image || null;
 
   // A pseudo-article standing in for the hero image so it goes through the
@@ -166,9 +244,13 @@ export default function ArticleDetailView({
   // resolved independently and could coincidentally land on the exact same
   // pool image as a sidebar/grid card (only visible when the article has no
   // real primaryImage, forcing a keyword-based pick like everything else).
+  // Deliberately uses rawTitle/scrapedData.description here, NOT the
+  // (possibly Hindi-translated) display versions — assignDedupedTopicImages
+  // does English keyword matching against topicImages.ts, so feeding it
+  // translated text would silently degrade image selection in Hindi mode.
   const heroArticle: Article = {
     article_id: "__hero__",
-    title: displayTitle,
+    title: rawTitle,
     link: targetUrl || "",
     description: scrapedData.description || "",
     image_url: primaryImage,
@@ -418,9 +500,9 @@ export default function ArticleDetailView({
           )}
 
           {/* Subtitle description */}
-          {scrapedData.description && (
+          {displayDescription && (
             <p className="text-sm sm:text-base font-medium leading-relaxed text-slate-600 dark:text-slate-300">
-              {scrapedData.description}
+              {displayDescription}
             </p>
           )}
 
@@ -478,7 +560,8 @@ export default function ArticleDetailView({
               fill
               sizes="(max-width: 1024px) 100vw, 50vw"
               className="object-cover"
-              priority
+              preload
+              fetchPriority="high"
             />
           </div>
 
@@ -539,7 +622,7 @@ export default function ArticleDetailView({
           {/* Article Story Paragraphs */}
           <article className="space-y-4 text-sm sm:text-base text-slate-800 dark:text-slate-200 font-sans" style={{ lineHeight: 1.8 }}>
             {hasScrapedContent ? (
-              scrapedData.content!.map((paragraph: string, idx: number) => (
+              (displayContent || scrapedData.content!).map((paragraph: string, idx: number) => (
                 <div key={idx}>
                   <p
                     className={
@@ -556,6 +639,36 @@ export default function ArticleDetailView({
                   )}
                 </div>
               ))
+            ) : isPaywalled ? (
+              <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 border-l-4 border-l-amber-500 bg-amber-50/60 dark:bg-amber-950/20 p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl" aria-hidden="true">🔒</span>
+                  <h3 className="font-serif text-base font-bold text-slate-900 dark:text-white">
+                    {language === "hi" ? "सब्सक्राइबर-ओनली लेख" : "Subscriber-only article"}
+                  </h3>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  {language === "hi"
+                    ? "यह लेख प्रकाशक की सशुल्क सदस्यता के पीछे उपलब्ध है, इसलिए टाइम्सप्राइम इसका पूरा कंटेंट यहां नहीं दिखा सकता।"
+                    : "This article sits behind the publisher's paid subscription, so TimesPrime can't show the full content here."}
+                </p>
+                {displayDescription && (
+                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic border-l-2 border-amber-400 dark:border-amber-700 pl-3">
+                    {displayDescription}
+                  </p>
+                )}
+                {targetUrl && (
+                  <a
+                    href={targetUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 transition-colors shadow-xs"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    {language === "hi" ? "प्रकाशक की साइट पर पढ़ें →" : "Read on publisher's site →"}
+                  </a>
+                )}
+              </div>
             ) : (
               <div className="rounded-xl border border-slate-200 dark:border-[#383d45] border-l-4 border-l-red-600 bg-white dark:bg-[#25282d] p-5 space-y-3">
                 <h3 className="font-serif text-base font-bold text-slate-900 dark:text-white">

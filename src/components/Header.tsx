@@ -185,8 +185,9 @@ export default function Header({
               alt="TimesPrime"
               width={1574}
               height={261}
-              priority
-              sizes="300px"
+              preload
+              fetchPriority="high"
+              sizes="(min-width: 640px) 265px, 217px"
               className="h-9 w-auto sm:h-11 transition-transform group-hover:scale-105"
             />
           </Link>
@@ -256,17 +257,20 @@ export default function Header({
               <Search className="h-4 w-4" />
             </button>
 
-            {/* Language Switcher (Icon Only) */}
+            {/* Language Switcher (Icon + current-language badge) */}
             <button
               onClick={toggleLanguage}
-              className={`hidden sm:flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${
+              className={`hidden sm:flex h-9 w-auto items-center justify-center rounded-xl border px-2 transition-all ${
                 isDark
                   ? "border-red-500/40 bg-red-950/40 text-red-300 hover:bg-red-900/60"
                   : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
               }`}
               title={activeLang === "en" ? "हिंदी में बदलें" : "Switch to English"}
             >
-              <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
+              <Globe className="h-4 w-4 text-red-600" />
+              <span className="text-[10px] font-black text-red-600 ml-0.5">
+                {activeLang === "en" ? "EN" : "HI"}
+              </span>
             </button>
 
             {/* Saved Articles (Icon Only) */}

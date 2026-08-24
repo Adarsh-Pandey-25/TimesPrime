@@ -37,6 +37,21 @@ export interface TranslationDictionary {
     emailPlaceholder: string;
     subscribe: string;
     allRightsReserved: string;
+    followUs: string;
+    newsHeading: string;
+    moreNewsHeading: string;
+    savedArticles: string;
+    companyHeading: string;
+    aboutUs: string;
+    contactUs: string;
+    advertiseWithUs: string;
+    privacyPolicy: string;
+    termsOfUse: string;
+    newsletterStripTagline: string;
+    subscribedSuccess: string;
+    newsletterEmailPlaceholder: string;
+    rssFeeds: string;
+    backToTop: string;
   };
   articleView: {
     backToHeadlines: string;
@@ -87,6 +102,21 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
       emailPlaceholder: "Enter your email address",
       subscribe: "Subscribe",
       allRightsReserved: "All rights reserved.",
+      followUs: "Follow Us:",
+      newsHeading: "News",
+      moreNewsHeading: "More News",
+      savedArticles: "Saved Articles",
+      companyHeading: "Company",
+      aboutUs: "About Us",
+      contactUs: "Contact Us",
+      advertiseWithUs: "Advertise With Us",
+      privacyPolicy: "Privacy Policy",
+      termsOfUse: "Terms of Use",
+      newsletterStripTagline: "Stay Informed — Get Your Daily News Digest",
+      subscribedSuccess: "You're subscribed!",
+      newsletterEmailPlaceholder: "Enter your email",
+      rssFeeds: "RSS Feeds",
+      backToTop: "Back to top",
     },
     articleView: {
       backToHeadlines: "Back to Headlines",
@@ -135,6 +165,21 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
       emailPlaceholder: "अपना ईमेल पता दर्ज करें",
       subscribe: "सदस्यता लें",
       allRightsReserved: "सर्वाधिकार सुरक्षित।",
+      followUs: "हमें फॉलो करें:",
+      newsHeading: "समाचार",
+      moreNewsHeading: "अधिक समाचार",
+      savedArticles: "सेव किए गए समाचार",
+      companyHeading: "कंपनी",
+      aboutUs: "हमारे बारे में",
+      contactUs: "संपर्क करें",
+      advertiseWithUs: "विज्ञापन दें",
+      privacyPolicy: "गोपनीयता नीति",
+      termsOfUse: "उपयोग की शर्तें",
+      newsletterStripTagline: "जुड़े रहें — अपनी दैनिक समाचार डाइजेस्ट पाएं",
+      subscribedSuccess: "सदस्यता सफल!",
+      newsletterEmailPlaceholder: "अपना ईमेल दर्ज करें",
+      rssFeeds: "आरएसएस फीड",
+      backToTop: "ऊपर जाएं",
     },
     articleView: {
       backToHeadlines: "मुख्य पृष्ठ पर लौटें",

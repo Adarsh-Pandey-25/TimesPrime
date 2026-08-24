@@ -14,11 +14,22 @@ const TOPIC_IMAGE_MAP = [
       "बंगाल", "सरकार", "पुलिस", "चुनाव", "मदरसा", "मस्जिद", "कोर्ट", "नेता", "मंत्रालय", "प्रशासन", "संसद", "संविधान", "सुप्रीम कोर्ट", "हाईकोर्ट", "कमिशनर", "एसपी", "शुभेंदु", "भाजपा", "कांग्रेस", "आप", "केजरीवाल", "मोदी",
       "bengal", "government", "police", "election", "court", "minister", "parliament", "politics", "india", "modi", "state", "assembly", "governance", "judge", "bjp", "congress", "law"
     ],
+    // 8-image pool (double the usual size): "crime"/"law" was requested as
+    // a separate bucket from "politics"/"government", but both currently
+    // share this exact keyword list (police/court/law/minister/parliament
+    // all route here) — splitting the keywords without a real list from the
+    // request would mean guessing which words are "political" vs.
+    // "criminal", so instead both requested image sets were merged into one
+    // wider pool. Pool size is unconstrained by the round-robin logic below.
     imageUrls: [
       "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=1200&auto=format&fit=crop&q=80", // Lady Justice
-      "https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=1200&auto=format&fit=crop&q=80", // Parliament
+      "https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=1200&auto=format&fit=crop&q=80", // Parliament interior
       "https://images.unsplash.com/photo-1555848962-6e79363ec58f?w=1200&auto=format&fit=crop&q=80", // Gavel
       "https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=1200&auto=format&fit=crop&q=80", // Government building
+      "https://images.unsplash.com/photo-1744339700180-d3a299e2cd1f?w=1200&auto=format&fit=crop&q=80", // Parliament building exterior
+      "https://images.unsplash.com/photo-1631034339032-fb4566a49f01?w=1200&auto=format&fit=crop&q=80", // Police car
+      "https://images.unsplash.com/photo-1453945619913-79ec89a82c51?w=1200&auto=format&fit=crop&q=80", // Court building exterior
+      "https://images.unsplash.com/photo-1540910419892-4a36d2c3266c?w=1200&auto=format&fit=crop&q=80", // Ballot box / voting
     ],
   },
   {
@@ -30,8 +41,8 @@ const TOPIC_IMAGE_MAP = [
     imageUrls: [
       "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&auto=format&fit=crop&q=80", // Circuits
       "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&auto=format&fit=crop&q=80", // AI / neural
-      "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1200&auto=format&fit=crop&q=80", // Code / matrix
-      "https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=1200&auto=format&fit=crop&q=80", // AI robot
+      "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=1200&auto=format&fit=crop&q=80", // Tech workspace
+      "https://images.unsplash.com/photo-1535378917042-10a22c95931a?w=1200&auto=format&fit=crop&q=80", // Future tech / robot
     ],
   },
   {
@@ -50,7 +61,7 @@ const TOPIC_IMAGE_MAP = [
       "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&auto=format&fit=crop&q=80", // Skyscrapers / city
       "https://images.unsplash.com/photo-1444653614773-995cb1ef9efa?w=1200&auto=format&fit=crop&q=80", // Business meeting
       "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=1200&auto=format&fit=crop&q=80", // Trading screen
-      "https://images.unsplash.com/photo-1579532537598-459ecdaf39cc?w=1200&auto=format&fit=crop&q=80", // Charts
+      "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1200&auto=format&fit=crop&q=80", // Financial charts
     ],
   },
   {
@@ -82,7 +93,7 @@ const TOPIC_IMAGE_MAP = [
       "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1200&auto=format&fit=crop&q=80", // Cinema hall
       "https://images.unsplash.com/photo-1598899134739-24c46f58b8c0?w=1200&auto=format&fit=crop&q=80", // Movie camera
       "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1200&auto=format&fit=crop&q=80", // Concert
-      "https://images.unsplash.com/photo-1512036666432-2181c1f26420?w=1200&auto=format&fit=crop&q=80", // Music studio
+      "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1200&auto=format&fit=crop&q=80", // Stage performance
     ],
   },
   {
@@ -95,7 +106,7 @@ const TOPIC_IMAGE_MAP = [
       "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&auto=format&fit=crop&q=80", // Medical lab
       "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=1200&auto=format&fit=crop&q=80", // Doctor
       "https://images.unsplash.com/photo-1584820927498-cfe5211fd8bf?w=1200&auto=format&fit=crop&q=80", // Hospital
-      "https://images.unsplash.com/photo-1530026405186-ed1f139313f8?w=1200&auto=format&fit=crop&q=80", // Pharmacy
+      "https://images.unsplash.com/photo-1576671081837-49000212a370?w=1200&auto=format&fit=crop&q=80", // Medicine / pharmacy
     ],
   },
   {
@@ -131,6 +142,40 @@ const TOPIC_IMAGE_MAP = [
       "https://images.unsplash.com/photo-1554475901-4538ddfbccc2?w=1200&auto=format&fit=crop&q=80", // Chemistry test tubes
     ],
   },
+  {
+    // New bucket — "world" articles previously had no dedicated pool at all
+    // and fell through to whatever other topic's keywords happened to
+    // match (or the generic fallback), which is the "no distinctive
+    // images" complaint this bucket fixes.
+    keywords: [
+      "विश्व", "वैश्विक", "अंतरराष्ट्रीय", "विदेश", "दुनिया",
+      "world", "international", "global", "globally", "worldwide", "foreign", "diplomat", "diplomatic", "embassy", "united nations"
+    ],
+    imageUrls: [
+      "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&auto=format&fit=crop&q=80", // Earth from space at night
+      "https://images.unsplash.com/photo-1524661135-423995f22d0b?w=1200&auto=format&fit=crop&q=80", // World map
+      "https://images.unsplash.com/photo-1526129318478-62ed807ebdf9?w=1200&auto=format&fit=crop&q=80", // International city street
+      "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1200&auto=format&fit=crop&q=80", // Travel / exploration
+    ],
+  },
+  {
+    // New bucket — deliberately last in the array. Its keywords ("news",
+    // "समाचार", "breaking") are common enough that if this ran before the
+    // more specific topic buckets above, it would steal matches from them
+    // (e.g. a politics article that happens to say "breaking news"). Last
+    // position means it only catches articles nothing more specific
+    // matched — exactly the "general category" case this bucket targets.
+    keywords: [
+      "समाचार", "ब्रेकिंग", "खबर", "अपडेट", "बुलेटिन",
+      "news", "breaking", "headline", "headlines", "update", "updates", "bulletin"
+    ],
+    imageUrls: [
+      "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&auto=format&fit=crop&q=80", // Reading a newspaper
+      "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1200&auto=format&fit=crop&q=80", // Newspaper stack close-up
+      "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=1200&auto=format&fit=crop&q=80", // Writing / reporting notes
+      "https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=1200&auto=format&fit=crop&q=80", // Studio microphone / broadcast
+    ],
+  },
 ];
 
 // Deterministic per-article picker within a topic's image pool, so the same
@@ -163,7 +208,7 @@ function keywordMatches(haystack: string, keyword: string): boolean {
 // General India / Global News default image (clean newspaper press badge).
 // Used both when no topic keyword matches, and by callers (e.g. HomeClient's
 // dedup pass) as a neutral last resort once a topic's whole pool is used up.
-export const GENERIC_NEWS_FALLBACK = "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200&auto=format&fit=crop&q=80";
+export const GENERIC_NEWS_FALLBACK = "https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&auto=format&fit=crop&q=80";
 
 /**
  * Returns the full ordered pool of contextually relevant images for an
@@ -190,24 +235,69 @@ function findMatchingTopicIndex(combinedText: string): number | null {
   return null;
 }
 
+// Substrings that mark a URL as a site-wide logo/icon/tracking asset rather
+// than a real per-article photo — e.g. "prsync.png", a PR-sync tracking
+// pixel found live in Supabase, was passing every other check (allowed
+// domain, not the generic fallback) and rendering as the "article image".
+const LOGO_ICON_URL_PATTERNS = [
+  "/logo",
+  "/icon",
+  "/favicon",
+  "logo.",
+  "icon.",
+  "-logo",
+  "_logo",
+  "brand",
+  "prsync",
+];
+
+// Whole domains confirmed (by sampling real Supabase image_url paths) to
+// serve nothing but logos/mastheads — not per-article photos at all, so
+// unlike LOGO_ICON_URL_PATTERNS above these are rejected regardless of path.
+// Keep this list to domains actually verified this way: a domain that mixes
+// real photos with occasional logos (e.g. a shared image-proxy CDN used by
+// many different sites) belongs in LOGO_ICON_URL_PATTERNS instead, since
+// blocking it wholesale would throw away legitimate images to catch a few
+// bad ones the path-based check already handles.
+const KNOWN_LOGO_DOMAINS = ["www.marketbeat.com", "n.bytvi.com"];
+
+function looksLikeLogoOrIcon(url: string): boolean {
+  const lower = url.toLowerCase();
+  if (LOGO_ICON_URL_PATTERNS.some((pattern) => lower.includes(pattern))) {
+    return true;
+  }
+
+  try {
+    const hostname = new URL(url).hostname;
+    return KNOWN_LOGO_DOMAINS.includes(hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function getTopicImageCandidates(
   title?: string | null,
   category?: string | string[] | null,
   description?: string | null,
   existingUrl?: string | null
 ): string[] {
-  // Only use existingUrl if it's on the next/image allowlist (see
+  // Treat an obvious logo/icon/brand asset as if no real image was
+  // provided — falls through to the topic pool below instead.
+  const effectiveUrl =
+    existingUrl && looksLikeLogoOrIcon(existingUrl) ? null : existingUrl;
+
+  // Only use effectiveUrl if it's on the next/image allowlist (see
   // imageDomains.ts) — anything else (the vast majority of real article
   // images, which come from arbitrary publisher domains via NewsData.io)
   // falls through to the keyword-matched Unsplash image below instead of
   // being rejected by Next's image optimizer at render time.
   if (
-    existingUrl &&
-    typeof existingUrl === "string" &&
-    isAllowedImageUrl(existingUrl) &&
-    existingUrl !== GENERIC_NEWS_FALLBACK
+    effectiveUrl &&
+    typeof effectiveUrl === "string" &&
+    isAllowedImageUrl(effectiveUrl) &&
+    effectiveUrl !== GENERIC_NEWS_FALLBACK
   ) {
-    return [existingUrl];
+    return [effectiveUrl];
   }
 
   const topicIndex = findMatchingTopicIndex(buildCombinedText(title, category, description));
@@ -270,7 +360,8 @@ export function assignDedupedTopicImages(articles: Article[]): Map<Article, stri
       art.image_url &&
       typeof art.image_url === "string" &&
       isAllowedImageUrl(art.image_url) &&
-      art.image_url !== GENERIC_NEWS_FALLBACK
+      art.image_url !== GENERIC_NEWS_FALLBACK &&
+      !looksLikeLogoOrIcon(art.image_url)
     ) {
       imageMap.set(art, art.image_url);
       continue;
