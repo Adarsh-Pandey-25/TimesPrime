@@ -13,6 +13,7 @@ import { useLanguage } from "@/context/LanguageContext";
 
 import { getTopicImageUrl } from "@/lib/topicImages";
 import { getCategoryColor, getCategoryBadgeBgClass, getCategoryBorderClass } from "@/lib/categoryColors";
+import { mapCategory } from "@/lib/newsConfig";
 
 // NewsData.io returns this literal string as the description (and
 // sometimes the title) for articles whose full content requires a paid
@@ -48,6 +49,15 @@ interface ArticleCardProps {
   // Optional extra classes merged onto the card's root — e.g. Latest
   // Updates passes a min-height so its 4-col grid stays visually even.
   className?: string;
+  // The category of the feed/page this card is rendered inside (e.g.
+  // "technology" on the Technology page). When set and the article is
+  // actually tagged with it, the badge shows this instead of
+  // article.category[0] — NewsData.io tags articles with multiple
+  // categories (e.g. ["top", "technology"]), so array order alone doesn't
+  // reflect which category the reader is actually browsing. Leave unset in
+  // cross-category contexts (related/suggested articles) where there's no
+  // single active category to prefer.
+  activeCategory?: string;
 }
 
 export default function ArticleCard({
@@ -57,6 +67,7 @@ export default function ArticleCard({
   relatedStories = [],
   imageUrl,
   className = "",
+  activeCategory,
 }: ArticleCardProps) {
   const router = useRouter();
   const { theme } = useTheme();
@@ -142,7 +153,19 @@ export default function ArticleCard({
     router.push(`/article/${relSlug}?url=${encodeURIComponent(relArt.link)}&image=${encodeURIComponent(relImg)}`);
   };
 
-  const topicCategory = article.category?.[0] || "News";
+  // "general"/"top" is deliberately excluded from the override: forcing
+  // every card on the diverse General page to say "TOP" would be less
+  // useful than each article's own specific topic (Business, Sports,
+  // etc). "india" is also effectively excluded in practice — it's not a
+  // real NewsData.io category tag (India articles are matched by country,
+  // see applyArticleFilters in db.ts), so it essentially never appears in
+  // article.category and just falls through to the normal fallback below.
+  const normalizedActiveCategory = activeCategory ? mapCategory(activeCategory) : undefined;
+  const activeCategoryApplies =
+    !!normalizedActiveCategory &&
+    normalizedActiveCategory !== "top" &&
+    article.category?.some((c) => c.toLowerCase() === normalizedActiveCategory.toLowerCase());
+  const topicCategory = activeCategoryApplies ? normalizedActiveCategory! : article.category?.[0] || "News";
   const categoryBorderClass = getCategoryBorderClass(topicCategory);
   const categoryBadgeBgClass = getCategoryBadgeBgClass(topicCategory);
   const categoryDotColor = getCategoryColor(topicCategory);

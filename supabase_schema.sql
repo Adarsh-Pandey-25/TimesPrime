@@ -15,7 +15,13 @@ CREATE TABLE IF NOT EXISTS public.articles (
   category TEXT[],
   country TEXT[],
   language TEXT DEFAULT 'english',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  -- Which of this article's category[] tags an LLM (Haiku) determined the
+  -- content does NOT genuinely relate to. NULL = not yet classified (or
+  -- classification failed) — every read path treats that as "no mismatches",
+  -- i.e. visible everywhere it's tagged (fail-open, never hides content on
+  -- error). Empty array = classified, all tags fit. See categoryClassifier.ts.
+  category_mismatches TEXT[] DEFAULT NULL
 );
 
 -- Index for high-performance 7-day retention filtering

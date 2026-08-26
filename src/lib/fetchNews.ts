@@ -6,6 +6,9 @@ import {
   MOCK_ARTICLES,
   filterArticlesByLanguageScript,
   dedupeArticlesByTitle,
+  isHoroscopeOrRitualFiller,
+  isFromWireSpamSource,
+  isFromNonNewsListingSource,
 } from "@/lib/newsConfig";
 
 /**
@@ -23,6 +26,14 @@ export async function fetchInitialNews(
 
     const categoryParam = category;
     const mappedCategory = mapCategory(categoryParam);
+
+    // Mirrors the same country resolution used to build targetUrl below —
+    // NewsData.io's country param becomes "in" whenever language is Hindi
+    // or the category is India, but the article-mapping fallback used to
+    // always default to the hardcoded "us" regardless, so an India article
+    // missing its own `country` field silently got tagged "us" and vanished
+    // from every India-scoped Supabase query afterward.
+    const effectiveCountry = language === "hi" || categoryParam === "india" ? "in" : "us";
 
     if (!apiKey) {
       console.error(
@@ -42,15 +53,21 @@ export async function fetchInitialNews(
       targetUrl.searchParams.set("language", "en");
     }
 
-    if (query.trim()) {
-      targetUrl.searchParams.set("q", query.trim());
-    } else if (categoryParam === "india") {
+    // Category/country and the search query are independent NewsData.io
+    // params, not alternatives — same fix and same reasoning as
+    // top-headlines/route.ts's identical block: q, category, and country
+    // all combine in one request per NewsData.io's docs, so a query
+    // shouldn't replace category scoping.
+    if (categoryParam === "india") {
       targetUrl.searchParams.set("country", "in");
       targetUrl.searchParams.set("category", "top");
     } else if (categoryParam === "world") {
       targetUrl.searchParams.set("category", "world");
     } else if (mappedCategory) {
       targetUrl.searchParams.set("category", mappedCategory);
+    }
+    if (query.trim()) {
+      targetUrl.searchParams.set("q", query.trim());
     }
 
     const apiRes = await fetch(targetUrl.toString(), {
@@ -79,7 +96,7 @@ export async function fetchInitialNews(
       source_id: art.source_id || "",
       source_name: art.source_name || art.source_id || "News Source",
       category: art.category || [mappedCategory],
-      country: art.country || ["us"],
+      country: art.country || [effectiveCountry],
       language: art.language || language,
     }));
 
@@ -89,7 +106,17 @@ export async function fetchInitialNews(
     // zero matches (e.g. a Hindi-scripted headline leaking into an English
     // SSR page load). MOCK_ARTICLES below is the correct empty-state
     // fallback, not the raw unfiltered upstream response.
-    const filtered = filterArticlesByLanguageScript(fetchedArticles, language);
+    const scriptFiltered = filterArticlesByLanguageScript(fetchedArticles, language);
+    // Horoscope/tarot filler isn't real news, but NewsData.io tags it under
+    // real categories (business, world, technology, etc. — verified, not
+    // just one) rather than keeping it separate. Confirmed wire-spam
+    // accounts get the same treatment — see isFromWireSpamSource.
+    const filtered = scriptFiltered.filter(
+      (art) =>
+        !isHoroscopeOrRitualFiller(art) &&
+        !isFromWireSpamSource(art.source_id) &&
+        !isFromNonNewsListingSource(art.source_id)
+    );
     const deduped = dedupeArticlesByTitle(filtered);
 
     return deduped.length > 0 ? deduped : MOCK_ARTICLES;

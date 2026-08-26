@@ -1,7 +1,13 @@
 import * as Sentry from "@sentry/nextjs";
 import { Article } from "@/types";
 import { supabase, isSupabaseConfigured } from "./supabase";
-import { containsHindiScript } from "./newsConfig";
+import {
+  containsHindiScript,
+  isHoroscopeOrRitualFiller,
+  isFromWireSpamSource,
+  isFromNonNewsListingSource,
+} from "./newsConfig";
+import { classifyCategoryRelevance } from "./categoryClassifier";
 
 export interface DBArticle extends Article {
   fetchedAt?: number;
@@ -35,17 +41,53 @@ function applyArticleFilters<T extends ArticleQueryFilters<T>>(
   category: string,
   query: string
 ): T {
+  // Category and search are independent, additive conditions — NOT a
+  // query-vs-category branch. Both used to funnel through separate `if`s
+  // where a query short-circuited the function before category was ever
+  // applied, silently turning a category-scoped search into a global one
+  // (e.g. /?category=india&search=Politics matched politics articles from
+  // anywhere, not just India). postgrest-js's .or()/.contains() both use
+  // searchParams.append (verified in node_modules), so calling .or() once
+  // for category and again for the search terms produces two independent
+  // `or=(...)` query params — PostgREST ANDs all top-level params
+  // together, so this reads as (category-condition) AND (search-condition),
+  // not one flattened OR that would defeat the category scoping.
+  let b = builder;
+
+  if (category === "india") {
+    // country.cs.{"in"} alone was the dominant cause of the "India page is
+    // nearly empty" bug — verified against live data: only 6 rows in the
+    // whole table have country containing the 2-letter code "in", while
+    // 1357 have it containing the full word "india" (matches the same
+    // storage-format discovery already documented in
+    // COUNTRY_CODE_TO_STORED_NAME in articles/route.ts, which this
+    // pre-existing filter had never been updated to match). Checking both
+    // forms goes from 6 matching rows to 1363.
+    b = b.or(`country.cs.{"in"},country.cs.{"india"},category.cs.{"india"}`);
+  } else if (category === "general" || category === "top") {
+    // Previously no-op here: General/Top Stories got zero filtering, so it
+    // just showed the most-recently-inserted rows table-wide — whatever
+    // category a cron run or freshness fetch happened to touch last (e.g.
+    // Science) ended up looking identical to General. NewsData.io's own
+    // "top" category tag is a genuine cross-topic signal, not a narrow one:
+    // verified against live data before relying on it — "top" is present on
+    // ~66% of all stored rows and co-occurs across all 14 other categories
+    // (business, politics, technology, health, sports, crime,
+    // entertainment, science, lifestyle, environment, education, tourism,
+    // food, breaking) in a genuinely spread distribution, not concentrated
+    // in one or two. Filtering on it gives General an actual diverse
+    // cross-section instead of "whatever's newest."
+    b = b.contains("category", ["top"]);
+  } else if (category) {
+    b = b.contains("category", [category]);
+  }
+
   if (query.trim()) {
     const q = query.trim();
-    return builder.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
+    b = b.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
   }
-  if (category === "india") {
-    return builder.or(`country.cs.{"in"},category.cs.{"india"}`);
-  }
-  if (category && category !== "general" && category !== "top") {
-    return builder.contains("category", [category]);
-  }
-  return builder;
+
+  return b;
 }
 
 /** Minimal row shape read by the freshness / new-count queries below. */
@@ -118,6 +160,7 @@ function isFromHardPaywallSource(link: string | undefined): boolean {
   }
 }
 
+
 /**
  * Automatically purges any article older than 7 days from Supabase.
  */
@@ -169,7 +212,20 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
   try {
     // Hard-paywall sources never make it into the feed at all — see
     // HARD_PAYWALL_SOURCE_DOMAINS above for why this list stays narrow.
-    const storableArticles = incomingArticles.filter((art) => !isFromHardPaywallSource(art.link));
+    // Horoscope/tarot filler gets the same treatment — see
+    // isHoroscopeOrRitualFiller in newsConfig.ts for what's actually
+    // excluded and why the pattern stays narrow (verified against live
+    // data, not guessed). Confirmed wire-spam accounts (WIRE_SPAM_SOURCE_IDS
+    // above) and non-news listing sources (isFromNonNewsListingSource,
+    // e.g. car-auction listings mistagged as technology) get the same
+    // "never let it in" treatment.
+    const storableArticles = incomingArticles.filter(
+      (art) =>
+        !isFromHardPaywallSource(art.link) &&
+        !isHoroscopeOrRitualFiller(art) &&
+        !isFromWireSpamSource(art.source_id) &&
+        !isFromNonNewsListingSource(art.source_id)
+    );
     if (storableArticles.length === 0) return [];
 
     const rowsToUpsert = storableArticles.map((art) => ({
@@ -209,6 +265,24 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
         extra: { operation: "saveArticlesToDB", rowCount: rowsToUpsert.length },
       });
       return incomingArticles;
+    }
+
+    // Fire-and-forget: classify category relevance for rows that haven't
+    // been classified yet (never re-classifies a row that already has a
+    // stored result). Deliberately not awaited — Haiku's latency shouldn't
+    // delay the save/serve path; the classification catches up a few
+    // seconds later and applies from the next read onward. See
+    // categoryClassifier.ts for the fail-open behavior.
+    const toClassify = (data || []).filter((row: any) => row.category_mismatches == null);
+    if (toClassify.length > 0) {
+      classifyCategoryRelevance(
+        toClassify.map((row: any) => ({
+          article_id: row.article_id,
+          title: row.title,
+          description: row.description,
+          category: row.category,
+        }))
+      ).catch((err) => console.error("Background category classification error:", err));
     }
 
     return (data || []).map((row: any) => ({
@@ -265,8 +339,27 @@ export async function getDBArticles(
       return [];
     }
 
-    const filtered = (data || []).filter((row: any) =>
-      matchesLanguageScript(row.title, language)
+    // Language-script filter, plus horoscope/tarot filler, wire-spam, and
+    // non-news-listing rows saved before those exclusions existed —
+    // saveArticlesToDB now keeps new rows like this out entirely, but rows
+    // already stored from before those fixes still need filtering out here
+    // so they don't linger for up to 7 days until they naturally purge.
+    //
+    // category_mismatches is per-row, per-category (not a blanket
+    // exclusion): an article tagged both "business" and "technology" can be
+    // genuinely on-topic for one and not the other (e.g. a local
+    // connectivity story is real business news but not real tech news), so
+    // it's only excluded from the specific category(ies) Haiku flagged as a
+    // mismatch, not from every category it's tagged with. Null (not yet
+    // classified, or classification failed) reads as "no mismatches" — see
+    // categoryClassifier.ts for why that's the deliberate fail-open default.
+    const filtered = (data || []).filter(
+      (row: any) =>
+        matchesLanguageScript(row.title, language) &&
+        !isHoroscopeOrRitualFiller(row) &&
+        !isFromWireSpamSource(row.source_id) &&
+        !isFromNonNewsListingSource(row.source_id) &&
+        !(row.category_mismatches || []).includes(category)
     );
 
     return filtered.slice(0, 40).map((row: any) => ({

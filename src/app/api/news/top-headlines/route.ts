@@ -13,6 +13,9 @@ import {
   MOCK_ARTICLES,
   filterArticlesByLanguageScript,
   dedupeArticlesByTitle,
+  isHoroscopeOrRitualFiller,
+  isFromWireSpamSource,
+  isFromNonNewsListingSource,
 } from "@/lib/newsConfig";
 
 export async function GET(request: NextRequest) {
@@ -25,6 +28,15 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get("page") || "";
 
     const category = mapCategory(categoryParam);
+
+    // The upstream NewsData.io request's country gets overridden to "in"
+    // below whenever language is Hindi or the category is India — but the
+    // raw `country` param (default "us") never reflected that override, so
+    // any India article NewsData.io returns without its own `country`
+    // field fell back to "us" and silently vanished from every India-scoped
+    // query (getDBArticles' `country.cs.{"in"}` check never matched it).
+    // This mirrors the same country resolution used to build targetUrl below.
+    const effectiveCountry = language === "hi" || categoryParam === "india" ? "in" : country;
 
     const refresh = searchParams.get("refresh") === "true";
     const cacheKey = `news_${country}_${category}_${language}_${query.trim().toLowerCase()}_${page}`;
@@ -86,16 +98,20 @@ export async function GET(request: NextRequest) {
       console.error(
         "NEWSDATA_API_KEY is not set — falling back to mock articles. Add it to .env.local."
       );
+      // Same additive category+query combination as applyArticleFilters in
+      // db.ts — not an if/else, so a category-scoped search still stays
+      // scoped even on this no-API-key mock fallback path.
       let filteredMocks = MOCK_ARTICLES;
+      if (category && category !== "top") {
+        filteredMocks = filteredMocks.filter((art) => art.category?.includes(category));
+      }
       if (query.trim()) {
         const qLower = query.trim().toLowerCase();
-        filteredMocks = MOCK_ARTICLES.filter(
+        filteredMocks = filteredMocks.filter(
           (art) =>
             art.title.toLowerCase().includes(qLower) ||
             (art.description && art.description.toLowerCase().includes(qLower))
         );
-      } else if (category && category !== "top") {
-        filteredMocks = MOCK_ARTICLES.filter((art) => art.category?.includes(category));
       }
       const mockResult = {
         status: "success",
@@ -122,15 +138,23 @@ export async function GET(request: NextRequest) {
       targetUrl.searchParams.set("language", "en");
     }
 
-    if (query.trim()) {
-      targetUrl.searchParams.set("q", query.trim());
-    } else if (categoryParam === "india") {
+    // Category/country and the search query are independent NewsData.io
+    // params, not alternatives — verified against their docs that q,
+    // category, and country all combine in one request (the only
+    // documented mutual exclusivity is category/excludecategory, unrelated
+    // here). The old if/else chain treated a present query as replacing
+    // category scoping entirely, so a category-scoped search silently
+    // became a global one.
+    if (categoryParam === "india") {
       targetUrl.searchParams.set("country", "in");
       targetUrl.searchParams.set("category", "top");
     } else if (categoryParam === "world") {
       targetUrl.searchParams.set("category", "world");
     } else if (category) {
       targetUrl.searchParams.set("category", category);
+    }
+    if (query.trim()) {
+      targetUrl.searchParams.set("q", query.trim());
     }
     if (page) targetUrl.searchParams.set("page", page);
 
@@ -155,12 +179,22 @@ export async function GET(request: NextRequest) {
       source_id: art.source_id || "",
       source_name: art.source_name || art.source_id || "News Source",
       category: art.category || [category],
-      country: art.country || [country],
+      country: art.country || [effectiveCountry],
       language: art.language || language,
     }));
 
     // Script-level filter: ensure fetched articles match the requested language
-    const cleanFetched = filterArticlesByLanguageScript(fetchedArticles, language);
+    const scriptFiltered = filterArticlesByLanguageScript(fetchedArticles, language);
+    // Horoscope/tarot filler isn't real news, but NewsData.io tags it under
+    // real categories (business, world, technology, etc. — verified, not
+    // just one) rather than keeping it separate. Confirmed wire-spam
+    // accounts get the same treatment — see isFromWireSpamSource.
+    const cleanFetched = scriptFiltered.filter(
+      (art) =>
+        !isHoroscopeOrRitualFiller(art) &&
+        !isFromWireSpamSource(art.source_id) &&
+        !isFromNonNewsListingSource(art.source_id)
+    );
 
     // 1. Save and Auto-Purge Supabase Database (Keep only 7 days of news)
     await saveArticlesToDB(fetchedArticles);

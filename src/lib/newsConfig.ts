@@ -114,6 +114,82 @@ export function filterArticlesByLanguageScript(articles: Article[], language: st
   });
 }
 
+// Confirmed against live Supabase data (August 2026): 55 rows matched,
+// spread across 9 different categories (business, top, health,
+// entertainment, lifestyle, technology, world, science, environment) —
+// not limited to any single category. Every sampled title (25 checked)
+// was unambiguously daily-horoscope/tarot-card content, zero false
+// positives.
+//
+// Deliberately NOT included: a broader "religious ritual explainer"
+// pattern (पूजा/व्रत/मुहूर्त/पुराण-style phrasing) was investigated too,
+// but every candidate term found either had negligible volume (0-2 rows)
+// or demonstrated real false-positive risk. "पूर्णिमा" (full moon), the
+// highest-volume candidate, also matched a genuine Raksha Bandhan
+// date-announcement article and a lunar-eclipse news article — exactly
+// the "legitimate news article that happens to mention a ritual/festival
+// term" failure mode this needs to avoid, not just ritual filler. Rather
+// than guess at a workaround, that sub-pattern is left out entirely.
+const HOROSCOPE_FILLER_TERMS = ["राशिफल", "टैरो", "कुंडली", "rashifal", "horoscope", "tarot"];
+
+/**
+ * True for horoscope/tarot filler content (daily rashifal, tarot card
+ * readings) — a distinct non-news content type that NewsData.io tags
+ * under real news categories rather than keeping separate.
+ */
+export function isHoroscopeOrRitualFiller(article: {
+  title?: string | null;
+  description?: string | null;
+}): boolean {
+  const text = `${article.title || ""} ${article.description || ""}`.toLowerCase();
+  return HOROSCOPE_FILLER_TERMS.some((term) => text.includes(term.toLowerCase()));
+}
+
+// Wire-syndication accounts confirmed (August 2026, 400-row sample across
+// 8 categories) to redistribute identical off-topic filler — in the
+// sample, a single paddy-procurement/crop-survey article, simultaneously
+// dumped under "technology", "science", and "india" with zero relevance
+// to any of them. Deliberately a narrow, evidence-checked list, not every
+// source_id that carried the spam title: two sources that also carried it
+// (globalherald_news, satyaexpress) were EXCLUDED from this list because
+// they also distributed at least one genuinely on-topic story elsewhere in
+// the same sample (a real health-camp article) — a source that sometimes
+// publishes real content shouldn't be blanket-banned. Only source_ids with
+// zero legitimate content anywhere in the sample are listed here.
+const WIRE_SPAM_SOURCE_IDS = [
+  "jsrtimes_in",
+  "khulasa",
+  "jagatvision_co_in",
+  "mp18news",
+  "digiananews",
+  "sameera_co_in",
+  "hindustanexpress_online",
+  "graminbharattv_in",
+];
+
+/** True for NewsData.io source_ids confirmed to redistribute off-topic wire filler with no observed legitimate content. */
+export function isFromWireSpamSource(sourceId?: string | null): boolean {
+  if (!sourceId) return false;
+  return WIRE_SPAM_SOURCE_IDS.includes(sourceId.toLowerCase());
+}
+
+// Confirmed against live Supabase data (August 2026): "bringatrailer" is a
+// classic/collector car auction-listing site, not a news source — all 12
+// rows it had ever contributed were vehicle listings ("16k-Mile 2017 Jaguar
+// XJ R-Sport", "Porsche 993 Sport Seats at No Reserve", etc.), 100% tagged
+// under "technology"/"top" with zero genuine tech content and zero presence
+// in any other category. Unlike the "<Place> News:" hyperlocal-title
+// hypothesis investigated in the same pass (rejected — see project history:
+// 40-56% of those articles were genuinely on-topic, far above a reasonable
+// false-positive bar), this source has no on-topic content to lose.
+const NON_NEWS_LISTING_SOURCE_IDS = ["bringatrailer"];
+
+/** True for source_ids confirmed to publish listings (not news) with zero observed on-topic content. */
+export function isFromNonNewsListingSource(sourceId?: string | null): boolean {
+  if (!sourceId) return false;
+  return NON_NEWS_LISTING_SOURCE_IDS.includes(sourceId.toLowerCase());
+}
+
 /** Deduplicates articles by normalized (trimmed, lowercased) title. */
 export function dedupeArticlesByTitle(articles: Article[]): Article[] {
   const seen = new Set<string>();

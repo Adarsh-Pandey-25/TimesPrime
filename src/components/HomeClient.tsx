@@ -417,6 +417,7 @@ export default function HomeClient({
                   language={language}
                   relatedStories={topStories}
                   imageUrl={cardImageUrls.get(featuredArticle)}
+                  activeCategory={category}
                 />
               </section>
             )}
@@ -441,7 +442,7 @@ export default function HomeClient({
                 </div>
                 <div className={`grid gap-5 sm:gap-6 lg:gap-8 pt-2 ${getTopStoriesGridClass(topStories.length)}`}>
                   {topStories.map((art) => (
-                    <ArticleCard key={art.article_id || art.link} article={art} language={language} imageUrl={cardImageUrls.get(art)} />
+                    <ArticleCard key={art.article_id || art.link} article={art} language={language} imageUrl={cardImageUrls.get(art)} activeCategory={category} />
                   ))}
                 </div>
               </section>
@@ -476,6 +477,7 @@ export default function HomeClient({
                       language={language}
                       imageUrl={cardImageUrls.get(art)}
                       className="min-h-[420px]"
+                      activeCategory={category}
                     />
                   ))}
                 </div>
