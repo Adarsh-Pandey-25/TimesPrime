@@ -106,11 +106,42 @@ export function containsHindiScript(text?: string | null): boolean {
   return !!text && /[\u0900-\u097F]/.test(text);
 }
 
-/** Keeps only articles whose title script matches the requested language ("hi" = Devanagari, else Latin). */
+// Unicode ranges for the other Indic scripts NewsData.io aggregates besides
+// Devanagari (Hindi/Marathi/Sanskrit) \u2014 confirmed against live Supabase data
+// (August 2026): 3 Odia-script rows (from sambad_in, otvkhabar_in \u2014 both
+// Odisha regional outlets) were passing the old "not Devanagari = English"
+// check and leaking into the English feed. This app only has an English/Hindi
+// reading experience, so a Bengali/Tamil/Odia/etc. title doesn't belong in
+// either feed \u2014 it should be excluded from both, not default to "English".
+const INDIC_SCRIPT_REGEX = new RegExp(
+  "[" +
+    "\u0900-\u097F" + // Devanagari (Hindi/Marathi/Sanskrit)
+    "\u0980-\u09FF" + // Bengali/Assamese
+    "\u0A00-\u0A7F" + // Gurmukhi (Punjabi)
+    "\u0A80-\u0AFF" + // Gujarati
+    "\u0B00-\u0B7F" + // Odia
+    "\u0B80-\u0BFF" + // Tamil
+    "\u0C00-\u0C7F" + // Telugu
+    "\u0C80-\u0CFF" + // Kannada
+    "\u0D00-\u0D7F" + // Malayalam
+    "]"
+);
+
+/** Detects ANY Indic script (Devanagari or otherwise) in text. */
+export function containsNonLatinIndicScript(text?: string | null): boolean {
+  return !!text && INDIC_SCRIPT_REGEX.test(text);
+}
+
+/**
+ * Keeps only articles whose title script matches the requested language.
+ * "hi" = genuine Devanagari only. Anything else ("en") = no Indic script at
+ * all \u2014 a Bengali/Odia/Tamil/etc. title is excluded from both feeds rather
+ * than falling through to "English" by default (see containsNonLatinIndicScript).
+ */
 export function filterArticlesByLanguageScript(articles: Article[], language: string): Article[] {
   return articles.filter((art) => {
-    const isHindi = containsHindiScript(art.title);
-    return language === "hi" ? isHindi : !isHindi;
+    if (language === "hi") return containsHindiScript(art.title);
+    return !containsNonLatinIndicScript(art.title);
   });
 }
 

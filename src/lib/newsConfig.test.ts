@@ -2,6 +2,7 @@ import {
   CATEGORY_MAP,
   mapCategory,
   containsHindiScript,
+  containsNonLatinIndicScript,
   filterArticlesByLanguageScript,
   dedupeArticlesByTitle,
 } from "./newsConfig";
@@ -67,10 +68,44 @@ describe("containsHindiScript", () => {
   });
 });
 
+describe("containsNonLatinIndicScript", () => {
+  it("detects Devanagari (Hindi)", () => {
+    expect(containsNonLatinIndicScript("यह एक हिंदी वाक्य है")).toBe(true);
+  });
+
+  it("detects Odia", () => {
+    expect(containsNonLatinIndicScript("ପ୍ରଧାନମନ୍ତ୍ରୀଙ୍କୁ ଭେଟିଲେ")).toBe(true);
+  });
+
+  it("detects Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, and Gurmukhi", () => {
+    expect(containsNonLatinIndicScript("এটি একটি বাংলা বাক্য")).toBe(true); // Bengali
+    expect(containsNonLatinIndicScript("இது ஒரு தமிழ் வாக்கியம்")).toBe(true); // Tamil
+    expect(containsNonLatinIndicScript("ఇది ఒక తెలుగు వాక్యం")).toBe(true); // Telugu
+    expect(containsNonLatinIndicScript("ಇದು ಒಂದು ಕನ್ನಡ ವಾಕ್ಯ")).toBe(true); // Kannada
+    expect(containsNonLatinIndicScript("ഇത് ഒരു മലയാളം വാചകമാണ്")).toBe(true); // Malayalam
+    expect(containsNonLatinIndicScript("આ એક ગુજરાતી વાક્ય છે")).toBe(true); // Gujarati
+    expect(containsNonLatinIndicScript("ਇਹ ਇੱਕ ਪੰਜਾਬੀ ਵਾਕ ਹੈ")).toBe(true); // Gurmukhi/Punjabi
+  });
+
+  it("returns false for pure Latin text", () => {
+    expect(containsNonLatinIndicScript("This is an English sentence")).toBe(false);
+  });
+
+  it("handles null/undefined/empty input safely", () => {
+    expect(containsNonLatinIndicScript(null)).toBe(false);
+    expect(containsNonLatinIndicScript(undefined)).toBe(false);
+    expect(containsNonLatinIndicScript("")).toBe(false);
+  });
+});
+
 describe("filterArticlesByLanguageScript", () => {
   const articles = [
     makeArticle({ article_id: "1", title: "English Headline" }),
     makeArticle({ article_id: "2", title: "हिंदी समाचार शीर्षक" }),
+    // Odia — a real leak found live: NewsData.io aggregates Odisha regional
+    // publishers whose titles are neither Devanagari nor Latin. This app has
+    // no Odia reading experience, so it belongs in neither feed.
+    makeArticle({ article_id: "3", title: "ପ୍ରଧାନମନ୍ତ୍ରୀଙ୍କୁ ଭେଟିଲେ ଉପମୁଖ୍ୟମନ୍ତ୍ରୀ" }),
   ];
 
   it("keeps only Hindi-script titles when language is 'hi'", () => {
@@ -78,7 +113,7 @@ describe("filterArticlesByLanguageScript", () => {
     expect(result.map((a) => a.article_id)).toEqual(["2"]);
   });
 
-  it("keeps only Latin-script titles when language is not 'hi'", () => {
+  it("keeps only Latin-script titles when language is not 'hi', excluding other Indic scripts", () => {
     const result = filterArticlesByLanguageScript(articles, "en");
     expect(result.map((a) => a.article_id)).toEqual(["1"]);
   });

@@ -351,6 +351,24 @@ export function getTopicImageUrl(
  */
 export function assignDedupedTopicImages(articles: Article[]): Map<Article, string> {
   const topicDrawCounts = new Map<number, number>();
+  // Per-topic starting point for THIS call's cursor, seeded once (from the
+  // first same-topic article's own title) rather than always 0. Before this,
+  // every page's cursor for a given topic started at pool[0] every time —
+  // for the politics/law bucket (broad keywords: government, police, court,
+  // election, minister, parliament, India, Modi, BJP, Congress, law...),
+  // that meant pool[0] (the Lady Justice photo) was the first image shown on
+  // essentially any category page with political content. Confirmed live:
+  // 7 of 7 tested category pages (technology, world, business, sports,
+  // health, science, general) showed Lady Justice as the first image before
+  // this fix; seeding the offset from the first matching article's title
+  // hash dropped that to 1 of 7 (expected ~1-in-pool-size variance, not a
+  // repeat of the bug). Deliberately NOT a per-article hash (that's what
+  // getTopicImageCandidates does, and the comment below explains why this
+  // function doesn't reuse it): the hash only picks where THIS topic's
+  // cursor starts, once, on this page — the plain +1 cursor from there still
+  // guarantees consecutive same-topic articles never repeat until the whole
+  // pool is used, exactly as before.
+  const topicStartOffsets = new Map<number, number>();
   const imageMap = new Map<Article, string>();
 
   for (const art of articles) {
@@ -375,14 +393,18 @@ export function assignDedupedTopicImages(articles: Article[]): Map<Article, stri
       continue;
     }
 
-    // Pure sequential cycling (no per-article hash offset here): mixing in
-    // a hash-based start index let two unrelated articles' offsets
-    // coincidentally land on the same slot, clustering repeats together.
-    // A plain counter guarantees consecutive same-topic articles are always
-    // `pool.length` apart — the maximum possible spacing for a fixed pool.
+    // Sequential cycling from a per-page, per-topic starting offset (not a
+    // per-article hash — see the comment on topicStartOffsets above for why
+    // that distinction matters): a plain +1 counter still guarantees
+    // consecutive same-topic articles are always `pool.length` apart, the
+    // maximum possible spacing for a fixed pool.
     const pool = TOPIC_IMAGE_MAP[topicIndex].imageUrls;
+    if (!topicStartOffsets.has(topicIndex)) {
+      topicStartOffsets.set(topicIndex, hashTitle(art.title || "") % pool.length);
+    }
+    const startOffset = topicStartOffsets.get(topicIndex)!;
     const drawCount = topicDrawCounts.get(topicIndex) ?? 0;
-    const picked = pool[drawCount % pool.length];
+    const picked = pool[(startOffset + drawCount) % pool.length];
 
     topicDrawCounts.set(topicIndex, drawCount + 1);
     imageMap.set(art, picked);

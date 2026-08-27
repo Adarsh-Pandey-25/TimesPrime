@@ -3,6 +3,7 @@ import { Article } from "@/types";
 import { supabase, isSupabaseConfigured } from "./supabase";
 import {
   containsHindiScript,
+  containsNonLatinIndicScript,
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
@@ -96,10 +97,13 @@ interface ArticleTimestampRow {
   title: string;
 }
 
-/** Keeps only rows whose title script matches the requested language. */
+// Keeps only rows whose title script matches the requested language: "hi" =
+// genuine Devanagari only; "en" = no Indic script at all (Devanagari or
+// otherwise) — an Odia/Tamil/Bengali/etc. title belongs in neither feed, not
+// "English" by default. See containsNonLatinIndicScript in newsConfig.ts.
 function matchesLanguageScript(title: string | undefined, language: string): boolean {
-  const titleIsHindi = containsHindiScript(title);
-  return language === "hi" ? titleIsHindi : !titleIsHindi;
+  if (language === "hi") return containsHindiScript(title);
+  return !containsNonLatinIndicScript(title);
 }
 
 // Publishers whose articles are Hindi-language even when a headline happens
