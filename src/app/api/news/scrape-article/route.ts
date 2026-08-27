@@ -112,6 +112,68 @@ function hasPaywallStructuredData($: CheerioAPI): boolean {
   return found;
 }
 
+// schema.org NewsArticle/Article JSON-LD's articleBody — a structured,
+// publisher-declared full-text field, independent of whatever HTML markup
+// wraps the actual article (custom CMS blocks, JS-rendered content, AMP
+// pages, etc.). Reuses the same @graph-aware JSON-LD scan pattern as
+// hasPaywallStructuredData above.
+//
+// Added as a fallback for when $("p") finds nothing usable — confirmed
+// against live data (August 2026, 120-URL sample): of 5 pages where normal
+// paragraph extraction found zero usable content, 4 (Times of India, News18
+// Hindi, Janta Se Rishta, Bundle.app) had a ready JSON-LD articleBody. The
+// 5th (a CNBC video page) had no articleBody either, since it genuinely
+// wasn't a text article. A general-purpose library (e.g. @mozilla/readability)
+// was considered but not adopted — this fallback alone covers the large
+// majority of the zero-paragraph cases found, without a new dependency or
+// the regression risk of a different extraction strategy on sources that
+// already work.
+function extractJsonLdArticleBody($: CheerioAPI): string | null {
+  let articleBody: string | null = null;
+  $('script[type="application/ld+json"]').each((_, el) => {
+    if (articleBody) return;
+    const raw = $(el).html();
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      const nodes = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.["@graph"])
+          ? parsed["@graph"]
+          : [parsed];
+      for (const node of nodes) {
+        if (typeof node?.articleBody === "string" && node.articleBody.trim().length > 0) {
+          articleBody = node.articleBody.trim();
+          break;
+        }
+      }
+    } catch {
+      // Malformed JSON-LD — ignore this block, other signals still apply.
+    }
+  });
+  return articleBody;
+}
+
+// articleBody frequently arrives as one run-on string with paragraph breaks
+// stripped entirely (confirmed live: a real Times of India articleBody with
+// no \n or \n\n anywhere). Splitting only on ". " would fragment ordinary
+// sentences; splitting only at a hard paragraph boundary is impossible since
+// none survived. The reliable signal that DOES survive is a period
+// immediately followed by a capital letter with NO space — real prose
+// always has a space after a sentence-ending period, so a missing space is
+// exactly where an HTML <p> boundary most likely collapsed. This also
+// matters for junk filtering: without splitting, a trailing boilerplate
+// sentence (e.g. TOI's "You Can Also Check: ..." rate/weather link list)
+// stays buried mid-string where isJunkParagraph's startsWith checks can
+// never reach it; splitting isolates it into its own paragraph instead.
+function splitArticleBodyIntoParagraphs(text: string): string[] {
+  return text
+    .split(/\.(?=[A-Z])/)
+    .map((part, i, arr) => (i < arr.length - 1 ? part + "." : part))
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 function detectPaywall($: CheerioAPI): PaywallDetectionResult {
   const isPaywalled =
     PAYWALL_SELECTORS.some((selector) => $(selector).length > 0) ||
@@ -202,6 +264,12 @@ const JUNK_START_PATTERNS = [
   "enable notifications",
   "get the latest news on whatsapp", // textually distinct from "get the latest news" above — kept for parity with the requested list
   "push notifications", // moved from JUNK_CONTAINS_PATTERNS — was matching mid-sentence in legitimate tech paragraphs (e.g. "...update now supports richer push notifications...")
+
+  // Confirmed live (August 2026, 5/5 sampled TOI articles): a rate/weather/
+  // AQI link-list boilerplate TOI appends to its JSON-LD articleBody field
+  // specifically — only reachable via splitArticleBodyIntoParagraphs' JSON-LD
+  // fallback path, since normal <p>-tag extraction never sees it merged in.
+  "you can also check:",
 ];
 
 // Substrings that flag junk anywhere in the paragraph, not just the start.
@@ -421,6 +489,18 @@ export async function GET(request: NextRequest) {
 
       rawParagraphs.push(text);
     });
+
+    // Fallback for pages whose markup doesn't use plain <p> tags at all
+    // (custom CMS block structure, JS-rendered content, AMP pages) — see
+    // extractJsonLdArticleBody above for the live-data evidence behind this.
+    // Only engaged when normal extraction found effectively nothing, so a
+    // page that already works via $("p") is completely unaffected.
+    if (rawParagraphs.length < 2) {
+      const articleBody = extractJsonLdArticleBody($);
+      if (articleBody) {
+        rawParagraphs.push(...splitArticleBodyIntoParagraphs(articleBody));
+      }
+    }
 
     const cleanedParagraphs = cleanContent(rawParagraphs).map((text) => paraphraseText(text));
     const resultContent =

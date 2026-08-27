@@ -113,23 +113,6 @@ export default function ArticleDetailView({
 
   const sourceDomain = getSourceDomain(targetUrl);
 
-  // Only the generic fallback (no real scraped content, and not a known
-  // paywall) auto-redirects. A paywalled article gets its own distinct UI
-  // below and must NOT auto-redirect — the reader should choose whether to
-  // leave for the publisher's site, not get bounced there automatically.
-  const shouldAutoRedirect = !hasScrapedContent && !isPaywalled && !!targetUrl;
-  const [redirectSeconds, setRedirectSeconds] = useState(5);
-
-  useEffect(() => {
-    if (!shouldAutoRedirect) return;
-    if (redirectSeconds <= 0) {
-      window.location.href = targetUrl!;
-      return;
-    }
-    const timer = setTimeout(() => setRedirectSeconds((s) => s - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [shouldAutoRedirect, redirectSeconds, targetUrl]);
-
   // Poll State
   const [pollVoted, setPollVoted] = useState<string | null>(null);
 
@@ -680,27 +663,15 @@ export default function ArticleDetailView({
                     : "This article is hosted on the publisher's platform. Click below to read the complete coverage, analysis, and updates."}
                 </p>
                 {targetUrl && (
-                  <>
-                    <a
-                      href={targetUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 transition-colors shadow-xs"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      {language === "hi" ? "पूरा लेख पढ़ें →" : "Read Full Article →"}
-                    </a>
-                    {shouldAutoRedirect && (
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {language === "hi"
-                          ? `${redirectSeconds} सेकंड में मूल लेख खुल रहा है... `
-                          : `Opening original article in ${redirectSeconds} second${redirectSeconds === 1 ? "" : "s"}... `}
-                        <a href={targetUrl} className="underline hover:text-red-600 dark:hover:text-red-400">
-                          {language === "hi" ? "यदि रीडायरेक्ट न हो तो यहां क्लिक करें" : "Click here if not redirected"}
-                        </a>
-                      </p>
-                    )}
-                  </>
+                  <a
+                    href={targetUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 transition-colors shadow-xs"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    {language === "hi" ? "पूरा लेख पढ़ें →" : "Read Full Article →"}
+                  </a>
                 )}
               </div>
             )}
