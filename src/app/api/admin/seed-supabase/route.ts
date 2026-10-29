@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { saveArticlesToDB } from "@/lib/db";
-import { paraphraseTitle, paraphraseText } from "@/lib/paraphraser";
 import { logAdminAction } from "@/lib/adminLogger";
 import type { NewsDataRawArticle } from "@/types";
 
@@ -31,9 +30,9 @@ export async function POST() {
         const data = await res.json();
         const articles = (data.results || []).map((art: NewsDataRawArticle) => ({
           article_id: art.article_id || art.link,
-          title: paraphraseTitle(art.title || "Untitled News"),
+          title: art.title || "Untitled News",
           link: art.link || "#",
-          description: paraphraseText(art.description || ""),
+          description: art.description || "",
           content: art.content || art.description || "",
           pubDate: art.pubDate || new Date().toISOString(),
           image_url: art.image_url || art.source_icon || null,

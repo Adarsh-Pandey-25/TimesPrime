@@ -3,7 +3,6 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import * as Sentry from "@sentry/nextjs";
-import { paraphraseTitle, paraphraseText } from "@/lib/paraphraser";
 import { validateExternalUrl } from "@/lib/urlValidation";
 import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/lib/cache";
 import { urlToHostname } from "@/lib/sentryScrub";
@@ -427,12 +426,11 @@ export async function GET(request: NextRequest) {
     // real title/description instead of a blank page.
     const paywall = detectPaywall($);
     if (paywall.isPaywalled) {
-      const paywallTitle = paraphraseTitle(
+      const paywallTitle =
         paywall.ogTitle ||
-          $("h1").first().text().trim() ||
-          $("title").text().trim() ||
-          "Article Details"
-      );
+        $("h1").first().text().trim() ||
+        $("title").text().trim() ||
+        "Article Details";
       const paywallDescription = paywall.ogDescription || "";
       const paywallImage = paywall.ogImage || "";
 
@@ -465,16 +463,14 @@ export async function GET(request: NextRequest) {
       $("h1").first().text().trim() ||
       $("title").text().trim() ||
       "Article Details";
-    const pageTitle = paraphraseTitle(rawTitle);
+    const pageTitle = rawTitle;
 
     // Remove author-bio/nav/breadcrumb containers from the tree before
     // paragraph extraction — see removeNonContentNodes for why this runs
     // before the $("p").each() loop rather than after.
     removeNonContentNodes($);
 
-    // Extract paragraphs. Junk-filtering runs on the raw scraped text
-    // (before paraphraseText) so a bio's rewording can't dodge a
-    // start-pattern match that the original text would have hit.
+    // Extract paragraphs. Junk-filtering runs on the raw scraped text.
     const LINK_DENSITY_THRESHOLD = 0.8;
     const rawParagraphs: string[] = [];
     $("p").each((_, element) => {
@@ -502,7 +498,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const cleanedParagraphs = cleanContent(rawParagraphs).map((text) => paraphraseText(text));
+    const cleanedParagraphs = cleanContent(rawParagraphs);
     const resultContent =
       cleanedParagraphs.length > 0
         ? truncateContent(cleanedParagraphs, MAX_CONTENT_CHARS)

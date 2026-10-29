@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cache, CACHE_TTL_NEWS_SECONDS } from "@/lib/cache";
-import { paraphraseTitle, paraphraseText } from "@/lib/paraphraser";
 import { Article, NewsDataRawArticle } from "@/types";
 import {
   saveArticlesToDB,
@@ -170,9 +169,9 @@ export async function GET(request: NextRequest) {
 
     const fetchedArticles: Article[] = (data.results || []).map((art: NewsDataRawArticle) => ({
       article_id: art.article_id || art.link,
-      title: paraphraseTitle(art.title || "Untitled Article"),
+      title: art.title || "Untitled Article",
       link: art.link || "#",
-      description: paraphraseText(art.description || ""),
+      description: art.description || "",
       content: art.content || "",
       pubDate: art.pubDate || new Date().toISOString(),
       image_url: art.image_url || art.source_icon || null,
