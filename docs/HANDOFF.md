@@ -22,8 +22,10 @@ owner's five decisions (§9) — the paraphraser, RSS, the contact form and both
 deleted. The structure decision is made: **layer separation with a CI-enforced import boundary** —
 not a top-level `backend/` folder, which the App Router cannot support without breaking every URL.
 
-**Phase C (structure design / ADR) is DONE and awaits owner approval. Phase D (moving files) has
-NOT started — do not start it without approval**, and not before SC-1 is decided (§6.1).
+**Phase C is approved** (ADR 0001 Accepted), and its review's conditions are applied: SC-1 fixed
+(`b01d528`, the Supabase SDK no longer reaches the browser), BL-009 and BL-010 fixed, slice 7
+skipped, bookmarks moved into news so `lib/` stays domain-free. **Phase D (moving files) has NOT
+started — do not start it without the owner's go-ahead.**
 The security items (Next.js bump, DEF-02, DEF-06) and the Supabase connection are reserved by the
 owner for a separate session. Do not start either here.
 
@@ -76,7 +78,7 @@ npm run test:ci    # jest with coverage
 
 ```
 tsc --noEmit   exit 0
-eslint .       exit 0   (0 errors, 15 warnings)
+eslint .       exit 0   (0 errors, 14 warnings — all in source since BL-010)
 jest --ci      3 suites, 31 tests passed
 next build     exit 0   (26 routes)
 ```
@@ -220,6 +222,12 @@ Oldest to newest. `0e7f1f7` was the pre-existing HEAD.
 | `bcd5393` | `feat: remove the RSS ingestion code and its 503 route` | Q2. **Route table 27 → 26**; baseline updated in the same commit |
 | `59b875d` | `feat: remove the contact form and both newsletter forms` | Q4. Resolves DEF-09. Three forms, not two — the newsletter lived in two places |
 | `7ceae74` | `docs: log the owner decisions and everything deferred along the way` | BL-004..009 |
+| `4ead26d`, `652f2b8`, `630371a` | docs, CODEMAP regeneration, BL-010 logged | Knowledge base brought current |
+| `9f4ab48` | `build: make the move map data, and check it against the import rules` | Phase C. `scripts/move-map.mjs` + `check-move-map.mjs`. Draft map: 21 violations |
+| `a0d7f85` | `docs: Phase C — finalize the move map and record ADR 0001` | Three features, not six |
+| `b01d528` | `refactor: keep the Supabase SDK out of the admin page's browser bundle` | SC-1. `GoTrueClient` in browser chunks 1 → 0; violations 2 → 0 |
+| `d3ba8fa` | `fix: remove the footer's "RSS Feeds" link` | BL-009 |
+| `755fadc` | `build: stop ESLint linting the generated coverage/ directory` | BL-010. Lint warnings 15 → 14 |
 
 Followed by the knowledge-base commits that bring PRD, MOVE-MAP, architecture, this file and
 CODEMAP up to date.
@@ -295,8 +303,8 @@ which has already happened in `ActivityLog.tsx`.
 | **0** | Baseline: four verifications, route table captured | ✅ **Done** |
 | **1** | Hygiene: package name, scripts, README, CI, `db/`, docs scaffold | ✅ **Done** |
 | **A** | Knowledge base + PRD; review changes and owner decisions | ✅ **Done** |
-| **C** | Structure design — tree, move map, ADR 0001 | ✅ **Done, awaiting approval** |
-| **D** | Migration — 6 slices (+1 optional), pure moves only | Gate — **not started** |
+| **C** | Structure design — tree, move map, ADR 0001 | ✅ **Done, approved** |
+| **D** | Migration — 6 slices, pure moves only (slice 7 skipped) | Gate — **not started** |
 | **E** | Enforcement — boundary lint rule, path aliases | Gate |
 | **F** | Decomposition — split the 7 oversized files; route-handler extraction | Optional, last |
 
@@ -316,20 +324,20 @@ both generated from it. Edit it there and nowhere else.
    the same commit (CR-06)
 3. `server/` — supabase, adminSession, adminLogger → auditLog, googleTranslate
 4. `components/ui/` — `ThemeContext` has 18 importers
-5. `features/admin` — carries the `ActivityLog` bug, see SC-1
-6. `features/news` — 12 files; create `index.ts` **and** `server.ts`; measure the client bundle
-   before and after
-7. `app/` route groups — **recommended: defer**; no URL or behaviour benefit yet
+5. `features/admin` — 7 files, including `actionLabels.ts` (SC-1 is done, so a pure move)
+6. `features/news` — 14 files including `bookmarks.ts`; create `index.ts` **and** `server.ts`
+   (first line `import "server-only";`), **prove the guard fails a client import**, and measure the
+   client bundle before and after
+7. ~~`app/` route groups~~ — **skipped**, owner decision
 
-Run `node scripts/check-move-map.mjs` before and after every slice — expect "2 known, 0 unexpected".
+Run `node scripts/check-move-map.mjs` before and after every slice — expect "0 violation(s)".
 
 ### 6.1 Stop conditions
 
-If a slice cannot be done as a pure move — **stop**. Two are known:
+If a slice cannot be done as a pure move — **stop**.
 
-- **SC-1 — `adminLogger.ts` split.** Its two label constants must leave the module or Phase E's
-  rule fails. **Owner decision needed**: one approved extraction commit into `config/adminActions.ts`
-  (recommended), or allowlist the edge until Phase F.
+- **SC-1 — `adminLogger.ts` split.** ✅ **Resolved in `b01d528`**: types → `types/`, labels →
+  `components/admin/actionLabels.ts` (moves with `ActivityLog` in slice 5).
 - **SC-2 — the scraper.** `scrape-article`'s 556 lines stay in their route through Phase D; extracting
   them is Phase F, behind a characterization test.
 
@@ -410,9 +418,8 @@ collection that no longer happens. Legal copy — for the owner or legal review,
 
 **In this line of work** — the restructure:
 
-1. Owner approves the Phase C map + ADR 0001, decides **SC-1** (adminLogger split) and **slice 7**
-   (route groups: defer or do) → start **Phase D, slice 1**. **Not started; do not start without
-   approval.**
+1. Owner gives the go-ahead → start **Phase D, slice 1** (`features/chat`). **Not started; do not
+   start without approval.** BL-007 stays deferred unless a slice actually hits it.
 2. Before any Phase D slice that moves a route file: put `next typegen` in the `typecheck` script (BL-007), or clear
    `.next/types` on every slice that moves a route file.
 3. Owner or legal rewrites the privacy policy (BL-008).

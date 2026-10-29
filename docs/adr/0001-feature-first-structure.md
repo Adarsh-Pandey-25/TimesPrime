@@ -1,6 +1,8 @@
 # ADR 0001 — Feature-first structure with layer separation and a CI-enforced boundary
 
-**Status:** Proposed — 2026-10-30, Phase C. Becomes *Accepted* when the owner approves the move map.
+**Status:** **Accepted** — 2026-10-30, owner approval of Phase C, with conditions applied: a split
+criterion for `features/news`, route groups recorded as deferred, `lib/` kept domain-free, and a
+`server-only` guard on every `server.ts`.
 **Supersedes:** nothing. **Related:** [`architecture.md`](../architecture.md),
 [`MOVE-MAP.md`](../MOVE-MAP.md), [`scripts/move-map.mjs`](../../scripts/move-map.mjs).
 
@@ -13,8 +15,9 @@ that says nothing about any of them.
 
 The cost is concrete, not aesthetic. Nothing marks which `lib/` modules are server-only, so nothing
 stops a client component importing one — and one does. `ActivityLog.tsx` imports two constants from
-`adminLogger.ts`, which imports `supabase.ts`, and the production build confirms the Supabase SDK
-ships in the browser chunk loaded by `/admin`.
+`adminLogger.ts`, which imports `supabase.ts`, and the production build confirmed the Supabase SDK
+shipped in the browser chunk loaded by `/admin`. (Fixed before Phase D in `b01d528`; afterwards the
+SDK appears in zero browser chunks.)
 
 Forces that are not choices:
 
@@ -44,7 +47,10 @@ with a lint rule rather than with documentation.
 - Imports go **downward only**. Nothing imports sideways between features. Anything two features
   both need moves down into a shared layer.
 - Each feature exposes **at most two** public surfaces: `index.ts`, safe for client and server, and
-  `server.ts`, server-only.
+  `server.ts`, server-only. **Every `server.ts` begins with `import "server-only";`**, so a client
+  import of it fails the build (Next.js 16 docs, "Preventing environment poisoning").
+- `lib/` stays **domain-free**. Modules that know a product concept live in a feature or in
+  `config/` — the definition is not loosened to fit what happens to be in the folder.
 - The rules are written in [`architecture.md`](../architecture.md) §5 and enforced in CI in Phase E.
 
 ## How the structure was arrived at — by measurement
@@ -66,12 +72,39 @@ against the rules. **The draft broke them 21 times.** Each violation pointed at 
 | client → `server/` | 2 | The one pre-existing bug, which the draft did not fix either |
 
 Resolving them by the rule "shared things move down" produced **three** features. The resulting
-map breaks the rules **twice**, and both entries are the pre-existing `ActivityLog` bug — the same
-two the CODEMAP generator finds independently by a different method. Fixing that bug requires a
-content edit, so it is a stop condition in Phase D, not a structural flaw in the map.
+map broke the rules **twice**, and both entries were the pre-existing `ActivityLog` bug — the same
+two the CODEMAP generator finds independently by a different method. That bug needed a content
+edit, so it was fixed in its own owner-approved commit, `b01d528`. **The map now breaks the rules
+zero times.**
+
+In review, `bookmarks.ts` then moved from `lib/` into `features/news`: it stores `Article` objects,
+so keeping it would have meant quietly redefining `lib/` as "anything shared". With Header already
+in news, every importer of bookmarks was in news or `app/`, and the checker confirmed 0 violations.
 
 The draft was wrong because it grouped files by what they seemed to be *about*. The graph groups
 them by what they actually *depend on*. Only the second survives a lint rule.
+
+## When `features/news` gets split
+
+`features/news` is deliberately large — it is the product's core. It must not become a second
+`lib/`: a place things go because they are vaguely news-related. Review a split when **any** of
+these holds. Each is checkable, not a matter of taste.
+
+1. **The article page gains its own data access or logic.** Today it renders scraped text and has
+   no server code of its own. The expected trigger is Phase F extracting the scraper into
+   `features/news/server/`: once the article page owns server code that the feed never touches, it
+   is a sub-domain. Split it out as `features/article` **only if** the pieces both need —
+   `ArticleCard`, `newsConfig` — can move down first, so `check-move-map` still reports **0**
+   violations. If they cannot, the split is premature.
+2. **Size tripwire: more than 20 modules or 6,000 lines.** At acceptance it is **12 modules and
+   4,091 lines** (excluding tests and the two surface files). Roughly 50% headroom; crossing it
+   means reviewing the feature's boundary, not adding more.
+3. **A news module is needed by another feature.** Then it moves down (import rule 4). It does not
+   get re-exported sideways.
+4. **A module stops serving the reader journeys.** Every module in `features/news` must serve
+   browsing the feed, reading an article, saving one, or ingesting news (PRD §5). A utility that
+   knows nothing about news belongs in `lib/`; one that only an operator uses belongs in
+   `features/admin`. This is the test that keeps it from becoming `lib/` again.
 
 ## Alternatives rejected
 
@@ -107,6 +140,21 @@ browser through `ActivityLog`. Two surfaces make server code unreachable from th
 construction. Slice 6 measures the client bundle before and after to confirm the barrels cost
 nothing.
 
+**6. A separate `src/shared/` layer for product-aware shared code.** Proposed as a home for
+modules that carry product knowledge but are used in more than one place, so that `lib/` could stay
+domain-free. Rejected because, once measured, it would hold one file: `bookmarks.ts`, whose
+consumers are all in `features/news` or `app/`. It joined news instead. Reconsider if a
+product-aware module is ever genuinely needed by two features — that is the case this layer is for,
+and today there is no such module.
+
+### Considered and deferred
+
+**Route groups under `app/` — `(reader)` and `(marketing)`.** Considered as part of the plan from
+the start. **Deferred by owner decision**, for three reasons: they change no URL; they buy nothing
+while no page shares a group layout, since every page imports Header and Footer itself; and moving
+every page file is exactly what trips the stale-route-types failure in BL-007. Revisit when a group
+layout can own the shared Header and Footer — which is a code change, so Phase F at the earliest.
+
 ## Consequences
 
 **Easier.**
@@ -125,7 +173,8 @@ nothing.
 - Two public surfaces per feature is one more convention to know.
 
 **Deferred, deliberately.**
-- Route groups under `app/` — no URL changes, no benefit until a group layout exists (MOVE-MAP
-  slice 7).
-- The `adminLogger` split — needs an owner decision (MOVE-MAP SC-1).
+- Route groups under `app/` — see *Considered and deferred*.
 - Extracting logic out of route handlers — Phase F, behind characterization tests.
+
+**Done before Phase D.**
+- The `adminLogger` split (MOVE-MAP SC-1), `b01d528` — the one boundary violation, fixed.

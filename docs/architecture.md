@@ -73,7 +73,7 @@ genuinely different kinds of thing:
 | Cross-cutting infrastructure | `cache.ts` · `rateLimit.ts` · `sentryScrub.ts` · `adminLogger.ts` |
 | Domain logic | `newsConfig.ts` · `categoryClassifier.ts` · `fetchNews.ts` · `newsdata.ts` |
 | Static configuration data | `imageDomains.ts` · `categoryColors.ts` · `topicImages.ts` (414) |
-| Presentation / i18n | `translations.ts` · `googleTranslate.ts` · `bookmarks.ts` |
+| Presentation / i18n | `translations.ts` · `googleTranslate.ts` · `bookmarks.ts` *(today; see "What `lib/` means" for where each goes)* |
 
 Nothing in the folder name tells a reader which of those a given file is, and nothing prevents a
 React component importing a Supabase client. **That has already happened**: `ActivityLog.tsx` is a
@@ -84,8 +84,9 @@ which makes this the right moment to fix it and close the door.
 ## 4. Target structure
 
 Finalized in Phase C and **validated**: `node scripts/check-move-map.mjs` relocates every file and
-tests all 149 import edges against §5. The Phase A draft of this tree — six features — broke the
-rules 21 times; this one breaks them twice, both the one known bug. Full reasoning in
+tests every import edge against §5. The Phase A draft of this tree — six features — broke the
+rules 21 times; this one broke them twice, both the one known `ActivityLog` bug, and has broken them
+**zero** times since that bug was fixed in `b01d528`. Full reasoning in
 [`adr/0001-feature-first-structure.md`](adr/0001-feature-first-structure.md).
 
 ```
@@ -101,7 +102,7 @@ src/
     chat/               AI assistant
   components/ui/        theme · i18n provider · layout/Footer · spinner · skeleton — no domain
   server/               backend-only: supabase · auth · auditLog · googleTranslate
-  lib/                  cross-cutting: cache · rateLimit · urlValidation · sentryScrub · bookmarks
+  lib/                  cross-cutting, domain-free: cache · rateLimit · urlValidation · sentryScrub
   config/               static data: imageDomains · categoryColors · topicImages · translations
   types/                genuinely shared types
 db/  docs/  scripts/  public/
@@ -138,8 +139,11 @@ These are the rules a reviewer may cite in a pull request. Phase E enforces them
    It does not get imported sideways.
 5. **`components/ui` is domain-free.** It may not import a feature, and must not know what an
    `Article` is.
-6. **`server/` is never imported by a client component.** This is the rule `ActivityLog.tsx`
-   currently breaks.
+6. **`server/` is never imported by a client component.** `ActivityLog.tsx` broke this — pulling
+   the Supabase SDK into `/admin`'s browser chunk — until `b01d528`. Each feature's `server.ts`
+   begins with `import "server-only";`, so a client import of it is a **build error**, not a review
+   comment (Next.js 16 docs, "Preventing environment poisoning"; the package is optional because Next
+   bundles it).
 7. **`config/` imports only `config/` and `types/`.** Static data — no React, no `server-only`, no
    feature or server code. **`imageDomains.ts` imports nothing at all**: `next.config.ts` evaluates it
    at config-load time (CR-06). *Refined in Phase C:* the draft said "config imports nothing", which
@@ -158,13 +162,33 @@ a time. Documentation does not prevent this; a linter does.
 | Module | Owns | Must never |
 |---|---|---|
 | `app/` | URL structure, request/response shape, auth delegation | Contain extraction heuristics, filter logic or SQL |
-| `features/news/` | Feed, article page, masthead; upstream fetching, editorial filters, classification, freshness, article storage | Import from another feature; expose server code through `index.ts` |
+| `features/news/` | Feed, article page, masthead, saved-article store; upstream fetching, editorial filters, classification, freshness, article storage | Import from another feature; expose server code through `index.ts` |
 | `features/admin/` | Operator UI, plus the public breaking-news banner whose data it owns (CR-08) | Be imported by another feature |
 | `features/chat/` | Assistant UI | Reach into news internals — take article context as a parameter |
 | `components/ui/` | Theme and language providers, Footer, spinner, skeleton — appearance only | Import a feature, or know what an Article is |
 | `server/` | Supabase client, session issue/verify, audit logging, the translate client | Be imported by a client component |
-| `lib/` | Cross-cutting utilities with no feature knowledge, including the client-side bookmark store | Become the next dumping ground — if it has a domain, it belongs in a feature |
+| `lib/` | Cross-cutting, **domain-free** utilities: cache, rate limiting, URL validation, error scrubbing | Know any product concept — see *What `lib/` means* below |
 | `config/` | Static data: allowlists, colour maps, topic images, UI strings | Import anything but `config/` and `types/`; `imageDomains.ts` imports nothing (CR-06) |
+
+### What `lib/` means — unchanged, and now true
+
+`lib/` is **cross-cutting and domain-free**: a module belongs there only if it knows no product
+concept — no `Article`, no category, no editorial rule, no UI string. The definition was **not**
+loosened to fit what happened to live there. Instead, the two modules that broke it moved out:
+
+- `bookmarks.ts` stores `Article` objects → `features/news/` (every importer is in news or `app/`).
+- `translations.ts` holds product copy → `config/`, which is defined as static data.
+
+A new `src/shared/` layer was considered for them and rejected: it would add a layer for one file
+whose consumers already live in a single feature.
+
+**Checkable:** after Phase D, `lib/` holds `cache`, `rateLimit`, `sentryScrub` and `urlValidation`,
+and **none of them imports a single project module** — only `@upstash/redis` and Node built-ins. If
+a future `lib/` module imports from `features/`, `config/` or `types/`, that is the signal it has
+picked up a domain and belongs elsewhere.
+
+`components/ui/i18n/LanguageContext` stays in `components/ui/` on the same test: it holds only the
+`"en" | "hi"` choice and knows nothing about articles.
 
 ## 7. Decision records
 
