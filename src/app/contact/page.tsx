@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { ArrowLeft, Mail, Megaphone, MapPin, Send, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Mail, Megaphone, MapPin } from "lucide-react";
 
 const CONTACT_INFO = [
   {
@@ -28,13 +27,6 @@ const CONTACT_INFO = [
 ] as const;
 
 export default function ContactPage() {
-  const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setSubmitted(true);
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#1a1c1e] text-slate-900 dark:text-slate-100 transition-colors duration-200">
       <Header />
@@ -85,75 +77,6 @@ export default function ContactPage() {
                 </div>
               );
             })}
-          </section>
-
-          {/* Contact Form */}
-          <section className="rounded-2xl border border-slate-200 dark:border-[#383d45] bg-white dark:bg-[#25282d] p-6 sm:p-8">
-            {submitted ? (
-              <div className="text-center py-8 space-y-3">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="h-7 w-7" />
-                </div>
-                <h3 className="font-serif text-xl font-bold">Message Sent!</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
-                  Thanks for reaching out — we&apos;ll get back to you soon.
-                </p>
-                <button
-                  onClick={() => setSubmitted(false)}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-700 transition-colors pt-2"
-                >
-                  Send another message
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Name
-                    </label>
-                    <input
-                      id="name"
-                      type="text"
-                      required
-                      className="w-full rounded-xl border border-slate-200 dark:border-[#383d45] bg-slate-50 dark:bg-[#1f2226] text-slate-900 dark:text-white placeholder-slate-400 px-4 py-2.5 text-sm focus:outline-none focus:border-red-500 transition-colors"
-                      placeholder="Your full name"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Email
-                    </label>
-                    <input
-                      id="email"
-                      type="email"
-                      required
-                      className="w-full rounded-xl border border-slate-200 dark:border-[#383d45] bg-slate-50 dark:bg-[#1f2226] text-slate-900 dark:text-white placeholder-slate-400 px-4 py-2.5 text-sm focus:outline-none focus:border-red-500 transition-colors"
-                      placeholder="you@example.com"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label htmlFor="message" className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Message
-                  </label>
-                  <textarea
-                    id="message"
-                    required
-                    rows={5}
-                    className="w-full rounded-xl border border-slate-200 dark:border-[#383d45] bg-slate-50 dark:bg-[#1f2226] text-slate-900 dark:text-white placeholder-slate-400 px-4 py-2.5 text-sm focus:outline-none focus:border-red-500 transition-colors resize-none"
-                    placeholder="How can we help?"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition-colors shadow-xs"
-                >
-                  <Send className="h-4 w-4" />
-                  <span>Send Message</span>
-                </button>
-              </form>
-            )}
           </section>
         </div>
       </main>

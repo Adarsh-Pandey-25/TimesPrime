@@ -8,12 +8,10 @@ import {
   Share2,
   Copy,
   Check,
-  CheckCircle,
   Clock,
   Sparkles,
   ExternalLink,
   TrendingUp,
-  Flame,
   ChevronRight,
   ArrowRight,
   Tag,
@@ -93,7 +91,6 @@ export default function ArticleDetailView({
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [newsletterSubmitted, setNewsletterSubmitted] = useState(false);
 
   const [translatedTitle, setTranslatedTitle] = useState<string | null>(null);
   const [translatedDescription, setTranslatedDescription] = useState<string | null>(null);
@@ -929,52 +926,10 @@ export default function ArticleDetailView({
             </div>
           </div>
 
-          {/* Widget 5: Daily Digest Newsletter Widget — kept prominent for
-              retention, so it gets a stronger border + shadow than the
-              other sidebar widgets rather than blending in. */}
-          <div className="rounded-2xl border-2 border-[#1E3A5F]/30 dark:border-[#4A7BAF]/40 bg-white dark:bg-[#25282d] text-slate-900 dark:text-white p-5 shadow-md space-y-3">
-            <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
-              <Flame className="h-4 w-4 text-red-600 dark:text-red-400" />
-              <span>{language === "hi" ? "दैनिक समाचार पत्रिका" : "Daily Digest"}</span>
-            </div>
-            <h4 className="font-serif text-sm font-bold">
-              {language === "hi"
-                ? "हर सुबह मुख्य समाचार सीधे अपने इनबॉक्स में पाएं"
-                : "Get top news updates delivered directly to your inbox"}
-            </h4>
-            {newsletterSubmitted ? (
-              <p className="flex items-center gap-2 rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 px-3 py-2.5 text-xs font-semibold text-green-700 dark:text-green-400">
-                <CheckCircle className="h-4 w-4 shrink-0" />
-                {language === "hi"
-                  ? "आप सूची में शामिल हो गए हैं! पहला संस्करण कल सुबह आएगा।"
-                  : "You're on the list! First edition arrives tomorrow morning."}
-              </p>
-            ) : (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const emailInput = e.currentTarget.querySelector<HTMLInputElement>('input[type="email"]');
-                  if (!emailInput?.value.trim()) return;
-                  setNewsletterSubmitted(true);
-                  setTimeout(() => setNewsletterSubmitted(false), 4000);
-                }}
-                className="space-y-2"
-              >
-                <input
-                  type="email"
-                  required
-                  placeholder={language === "hi" ? "आपका ईमेल पता" : "Your email address"}
-                  className="w-full rounded-xl border border-slate-200 dark:border-[#383d45] bg-slate-50 dark:bg-[#1f2226] px-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:border-[#1E3A5F] focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="w-full rounded-xl bg-[#1E3A5F] py-2 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#16293f] transition-colors shadow-xs"
-                >
-                  {language === "hi" ? "सदस्यता लें" : "Subscribe"}
-                </button>
-              </form>
-            )}
-          </div>
+          {/* Widget 5: Daily Digest Newsletter — removed. It told readers
+              "You're on the list!" while sending nothing: there was no
+              endpoint, so no email was ever stored. A form that claims a
+              success it did not achieve is worse than no form (DEF-09). */}
         </aside>
       </div>
 

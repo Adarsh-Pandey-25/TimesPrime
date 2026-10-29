@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowUp } from "lucide-react";
@@ -57,18 +56,8 @@ export default function Footer({ language: propsLang }: FooterProps) {
   const t = TRANSLATIONS[language];
   const isDark = theme === "dark";
 
-  const [newsletterSubmitted, setNewsletterSubmitted] = useState(false);
-
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleNewsletterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const emailInput = e.currentTarget.querySelector<HTMLInputElement>('input[type="email"]');
-    if (!emailInput?.value.trim()) return;
-    setNewsletterSubmitted(true);
-    setTimeout(() => setNewsletterSubmitted(false), 4000);
   };
 
   return (
@@ -189,39 +178,7 @@ export default function Footer({ language: propsLang }: FooterProps) {
         </div>
       </div>
 
-      {/* SECTION 2 — Newsletter Strip */}
-      <div className={isDark ? "w-full bg-[#080e14]" : "w-full bg-[#152A47]"}>
-        <div className="mx-auto max-w-[1500px] px-3 py-4 sm:px-4 md:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-sm sm:text-base font-bold text-white text-center sm:text-left">
-            📰 {t.footer.newsletterStripTagline}
-          </p>
-
-          {newsletterSubmitted ? (
-            <p className="flex items-center gap-2 rounded-lg bg-white/15 px-4 py-2 text-sm font-semibold text-white">
-              ✓ {t.footer.subscribedSuccess}
-            </p>
-          ) : (
-            <form onSubmit={handleNewsletterSubmit} className="flex items-center gap-2 w-full sm:w-auto justify-center">
-              <div className="flex w-full sm:w-auto gap-2">
-                <input
-                  type="email"
-                  required
-                  placeholder={t.footer.newsletterEmailPlaceholder}
-                  className="rounded-lg bg-white text-slate-900 placeholder-slate-400 px-4 py-2 text-sm flex-1 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="ml-0 rounded-lg bg-[#DC2626] text-white font-bold px-4 py-2 text-sm hover:bg-[#b91c1c] transition-colors"
-                >
-                  {t.footer.subscribe}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      </div>
-
-      {/* SECTION 3 — Copyright Bar */}
+      {/* SECTION 2 — Copyright Bar */}
       <div className={isDark ? "bg-[#080e14]" : "bg-[#152A47]"}>
         <div className="mx-auto max-w-[1500px] px-3 py-3 sm:px-4 md:px-6 lg:px-10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <p className="text-slate-400">
