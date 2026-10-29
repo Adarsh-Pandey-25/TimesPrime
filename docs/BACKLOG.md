@@ -194,9 +194,9 @@ UI removal.
 Each was left alone because it was not required by the item that removed the
 feature:
 
-- **Footer "RSS Feeds" link** (`src/components/Footer.tsx`) — points at
-  `href="#"`. It never reached the deleted `/api/cron/refresh-rss`; it was dead
-  before RSS was removed. It now advertises a feature the owner has deleted.
+- ~~**Footer "RSS Feeds" link**~~ — **resolved**: the link and its separator were
+  removed from `src/components/Footer.tsx` at the owner's direction (Phase C
+  review). It had pointed at `href="#"` and advertised a deleted feature.
 - **Dead translation keys** (`src/lib/translations.ts`) — `rssFeeds`,
   `newsletterTitle`, `newsletterDesc`, `newsletterStripTagline`,
   `subscribedSuccess`, `newsletterEmailPlaceholder`, in the interface and both
@@ -205,8 +205,8 @@ feature:
   form's state is gone. Removing it changes the page's rendering mode, which is
   a behaviour change, not a cleanup.
 
-**Pick up:** any time, as one small commit. The footer link is the one a user
-can see.
+**Pick up:** any time, as one small commit. Nothing left in this entry is
+visible to a user. `rssFeeds` is now dead too — the link was its only reader.
 
 ---
 

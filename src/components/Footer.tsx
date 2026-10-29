@@ -198,10 +198,6 @@ export default function Footer({ language: propsLang }: FooterProps) {
               {t.footer.contactUs}
             </Link>
             <span>·</span>
-            <Link href="#" className="hover:text-white transition-colors">
-              {t.footer.rssFeeds}
-            </Link>
-            <span>·</span>
             <button
               onClick={scrollToTop}
               className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
