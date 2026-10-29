@@ -14,7 +14,16 @@ expensive mistake available.
 | 4 | [`architecture.md`](architecture.md) | How the system fits together; the import rules | 10 min |
 | 5 | [`MOVE-MAP.md`](MOVE-MAP.md) | Executing the restructure: slice order, risks, judgement calls | Reference |
 | 6 | [`BACKLOG.md`](BACKLOG.md) | Before "fixing" something that looks wrong — it may be deferred deliberately | 3 min |
-| — | [`TimesPrime-PRD-and-Architecture.pdf`](TimesPrime-PRD-and-Architecture.pdf) | The same material as 3–5, formatted for people rather than agents. Hand this to a stakeholder | 19 pages |
+
+## One source of truth
+
+**`PRD.md` is the canonical product specification.** Nothing else describes the product
+authoritatively.
+
+A PDF export, `TimesPrime-PRD-and-Architecture.pdf`, was produced on 2026-10-29 as a stakeholder
+snapshot. It is **retired**: untracked, git-ignored, and it predates the owner decisions recorded the
+same day — to remove the paraphraser, RSS, the contact form and the newsletter, and to fix EN/HI as
+the language scope. **Do not consult it.** If a copy exists on disk, it is wrong.
 
 ## Also here
 

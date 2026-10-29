@@ -35,7 +35,6 @@ DEF-01.
 | `docs/PRD.md` | Full PRD: FR-001..024 with code citations, NFR, CR, data model, defect register |
 | `docs/architecture.md` | How it works today, the target structure, and the 8 import rules |
 | `docs/MOVE-MAP.md` | Migration execution: slice order, risks, judgement calls, stop condition |
-| `docs/TimesPrime-PRD-and-Architecture.pdf` | Same material, formatted for people. Hand to a stakeholder |
 | `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..003) |
 | `docs/_baseline-routes.txt` | Route table captured at Phase 0. The diff target Phase 4 must match exactly |
 | `docs/prompts/00-prd-and-restructure.md` | The phased plan being executed |
@@ -181,8 +180,9 @@ Oldest to newest. `0e7f1f7` was the pre-existing HEAD.
 | `ada0757` | `docs: add README, CONTRIBUTING and docs/ scaffold` | Real README (16 env vars documented), CONTRIBUTING, docs scaffold, baseline route table |
 | `506a4ab` | `ci: run the verify gate on push and PR` | GitHub Actions running the same four steps, Node from `.node-version`, `npm ci`, coverage artifact |
 
-**Uncommitted:** `docs/TimesPrime-PRD-and-Architecture.pdf` (untracked). Owner has not said whether
-to commit it.
+**Retired:** `docs/TimesPrime-PRD-and-Architecture.pdf` was committed in `ddbcc9f`, then untracked
+and git-ignored at the owner's direction. `docs/PRD.md` is the only canonical spec — do not consult
+the PDF if a copy exists on disk.
 
 ---
 
@@ -220,7 +220,7 @@ src/
   types/          shared types
   proxy.ts, instrumentation*.ts, sentry.*.config.ts   ← framework-pinned, do not move
 db/               schema.sql, policies.sql
-docs/             PRD pdf, BACKLOG, architecture, adr/, runbooks/, prompts/
+docs/             README (index), PRD, CODEMAP, MOVE-MAP, architecture, BACKLOG, adr/, runbooks/
 ```
 
 **The problem is `src/lib/`** — it mixes data access (`db.ts`, `supabase.ts`), security primitives
@@ -256,9 +256,9 @@ which has already happened in `ActivityLog.tsx`.
 | **5** | Enforcement — boundary lint rule, path aliases | Gate |
 | **6** | Decomposition — split the 7 oversized files | Optional, last |
 
-The target structure and complete move map are **already designed** — they are in the PDF, Part III.
-Phase 3 should refine that rather than start over. Phase 2's PRD content is in the PDF, Part II; it
-needs owner review before being written into `docs/PRD.md`.
+The target structure and complete move map are **already designed** — see `docs/architecture.md`
+and `docs/MOVE-MAP.md`. Phase C should refine them rather than start over. The PRD is written, in
+`docs/PRD.md`.
 
 ### Migration slice order (Phase 4)
 
@@ -284,7 +284,7 @@ trips this: extracting 560 lines of scraper heuristics out of a route handler is
 
 ## 7. Known defects — current behaviour that is NOT intended
 
-Numbered to match the PDF. These are deliberately excluded from the requirement set so no future
+Numbered to match `docs/PRD.md` §11. These are deliberately excluded from the requirement set so no future
 reader mistakes them for design.
 
 | ID | Defect | Severity |
@@ -361,9 +361,8 @@ for it.
 2. Fix the Supabase connection; add `/api/health` so this class of outage cannot recur silently
 3. Promote `breaking_news` and `admin_logs` into `db/schema.sql` (DEF-07)
 4. Guard the two unvalidated publisher links (DEF-03) — two other call sites already show the pattern
-5. Get §9 answered, then write `docs/PRD.md` from PDF Part II → **Phase 2 gate**
-6. Refine the move map from PDF Part III into `docs/architecture.md` + `docs/adr/0001-*.md`
-   → **Phase 3 gate**
+5. Get `docs/PRD.md` approved → **Phase B gate**
+6. Refine `docs/MOVE-MAP.md` and write `docs/adr/0001-*.md` → **Phase C gate**
 
 ---
 

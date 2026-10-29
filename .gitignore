@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Retired PRD snapshot. docs/PRD.md is the only canonical spec; the PDF
+# predates the owner decisions of 2026-10-29 and must not be consulted.
+docs/TimesPrime-PRD-and-Architecture.pdf
