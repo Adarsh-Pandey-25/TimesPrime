@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `33b2315` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-29 17:26 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `4ead26d` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-29 18:10 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -17,11 +17,11 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 
 | | |
 |---|---|
-| Modules (excl. tests) | **73** |
+| Modules (excl. tests) | **70** |
 | Modules with a `"use client"` directive | **24** |
 | Modules in the client bundle (directive + pulled in) | **32** |
 | Server-only modules in the client bundle (violations) | **2** |
-| Orphans (nothing imports them) | **1** |
+| Orphans (nothing imports them) | **0** |
 | Dynamic `import()` edges | **3** |
 | Type-only edges (erased at compile time) | **2** |
 | Unresolved project imports | **0** — self-check passes |
@@ -77,7 +77,7 @@ Consistent with the build: no bundled module imports a Node built-in.
 ### Orphans
 
 ```
-src/lib/rssParser.ts  (233 lines)
+none
 ```
 
 ### Dynamic imports
@@ -130,17 +130,16 @@ Widest blast radius when moved.
 | `app/api/admin/logout/route.ts` | API: /api/admin/logout | 12 |  | 0% | 0 | 1 | stays -- URL is the contract (CR-01) |
 | `app/api/admin/logs/route.ts` | API: /api/admin/logs | 123 |  | 0% | 0 | 2 | stays -- URL is the contract (CR-01) |
 | `app/api/admin/publish-article/route.ts` | API: /api/admin/publish-article | 106 |  | 0% | 0 | 2 | stays -- URL is the contract (CR-01) |
-| `app/api/admin/seed-supabase/route.ts` | API: /api/admin/seed-supabase | 71 |  | 0% | 0 | 4 | stays -- URL is the contract (CR-01) |
+| `app/api/admin/seed-supabase/route.ts` | API: /api/admin/seed-supabase | 70 |  | 0% | 0 | 3 | stays -- URL is the contract (CR-01) |
 | `app/api/admin/stats/route.ts` | API: /api/admin/stats | 163 |  | 0% | 0 | 1 | stays -- URL is the contract (CR-01) |
 | `app/api/chat/route.ts` | API: /api/chat | 162 |  | 79.0% | 1 | 1 | stays -- URL is the contract (CR-01) |
 | `app/api/cron/refresh-news/route.ts` | API: /api/cron/refresh-news | 120 |  | 0% | 0 | 3 | stays -- URL is the contract (CR-01) |
-| `app/api/cron/refresh-rss/route.ts` | API: /api/cron/refresh-rss | 31 |  | 0% | 0 | 0 | stays -- URL is the contract (CR-01) |
 | `app/api/news/check-new/route.ts` | API: /api/news/check-new | 51 |  | 0% | 0 | 2 | stays -- URL is the contract (CR-01) |
-| `app/api/news/scrape-article/route.ts` | API: /api/news/scrape-article | 560 |  | 0% | 0 | 5 | stays -- URL is the contract (CR-01) |
-| `app/api/news/top-headlines/route.ts` | API: /api/news/top-headlines | 259 |  | 0% | 0 | 5 | stays -- URL is the contract (CR-01) |
+| `app/api/news/scrape-article/route.ts` | API: /api/news/scrape-article | 556 |  | 0% | 0 | 4 | stays -- URL is the contract (CR-01) |
+| `app/api/news/top-headlines/route.ts` | API: /api/news/top-headlines | 258 |  | 0% | 0 | 4 | stays -- URL is the contract (CR-01) |
 | `app/api/translate/route.ts` | API: /api/translate | 54 |  | 0% | 0 | 2 | stays -- URL is the contract (CR-01) |
 | `app/article/[slug]/page.tsx` | Page: /article/[slug] | 103 |  | 0% | 0 | 4 | stays -- route group only (CR-01) |
-| `app/contact/page.tsx` | Page: /contact | 164 | directive | 0% | 0 | 2 | stays -- route group only (CR-01) |
+| `app/contact/page.tsx` | Page: /contact | 87 | directive | 0% | 0 | 2 | stays -- route group only (CR-01) |
 | `app/layout.tsx` | Root layout: providers, metadata, fonts | 70 |  | 0% | 0 | 4 | stays |
 | `app/loading.tsx` | Route-level loading UI | 7 | directive | 0% | 0 | 1 | stays |
 | `app/page.tsx` | Page: / | 39 |  | 0% | 0 | 3 | stays -- route group only (CR-01) |
@@ -153,12 +152,12 @@ Widest blast radius when moved.
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
 | `components/ArticleCard.tsx` | Feed card, featured and grid variants | 393 | directive | 0% | 3 | 8 | features/news/components/ |
-| `components/ArticleDetailView.tsx` | Article page body: text, translation, AI panel, share, related | 1008 | directive | 0% | 1 | 6 | features/article/components/ -- split in F |
+| `components/ArticleDetailView.tsx` | Article page body: text, translation, AI panel, share, related | 963 | directive | 0% | 1 | 6 | features/article/components/ -- split in F |
 | `components/BreakingNewsBanner.tsx` | Public banner polling /api/admin/breaking-news (CR-08) | 79 | directive | 0% | 1 | 1 | features/admin/components/ |
 | `components/CategoryMegaMenu.tsx` | Hover mega-menu of category previews | 225 | directive | 0% | 1 | 5 | features/news/components/ |
 | `components/Chatbot.tsx` | Chat drawer; streams /api/chat. Honest error handling | 192 | directive | 0% | 1 | 1 | features/chat/components/ |
 | `components/FloatingAiAssistant.tsx` | Floating button wrapping Chatbot | 37 | directive | 0% | 1 | 1 | features/chat/components/ |
-| `components/Footer.tsx` | Footer nav + newsletter form (sends nothing, DEF-09) | 261 | directive | 0% | 8 | 3 | components/ui/layout/ |
+| `components/Footer.tsx` | Footer nav, category links, copyright bar. Dead "RSS Feeds" link remains (BL-009) | 218 | directive | 0% | 8 | 3 | components/ui/layout/ |
 | `components/Header.tsx` | Nav, search, theme + language toggles, bookmarks count, clock | 568 | directive | 0% | 8 | 6 | components/ui/layout/ -- split in F |
 | `components/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 532 | directive | 0% | 1 | 10 | features/news/components/ -- split in F |
 | `components/MarqueeTicker.tsx` | Scrolling India/World headline ticker | 176 | directive | 0% | 2 | 3 | features/news/components/ |
@@ -181,14 +180,12 @@ Widest blast radius when moved.
 | `lib/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 133 |  | 0% | 1 | 1 | features/news/server/ |
 | `lib/categoryColors.ts` | Per-category hex/Tailwind class map | 78 | bundled | 0% | 1 | 0 | config/ |
 | `lib/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 571 |  | 0% | 5 | 4 | server/db/ |
-| `lib/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 128 |  | 0% | 1 | 3 | features/news/server/ |
+| `lib/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 127 |  | 0% | 1 | 2 | features/news/server/ |
 | `lib/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 86 |  | 0% | 1 | 0 | features/i18n/server/ |
 | `lib/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 | bundled | 0% | 2 | 0 | config/ -- CR-06, move first |
 | `lib/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 94.8% | 7 | 1 | features/news/ |
-| `lib/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 115 |  | 0% | 1 | 3 | features/news/server/ |
-| `lib/paraphraser.ts` | Synonym-table rewrite of titles/descriptions; skips Devanagari | 118 |  | 98.3% | 6 | 0 | features/article/ (pending Q1) |
+| `lib/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 114 |  | 0% | 1 | 2 | features/news/server/ |
 | `lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 26 |  | 96.2% | 2 | 0 | lib/ (stays) |
-| `lib/rssParser.ts` | DEAD: 233 lines inside a block comment, licensing-blocked | 233 |  | 0% | 0 | 0 | DELETE (pending Q2) |
 | `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 52 |  | 0% | 4 | 0 | lib/ (stays) |
 | `lib/supabase.ts` | Supabase client; prefers service-role key when present | 20 | bundled | 0% | 10 | 0 | server/supabase.ts |
 | `lib/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 0% | 5 | 2 | config/ |
@@ -277,7 +274,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/api/admin/seed-supabase/route.ts`
 
-- **Imports:** `lib/adminLogger.ts`, `lib/db.ts`, `lib/paraphraser.ts`, `types/index.ts` _(type)_
+- **Imports:** `lib/adminLogger.ts`, `lib/db.ts`, `types/index.ts` _(type)_
 - **Used by:** —
 
 #### `app/api/admin/stats/route.ts`
@@ -295,11 +292,6 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `lib/adminLogger.ts`, `lib/db.ts`, `lib/newsdata.ts`
 - **Used by:** —
 
-#### `app/api/cron/refresh-rss/route.ts`
-
-- **Imports:** —
-- **Used by:** —
-
 #### `app/api/news/check-new/route.ts`
 
 - **Imports:** `lib/db.ts`, `lib/newsConfig.ts`
@@ -307,12 +299,12 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/api/news/scrape-article/route.ts`
 
-- **Imports:** `lib/cache.ts`, `lib/paraphraser.ts`, `lib/sentryScrub.ts`, `lib/supabase.ts` _(dynamic)_, `lib/urlValidation.ts`
+- **Imports:** `lib/cache.ts`, `lib/sentryScrub.ts`, `lib/supabase.ts` _(dynamic)_, `lib/urlValidation.ts`
 - **Used by:** —
 
 #### `app/api/news/top-headlines/route.ts`
 
-- **Imports:** `lib/cache.ts`, `lib/db.ts`, `lib/newsConfig.ts`, `lib/paraphraser.ts`, `types/index.ts`
+- **Imports:** `lib/cache.ts`, `lib/db.ts`, `lib/newsConfig.ts`, `types/index.ts`
 - **Used by:** —
 
 #### `app/api/translate/route.ts`
@@ -502,7 +494,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `lib/fetchNews.ts`
 
-- **Imports:** `lib/newsConfig.ts`, `lib/paraphraser.ts`, `types/index.ts`
+- **Imports:** `lib/newsConfig.ts`, `types/index.ts`
 - **Used by:** `app/page.tsx`
 
 #### `lib/googleTranslate.ts`
@@ -522,23 +514,13 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `lib/newsdata.ts`
 
-- **Imports:** `lib/newsConfig.ts`, `lib/paraphraser.ts`, `types/index.ts`
+- **Imports:** `lib/newsConfig.ts`, `types/index.ts`
 - **Used by:** `app/api/cron/refresh-news/route.ts`
-
-#### `lib/paraphraser.ts`
-
-- **Imports:** —
-- **Used by:** `app/api/admin/seed-supabase/route.ts`, `app/api/news/scrape-article/route.ts`, `app/api/news/top-headlines/route.ts`, `lib/fetchNews.ts`, `lib/newsdata.ts`, `lib/paraphraser.test.ts` _(test)_
 
 #### `lib/rateLimit.ts`
 
 - **Imports:** —
 - **Used by:** `app/api/chat/route.ts`, `app/api/translate/route.ts`
-
-#### `lib/rssParser.ts`
-
-- **Imports:** —
-- **Used by:** —
 
 #### `lib/sentryScrub.ts`
 
