@@ -71,7 +71,7 @@ genuinely different kinds of thing:
 | Data access | `db.ts` (571) · `supabase.ts` |
 | Security primitives | `adminSession.ts` · `urlValidation.ts` |
 | Cross-cutting infrastructure | `cache.ts` · `rateLimit.ts` · `sentryScrub.ts` · `adminLogger.ts` |
-| Domain logic | `newsConfig.ts` · `categoryClassifier.ts` · `fetchNews.ts` · `newsdata.ts` · `paraphraser.ts` · `rssParser.ts` |
+| Domain logic | `newsConfig.ts` · `categoryClassifier.ts` · `fetchNews.ts` · `newsdata.ts` |
 | Static configuration data | `imageDomains.ts` · `categoryColors.ts` · `topicImages.ts` (414) |
 | Presentation / i18n | `translations.ts` · `googleTranslate.ts` · `bookmarks.ts` |
 

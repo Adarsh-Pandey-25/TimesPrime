@@ -1,7 +1,7 @@
 # TimesPrime — Product Requirements Document
 
-**Type:** brownfield / reverse-engineered · **Baseline:** commit `506a4ab`, branch `main` ·
-**Updated:** 2026-10-29
+**Type:** brownfield / reverse-engineered · **Baseline:** commit `506a4ab`, branch `main`, updated
+through `59b875d` to record the owner decisions in §12 · **Updated:** 2026-10-29
 
 This document describes what TimesPrime **does**, not what anyone intended it to do. Every
 functional requirement cites the code implementing it; a requirement with no citation is marked
@@ -45,6 +45,8 @@ primary language plus a translation afterthought.
 | Serve readers from storage, not upstream, to control cost | **Not a social platform** — no comments, profiles, or sharing beyond the OS share sheet |
 | An operator surface for moderation and breaking news | **Not multi-tenant** — one publication, one admin credential |
 | Degrade visibly rather than fail, on any third-party outage | **Not real-time** — a 30-minute refresh cadence is the design point |
+| Show headlines and article text exactly as the source published them | **Not a rewriting service** — nothing is paraphrased or reworded without human review (owner decision Q1, §12) |
+| | **No languages beyond English and Hindi.** Odia, Bengali, Tamil and other Indic-script articles arrive from upstream and are discarded **by design** — this is scope, not a bug (owner decision Q5, §12) |
 
 ## 4. Personas
 
@@ -135,7 +137,7 @@ primary language plus a translation afterthought.
 | NFR-07 | Usable at 400 px width | Appears met from the breakpoint set; **not verified in a browser** |
 | NFR-08 | Typecheck, lint, test and build pass on every commit | Met, and enforced in CI since `506a4ab` |
 | NFR-09 | No dependency carries a known critical advisory | **Not met.** 2 critical, 9 high — including the framework |
-| NFR-10 | Business logic is covered by tests | **Not met.** 4.41% statements |
+| NFR-10 | Business logic is covered by tests | **Not met.** 3.50% statements. Was 4.41%; it fell because the deleted paraphraser was one of the few well-covered modules, not because any test regressed (BL-003) |
 
 ## 8. Compatibility requirements
 
@@ -195,7 +197,7 @@ intent. **Do not promote any of these into §6.**
 | DEF-06 | Admin login unthrottled; password compare returns early on length mismatch, leaking length | High |
 | DEF-07 | `breaking_news` and `admin_logs` exist only as SQL inside route-file comments | High |
 | DEF-08 | Feed fetches 80 rows, filters in JS, slices to 40 — under-fills exactly when a spam source floods | Medium |
-| DEF-09 | Contact form and newsletter show success, send nothing. No endpoint exists | Medium |
+| DEF-09 | ~~Contact form and newsletter show success, send nothing.~~ **Resolved by removal** in `59b875d`: all three forms deleted — the contact form and **two** newsletter forms, footer and article sidebar (owner decision Q4). A real backend is future work, BL-005 | Resolved |
 | DEF-10 | Scraper returns HTTP 200 with placeholder prose on failure; UI detects errors by string-matching three hard-coded sentences | Medium |
 
 **Refuted — do not re-report.** A `javascript:` URL XSS via `targetUrl` was suspected and
@@ -208,20 +210,25 @@ unauthenticated-RCE advisories; the fix is a **patch bump to 16.4.3**. The AVIF 
 appear closed by this configuration (`formats` defaults to webp-only, `dangerouslyAllowSVG` is
 false), and the Sentry critical advisory requires `tunnelRoute`, which is not set. Upgrade anyway.
 
-## 12. Open questions — blocking sign-off
+## 12. Owner decisions (2026-10-29)
 
-Each changes the move map. The owner must answer.
+The five questions that blocked sign-off, answered. **None remain open.**
 
-1. **Is the paraphraser deliberate?** `lib/paraphraser.ts` rewrites every headline through a synonym
-   table. A republishing posture, or a legacy experiment? It has no owner in the code.
-2. **Does RSS return?** `lib/rssParser.ts` is 233 lines inside a block comment, with a live endpoint
-   that only returns 503. Revive or delete. *Deleting it changes the route table, so it must happen
-   before the migration's byte-identical route diff.*
-3. **Is editorial publishing a real workflow?** It bypasses every filter and hardcodes
-   `country: ["us"]`.
-4. **What is the intended contact path?** The form implies one exists (DEF-09).
-5. **Should the feed admit languages beyond EN/HI?** Odia, Bengali and Tamil articles arrive today
-   and are discarded.
+| # | Question | Decision | Landed in |
+|---|---|---|---|
+| Q1 | Is the paraphraser deliberate? | **Delete.** Rewriting headlines through a synonym table can change a story's meaning with no human review. Headlines and article text are shown as the source published them | `3805007` |
+| Q2 | Does RSS return? | **Delete.** `rssParser.ts` and the 503 route removed. This changed the route table (27 → 26); `_baseline-routes.txt` was updated in the same commit | `bcd5393` |
+| Q3 | Is editorial publishing a real workflow? | **Keep.** It moves with the admin feature like any other file. The hardcoded `country: ["us"]` and the filter bypass are logged, **not** fixed during the restructure | BL-004 |
+| Q4 | What is the intended contact path? | **Remove both UIs.** Showing "Message Sent!" while sending nothing is worse than no form. The `/contact` page remains, listing email addresses | `59b875d`, BL-005 |
+| Q5 | Languages beyond EN/HI? | **EN/HI is the scope.** Recorded as an explicit non-goal in §3, so nobody treats the discard as a bug | §3 |
+
+None of these were functional requirements: §6 never contained an FR for the paraphraser, RSS, or
+the contact and newsletter forms. They were open questions and, for the forms, defect DEF-09 — so
+recording the decisions required no change to the FR set.
+
+One follow-up the decisions created: removing the newsletter and contact form left the privacy
+policy describing collection that no longer happens. That is legal copy, flagged for owner or legal
+review as BL-008.
 
 ## 13. Success metrics
 
@@ -231,7 +238,7 @@ Each changes the move map. The owner must answer.
 | Upstream calls per day | ≤ 350 | 7 categories × 48 cron runs, plus headroom |
 | Feed items surviving the filter pipeline | 30–40 per category | Below 30 suggests over-filtering (DEF-08) |
 | Scrape success (real text, not fallback copy) | ≥ 85% | Measured ~96% in a 120-URL sample |
-| Statement coverage, non-UI modules | ≥ 60% | From 4.41%; security and data modules first |
+| Statement coverage, non-UI modules | ≥ 60% | From 3.50%; security and data modules first |
 | Critical/high dependency advisories | 0 | Currently 2 critical, 9 high |
 
 ## 14. Appendix — environment variables

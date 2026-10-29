@@ -1,7 +1,8 @@
 # TimesPrime — Session Handoff
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
-**State as of:** 2026-10-29, commit `506a4ab`, branch `main`.
+**State as of:** 2026-10-29, after the Phase A review changes (`08b9e59`..`7ceae74` plus the docs
+commits that follow), branch `main`. Run `git log --oneline -20` for the exact head.
 
 Read §1 and §3 before touching anything. §3 in particular will save you from false conclusions
 that have already been reached and discarded once.
@@ -16,10 +17,14 @@ caching. Plus a Cheerio article scraper, Claude Haiku for chat and category clas
 unofficial Google Translate wrapper, and a session-gated admin panel at `/admin`.
 
 **Where the work stands.** A phased PRD + restructure plan is underway. **Phases 0, 1 and A
-(knowledge base) are complete and committed.** The structure decision is made: **layer separation
-with a CI-enforced import boundary** — not a top-level `backend/` folder, which the App Router
-cannot support without breaking every URL. Next up is Phase C (structure design / ADR), then
-migration. PRD sign-off is blocked on the five open questions in §9.
+(knowledge base) are complete, and the Phase A review's changes have landed**, including the
+owner's five decisions (§9) — the paraphraser, RSS, the contact form and both newsletter forms are
+deleted. The structure decision is made: **layer separation with a CI-enforced import boundary** —
+not a top-level `backend/` folder, which the App Router cannot support without breaking every URL.
+
+**Phase C (structure design / ADR) is next and has NOT been started — it awaits owner approval.**
+The security items (Next.js bump, DEF-02, DEF-06) and the Supabase connection are reserved by the
+owner for a separate session. Do not start either here.
 
 **The single most important fact:** every Supabase call is currently failing with
 `TypeError: fetch failed`. The app does not surface this — it silently serves NewsData.io directly
@@ -71,11 +76,12 @@ npm run test:ci    # jest with coverage
 ```
 tsc --noEmit   exit 0
 eslint .       exit 0   (0 errors, 15 warnings)
-jest --ci      4 suites, 42 tests passed
-next build     exit 0   (27 routes)
+jest --ci      3 suites, 31 tests passed
+next build     exit 0   (26 routes)
 ```
 
-**Coverage is 4.41% statements**, project-wide. Treat any memory of "91%" as wrong — see §3.6.
+**Coverage is 3.50% statements**, project-wide. It was 4.41% until the well-covered paraphraser was
+deleted. Treat any memory of "91%" as wrong — see §3.6.
 
 ---
 
@@ -139,8 +145,9 @@ directory, not the cwd. Use absolute Windows paths, and for project modules use
 ### 3.6 Jest coverage was lying
 
 `collectCoverageFrom` was unset, so coverage instrumented only files the tests imported — it
-reported **91.42%** while describing 5 of 73 source files. Fixed in `4e79cb1`. The real number is
-**4.41%**. Every file in the Phase 6 decomposition table reads **0%**.
+reported **91.42%** while describing 5 of 73 source files. Fixed in `4e79cb1`. The real number was
+**4.41%**, and is **3.50%** since `3805007` deleted the paraphraser — one of the few well-covered
+modules. Every file in the Phase 6 decomposition table reads **0%**.
 
 ### 3.7 `eslint-disable-next-line` placement
 
@@ -164,6 +171,28 @@ It holds real credentials. Keys currently set (names only):
 Note `ADMIN_SECRET_TOKEN` is set but **read by nothing** — leftover from the stale
 `.env.local.example` that the README now corrects.
 
+### 3.10 Moving or deleting a route breaks `typecheck` until `.next/types` is cleared
+
+`npm run verify` runs `typecheck` **before** `build`, and `tsconfig.json` includes the previous
+build's generated route types. After a route file moves or is deleted, `tsc` reads a stale validator
+still importing the old path:
+
+```
+.next/types/validator.ts: error TS2307: Cannot find module '../../src/app/.../route.js'
+```
+
+The source is fine — do not "fix" it. `rm -rf .next/types` and re-run. This happened once already
+(RSS deletion, `bcd5393`) and **will hit Phase D slice 10**, which moves every page into a route
+group. Durable fix: `next typegen` in the `typecheck` script (BL-007).
+
+### 3.11 Verify claims against the build, not just the graph
+
+`docs/CODEMAP.md`'s boundary count is a static estimate. When it matters, check the production
+bundle: `grep -l <distinctive-string> .next/static/chunks/*.js`, then find which route loads that
+chunk in `.next/server/app/**/page_client-reference-manifest.js`. That is how the second boundary
+violation was confirmed (Supabase's `GoTrueClient` ships in a chunk loaded only by `/admin`), with
+server-only strings as a negative control.
+
 ---
 
 ## 4. Commits made this session
@@ -179,6 +208,20 @@ Oldest to newest. `0e7f1f7` was the pre-existing HEAD.
 | `63a866e` | `chore: name the package and add scripts` | `temp-app` → `timesprime`; added `typecheck` and `verify` |
 | `ada0757` | `docs: add README, CONTRIBUTING and docs/ scaffold` | Real README (16 env vars documented), CONTRIBUTING, docs scaffold, baseline route table |
 | `506a4ab` | `ci: run the verify gate on push and PR` | GitHub Actions running the same four steps, Node from `.node-version`, `npm ci`, coverage artifact |
+| `ac8900e` | `docs: add CODEMAP and the script that generates it` | Phase A. One row per module, generated by `scripts/generate-codemap.mjs` |
+| `51b5570` | `docs: write the PRD, complete architecture, add the move map` | Phase A. FR/NFR/CR, defect register, 8 import rules, slice plan |
+| `ddbcc9f` | `docs: add the docs index and commit the session handoff` | Phase A. `docs/README.md` entry point; this file first committed |
+| `08b9e59` | `docs: CODEMAP lists imports, importers and coverage` | Review item 2. TypeScript-AST parser; path lists; coverage %. Found 2 importers the regex missed (`next.config.ts`; a dynamic import) |
+| `33b2315` | `docs: CODEMAP detects the client boundary transitively` | Review item 3. Violations 1 → 2, confirmed against the production bundle |
+| `b1d597c` | `docs: state CODEMAP's type-elision limit, as 33b2315 claimed` | Fixes a false claim in `33b2315`'s message |
+| `8b39cd5` | `docs: retire the PDF; PRD.md is the only canonical spec` | Review item 4. PDF untracked + git-ignored; 9 references re-pointed |
+| `3805007` | `feat: show headlines as published; remove the paraphraser` | Q1. 17 call-site edits. Tests 42 → 31, coverage 4.41% → 3.50% |
+| `bcd5393` | `feat: remove the RSS ingestion code and its 503 route` | Q2. **Route table 27 → 26**; baseline updated in the same commit |
+| `59b875d` | `feat: remove the contact form and both newsletter forms` | Q4. Resolves DEF-09. Three forms, not two — the newsletter lived in two places |
+| `7ceae74` | `docs: log the owner decisions and everything deferred along the way` | BL-004..009 |
+
+Followed by the knowledge-base commits that bring PRD, MOVE-MAP, architecture, this file and
+CODEMAP up to date.
 
 **Retired:** `docs/TimesPrime-PRD-and-Architecture.pdf` was committed in `ddbcc9f`, then untracked
 and git-ignored at the owner's direction. `docs/PRD.md` is the only canonical spec — do not consult
@@ -234,11 +277,11 @@ which has already happened in `ActivityLog.tsx`.
 
 | File | LOC |
 |---|---|
-| `components/ArticleDetailView.tsx` | 1,008 |
+| `components/ArticleDetailView.tsx` | 963 |
 | `components/admin/ArticlesTable.tsx` | 751 |
 | `lib/db.ts` | 571 |
 | `components/Header.tsx` | 568 |
-| `app/api/news/scrape-article/route.ts` | 560 |
+| `app/api/news/scrape-article/route.ts` | 556 |
 | `components/HomeClient.tsx` | 532 |
 | `app/admin/page.tsx` | 512 |
 
@@ -278,7 +321,7 @@ and `docs/MOVE-MAP.md`. Phase C should refine them rather than start over. The P
 
 If a slice cannot be done as a pure move and needs an edit to a module body — **stop**. Either write
 a characterization test first, or defer that file to Phase 6 and say so. Slice 7 almost certainly
-trips this: extracting 560 lines of scraper heuristics out of a route handler is not a pure move.
+trips this: extracting 556 lines of scraper heuristics out of a route handler is not a pure move.
 
 ---
 
@@ -297,7 +340,7 @@ reader mistakes them for design.
 | DEF-06 | Admin login unthrottled; password compare returns early on length mismatch, leaking length | High |
 | DEF-07 | `breaking_news` and `admin_logs` exist only as SQL inside route-file comments, not in `db/schema.sql` | High |
 | DEF-08 | Feed fetches 80 rows, filters in JS, slices to 40 — under-fills exactly when a spam source floods | Medium |
-| DEF-09 | Contact form and newsletter show success, send nothing. No endpoint exists | Medium |
+| DEF-09 | ~~Contact form and newsletter show success, send nothing~~ — **resolved by removal** in `59b875d` | Resolved |
 | DEF-10 | Scraper returns HTTP 200 with placeholder prose on failure; UI detects errors by string-matching three hard-coded sentences | Medium |
 
 **Also outstanding:** `npm audit` reports **2 critical, 9 high**. `next` 16.3.0 carries four critical
@@ -319,19 +362,20 @@ Sentry critical advisory needs `tunnelRoute`, which is not set. Upgrade regardle
 
 ---
 
-## 9. Open questions — blocking Phase 2
+## 9. Owner decisions — all five answered (2026-10-29)
 
-The owner must answer these; they change the move map.
+No open questions remain. Full rationale in `docs/PRD.md` §12.
 
-1. **Is the paraphraser deliberate?** `lib/paraphraser.ts` rewrites every headline through a synonym
-   table. Deliberate republishing posture, or a legacy experiment? It has no owner in the code.
-2. **Does RSS return?** `lib/rssParser.ts` is 233 lines inside a block comment, with a live endpoint
-   that only returns 503. Revive or delete.
-3. **Is editorial publishing a real workflow?** It bypasses every filter and hardcodes
-   `country: ["us"]`.
-4. **What is the intended contact path?** The form implies one exists (DEF-09).
-5. **Should the feed admit languages beyond EN/HI?** Odia, Bengali and Tamil articles arrive today
-   and are discarded.
+| # | Decision | Where |
+|---|---|---|
+| Q1 | **Paraphraser: deleted.** Headlines shown as the source published them | `3805007` |
+| Q2 | **RSS: deleted**, including the 503 route. Route table 27 → 26 | `bcd5393` |
+| Q3 | **Editorial publishing: kept.** Moves with `features/admin`. `country: ["us"]` and the filter bypass logged, not fixed | BL-004 |
+| Q4 | **Contact form and newsletter: UIs removed.** `/contact` page kept, listing emails | `59b875d`, BL-005 |
+| Q5 | **EN/HI is the scope.** An explicit non-goal in the PRD, so the discard is not treated as a bug | PRD §3 |
+
+**Follow-up the decisions created:** the privacy policy still describes newsletter and contact-form
+collection that no longer happens. Legal copy — for the owner or legal review, BL-008.
 
 ---
 
@@ -354,15 +398,22 @@ The owner must answer these; they change the move map.
 
 ## 11. Immediate next actions
 
-Ordered by consequence ÷ effort. Items 1–4 are independent of the restructure and should not wait
-for it.
+**In this line of work** — the restructure:
 
-1. `npm i next@16.4.3` — patch bump, clears four critical RCE advisories
-2. Fix the Supabase connection; add `/api/health` so this class of outage cannot recur silently
-3. Promote `breaking_news` and `admin_logs` into `db/schema.sql` (DEF-07)
-4. Guard the two unvalidated publisher links (DEF-03) — two other call sites already show the pattern
-5. Get `docs/PRD.md` approved → **Phase B gate**
-6. Refine `docs/MOVE-MAP.md` and write `docs/adr/0001-*.md` → **Phase C gate**
+1. Owner approves the Phase A review changes → start **Phase C**: refine `docs/MOVE-MAP.md`, write
+   `docs/adr/0001-feature-first-structure.md`. **Not started; do not start without approval.**
+2. Before Phase D slice 10: put `next typegen` in the `typecheck` script (BL-007), or clear
+   `.next/types` on every slice that moves a route file.
+3. Owner or legal rewrites the privacy policy (BL-008).
+
+**Reserved by the owner for a separate session** — do not start them here:
+
+4. `npm i next@16.4.3` — patch bump, clears four critical RCE advisories
+5. Fix the Supabase connection; add `/api/health` so this class of outage cannot recur silently
+6. DEF-02 (SSRF via redirects), DEF-06 (login rate limit + length leak). DEF-03 (unvalidated
+   publisher links) belongs with them.
+
+**Independent, unscheduled:** promote `breaking_news` and `admin_logs` into `db/schema.sql` (DEF-07).
 
 ---
 
@@ -397,8 +448,8 @@ Indexes: `created_at`, `article_id`. Queries also filter on `category`/`country`
 
 ### Test suite
 
-4 files, 42 tests, all passing: `lib/newsConfig.test.ts`, `lib/bookmarks.test.ts`,
-`lib/paraphraser.test.ts`, `app/api/chat/route.test.ts`.
+3 files, 31 tests, all passing: `lib/newsConfig.test.ts`, `lib/bookmarks.test.ts`,
+`app/api/chat/route.test.ts`. (`lib/paraphraser.test.ts` was deleted with its subject in `3805007`.)
 
 **Untested and security-critical:** `lib/urlValidation.ts` (122 lines) and `lib/adminSession.ts`
 (67 lines). Both pure, no I/O, trivially testable. Highest value-per-hour work available.
