@@ -21,6 +21,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { builtinModules } from "node:module";
 import ts from "typescript";
+import { MOVES } from "./move-map.mjs";
 
 const OUT = "docs/CODEMAP.md";
 const COVERAGE_FILE = "coverage/coverage-final.json";
@@ -59,7 +60,13 @@ function resolveSpecifier(spec, from) {
   for (const { prefix, target } of aliases) {
     if (spec.startsWith(prefix)) return firstExisting(path.posix.join(target, spec.slice(prefix.length)));
   }
-  if (spec.startsWith(".")) return firstExisting(path.posix.join(path.posix.dirname(from), spec));
+  if (spec.startsWith(".")) {
+    const joined = path.posix.join(path.posix.dirname(from), spec);
+    // A relative import between two files outside src/ (e.g. one script
+    // importing another) is not an edge in the module graph this maps.
+    if (!joined.startsWith("src/")) return "external";
+    return firstExisting(joined);
+  }
   return "external";
 }
 
@@ -198,60 +205,74 @@ const isBuiltin = (spec) => spec.startsWith("node:") || BUILTINS.has(spec) || BU
 const builtinUsers = srcFiles.filter((f) => !isTest(f) && parsed.get(f).edges.some((e) => isBuiltin(e.spec)));
 const bundledBuiltinUsers = builtinUsers.filter((f) => clientBundle.has(f));
 
-// [purpose, target under the approved layer-separation structure]
+// [purpose, note]. The note is appended to the Target column; the target itself
+// always comes from scripts/move-map.mjs, so the two can never disagree.
 const PURPOSE = {
-  "src/lib/db.ts": ["Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats", "server/db/"],
-  "src/lib/supabase.ts": ["Supabase client; prefers service-role key when present", "server/supabase.ts"],
-  "src/lib/adminSession.ts": ["HMAC session token issue/verify; timing-safe password compare", "server/auth/"],
-  "src/lib/adminLogger.ts": ["Writes admin_logs rows; also exports ACTION_LABELS/ICONS", "split: server/auditLog.ts + labels to features/admin"],
-  "src/lib/urlValidation.ts": ["SSRF guard: protocol allowlist + DNS resolution against blocked ranges", "lib/ (stays)"],
-  "src/lib/cache.ts": ["Upstash Redis with in-process Map fallback", "lib/ (stays)"],
-  "src/lib/rateLimit.ts": ["Fixed-window in-memory limiter; client IP extraction", "lib/ (stays)"],
-  "src/lib/sentryScrub.ts": ["Redacts secret env values from Sentry events", "lib/ (stays)"],
-  "src/lib/newsConfig.ts": ["Editorial policy: category map, script filters, spam/filler source lists, dedupe", "features/news/"],
-  "src/lib/categoryClassifier.ts": ["Haiku flags category tags an article does not fit (fail-open)", "features/news/server/"],
-  "src/lib/fetchNews.ts": ["Server-side initial NewsData.io fetch for SSR", "features/news/server/"],
-  "src/lib/newsdata.ts": ["Shared NewsData.io URL builder + row mapper; throws on failure", "features/news/server/"],
-  "src/lib/topicImages.ts": ["Keyword to Unsplash topic-image table + per-topic round robin", "config/"],
-  "src/lib/imageDomains.ts": ["next/image hostname allowlist. Imported by next.config.ts at LOAD TIME", "config/ -- CR-06, move first"],
-  "src/lib/categoryColors.ts": ["Per-category hex/Tailwind class map", "config/"],
-  "src/lib/translations.ts": ["EN/HI static strings; translateHeadline is a no-op stub", "features/i18n/"],
-  "src/lib/googleTranslate.ts": ["Unofficial translate.googleapis.com client, bounded concurrency", "features/i18n/server/"],
-  "src/lib/bookmarks.ts": ["localStorage saved articles + change event", "features/bookmarks/"],
-  "src/context/ThemeContext.tsx": ["Light/dark provider, localStorage-backed", "components/ui/theme/"],
-  "src/context/LanguageContext.tsx": ["EN/HI provider, localStorage-backed", "features/i18n/"],
-  "src/types/index.ts": ["Article, NewsResponse, ScrapeResponse, ChatMessage, NewsDataRawArticle", "types/ (stays)"],
-  "src/proxy.ts": ["AUTH GATE. Next 16 Proxy (was middleware). Matches /admin/*, /api/admin/*", "PINNED -- do not move"],
-  "src/instrumentation.ts": ["Sentry server/edge init hook", "PINNED"],
-  "src/instrumentation-client.ts": ["Sentry browser init", "PINNED"],
-  "src/sentry.server.config.ts": ["Sentry Node config", "PINNED"],
-  "src/sentry.edge.config.ts": ["Sentry edge config", "PINNED"],
-  "src/components/ArticleDetailView.tsx": ["Article page body: text, translation, AI panel, share, related", "features/article/components/ -- split in F"],
-  "src/components/ArticleCard.tsx": ["Feed card, featured and grid variants", "features/news/components/"],
-  "src/components/HomeClient.tsx": ["Feed state, new-story polling, grid, load-more", "features/news/components/ -- split in F"],
-  "src/components/Header.tsx": ["Nav, search, theme + language toggles, bookmarks count, clock", "components/ui/layout/ -- split in F"],
-  "src/components/Footer.tsx": ["Footer nav, category links, copyright bar. Dead \"RSS Feeds\" link remains (BL-009)", "components/ui/layout/"],
-  "src/components/CategoryMegaMenu.tsx": ["Hover mega-menu of category previews", "features/news/components/"],
-  "src/components/MarqueeTicker.tsx": ["Scrolling India/World headline ticker", "features/news/components/"],
-  "src/components/BreakingNewsBanner.tsx": ["Public banner polling /api/admin/breaking-news (CR-08)", "features/admin/components/"],
-  "src/components/Chatbot.tsx": ["Chat drawer; streams /api/chat. Honest error handling", "features/chat/components/"],
-  "src/components/FloatingAiAssistant.tsx": ["Floating button wrapping Chatbot", "features/chat/components/"],
-  "src/components/NewsSkeletonGrid.tsx": ["Suspense fallback matching real card dimensions", "components/ui/"],
-  "src/components/ThemeSpinner.tsx": ["Theme-aware loading spinner", "components/ui/"],
-  "src/components/admin/ArticlesTable.tsx": ["Admin article list: filters, edit, delete, bulk", "features/admin/components/ -- split in F"],
-  "src/components/admin/CategoryStatsCard.tsx": ["Category/language/country breakdown", "features/admin/components/"],
-  "src/components/admin/BreakingNewsManager.tsx": ["Create/expire breaking news items", "features/admin/components/"],
-  "src/components/admin/SyncDashboard.tsx": ["Last/next sync, counts, manual sync", "features/admin/components/"],
-  "src/components/admin/ActivityLog.tsx": ["Paginated admin_logs viewer", "features/admin/components/"],
+  "src/lib/db.ts": ["Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats", "news editorial policy is baked in, hence features/news"],
+  "src/lib/supabase.ts": ["Supabase client; prefers service-role key when present", ""],
+  "src/lib/adminSession.ts": ["HMAC session token issue/verify; timing-safe password compare", ""],
+  "src/lib/adminLogger.ts": ["Writes admin_logs rows; also exports ACTION_LABELS/ICONS", "labels must leave before Phase E — see MOVE-MAP stop conditions"],
+  "src/lib/urlValidation.ts": ["SSRF guard: protocol allowlist + DNS resolution against blocked ranges", ""],
+  "src/lib/cache.ts": ["Upstash Redis with in-process Map fallback", ""],
+  "src/lib/rateLimit.ts": ["Fixed-window in-memory limiter; client IP extraction", ""],
+  "src/lib/sentryScrub.ts": ["Redacts secret env values from Sentry events", ""],
+  "src/lib/newsConfig.ts": ["Editorial policy: category map, script filters, spam/filler source lists, dedupe", ""],
+  "src/lib/categoryClassifier.ts": ["Haiku flags category tags an article does not fit (fail-open)", ""],
+  "src/lib/fetchNews.ts": ["Server-side initial NewsData.io fetch for SSR", ""],
+  "src/lib/newsdata.ts": ["Shared NewsData.io URL builder + row mapper; throws on failure", ""],
+  "src/lib/topicImages.ts": ["Keyword to Unsplash topic-image table + per-topic round robin", ""],
+  "src/lib/imageDomains.ts": ["next/image hostname allowlist. Imported by next.config.ts at LOAD TIME", "CR-06: must import nothing"],
+  "src/lib/categoryColors.ts": ["Per-category hex/Tailwind class map", ""],
+  "src/lib/translations.ts": ["EN/HI static strings; translateHeadline is a no-op stub", "shared, not a feature"],
+  "src/lib/googleTranslate.ts": ["Unofficial translate.googleapis.com client, bounded concurrency", ""],
+  "src/lib/bookmarks.ts": ["localStorage saved articles + change event", "shared by news and the saved page"],
+  "src/context/ThemeContext.tsx": ["Light/dark provider, localStorage-backed", ""],
+  "src/context/LanguageContext.tsx": ["EN/HI provider, localStorage-backed", "shared, not a feature"],
+  "src/types/index.ts": ["Article, NewsResponse, ScrapeResponse, ChatMessage, NewsDataRawArticle", ""],
+  "src/proxy.ts": ["AUTH GATE. Next 16 Proxy (was middleware). Matches /admin/*, /api/admin/*", ""],
+  "src/instrumentation.ts": ["Sentry server/edge init hook", ""],
+  "src/instrumentation-client.ts": ["Sentry browser init", ""],
+  "src/sentry.server.config.ts": ["Sentry Node config", ""],
+  "src/sentry.edge.config.ts": ["Sentry edge config", ""],
+  "src/components/ArticleDetailView.tsx": ["Article page body: text, translation, AI panel, share, related", "split in F"],
+  "src/components/ArticleCard.tsx": ["Feed card, featured and grid variants", ""],
+  "src/components/HomeClient.tsx": ["Feed state, new-story polling, grid, load-more", "split in F"],
+  "src/components/Header.tsx": ["Nav, search, theme + language toggles, bookmarks count, clock", "news masthead, not UI; split in F"],
+  "src/components/Footer.tsx": ["Footer nav, category links, copyright bar. Dead \"RSS Feeds\" link remains (BL-009)", ""],
+  "src/components/CategoryMegaMenu.tsx": ["Hover mega-menu of category previews", ""],
+  "src/components/MarqueeTicker.tsx": ["Scrolling India/World headline ticker", ""],
+  "src/components/BreakingNewsBanner.tsx": ["Public banner polling /api/admin/breaking-news (CR-08)", ""],
+  "src/components/Chatbot.tsx": ["Chat drawer; streams /api/chat. Honest error handling", ""],
+  "src/components/FloatingAiAssistant.tsx": ["Floating button wrapping Chatbot", ""],
+  "src/components/NewsSkeletonGrid.tsx": ["Suspense fallback matching real card dimensions", ""],
+  "src/components/ThemeSpinner.tsx": ["Theme-aware loading spinner", ""],
+  "src/components/admin/ArticlesTable.tsx": ["Admin article list: filters, edit, delete, bulk", "split in F"],
+  "src/components/admin/CategoryStatsCard.tsx": ["Category/language/country breakdown", ""],
+  "src/components/admin/BreakingNewsManager.tsx": ["Create/expire breaking news items", ""],
+  "src/components/admin/SyncDashboard.tsx": ["Last/next sync, counts, manual sync", ""],
+  "src/components/admin/ActivityLog.tsx": ["Paginated admin_logs viewer", ""],
 };
 
+const MOVE_TO = new Map(MOVES.map(([from, to, slice]) => [from, { to, slice }]));
+const PINNED_FILE = /^src\/(proxy|instrumentation|sentry)/;
+
 function describe(file) {
-  if (PURPOSE[file]) return PURPOSE[file];
-  if (file.endsWith("/route.ts")) return ["API: " + file.replace("src/app", "").replace("/route.ts", ""), "stays -- URL is the contract (CR-01)"];
-  if (file.endsWith("/page.tsx")) return ["Page: " + (file.replace("src/app", "").replace("/page.tsx", "") || "/"), "stays -- route group only (CR-01)"];
-  if (file.endsWith("layout.tsx")) return ["Root layout: providers, metadata, fonts", "stays"];
-  if (file.endsWith("loading.tsx")) return ["Route-level loading UI", "stays"];
-  return ["(no purpose recorded -- add it to PURPOSE in this script)", "?"];
+  let purpose;
+  let note = "";
+  if (PURPOSE[file]) [purpose, note] = PURPOSE[file];
+  else if (file.endsWith("/route.ts")) purpose = "API: " + file.replace("src/app", "").replace("/route.ts", "");
+  else if (file.endsWith("/page.tsx")) purpose = "Page: " + (file.replace("src/app", "").replace("/page.tsx", "") || "/");
+  else if (file.endsWith("layout.tsx")) purpose = "Root layout: providers, metadata, fonts";
+  else if (file.endsWith("loading.tsx")) purpose = "Route-level loading UI";
+  else purpose = "(no purpose recorded -- add it to PURPOSE in this script)";
+
+  let target;
+  const move = MOVE_TO.get(file);
+  if (move) target = `\`${move.to.replace(/^src\//, "")}\` · slice ${move.slice}`;
+  else if (PINNED_FILE.test(file)) target = "PINNED -- do not move";
+  else if (file.startsWith("src/app/")) target = "stays -- the path is the URL (CR-01)";
+  else target = "stays";
+  return [purpose, note ? `${target} — ${note}` : target];
 }
 
 // ---- render ------------------------------------------------------------------
