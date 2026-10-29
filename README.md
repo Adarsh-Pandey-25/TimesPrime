@@ -1,36 +1,129 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TimesPrime
 
-## Getting Started
+A bilingual (English / Hindi) news aggregator. It pulls headlines from
+NewsData.io, stores them in Supabase on a rolling 7-day window, serves the feed
+from that store rather than hitting the upstream API per visitor, and layers on
+article scraping, on-demand translation, an AI assistant and an admin panel.
 
-First, run the development server:
+The reader-facing surface is a feed, a category browser, an article detail view
+with scraped full text, saved articles held in the browser, and a chat assistant.
+The operator-facing surface is `/admin`: article moderation, manual publishing,
+breaking-news banners, sync controls and an activity log.
+
+## Stack
+
+| Concern | Choice |
+|---|---|
+| Framework | Next.js 16.3 (App Router, Turbopack), React 19 |
+| Language | TypeScript 5, `strict` |
+| Database | Supabase (PostgreSQL) with Row Level Security |
+| Cache | Upstash Redis, falling back to an in-process `Map` |
+| AI | Anthropic Claude Haiku — chat and category classification |
+| Scraping | axios + cheerio |
+| Styling | Tailwind CSS v4 |
+| Monitoring | Sentry |
+| Tests | Jest + Testing Library |
+| Hosting | Vercel (cron defined in `vercel.json`) |
+
+> **This is not stock Next.js.** Version 16 renamed Middleware to **Proxy**
+> (`src/proxy.ts`), deprecated the `priority` image prop in favour of `preload`,
+> and matches `images.remotePatterns` hostnames with globs rather than string
+> equality. Read `node_modules/next/dist/docs/` before relying on any framework
+> convention from memory. See `AGENTS.md`.
+
+## Prerequisites
+
+- Node.js **20** (see `.node-version`)
+- npm 10+
+- A Supabase project, a NewsData.io API key, and an Anthropic API key
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repo-url> && cd TimesPrime
+npm ci
+cp .env.local.example .env.local   # then fill it in, see below
+npm run dev                        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Apply the database schema before first run — paste `db/schema.sql` into the
+Supabase SQL editor, then `db/policies.sql`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> `db/schema.sql` currently defines the `articles` table only. The
+> `breaking_news` and `admin_logs` tables exist as SQL inside comments in
+> `src/app/api/admin/breaking-news/route.ts` and
+> `src/app/api/admin/logs/route.ts`. Until those are promoted into
+> `db/schema.sql`, breaking news and the activity log will not work on a fresh
+> project.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment variables
 
-## Learn More
+Copy `.env.local.example` to `.env.local`. Never commit `.env.local`.
 
-To learn more about Next.js, take a look at the following resources:
+| Variable | Required | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | Public anon key; RLS restricts it to reads |
+| `SUPABASE_SERVICE_ROLE_KEY` | server | Bypasses RLS for server-side writes. Never expose to the client |
+| `NEWSDATA_API_KEY` | yes | NewsData.io. Without it the app serves built-in mock articles |
+| `ANTHROPIC_API_KEY` | yes | Powers `/api/chat` and category classification. Without it chat returns a clear "unavailable" message |
+| `ADMIN_PASSWORD` | yes | The admin panel password, compared in constant time |
+| `ADMIN_SESSION_SECRET` | yes | HMAC key signing the 12-hour admin session cookie |
+| `CRON_SECRET` | prod | Gates `/api/cron/refresh-news`. Vercel sends it as a bearer token. Unset means the endpoint fails closed |
+| `UPSTASH_REDIS_REST_URL` | optional | Shared cache. Without it, an in-process cache is used (fine locally, not shared across serverless instances) |
+| `UPSTASH_REDIS_REST_TOKEN` | optional | Pairs with the URL above |
+| `NEXT_PUBLIC_SENTRY_DSN` | optional | Error reporting. Not a secret, but must be `NEXT_PUBLIC_` to reach the browser |
+| `SENTRY_AUTH_TOKEN` | build | Source-map upload at build time only |
+| `SENTRY_ORG` | build | Sentry org slug |
+| `SENTRY_PROJECT` | build | Sentry project slug |
+| `NEXT_PUBLIC_APP_URL` | prod | Public origin; restricts CORS and fills OpenGraph metadata |
+| `NEXT_PUBLIC_BASE_URL` | optional | Base URL the server uses for its own internal fetches. Defaults to `http://localhost:3000` |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Generate the two secrets with:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
+```
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Script | What it does |
+|---|---|
+| `npm run dev` | Dev server with Turbopack |
+| `npm run build` | Production build |
+| `npm start` | Serve a production build |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | ESLint |
+| `npm test` | Jest |
+| `npm run test:watch` | Jest in watch mode |
+| `npm run test:ci` | Jest with coverage, CI reporter |
+| `npm run verify` | typecheck → lint → test → build. **The gate every commit must pass** |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Architecture in one paragraph
+
+A Vercel cron hits `/api/cron/refresh-news` every 30 minutes, pulls each
+category from NewsData.io, filters out paywalled, horoscope, wire-spam and
+non-news sources, and upserts into Supabase. Reads go through
+`/api/news/top-headlines`, which tries the Redis cache, then Supabase if its
+newest row is under 30 minutes old, then NewsData.io, and finally built-in mock
+articles. The `X-Data-Source` response header says which tier answered — useful
+when diagnosing whether a given response touched the database at all. Admin
+routes carry no auth checks of their own; `src/proxy.ts` gates every
+`/admin/*` and `/api/admin/*` path ahead of them.
+
+Fuller detail in [`docs/architecture.md`](docs/architecture.md).
+
+## Deployment
+
+Hosted on Vercel. Set every variable from the table above in the project's
+environment settings. `vercel.json` registers the cron at `*/30 * * * *` against
+`/api/cron/refresh-news`; that path must not change without updating the file.
+
+## Documentation
+
+- [`docs/PRD.md`](docs/PRD.md) — product requirements, reverse-engineered from the code
+- [`docs/architecture.md`](docs/architecture.md) — structure and import rules
+- [`docs/adr/`](docs/adr/) — architecture decision records
+- [`docs/runbooks/`](docs/runbooks/) — operational procedures
+- [`docs/BACKLOG.md`](docs/BACKLOG.md) — deferred debt, with the reason for each deferral
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — commit convention and the verify gate

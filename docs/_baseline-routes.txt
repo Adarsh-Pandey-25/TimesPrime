@@ -1,0 +1,62 @@
+# TimesPrime — baseline route table
+# Captured: 2026-10-29 | base commit: 0e7f1f7 | Next 16.3.0
+# Phase 4 diff target. Any difference after the migration is a bug.
+
+## A. Routable files on disk (src/app/**)
+src/app/about/page.tsx
+src/app/admin/login/page.tsx
+src/app/admin/page.tsx
+src/app/api/admin/articles/bulk/route.ts
+src/app/api/admin/articles/route.ts
+src/app/api/admin/breaking-news/route.ts
+src/app/api/admin/db-stats/route.ts
+src/app/api/admin/login/route.ts
+src/app/api/admin/logout/route.ts
+src/app/api/admin/logs/route.ts
+src/app/api/admin/publish-article/route.ts
+src/app/api/admin/seed-supabase/route.ts
+src/app/api/admin/stats/route.ts
+src/app/api/chat/route.ts
+src/app/api/cron/refresh-news/route.ts
+src/app/api/cron/refresh-rss/route.ts
+src/app/api/news/check-new/route.ts
+src/app/api/news/scrape-article/route.ts
+src/app/api/news/top-headlines/route.ts
+src/app/api/translate/route.ts
+src/app/article/[slug]/page.tsx
+src/app/contact/page.tsx
+src/app/privacy/page.tsx
+src/app/saved/page.tsx
+src/app/terms/page.tsx
+
+## B. Resolved URLs emitted by 'npm run build' (authoritative)
+f = dynamic (server-rendered), o = static (prerendered)
+f  /
+o  /_not-found
+o  /about
+o  /admin
+o  /admin/login
+f  /api/admin/articles
+f  /api/admin/articles/bulk
+f  /api/admin/breaking-news
+f  /api/admin/db-stats
+f  /api/admin/login
+f  /api/admin/logout
+f  /api/admin/logs
+f  /api/admin/publish-article
+f  /api/admin/seed-supabase
+f  /api/admin/stats
+f  /api/chat
+f  /api/cron/refresh-news
+f  /api/cron/refresh-rss
+f  /api/news/check-new
+f  /api/news/scrape-article
+f  /api/news/top-headlines
+f  /api/translate
+f  /article/[slug]
+o  /contact
+o  /privacy
+o  /saved
+o  /terms
+
+Proxy (Middleware) active — src/proxy.ts, matcher: /admin/:path*, /api/admin/:path*
