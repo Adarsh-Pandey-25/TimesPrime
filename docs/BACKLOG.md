@@ -213,7 +213,8 @@ visible to a user. `rssFeeds` is now dead too — the link was its only reader.
 ## BL-010 — ESLint lints the generated `coverage/` directory
 
 **Found:** Phase A review, reading the unabridged `npm run verify` log ·
-**Status:** Open · cannot fail the gate, but makes the warning count unreliable
+**Status:** **Resolved** (Phase C review) — `"coverage/**"` added to `globalIgnores`.
+With `coverage/` present on disk, lint now reports 14 warnings, all in source.
 
 `eslint.config.mjs` ignores `.next/`, `out/`, `build/` and `next-env.d.ts`, but
 not `coverage/`. After `npm run test:ci`, ESLint lints Istanbul's generated
