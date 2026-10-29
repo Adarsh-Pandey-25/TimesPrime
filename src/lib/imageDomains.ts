@@ -11,10 +11,10 @@
  * instead of being rejected outright.
  */
 /**
- * RSS publisher CDN domains removed — August 2026
- * Reason: RSS integration disabled for commercial compliance.
- * Re-add publisher domains only when RSS licensing is obtained.
- * See src/lib/rssParser.ts for publisher contact details.
+ * RSS publisher CDN domains were removed in August 2026, and RSS ingestion
+ * itself was deleted outright by owner decision on 2026-10-29. The publisher
+ * licensing contacts that lived in src/lib/rssParser.ts survive in git
+ * history:  git log --diff-filter=D -- src/lib/rssParser.ts
  */
 export const ALLOWED_IMAGE_HOSTNAMES = [
   "images.unsplash.com",

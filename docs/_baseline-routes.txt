@@ -1,6 +1,8 @@
 # TimesPrime — baseline route table
 # Captured: 2026-10-29 | base commit: 0e7f1f7 | Next 16.3.0
 # Phase 4 diff target. Any difference after the migration is a bug.
+# Updated 2026-10-29: /api/cron/refresh-rss removed by owner decision (RSS
+# deleted). That removal is intentional and is not a migration regression.
 
 ## A. Routable files on disk (src/app/**)
 src/app/about/page.tsx
@@ -18,7 +20,6 @@ src/app/api/admin/seed-supabase/route.ts
 src/app/api/admin/stats/route.ts
 src/app/api/chat/route.ts
 src/app/api/cron/refresh-news/route.ts
-src/app/api/cron/refresh-rss/route.ts
 src/app/api/news/check-new/route.ts
 src/app/api/news/scrape-article/route.ts
 src/app/api/news/top-headlines/route.ts
@@ -48,7 +49,6 @@ f  /api/admin/seed-supabase
 f  /api/admin/stats
 f  /api/chat
 f  /api/cron/refresh-news
-f  /api/cron/refresh-rss
 f  /api/news/check-new
 f  /api/news/scrape-article
 f  /api/news/top-headlines
