@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     return new Response(readable, {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Chat API error:", error);
 
     let reason = "the request to Claude failed.";

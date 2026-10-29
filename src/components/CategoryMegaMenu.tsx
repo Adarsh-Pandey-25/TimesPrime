@@ -207,7 +207,7 @@ export default function CategoryMegaMenu({
                         />
                       </div>
                       <h4 className="line-clamp-3 text-xs font-bold leading-snug group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">
-                        "{titleText}"
+                        &quot;{titleText}&quot;
                       </h4>
                     </div>
                     <span className="mt-2 block text-[10px] font-semibold opacity-70">

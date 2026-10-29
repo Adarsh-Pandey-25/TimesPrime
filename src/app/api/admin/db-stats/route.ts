@@ -12,9 +12,9 @@ export async function GET() {
       status: "success",
       stats,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { status: "error", message: err.message },
+      { status: "error", message: err instanceof Error ? err.message : String(err) },
       { status: 500 }
     );
   }
@@ -33,9 +33,9 @@ export async function POST() {
       purgedCount: removedCount,
       stats,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { status: "error", message: err.message },
+      { status: "error", message: err instanceof Error ? err.message : String(err) },
       { status: 500 }
     );
   }

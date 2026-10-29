@@ -537,8 +537,8 @@ export async function GET(request: NextRequest) {
       text: fullText || "Full article coverage.",
       isPaywalled: false,
     });
-  } catch (error: any) {
-    console.warn("Fast scrape fallback for:", error.message);
+  } catch (error: unknown) {
+    console.warn("Fast scrape fallback for:", error instanceof Error ? error.message : String(error));
 
     // Domain only — never send the full target URL (which may carry query
     // params / tracking IDs) to Sentry.

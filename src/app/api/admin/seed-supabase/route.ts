@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { saveArticlesToDB } from "@/lib/db";
 import { paraphraseTitle, paraphraseText } from "@/lib/paraphraser";
 import { logAdminAction } from "@/lib/adminLogger";
+import type { NewsDataRawArticle } from "@/types";
 
 // Auth is handled upstream by src/proxy.ts (matcher covers /api/admin/:path*),
 // so by the time a request reaches this handler it has already been validated.
@@ -28,7 +29,7 @@ export async function POST() {
         if (!res.ok) continue;
 
         const data = await res.json();
-        const articles = (data.results || []).map((art: any) => ({
+        const articles = (data.results || []).map((art: NewsDataRawArticle) => ({
           article_id: art.article_id || art.link,
           title: paraphraseTitle(art.title || "Untitled News"),
           link: art.link || "#",
@@ -61,9 +62,9 @@ export async function POST() {
       totalArticlesProcessed: totalSaved,
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     return NextResponse.json(
-      { status: "error", message: err.message },
+      { status: "error", message: err instanceof Error ? err.message : String(err) },
       { status: 500 }
     );
   }

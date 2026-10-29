@@ -96,10 +96,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ status: "success", article: data });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Publish article error:", error);
     return NextResponse.json(
-      { error: error?.message || "Failed to publish article." },
+      { error: error instanceof Error ? error.message : "Failed to publish article." },
       { status: 500 }
     );
   }

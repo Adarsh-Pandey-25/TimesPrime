@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cache, CACHE_TTL_NEWS_SECONDS } from "@/lib/cache";
 import { paraphraseTitle, paraphraseText } from "@/lib/paraphraser";
-import { Article } from "@/types";
+import { Article, NewsDataRawArticle } from "@/types";
 import {
   saveArticlesToDB,
   getDBArticles,
@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
 
     const data = await apiRes.json();
 
-    const fetchedArticles: Article[] = (data.results || []).map((art: any) => ({
+    const fetchedArticles: Article[] = (data.results || []).map((art: NewsDataRawArticle) => ({
       article_id: art.article_id || art.link,
       title: paraphraseTitle(art.title || "Untitled Article"),
       link: art.link || "#",
@@ -245,12 +245,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(formattedData, {
       headers: { "X-Data-Source": "newsdata" },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Top headlines API error:", error);
     return NextResponse.json(
       {
         status: "error",
-        message: error.message || "Failed to fetch top headlines",
+        message: error instanceof Error ? error.message : "Failed to fetch top headlines",
         results: MOCK_ARTICLES,
       },
       { status: 500, headers: { "X-Data-Source": "mock" } }

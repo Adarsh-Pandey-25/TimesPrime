@@ -37,6 +37,33 @@ export interface ScrapeResponse {
   text: string;
 }
 
+/**
+ * One raw result row from NewsData.io's /api/1/latest response, before it is
+ * normalized into `Article`. Field set is exactly what the mapping code in
+ * fetchNews.ts, newsdata.ts, top-headlines/route.ts and seed-supabase/route.ts
+ * actually reads — not NewsData.io's full documented schema.
+ *
+ * `article_id` and `link` are modelled as required because every mapping
+ * site uses `art.article_id || art.link` to produce the required
+ * `Article.article_id`; if upstream ever omits both, that is a data bug to
+ * surface, not a type to widen.
+ */
+export interface NewsDataRawArticle {
+  article_id: string;
+  link: string;
+  title?: string;
+  description?: string;
+  content?: string;
+  pubDate?: string;
+  image_url?: string | null;
+  source_icon?: string | null;
+  source_id?: string;
+  source_name?: string;
+  category?: string[];
+  country?: string[];
+  language?: string;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'ai';

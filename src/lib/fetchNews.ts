@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { Article } from "@/types";
+import { Article, NewsDataRawArticle } from "@/types";
 import { paraphraseTitle, paraphraseText } from "@/lib/paraphraser";
 import {
   mapCategory,
@@ -85,7 +85,7 @@ export async function fetchInitialNews(
 
     const data = await apiRes.json();
 
-    const fetchedArticles: Article[] = (data.results || []).map((art: any) => ({
+    const fetchedArticles: Article[] = (data.results || []).map((art: NewsDataRawArticle) => ({
       article_id: art.article_id || art.link,
       title: paraphraseTitle(art.title || "Untitled Article"),
       link: art.link || "#",

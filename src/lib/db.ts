@@ -15,6 +15,30 @@ export interface DBArticle extends Article {
   created_at?: string;
 }
 
+/**
+ * A row of public.articles exactly as db/schema.sql declares it — nullability
+ * included. Only `id`, `article_id`, `title` and `created_at` are NOT NULL
+ * there; everything else is nullable, and this type says so rather than
+ * flattering the mapping code below.
+ */
+interface ArticleRow {
+  id: string;
+  article_id: string;
+  title: string;
+  link: string | null;
+  description: string | null;
+  content: string | null;
+  pub_date: string | null;
+  image_url: string | null;
+  source_id: string | null;
+  source_name: string | null;
+  category: string[] | null;
+  country: string[] | null;
+  language: string | null;
+  created_at: string;
+  category_mismatches: string[] | null;
+}
+
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
@@ -277,10 +301,10 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
     // delay the save/serve path; the classification catches up a few
     // seconds later and applies from the next read onward. See
     // categoryClassifier.ts for the fail-open behavior.
-    const toClassify = (data || []).filter((row: any) => row.category_mismatches == null);
+    const toClassify = (data || []).filter((row: ArticleRow) => row.category_mismatches == null);
     if (toClassify.length > 0) {
       classifyCategoryRelevance(
-        toClassify.map((row: any) => ({
+        toClassify.map((row: ArticleRow) => ({
           article_id: row.article_id,
           title: row.title,
           description: row.description,
@@ -289,6 +313,13 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
       ).catch((err) => console.error("Background category classification error:", err));
     }
 
+    // Typing this row as ArticleRow (above) is correct per db/schema.sql but
+    // does not compile: link and pub_date are nullable in Postgres while
+    // Article.link and Article.pubDate are required strings, so this mapping
+    // silently relies on `any` to paper over unhandled nulls. Fixing it needs
+    // a logic change (null coalescing, or a narrower Article), which is out of
+    // scope for a lint-only commit. See docs/BACKLOG.md (BL-001).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (data || []).map((row: any) => ({
       article_id: row.article_id,
       title: row.title,
@@ -358,7 +389,7 @@ export async function getDBArticles(
     // classified, or classification failed) reads as "no mismatches" — see
     // categoryClassifier.ts for why that's the deliberate fail-open default.
     const filtered = (data || []).filter(
-      (row: any) =>
+      (row: ArticleRow) =>
         matchesLanguageScript(row.title, language) &&
         !isHoroscopeOrRitualFiller(row) &&
         !isFromWireSpamSource(row.source_id) &&
@@ -366,6 +397,9 @@ export async function getDBArticles(
         !(row.category_mismatches || []).includes(category)
     );
 
+    // Same nullable-column vs required-Article-field mismatch as the mapping
+    // in saveArticlesToDB above. See docs/BACKLOG.md (BL-001).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return filtered.slice(0, 40).map((row: any) => ({
       article_id: row.article_id,
       title: row.title,
