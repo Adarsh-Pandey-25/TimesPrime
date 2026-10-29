@@ -207,3 +207,28 @@ feature:
 
 **Pick up:** any time, as one small commit. The footer link is the one a user
 can see.
+
+---
+
+## BL-010 — ESLint lints the generated `coverage/` directory
+
+**Found:** Phase A review, reading the unabridged `npm run verify` log ·
+**Status:** Open · cannot fail the gate, but makes the warning count unreliable
+
+`eslint.config.mjs` ignores `.next/`, `out/`, `build/` and `next-env.d.ts`, but
+not `coverage/`. After `npm run test:ci`, ESLint lints Istanbul's generated
+report and emits:
+
+```
+C:\Users\DELL\TimesPrime\coverage\lcov-report\block-navigation.js
+  1:1  warning  Unused eslint-disable directive (no problems were reported)
+```
+
+So the "15 warnings" reported throughout the restructure are **14 in source
+plus 1 in a generated file**, and the total depends on whether `coverage/`
+exists. CI runs Lint before Test, so CI sees 14 while a local run after
+`test:ci` sees 15. Every filtered view of the lint output hid this; only the
+full log shows the path.
+
+**Fix:** add `"coverage/**"` to `globalIgnores` in `eslint.config.mjs`. One
+line; not made here because it was outside the item that found it.
