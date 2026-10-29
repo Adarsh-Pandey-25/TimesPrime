@@ -1,85 +1,169 @@
 // Regenerates docs/CODEMAP.md from the repo itself.
 //
-//   node scripts/generate-codemap.mjs
+//   npm run test:ci                     # refreshes coverage/coverage-final.json
+//   node scripts/generate-codemap.mjs   # rebuilds docs/CODEMAP.md
 //
-// Every column except "Purpose" and "Target" is derived: the import graph is
-// built by resolving each `from "..."` specifier (both `@/` aliased and
-// relative) against `git ls-files`, so "Used by" is a real count rather than an
-// estimate. Purpose and Target are authored in PURPOSE below — update them when
-// a module's role or destination changes.
+// Every column except "Purpose" and "Target" is derived. Imports are found by
+// parsing each file with the TypeScript compiler API rather than a regex, so:
+//   - comments and string literals cannot produce false edges,
+//   - `import type` / all-`type` specifiers are recognised and labelled,
+//   - dynamic `import("...")` is captured,
+//   - `export ... from` re-exports are captured,
+//   - aliases are resolved from tsconfig.json `paths`, not hardcoded.
+// Purpose and Target are authored in PURPOSE below — update them when a
+// module's role or destination changes.
 //
 // Run this after any file move. A stale CODEMAP is worse than none, because it
 // is trusted.
 
 import fs from "node:fs";
+import path from "node:path";
 import { execSync } from "node:child_process";
+import ts from "typescript";
 
 const OUT = "docs/CODEMAP.md";
-
-const files = execSync('git ls-files "src/*" "src/**/*"', { encoding: "utf8" })
-  .split("\n")
-  .map((s) => s.trim())
-  .filter((f) => /\.(ts|tsx)$/.test(f));
-
-const src = new Map(files.map((f) => [f, fs.readFileSync(f, "utf8")]));
+const COVERAGE_FILE = "coverage/coverage-final.json";
 const CANDIDATE_SUFFIXES = [".ts", ".tsx", "/index.ts", "/index.tsx", ""];
+const ASSET_EXT = /\.(css|scss|svg|png|jpe?g|gif|webp|json)$/;
+
+const gitFiles = (pattern) =>
+  execSync(`git ls-files ${pattern}`, { encoding: "utf8" }).split("\n").map((s) => s.trim()).filter(Boolean);
+
+// Source modules: the rows of the table.
+const srcFiles = gitFiles('"src/*" "src/**/*"').filter((f) => /\.(ts|tsx)$/.test(f));
+// Files outside src/ that can import src/ modules. next.config.ts matters most:
+// it imports imageDomains.ts at config-load time (CR-06).
+const extraImporters = gitFiles('"*.ts" "*.mjs" "scripts/*.mjs"').filter((f) => !f.startsWith("src/"));
+
+const text = new Map([...srcFiles, ...extraImporters].map((f) => [f, fs.readFileSync(f, "utf8")]));
+const srcSet = new Set(srcFiles);
+
+// ---- alias resolution, from tsconfig.json ----------------------------------
+const tsconfig = ts.readConfigFile("tsconfig.json", ts.sys.readFile).config ?? {};
+const aliases = Object.entries(tsconfig.compilerOptions?.paths ?? {})
+  .filter(([key, targets]) => key.endsWith("/*") && targets[0]?.endsWith("/*"))
+  .map(([key, targets]) => ({
+    prefix: key.slice(0, -1), // "@/*" -> "@/"
+    target: path.posix.normalize(targets[0].slice(0, -1)).replace(/^\.\//, ""), // "./src/*" -> "src/"
+  }));
 
 function firstExisting(base) {
-  for (const suffix of CANDIDATE_SUFFIXES) {
-    if (src.has(base + suffix)) return base + suffix;
-  }
+  for (const suffix of CANDIDATE_SUFFIXES) if (srcSet.has(base + suffix)) return base + suffix;
   return null;
 }
 
+// Returns a tracked src path, "external" for a package, or null if a project
+// specifier could not be resolved (a generator bug — tsc would have failed).
 function resolveSpecifier(spec, from) {
-  if (spec.startsWith("@/")) return firstExisting("src/" + spec.slice(2));
-  if (!spec.startsWith(".")) return null; // a package, not a project module
-  const dir = from.split("/").slice(0, -1);
-  for (const part of spec.split("/")) {
-    if (part === "..") dir.pop();
-    else if (part !== ".") dir.push(part);
+  for (const { prefix, target } of aliases) {
+    if (spec.startsWith(prefix)) return firstExisting(path.posix.join(target, spec.slice(prefix.length)));
   }
-  return firstExisting(dir.join("/"));
+  if (spec.startsWith(".")) return firstExisting(path.posix.join(path.posix.dirname(from), spec));
+  return "external";
 }
 
-const importsOf = new Map(files.map((f) => [f, new Set()]));
-const importersOf = new Map(files.map((f) => [f, new Set()]));
-for (const [file, text] of src) {
-  for (const [, spec] of text.matchAll(/from\s+["']([^"']+)["']/g)) {
-    const target = resolveSpecifier(spec, file);
-    if (target && target !== file) {
-      importsOf.get(file).add(target);
-      importersOf.get(target).add(file);
+// ---- parsing -----------------------------------------------------------------
+// Edge kinds: value · type · dynamic · reexport · side-effect.
+// "type" edges are erased by the compiler and never reach a bundle, but they
+// still break if the target moves, so they belong in the refactoring view.
+function parse(file) {
+  const sf = ts.createSourceFile(
+    file, text.get(file), ts.ScriptTarget.Latest, true,
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  );
+
+  const directives = [];
+  for (const stmt of sf.statements) {
+    if (ts.isExpressionStatement(stmt) && ts.isStringLiteral(stmt.expression)) directives.push(stmt.expression.text);
+    else break; // the directive prologue ends at the first non-string statement
+  }
+
+  const edges = [];
+  const unresolvedDynamic = [];
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
+      const clause = node.importClause;
+      let kind = "value";
+      if (!clause) kind = "side-effect";
+      else if (clause.isTypeOnly) kind = "type";
+      else if (
+        !clause.name && clause.namedBindings && ts.isNamedImports(clause.namedBindings) &&
+        clause.namedBindings.elements.length > 0 &&
+        clause.namedBindings.elements.every((el) => el.isTypeOnly)
+      ) kind = "type";
+      edges.push({ spec: node.moduleSpecifier.text, kind });
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      edges.push({ spec: node.moduleSpecifier.text, kind: node.isTypeOnly ? "type" : "reexport" });
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      const arg = node.arguments[0];
+      if (arg && (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg))) edges.push({ spec: arg.text, kind: "dynamic" });
+      else unresolvedDynamic.push(sf.getLineAndCharacterOfPosition(node.getStart()).line + 1);
     }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return { directives, edges, unresolvedDynamic };
+}
+
+const parsed = new Map([...text.keys()].map((f) => [f, parse(f)]));
+
+// ---- graph -------------------------------------------------------------------
+const out = new Map([...text.keys()].map((f) => [f, []])); // file -> [{to, kind}]
+const inn = new Map(srcFiles.map((f) => [f, []]));         // src file -> [{from, kind}]
+const unresolved = [];
+for (const [file, { edges }] of parsed) {
+  for (const { spec, kind } of edges) {
+    const to = resolveSpecifier(spec, file);
+    if (to === "external") continue;
+    if (to === null) { if (!ASSET_EXT.test(spec)) unresolved.push(`${file}: "${spec}"`); continue; }
+    if (to === file) continue;
+    out.get(file).push({ to, kind });
+    inn.get(to).push({ from: file, kind });
   }
 }
 
+// ---- coverage ----------------------------------------------------------------
+let coverage = null;
+let coverageStamp = "not found — run `npm run test:ci` first";
+if (fs.existsSync(COVERAGE_FILE)) {
+  coverage = new Map();
+  for (const [abs, data] of Object.entries(JSON.parse(fs.readFileSync(COVERAGE_FILE, "utf8")))) {
+    const rel = path.relative(process.cwd(), abs).split(path.sep).join("/");
+    const hits = Object.values(data.s ?? {});
+    coverage.set(rel, hits.length ? (100 * hits.filter((n) => n > 0).length) / hits.length : null);
+  }
+  coverageStamp = fs.statSync(COVERAGE_FILE).mtime.toISOString().replace("T", " ").slice(0, 16) + " UTC";
+}
+function coverageCell(file) {
+  if (!coverage) return "?";
+  if (!coverage.has(file)) return "excl.";
+  const pct = coverage.get(file);
+  return pct === null ? "n/a" : `${pct.toFixed(pct === 100 || pct === 0 ? 0 : 1)}%`;
+}
+
+// ---- classification ----------------------------------------------------------
 const isTest = (f) => /\.test\.tsx?$/.test(f);
-const isClient = (f) => /^["']use client["']/.test(src.get(f).trimStart());
-const tested = new Set(
-  files.filter(isTest).map((t) => t.replace(/\.test\.(tsx?)$/, ".$1")).filter((p) => src.has(p))
-);
+const hasUseClient = (f) => parsed.get(f).directives.includes("use client");
 
-const rows = files
-  .filter((f) => !isTest(f))
-  .sort()
-  .map((f) => ({
-    file: f,
-    loc: src.get(f).split("\n").length,
-    client: isClient(f),
-    tested: tested.has(f),
-    deps: [...importsOf.get(f)],
-    usedBy: importersOf.get(f).size,
-  }));
-
-// Modules that must never reach the browser. A "use client" file importing one
-// of these is a boundary violation — the exact thing the Phase E lint rule
-// exists to prevent.
+// Modules that must never reach the browser. This list is POLICY, authored
+// like Purpose — it cannot be derived, because several of these modules
+// (supabase.ts, googleTranslate.ts) contain no code that would fail in a
+// browser. They are server-only because of what they hold or do.
 const SERVER_ONLY = new Set([
   "src/lib/db.ts", "src/lib/supabase.ts", "src/lib/adminSession.ts", "src/lib/adminLogger.ts",
   "src/lib/categoryClassifier.ts", "src/lib/fetchNews.ts", "src/lib/newsdata.ts",
   "src/lib/googleTranslate.ts", "src/lib/urlValidation.ts",
 ]);
+
+// Boundary rule (direct form): a "use client" module importing a server-only
+// module, by any kind of edge. Evidence is the edge itself.
+const violations = [];
+for (const f of srcFiles) {
+  if (isTest(f) || !hasUseClient(f)) continue;
+  for (const { to, kind } of out.get(f)) {
+    if (SERVER_ONLY.has(to)) violations.push({ target: to, chain: [f, to], kind });
+  }
+}
 
 // [purpose, target under the approved layer-separation structure]
 const PURPOSE = {
@@ -132,25 +216,104 @@ const PURPOSE = {
 
 function describe(file) {
   if (PURPOSE[file]) return PURPOSE[file];
-  if (file.endsWith("/route.ts")) {
-    return ["API: " + file.replace("src/app", "").replace("/route.ts", ""), "stays -- URL is the contract (CR-01)"];
-  }
-  if (file.endsWith("/page.tsx")) {
-    return ["Page: " + (file.replace("src/app", "").replace("/page.tsx", "") || "/"), "stays -- route group only (CR-01)"];
-  }
+  if (file.endsWith("/route.ts")) return ["API: " + file.replace("src/app", "").replace("/route.ts", ""), "stays -- URL is the contract (CR-01)"];
+  if (file.endsWith("/page.tsx")) return ["Page: " + (file.replace("src/app", "").replace("/page.tsx", "") || "/"), "stays -- route group only (CR-01)"];
   if (file.endsWith("layout.tsx")) return ["Root layout: providers, metadata, fonts", "stays"];
   if (file.endsWith("loading.tsx")) return ["Route-level loading UI", "stays"];
   return ["(no purpose recorded -- add it to PURPOSE in this script)", "?"];
 }
 
-const violations = rows.flatMap((r) =>
-  r.client ? r.deps.filter((d) => SERVER_ONLY.has(d)).map((d) => `${r.file}  ->  ${d}`) : []
-);
+// ---- render ------------------------------------------------------------------
+const short = (f) => f.replace(/^src\//, "");
+// Counts newline characters, exactly as `wc -l` does, so these figures match
+// the ones cited elsewhere in docs/. split("\n").length over-counts by one.
+const loc = (f) => (text.get(f).match(/\n/g) ?? []).length;
+const rows = srcFiles.filter((f) => !isTest(f)).sort();
 const PINNED = /^src\/(proxy|instrumentation|sentry)/;
-const orphans = rows.filter((r) => r.usedBy === 0 && !r.file.startsWith("src/app/") && !PINNED.test(r.file));
-const mostUsed = [...rows].sort((a, b) => b.usedBy - a.usedBy).slice(0, 6);
+const orphans = rows.filter((f) => inn.get(f).length === 0 && !f.startsWith("src/app/") && !PINNED.test(f));
+const importerCount = (f) => new Set(inn.get(f).map((e) => e.from)).size;
+const mostUsed = [...rows].sort((a, b) => importerCount(b) - importerCount(a)).slice(0, 6);
+const dynamicEdges = [...out].flatMap(([from, es]) => es.filter((e) => e.kind === "dynamic").map((e) => `${from} -> ${e.to}`));
+const typeEdgeCount = [...out.values()].flat().filter((e) => e.kind === "type").length;
+const unresolvedDynamic = [...parsed].flatMap(([f, p]) => p.unresolvedDynamic.map((l) => `${f}:${l}`));
 const head = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
-const today = new Date().toISOString().slice(0, 10);
+
+const label = (kind) => (kind === "value" || kind === "side-effect" ? "" : ` _(${kind})_`);
+function listEdges(edges, key) {
+  const byTarget = new Map();
+  for (const e of edges) {
+    const k = e[key];
+    if (!byTarget.has(k)) byTarget.set(k, new Set());
+    byTarget.get(k).add(e.kind);
+  }
+  return [...byTarget].sort(([a], [b]) => a.localeCompare(b)).map(([k, kinds]) => {
+    const tags = [...kinds].filter((x) => x !== "value" && x !== "side-effect");
+    const test = isTest(k) ? " _(test)_" : "";
+    return `\`${short(k)}\`${tags.length ? tags.map((t) => label(t)).join("") : ""}${test}`;
+  });
+}
+
+const L = [];
+L.push(
+  "# CODEMAP — every module, what it does, where it goes", "",
+  "**Read this instead of re-analysing the codebase.** If the question is \"where does X live\",",
+  "\"what imports Y\" or \"what moves where\", it is answered here. Do not grep the tree to re-derive it.", "",
+  `Generated at commit \`${head}\` by \`node scripts/generate-codemap.mjs\`. Coverage read from`,
+  `\`${COVERAGE_FILE}\` (written ${coverageStamp}) — run \`npm run test:ci\` first for current numbers.`, "",
+  "Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with",
+  "the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is",
+  "recognised, dynamic `import()` and `export … from` are captured, and aliases are resolved from",
+  "`tsconfig.json`. Files outside `src/` (notably `next.config.ts`) are scanned as importers too.", "",
+  "**Regenerate after any file move.** A stale CODEMAP is worse than none, because it is trusted.", "",
+  "## At a glance", "",
+  "| | |", "|---|---|",
+  `| Modules (excl. tests) | **${rows.length}** |`,
+  `| Modules with a \`"use client"\` directive | **${rows.filter(hasUseClient).length}** |`,
+  `| Client → server boundary violations | **${violations.length}** |`,
+  `| Orphans (nothing imports them) | **${orphans.length}** |`,
+  `| Dynamic \`import()\` edges | **${dynamicEdges.length}** |`,
+  `| Type-only edges (erased at compile time) | **${typeEdgeCount}** |`,
+  `| Unresolved project imports | **${unresolved.length}** ${unresolved.length ? "— generator bug, investigate" : "— self-check passes"} |`,
+  "",
+  "### Boundary violations", "",
+  "A `\"use client\"` module importing a server-only module directly. **Treat this as an estimate**",
+  "until the Phase E lint rule exists — see *How the boundary is detected* below.", "",
+  "```", ...(violations.length ? violations.map((v) => `${v.chain.join("  ->  ")}${v.kind === "value" ? "" : `  (${v.kind})`}`) : ["none"]), "```", ""
+);
+if (violations.some((v) => v.chain[0].includes("ActivityLog"))) {
+  L.push(
+    "`ActivityLog.tsx` imports `adminLogger.ts` for two constant objects (`ACTION_LABELS`, `ACTION_ICONS`).",
+    "That module imports `@supabase/supabase-js` and Sentry, so the SDK lands in the browser bundle. The",
+    "service-role key itself is safe — non-`NEXT_PUBLIC_` env vars compile to `undefined` client-side —",
+    "but the weight is real. Fixed in migration slice 8 by moving the two constants into `features/admin/`.", ""
+  );
+}
+L.push(
+  "### How the boundary is detected", "",
+  "- **Client module:** a file whose directive prologue contains `\"use client\"`, read from the AST, so",
+  "  a leading comment cannot hide it.",
+  "- **Server-only module:** an authored policy list in the generator — not derivable, since modules",
+  "  such as `supabase.ts` contain no code that would fail in a browser.",
+  "- **Violation:** a client module with an import edge, of any kind, to a server-only module.", "",
+  "### Orphans", "", "```", ...(orphans.length ? orphans.map((f) => `${f}  (${loc(f)} lines)`) : ["none"]), "```", "",
+  "### Dynamic imports", "", "```", ...(dynamicEdges.length ? dynamicEdges : ["none"]), "```", ""
+);
+if (unresolvedDynamic.length) L.push("Dynamic imports with a non-literal specifier (cannot be resolved statically):", "", "```", ...unresolvedDynamic, "```", "");
+if (unresolved.length) L.push("### Unresolved project imports", "", "```", ...unresolved, "```", "");
+L.push("### Most depended-upon", "", "Widest blast radius when moved.", "", "| Importers | Module |", "|--:|---|");
+for (const f of mostUsed) L.push(`| ${importerCount(f)} | \`${f}\` |`);
+L.push(
+  "", "## Legend", "",
+  "- **Client** — `directive` means the file declares `\"use client\"`.",
+  "- **Cov** — statement coverage from the last `npm run test:ci`. `excl.` = excluded by",
+  "  `collectCoverageFrom` (type-only modules, Sentry/instrumentation entrypoints).",
+  "- **Importers / Imports** — counts of project-internal edges. The full path lists, with edge kinds,",
+  "  are in the *Dependency index* section below the tables.",
+  "- **Target** — destination under the approved *layer separation* structure. `PINNED` = a framework",
+  "  convention that must not move. Slice order is in [`MOVE-MAP.md`](MOVE-MAP.md).",
+  "- **CR-nn** — a compatibility requirement from [`PRD.md`](PRD.md) §8.", "",
+  "## Modules"
+);
 
 const GROUPS = [
   ["Routing — `src/app/` (locations are the URL contract)", (f) => f.startsWith("src/app/")],
@@ -159,80 +322,32 @@ const GROUPS = [
   ["Context and types", (f) => f.startsWith("src/context/") || f.startsWith("src/types/")],
   ["Framework-pinned (never move)", (f) => PINNED.test(f)],
 ];
-
-const tick = (b) => (b ? "yes" : "");
-const lines = [];
-lines.push("# CODEMAP — every module, what it does, where it goes", "");
-lines.push(
-  "**Purpose: read this instead of re-analysing the codebase.** If the question is \"where does X",
-  "live\", \"what imports Y\" or \"what moves where\", it is answered here. Do not grep the tree to",
-  "re-derive it.",
-  "",
-  `Generated ${today} at commit \`${head}\` by \`node scripts/generate-codemap.mjs\`. Every column`,
-  "except **Purpose** and **Target** is derived from the repo: the import graph resolves each",
-  "`from \"...\"` specifier (both `@/` aliased and relative) against `git ls-files`, so **Used by** is",
-  "a real count, not an estimate. Purpose and Target are authored in that script.",
-  "",
-  "**Regenerate after any file move.** A stale CODEMAP is worse than none, because it is trusted.",
-  "",
-  "## At a glance",
-  "",
-  "| | |",
-  "|---|---|",
-  `| Modules (excl. tests) | **${rows.length}** |`,
-  `| Client components (\`"use client"\`) | **${rows.filter((r) => r.client).length}** |`,
-  `| Modules with a colocated test | **${rows.filter((r) => r.tested).length}** |`,
-  `| Client → server boundary violations | **${violations.length}** |`,
-  `| Orphans (nothing imports them) | **${orphans.length}** |`,
-  "",
-  "### Boundary violations",
-  "",
-  "A `\"use client\"` module importing a server-only one. The Phase E lint rule exists to make",
-  "this count zero and keep it there.",
-  "",
-  "```",
-  ...(violations.length ? violations : ["none"]),
-  "```",
-  ""
-);
-if (violations.some((v) => v.includes("ActivityLog"))) {
-  lines.push(
-    "`ActivityLog.tsx` imports `adminLogger.ts` for two constant objects (`ACTION_LABELS`,",
-    "`ACTION_ICONS`). That module imports `@supabase/supabase-js` and Sentry, so the SDK lands in",
-    "the browser bundle. The service-role key itself is safe — non-`NEXT_PUBLIC_` env vars compile",
-    "to `undefined` client-side — but the weight is real. Fixed in migration slice 8 by moving the",
-    "two constants into `features/admin/`.",
-    ""
-  );
-}
-lines.push("### Orphans", "", "```", ...(orphans.length ? orphans.map((r) => `${r.file}  (${r.loc} lines)`) : ["none"]), "```", "");
-lines.push("### Most depended-upon", "", "Widest blast radius when moved.", "", "| Importers | Module |", "|--:|---|");
-for (const r of mostUsed) lines.push(`| ${r.usedBy} | \`${r.file}\` |`);
-lines.push(
-  "",
-  "## Legend",
-  "",
-  "- **Client** — file begins with `\"use client\"`.",
-  "- **Test** — a colocated `*.test.ts(x)` exists.",
-  "- **Used by** — count of other tracked modules importing it. `0` is expected for `app/` files:",
-  "  the framework loads them; nothing imports them.",
-  "- **Target** — destination under the approved *layer separation* structure. `PINNED` marks a",
-  "  framework convention that must not move. Slice order is in [`MOVE-MAP.md`](MOVE-MAP.md).",
-  "- **CR-nn** — a compatibility requirement from [`PRD.md`](PRD.md) §8. Breaking one breaks",
-  "  something outside the codebase.",
-  "",
-  "## Modules"
-);
 for (const [title, pred] of GROUPS) {
-  const selected = rows.filter((r) => pred(r.file));
-  if (!selected.length) continue;
-  lines.push("", `### ${title}`, "", "| Module | Purpose | LOC | Client | Test | Used by | Target |", "|---|---|--:|:-:|:-:|--:|---|");
-  for (const r of selected) {
-    const [purpose, target] = describe(r.file);
-    lines.push(`| \`${r.file.replace(/^src\//, "")}\` | ${purpose} | ${r.loc} | ${tick(r.client)} | ${tick(r.tested)} | ${r.usedBy} | ${target} |`);
+  const sel = rows.filter(pred);
+  if (!sel.length) continue;
+  L.push("", `### ${title}`, "", "| Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |", "|---|---|--:|:-:|--:|--:|--:|---|");
+  for (const f of sel) {
+    const [purpose, target] = describe(f);
+    const importsN = new Set(out.get(f).map((e) => e.to)).size;
+    L.push(`| \`${short(f)}\` | ${purpose} | ${loc(f)} | ${hasUseClient(f) ? "directive" : ""} | ${coverageCell(f)} | ${importerCount(f)} | ${importsN} | ${target} |`);
   }
 }
-lines.push("");
 
-fs.writeFileSync(OUT, lines.join("\n"));
-console.log(`wrote ${OUT}: ${rows.length} modules, ${violations.length} boundary violation(s), ${orphans.length} orphan(s)`);
+L.push(
+  "", "## Dependency index", "",
+  "One entry per module. **Imports** = project-internal modules this file imports. **Used by** = files",
+  "that import it, including tests and files outside `src/`. Edge kinds other than a plain value import",
+  "are labelled. A _(type)_ edge is erased at compile time and never reaches a bundle, but it still",
+  "breaks if its target moves — so it counts here, where the question is what a move would touch.", ""
+);
+for (const f of rows) {
+  const imports = listEdges(out.get(f), "to");
+  const usedBy = listEdges(inn.get(f), "from");
+  L.push(`#### \`${short(f)}\``, "",
+    `- **Imports:** ${imports.length ? imports.join(", ") : "—"}`,
+    `- **Used by:** ${usedBy.length ? usedBy.join(", ") : "—"}`, "");
+}
+
+fs.writeFileSync(OUT, L.join("\n"));
+console.log(`wrote ${OUT}: ${rows.length} modules · ${violations.length} violation(s) · ${orphans.length} orphan(s) · ` +
+  `${dynamicEdges.length} dynamic · ${typeEdgeCount} type-only · ${unresolved.length} unresolved`);
