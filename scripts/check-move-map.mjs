@@ -94,6 +94,7 @@ function layer(p) {
   if (p.startsWith("src/lib/")) return "lib";
   if (p.startsWith("src/config/")) return "config";
   if (p.startsWith("src/components/ui/")) return "ui";
+  if (p.startsWith("src/context/")) return "context";
   if (p.startsWith("src/types/")) return "types";
   if (/^src\/(proxy|instrumentation|sentry)/.test(p)) return "pinned";
   return "unmapped";
@@ -112,10 +113,11 @@ for (const e of edges) {
   const fb = lb.startsWith("feature:");
   let rule = null;
   if (fa && fb && la !== lb) rule = "R2 no sideways feature imports";
-  else if (["server", "lib", "config", "ui", "types"].includes(la) && fb) rule = `R3 no upward ${la} -> feature`;
+  else if (["server", "lib", "config", "ui", "context", "types"].includes(la) && fb) rule = `R3 no upward ${la} -> feature`;
   else if (la === "lib" && lb === "server") rule = "R3 no upward lib -> server";
   else if (la === "ui" && lb === "server") rule = "R6 ui never imports server";
   else if (la === "config" && !["config", "types"].includes(lb)) rule = `R7 config imports only config/types`;
+  else if (la === "context" && !["context", "config", "types"].includes(lb)) rule = `R9 context imports only config/types`;
   else if (e.kind !== "type" && bundle.has(e.from) && lb === "server") rule = "R6 client bundle never reaches server";
   if (rule) violations.push({ rule, key: `${a.replace("src/", "")} -> ${b.replace("src/", "")}`, kind: e.kind });
 }

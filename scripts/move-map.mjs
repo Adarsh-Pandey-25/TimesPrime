@@ -30,9 +30,7 @@ export const MOVES = [
   ["src/lib/adminSession.ts", "src/server/auth/adminSession.ts", 3],
   ["src/lib/adminLogger.ts", "src/server/auditLog.ts", 3],
   ["src/lib/googleTranslate.ts", "src/server/googleTranslate.ts", 3],
-  // 4 — components/ui/
-  ["src/context/ThemeContext.tsx", "src/components/ui/theme/ThemeContext.tsx", 4],
-  ["src/context/LanguageContext.tsx", "src/components/ui/i18n/LanguageContext.tsx", 4],
+  // 4 — components/ui/ (presentation only; the two state providers stay in src/context/)
   ["src/components/ThemeSpinner.tsx", "src/components/ui/ThemeSpinner.tsx", 4],
   ["src/components/NewsSkeletonGrid.tsx", "src/components/ui/NewsSkeletonGrid.tsx", 4],
   ["src/components/Footer.tsx", "src/components/ui/layout/Footer.tsx", 4],
