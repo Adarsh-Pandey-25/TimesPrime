@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, History, Trash2, Inbox, ChevronLeft, ChevronRight } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
-import { ACTION_LABELS, ACTION_ICONS, type AdminAction, type AdminLog } from "@/lib/adminLogger";
+import type { AdminAction, AdminLog } from "@/types";
+import { ACTION_LABELS, ACTION_ICONS } from "./actionLabels";
 
 interface LogsResponse {
   logs: AdminLog[];

@@ -1,48 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-
-export type AdminAction =
-  | "article_deleted"
-  | "articles_bulk_deleted"
-  | "article_edited"
-  | "article_published"
-  | "breaking_news_set"
-  | "breaking_news_removed"
-  | "news_synced"
-  | "database_purged"
-  | "categories_seeded";
-
-export interface AdminLog {
-  id: string;
-  action: AdminAction;
-  details: string;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-export const ACTION_LABELS: Record<AdminAction, string> = {
-  article_deleted: "Article Deleted",
-  articles_bulk_deleted: "Bulk Delete",
-  article_edited: "Article Edited",
-  article_published: "Article Published",
-  breaking_news_set: "Breaking News Set",
-  breaking_news_removed: "Breaking News Removed",
-  news_synced: "News Synced",
-  database_purged: "Database Purged",
-  categories_seeded: "Categories Seeded",
-};
-
-export const ACTION_ICONS: Record<AdminAction, string> = {
-  article_deleted: "🗑",
-  articles_bulk_deleted: "🗑🗑",
-  article_edited: "✏️",
-  article_published: "📝",
-  breaking_news_set: "🔴",
-  breaking_news_removed: "⭕",
-  news_synced: "🔄",
-  database_purged: "🧹",
-  categories_seeded: "🌱",
-};
+import type { AdminAction } from "@/types";
 
 /**
  * Records an admin action to the admin_logs table for the Activity Log.

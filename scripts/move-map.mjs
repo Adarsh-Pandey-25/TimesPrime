@@ -43,6 +43,7 @@ export const MOVES = [
   ["src/components/admin/CategoryStatsCard.tsx", "src/features/admin/components/CategoryStatsCard.tsx", 5],
   ["src/components/admin/SyncDashboard.tsx", "src/features/admin/components/SyncDashboard.tsx", 5],
   ["src/components/BreakingNewsBanner.tsx", "src/features/admin/components/BreakingNewsBanner.tsx", 5],
+  ["src/components/admin/actionLabels.ts", "src/features/admin/components/actionLabels.ts", 5],
   // 6 — features/news: the core domain, including the article page and the masthead
   ["src/lib/newsConfig.ts", "src/features/news/newsConfig.ts", 6],
   ["src/lib/newsConfig.test.ts", "src/features/news/newsConfig.test.ts", 6],
@@ -59,9 +60,6 @@ export const MOVES = [
 ];
 
 // Violations accepted for now, each with its reason and where it is resolved.
+// Empty since SC-1 moved the admin action labels out of adminLogger.ts.
 export const KNOWN = {
-  "features/admin/components/ActivityLog.tsx -> server/auditLog.ts":
-    "the one existing boundary bug; fixing it means splitting adminLogger.ts, an edit to a module body — owner decision pending (MOVE-MAP §Stop conditions)",
-  "server/auditLog.ts -> server/supabase.ts":
-    "the same chain, one hop further: supabase.ts is only in the client bundle because ActivityLog pulls auditLog in",
 };

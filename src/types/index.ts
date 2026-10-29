@@ -70,3 +70,27 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
 }
+
+/**
+ * An admin action recorded in admin_logs. Shared by the server-side writer
+ * (logAdminAction) and the admin activity log UI, so it lives in the bottom
+ * layer that both import from.
+ */
+export type AdminAction =
+  | "article_deleted"
+  | "articles_bulk_deleted"
+  | "article_edited"
+  | "article_published"
+  | "breaking_news_set"
+  | "breaking_news_removed"
+  | "news_synced"
+  | "database_purged"
+  | "categories_seeded";
+
+export interface AdminLog {
+  id: string;
+  action: AdminAction;
+  details: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}

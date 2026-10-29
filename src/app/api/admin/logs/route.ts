@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import type { AdminLog } from "@/lib/adminLogger";
+import type { AdminLog } from "@/types";
 
 // ---------------------------------------------------------------------
 // SETUP REQUIRED — this file does not create the table itself. Run this
