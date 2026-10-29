@@ -19,6 +19,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
+import { builtinModules } from "node:module";
 import ts from "typescript";
 
 const OUT = "docs/CODEMAP.md";
@@ -155,15 +156,47 @@ const SERVER_ONLY = new Set([
   "src/lib/googleTranslate.ts", "src/lib/urlValidation.ts",
 ]);
 
-// Boundary rule (direct form): a "use client" module importing a server-only
-// module, by any kind of edge. Evidence is the edge itself.
-const violations = [];
-for (const f of srcFiles) {
-  if (isTest(f) || !hasUseClient(f)) continue;
-  for (const { to, kind } of out.get(f)) {
-    if (SERVER_ONLY.has(to)) violations.push({ target: to, chain: [f, to], kind });
+// The client bundle is TRANSITIVE. "use client" marks a boundary: that module
+// and everything it imports — directly, or through any chain of modules that
+// carry no directive of their own — ships to the browser. So the bundle is the
+// closure over import edges from every "use client" root, following value,
+// dynamic, re-export and side-effect edges. It does NOT follow:
+//   - type edges: erased at compile time, they ship nothing;
+//   - edges into a "use server" module: the client receives an RPC reference
+//     to the server action, not the module's code.
+// A BFS from all roots at once yields the shortest chain to each module, which
+// is printed as the evidence for every violation.
+const isRoot = (f) => !isTest(f) && hasUseClient(f);
+const hasUseServer = (f) => parsed.get(f).directives.includes("use server");
+const parent = new Map(); // module -> module that pulled it into the bundle; null for a root
+const queue = srcFiles.filter(isRoot);
+for (const root of queue) parent.set(root, null);
+while (queue.length) {
+  const cur = queue.shift();
+  for (const { to, kind } of out.get(cur)) {
+    if (kind === "type" || parent.has(to) || isTest(to) || hasUseServer(to)) continue;
+    parent.set(to, cur);
+    queue.push(to);
   }
 }
+const clientBundle = new Set(parent.keys());
+const chainTo = (f) => {
+  const chain = [];
+  for (let x = f; x !== null; x = parent.get(x)) chain.unshift(x);
+  return chain;
+};
+
+// Boundary rule: a server-only module that ends up in the client bundle.
+const violations = [...clientBundle].filter((f) => SERVER_ONLY.has(f)).sort()
+  .map((target) => ({ target, chain: chainTo(target) }));
+
+// Independent cross-check. A browser bundle cannot resolve Node built-ins, so
+// `next build` succeeding implies no bundled module imports one. If this ever
+// lists anything, either the build is broken or this generator is wrong.
+const BUILTINS = new Set(builtinModules);
+const isBuiltin = (spec) => spec.startsWith("node:") || BUILTINS.has(spec) || BUILTINS.has(spec.split("/")[0]);
+const builtinUsers = srcFiles.filter((f) => !isTest(f) && parsed.get(f).edges.some((e) => isBuiltin(e.spec)));
+const bundledBuiltinUsers = builtinUsers.filter((f) => clientBundle.has(f));
 
 // [purpose, target under the approved layer-separation structure]
 const PURPOSE = {
@@ -269,32 +302,52 @@ L.push(
   "| | |", "|---|---|",
   `| Modules (excl. tests) | **${rows.length}** |`,
   `| Modules with a \`"use client"\` directive | **${rows.filter(hasUseClient).length}** |`,
-  `| Client → server boundary violations | **${violations.length}** |`,
+  `| Modules in the client bundle (directive + pulled in) | **${rows.filter((f) => clientBundle.has(f)).length}** |`,
+  `| Server-only modules in the client bundle (violations) | **${violations.length}** |`,
   `| Orphans (nothing imports them) | **${orphans.length}** |`,
   `| Dynamic \`import()\` edges | **${dynamicEdges.length}** |`,
   `| Type-only edges (erased at compile time) | **${typeEdgeCount}** |`,
   `| Unresolved project imports | **${unresolved.length}** ${unresolved.length ? "— generator bug, investigate" : "— self-check passes"} |`,
   "",
   "### Boundary violations", "",
-  "A `\"use client\"` module importing a server-only module directly. **Treat this as an estimate**",
-  "until the Phase E lint rule exists — see *How the boundary is detected* below.", "",
-  "```", ...(violations.length ? violations.map((v) => `${v.chain.join("  ->  ")}${v.kind === "value" ? "" : `  (${v.kind})`}`) : ["none"]), "```", ""
+  "A server-only module that ends up in the client bundle, with the shortest import chain that pulls",
+  "it in. **Treat this as an estimate** until the Phase E lint rule exists — see *How the boundary is",
+  "detected* below.", "",
+  "```", ...(violations.length ? violations.map((v) => v.chain.join("  ->  ")) : ["none"]), "```", ""
 );
-if (violations.some((v) => v.chain[0].includes("ActivityLog"))) {
+if (violations.some((v) => v.chain.some((x) => x.includes("ActivityLog")))) {
   L.push(
-    "`ActivityLog.tsx` imports `adminLogger.ts` for two constant objects (`ACTION_LABELS`, `ACTION_ICONS`).",
-    "That module imports `@supabase/supabase-js` and Sentry, so the SDK lands in the browser bundle. The",
-    "service-role key itself is safe — non-`NEXT_PUBLIC_` env vars compile to `undefined` client-side —",
-    "but the weight is real. Fixed in migration slice 8 by moving the two constants into `features/admin/`.", ""
+    "Both entries share one root cause. `ActivityLog.tsx` imports `adminLogger.ts` for two constant",
+    "objects (`ACTION_LABELS`, `ACTION_ICONS`). `adminLogger.ts` imports `supabase.ts`, which calls",
+    "`createClient()` at module scope — a side effect no bundler can tree-shake — so the Supabase SDK",
+    "ships to the browser even though `ActivityLog` never calls it. The service-role key itself is safe:",
+    "non-`NEXT_PUBLIC_` env vars compile to `undefined` client-side. One fix clears both: migration slice",
+    "8 moves the two constants into `features/admin/`.", ""
   );
 }
 L.push(
   "### How the boundary is detected", "",
-  "- **Client module:** a file whose directive prologue contains `\"use client\"`, read from the AST, so",
-  "  a leading comment cannot hide it.",
+  "- **Roots:** files whose directive prologue contains `\"use client\"`, read from the AST, so a leading",
+  "  comment cannot hide one.",
+  "- **Client bundle:** the transitive closure from every root over value, dynamic, re-export and",
+  "  side-effect edges. A module with no directive is still client-side if a root pulls it in — that is",
+  "  how Next.js bundles. Type edges are not followed (erased at compile time), nor are edges into a",
+  "  `\"use server\"` module (the client gets an RPC reference, not the code).",
   "- **Server-only module:** an authored policy list in the generator — not derivable, since modules",
   "  such as `supabase.ts` contain no code that would fail in a browser.",
-  "- **Violation:** a client module with an import edge, of any kind, to a server-only module.", "",
+  "- **Violation:** a server-only module inside the client bundle.",
+  "- **Limits:** a dynamic `import()` with a non-literal specifier cannot be followed and is listed",
+  "  separately; `require()` is not followed (none in `src/`). The Phase E lint rule replaces this",
+  "  estimate with an enforced check.", "",
+  "### Cross-check: Node built-ins", "",
+  "A browser bundle cannot resolve Node built-ins, so a passing `next build` implies no bundled module",
+  "imports one. Modules importing built-ins, and whether any is in the client bundle:", "",
+  "```",
+  ...(builtinUsers.length ? builtinUsers.map((f) => `${f}${clientBundle.has(f) ? "   IN CLIENT BUNDLE — investigate" : "   server-side"}`) : ["none"]),
+  "```", "",
+  bundledBuiltinUsers.length
+    ? "**Inconsistent:** a bundled module imports a Node built-in. Either the build is broken or this generator is wrong."
+    : "Consistent with the build: no bundled module imports a Node built-in.", "",
   "### Orphans", "", "```", ...(orphans.length ? orphans.map((f) => `${f}  (${loc(f)} lines)`) : ["none"]), "```", "",
   "### Dynamic imports", "", "```", ...(dynamicEdges.length ? dynamicEdges : ["none"]), "```", ""
 );
@@ -304,7 +357,8 @@ L.push("### Most depended-upon", "", "Widest blast radius when moved.", "", "| I
 for (const f of mostUsed) L.push(`| ${importerCount(f)} | \`${f}\` |`);
 L.push(
   "", "## Legend", "",
-  "- **Client** — `directive` means the file declares `\"use client\"`.",
+  "- **Client** — `directive`: declares `\"use client\"`. `bundled`: no directive, but pulled into the",
+  "  client bundle by one. Blank: server-side only.",
   "- **Cov** — statement coverage from the last `npm run test:ci`. `excl.` = excluded by",
   "  `collectCoverageFrom` (type-only modules, Sentry/instrumentation entrypoints).",
   "- **Importers / Imports** — counts of project-internal edges. The full path lists, with edge kinds,",
@@ -329,7 +383,7 @@ for (const [title, pred] of GROUPS) {
   for (const f of sel) {
     const [purpose, target] = describe(f);
     const importsN = new Set(out.get(f).map((e) => e.to)).size;
-    L.push(`| \`${short(f)}\` | ${purpose} | ${loc(f)} | ${hasUseClient(f) ? "directive" : ""} | ${coverageCell(f)} | ${importerCount(f)} | ${importsN} | ${target} |`);
+    L.push(`| \`${short(f)}\` | ${purpose} | ${loc(f)} | ${hasUseClient(f) ? "directive" : clientBundle.has(f) ? "bundled" : ""} | ${coverageCell(f)} | ${importerCount(f)} | ${importsN} | ${target} |`);
   }
 }
 
@@ -349,5 +403,6 @@ for (const f of rows) {
 }
 
 fs.writeFileSync(OUT, L.join("\n"));
-console.log(`wrote ${OUT}: ${rows.length} modules · ${violations.length} violation(s) · ${orphans.length} orphan(s) · ` +
+console.log(`wrote ${OUT}: ${rows.length} modules · ${clientBundle.size} in client bundle · ` +
+  `${violations.length} violation(s) · ${bundledBuiltinUsers.length} bundled built-in user(s) · ${orphans.length} orphan(s) · ` +
   `${dynamicEdges.length} dynamic · ${typeEdgeCount} type-only · ${unresolved.length} unresolved`);

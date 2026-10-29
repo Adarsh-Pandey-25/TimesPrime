@@ -3,7 +3,7 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `ddbcc9f` by `node scripts/generate-codemap.mjs`. Coverage read from
+Generated at commit `08b9e59` by `node scripts/generate-codemap.mjs`. Coverage read from
 `coverage/coverage-final.json` (written 2026-10-29 17:26 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
@@ -19,7 +19,8 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 |---|---|
 | Modules (excl. tests) | **73** |
 | Modules with a `"use client"` directive | **24** |
-| Client → server boundary violations | **1** |
+| Modules in the client bundle (directive + pulled in) | **32** |
+| Server-only modules in the client bundle (violations) | **2** |
 | Orphans (nothing imports them) | **1** |
 | Dynamic `import()` edges | **3** |
 | Type-only edges (erased at compile time) | **2** |
@@ -27,25 +28,48 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 
 ### Boundary violations
 
-A `"use client"` module importing a server-only module directly. **Treat this as an estimate**
-until the Phase E lint rule exists — see *How the boundary is detected* below.
+A server-only module that ends up in the client bundle, with the shortest import chain that pulls
+it in. **Treat this as an estimate** until the Phase E lint rule exists — see *How the boundary is
+detected* below.
 
 ```
 src/components/admin/ActivityLog.tsx  ->  src/lib/adminLogger.ts
+src/components/admin/ActivityLog.tsx  ->  src/lib/adminLogger.ts  ->  src/lib/supabase.ts
 ```
 
-`ActivityLog.tsx` imports `adminLogger.ts` for two constant objects (`ACTION_LABELS`, `ACTION_ICONS`).
-That module imports `@supabase/supabase-js` and Sentry, so the SDK lands in the browser bundle. The
-service-role key itself is safe — non-`NEXT_PUBLIC_` env vars compile to `undefined` client-side —
-but the weight is real. Fixed in migration slice 8 by moving the two constants into `features/admin/`.
+Both entries share one root cause. `ActivityLog.tsx` imports `adminLogger.ts` for two constant
+objects (`ACTION_LABELS`, `ACTION_ICONS`). `adminLogger.ts` imports `supabase.ts`, which calls
+`createClient()` at module scope — a side effect no bundler can tree-shake — so the Supabase SDK
+ships to the browser even though `ActivityLog` never calls it. The service-role key itself is safe:
+non-`NEXT_PUBLIC_` env vars compile to `undefined` client-side. One fix clears both: migration slice
+8 moves the two constants into `features/admin/`.
 
 ### How the boundary is detected
 
-- **Client module:** a file whose directive prologue contains `"use client"`, read from the AST, so
-  a leading comment cannot hide it.
+- **Roots:** files whose directive prologue contains `"use client"`, read from the AST, so a leading
+  comment cannot hide one.
+- **Client bundle:** the transitive closure from every root over value, dynamic, re-export and
+  side-effect edges. A module with no directive is still client-side if a root pulls it in — that is
+  how Next.js bundles. Type edges are not followed (erased at compile time), nor are edges into a
+  `"use server"` module (the client gets an RPC reference, not the code).
 - **Server-only module:** an authored policy list in the generator — not derivable, since modules
   such as `supabase.ts` contain no code that would fail in a browser.
-- **Violation:** a client module with an import edge, of any kind, to a server-only module.
+- **Violation:** a server-only module inside the client bundle.
+- **Limits:** a dynamic `import()` with a non-literal specifier cannot be followed and is listed
+  separately; `require()` is not followed (none in `src/`). The Phase E lint rule replaces this
+  estimate with an enforced check.
+
+### Cross-check: Node built-ins
+
+A browser bundle cannot resolve Node built-ins, so a passing `next build` implies no bundled module
+imports one. Modules importing built-ins, and whether any is in the client bundle:
+
+```
+src/lib/adminSession.ts   server-side
+src/lib/urlValidation.ts   server-side
+```
+
+Consistent with the build: no bundled module imports a Node built-in.
 
 ### Orphans
 
@@ -76,7 +100,8 @@ Widest blast radius when moved.
 
 ## Legend
 
-- **Client** — `directive` means the file declares `"use client"`.
+- **Client** — `directive`: declares `"use client"`. `bundled`: no directive, but pulled into the
+  client bundle by one. Blank: server-side only.
 - **Cov** — statement coverage from the last `npm run test:ci`. `excl.` = excluded by
   `collectCoverageFrom` (type-only modules, Sentry/instrumentation entrypoints).
 - **Importers / Imports** — counts of project-internal edges. The full path lists, with edge kinds,
@@ -146,25 +171,25 @@ Widest blast radius when moved.
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `lib/adminLogger.ts` | Writes admin_logs rows; also exports ACTION_LABELS/ICONS | 80 |  | 0% | 9 | 1 | split: server/auditLog.ts + labels to features/admin |
+| `lib/adminLogger.ts` | Writes admin_logs rows; also exports ACTION_LABELS/ICONS | 80 | bundled | 0% | 9 | 1 | split: server/auditLog.ts + labels to features/admin |
 | `lib/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 67 |  | 0% | 3 | 0 | server/auth/ |
 | `lib/bookmarks.ts` | localStorage saved articles + change event | 56 | directive | 96.4% | 4 | 1 | features/bookmarks/ |
 | `lib/cache.ts` | Upstash Redis with in-process Map fallback | 73 |  | 0% | 2 | 0 | lib/ (stays) |
 | `lib/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 133 |  | 0% | 1 | 1 | features/news/server/ |
-| `lib/categoryColors.ts` | Per-category hex/Tailwind class map | 78 |  | 0% | 1 | 0 | config/ |
+| `lib/categoryColors.ts` | Per-category hex/Tailwind class map | 78 | bundled | 0% | 1 | 0 | config/ |
 | `lib/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 571 |  | 0% | 5 | 4 | server/db/ |
 | `lib/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 128 |  | 0% | 1 | 3 | features/news/server/ |
 | `lib/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 86 |  | 0% | 1 | 0 | features/i18n/server/ |
-| `lib/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 |  | 0% | 2 | 0 | config/ -- CR-06, move first |
-| `lib/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 |  | 94.8% | 7 | 1 | features/news/ |
+| `lib/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 | bundled | 0% | 2 | 0 | config/ -- CR-06, move first |
+| `lib/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 94.8% | 7 | 1 | features/news/ |
 | `lib/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 115 |  | 0% | 1 | 3 | features/news/server/ |
 | `lib/paraphraser.ts` | Synonym-table rewrite of titles/descriptions; skips Devanagari | 118 |  | 98.3% | 6 | 0 | features/article/ (pending Q1) |
 | `lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 26 |  | 96.2% | 2 | 0 | lib/ (stays) |
 | `lib/rssParser.ts` | DEAD: 233 lines inside a block comment, licensing-blocked | 233 |  | 0% | 0 | 0 | DELETE (pending Q2) |
 | `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 52 |  | 0% | 4 | 0 | lib/ (stays) |
-| `lib/supabase.ts` | Supabase client; prefers service-role key when present | 20 |  | 0% | 10 | 0 | server/supabase.ts |
-| `lib/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 |  | 0% | 5 | 2 | config/ |
-| `lib/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 199 |  | 0% | 8 | 0 | features/i18n/ |
+| `lib/supabase.ts` | Supabase client; prefers service-role key when present | 20 | bundled | 0% | 10 | 0 | server/supabase.ts |
+| `lib/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 0% | 5 | 2 | config/ |
+| `lib/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 199 | bundled | 0% | 8 | 0 | features/i18n/ |
 | `lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 122 |  | 0% | 1 | 0 | lib/ (stays) |
 
 ### Context and types
@@ -173,7 +198,7 @@ Widest blast radius when moved.
 |---|---|--:|:-:|--:|--:|--:|---|
 | `context/LanguageContext.tsx` | EN/HI provider, localStorage-backed | 57 | directive | 0% | 8 | 1 | features/i18n/ |
 | `context/ThemeContext.tsx` | Light/dark provider, localStorage-backed | 63 | directive | 0% | 18 | 0 | components/ui/theme/ |
-| `types/index.ts` | Article, NewsResponse, ScrapeResponse, ChatMessage, NewsDataRawArticle | 72 |  | excl. | 19 | 0 | types/ (stays) |
+| `types/index.ts` | Article, NewsResponse, ScrapeResponse, ChatMessage, NewsDataRawArticle | 72 | bundled | excl. | 19 | 0 | types/ (stays) |
 
 ### Framework-pinned (never move)
 
