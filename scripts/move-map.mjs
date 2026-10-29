@@ -57,6 +57,9 @@ export const MOVES = [
   ["src/components/CategoryMegaMenu.tsx", "src/features/news/components/CategoryMegaMenu.tsx", 6],
   ["src/components/ArticleDetailView.tsx", "src/features/news/components/ArticleDetailView.tsx", 6],
   ["src/components/Header.tsx", "src/features/news/components/Header.tsx", 6],
+  // Stores Article objects — product knowledge, so not lib/. Every importer is in news or app/.
+  ["src/lib/bookmarks.ts", "src/features/news/bookmarks.ts", 6],
+  ["src/lib/bookmarks.test.ts", "src/features/news/bookmarks.test.ts", 6],
 ];
 
 // Violations accepted for now, each with its reason and where it is resolved.

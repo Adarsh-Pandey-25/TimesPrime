@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `630371a` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-29 18:49 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `755fadc` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-29 19:31 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -17,13 +17,13 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 
 | | |
 |---|---|
-| Modules (excl. tests) | **70** |
+| Modules (excl. tests) | **71** |
 | Modules with a `"use client"` directive | **24** |
-| Modules in the client bundle (directive + pulled in) | **32** |
-| Server-only modules in the client bundle (violations) | **2** |
+| Modules in the client bundle (directive + pulled in) | **31** |
+| Server-only modules in the client bundle (violations) | **0** |
 | Orphans (nothing imports them) | **0** |
 | Dynamic `import()` edges | **3** |
-| Type-only edges (erased at compile time) | **2** |
+| Type-only edges (erased at compile time) | **5** |
 | Unresolved project imports | **0** — self-check passes |
 
 ### Boundary violations
@@ -33,16 +33,8 @@ it in. **Treat this as an estimate** until the Phase E lint rule exists — see 
 detected* below.
 
 ```
-src/components/admin/ActivityLog.tsx  ->  src/lib/adminLogger.ts
-src/components/admin/ActivityLog.tsx  ->  src/lib/adminLogger.ts  ->  src/lib/supabase.ts
+none
 ```
-
-Both entries share one root cause. `ActivityLog.tsx` imports `adminLogger.ts` for two constant
-objects (`ACTION_LABELS`, `ACTION_ICONS`). `adminLogger.ts` imports `supabase.ts`, which calls
-`createClient()` at module scope — a side effect no bundler can tree-shake — so the Supabase SDK
-ships to the browser even though `ActivityLog` never calls it. The service-role key itself is safe:
-non-`NEXT_PUBLIC_` env vars compile to `undefined` client-side. One fix clears both: migration slice
-8 moves the two constants into `features/admin/`.
 
 ### How the boundary is detected
 
@@ -94,12 +86,12 @@ Widest blast radius when moved.
 
 | Importers | Module |
 |--:|---|
-| 19 | `src/types/index.ts` |
+| 23 | `src/types/index.ts` |
 | 18 | `src/context/ThemeContext.tsx` |
 | 10 | `src/lib/supabase.ts` |
-| 9 | `src/lib/adminLogger.ts` |
 | 8 | `src/components/Footer.tsx` |
 | 8 | `src/components/Header.tsx` |
+| 8 | `src/context/LanguageContext.tsx` |
 
 ## Legend
 
@@ -157,25 +149,26 @@ Widest blast radius when moved.
 | `components/CategoryMegaMenu.tsx` | Hover mega-menu of category previews | 225 | directive | 0% | 1 | 5 | `features/news/components/CategoryMegaMenu.tsx` · slice 6 |
 | `components/Chatbot.tsx` | Chat drawer; streams /api/chat. Honest error handling | 192 | directive | 0% | 1 | 1 | `features/chat/components/Chatbot.tsx` · slice 1 |
 | `components/FloatingAiAssistant.tsx` | Floating button wrapping Chatbot | 37 | directive | 0% | 1 | 1 | `features/chat/components/FloatingAiAssistant.tsx` · slice 1 |
-| `components/Footer.tsx` | Footer nav, category links, copyright bar. Dead "RSS Feeds" link remains (BL-009) | 218 | directive | 0% | 8 | 3 | `components/ui/layout/Footer.tsx` · slice 4 |
+| `components/Footer.tsx` | Footer nav, category links, copyright bar. Dead "RSS Feeds" link remains (BL-009) | 214 | directive | 0% | 8 | 3 | `components/ui/layout/Footer.tsx` · slice 4 |
 | `components/Header.tsx` | Nav, search, theme + language toggles, bookmarks count, clock | 568 | directive | 0% | 8 | 6 | `features/news/components/Header.tsx` · slice 6 — news masthead, not UI; split in F |
 | `components/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 532 | directive | 0% | 1 | 10 | `features/news/components/HomeClient.tsx` · slice 6 — split in F |
 | `components/MarqueeTicker.tsx` | Scrolling India/World headline ticker | 176 | directive | 0% | 2 | 3 | `features/news/components/MarqueeTicker.tsx` · slice 6 |
 | `components/NewsSkeletonGrid.tsx` | Suspense fallback matching real card dimensions | 90 |  | 0% | 1 | 0 | `components/ui/NewsSkeletonGrid.tsx` · slice 4 |
 | `components/ThemeSpinner.tsx` | Theme-aware loading spinner | 88 | directive | 0% | 2 | 1 | `components/ui/ThemeSpinner.tsx` · slice 4 |
-| `components/admin/ActivityLog.tsx` | Paginated admin_logs viewer | 234 | directive | 0% | 1 | 2 | `features/admin/components/ActivityLog.tsx` · slice 5 |
+| `components/admin/ActivityLog.tsx` | Paginated admin_logs viewer | 235 | directive | 0% | 1 | 3 | `features/admin/components/ActivityLog.tsx` · slice 5 |
 | `components/admin/ArticlesTable.tsx` | Admin article list: filters, edit, delete, bulk | 751 | directive | 0% | 1 | 1 | `features/admin/components/ArticlesTable.tsx` · slice 5 — split in F |
 | `components/admin/BreakingNewsManager.tsx` | Create/expire breaking news items | 289 | directive | 0% | 1 | 1 | `features/admin/components/BreakingNewsManager.tsx` · slice 5 |
 | `components/admin/CategoryStatsCard.tsx` | Category/language/country breakdown | 362 | directive | 0% | 1 | 1 | `features/admin/components/CategoryStatsCard.tsx` · slice 5 |
 | `components/admin/SyncDashboard.tsx` | Last/next sync, counts, manual sync | 198 | directive | 0% | 1 | 1 | `features/admin/components/SyncDashboard.tsx` · slice 5 |
+| `components/admin/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 0% | 1 | 1 | `features/admin/components/actionLabels.ts` · slice 5 — only consumer is ActivityLog (SC-1) |
 
 ### Library — `src/lib/` (the folder being split)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `lib/adminLogger.ts` | Writes admin_logs rows; also exports ACTION_LABELS/ICONS | 80 | bundled | 0% | 9 | 1 | `server/auditLog.ts` · slice 3 — labels must leave before Phase E — see MOVE-MAP stop conditions |
+| `lib/adminLogger.ts` | Writes admin_logs rows (logAdminAction) | 38 |  | 0% | 7 | 2 | `server/auditLog.ts` · slice 3 |
 | `lib/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 67 |  | 0% | 3 | 0 | `server/auth/adminSession.ts` · slice 3 |
-| `lib/bookmarks.ts` | localStorage saved articles + change event | 56 | directive | 96.4% | 4 | 1 | stays — shared by news and the saved page |
+| `lib/bookmarks.ts` | localStorage saved articles + change event | 56 | directive | 96.4% | 4 | 1 | `features/news/bookmarks.ts` · slice 6 — stores Article objects, so not lib/ |
 | `lib/cache.ts` | Upstash Redis with in-process Map fallback | 73 |  | 0% | 2 | 0 | stays |
 | `lib/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 133 |  | 0% | 1 | 1 | `features/news/server/categoryClassifier.ts` · slice 6 |
 | `lib/categoryColors.ts` | Per-category hex/Tailwind class map | 78 | bundled | 0% | 1 | 0 | `config/categoryColors.ts` · slice 2 |
@@ -187,7 +180,7 @@ Widest blast radius when moved.
 | `lib/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 114 |  | 0% | 1 | 2 | `features/news/server/newsdata.ts` · slice 6 |
 | `lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 26 |  | 96.2% | 2 | 0 | stays |
 | `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 52 |  | 0% | 4 | 0 | stays |
-| `lib/supabase.ts` | Supabase client; prefers service-role key when present | 20 | bundled | 0% | 10 | 0 | `server/supabase.ts` · slice 3 |
+| `lib/supabase.ts` | Supabase client; prefers service-role key when present | 20 |  | 0% | 10 | 0 | `server/supabase.ts` · slice 3 |
 | `lib/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 0% | 5 | 2 | `config/topicImages.ts` · slice 2 |
 | `lib/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 199 | bundled | 0% | 8 | 0 | `config/translations.ts` · slice 2 — shared, not a feature |
 | `lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 122 |  | 0% | 1 | 0 | stays |
@@ -198,7 +191,7 @@ Widest blast radius when moved.
 |---|---|--:|:-:|--:|--:|--:|---|
 | `context/LanguageContext.tsx` | EN/HI provider, localStorage-backed | 57 | directive | 0% | 8 | 1 | `components/ui/i18n/LanguageContext.tsx` · slice 4 — shared, not a feature |
 | `context/ThemeContext.tsx` | Light/dark provider, localStorage-backed | 63 | directive | 0% | 18 | 0 | `components/ui/theme/ThemeContext.tsx` · slice 4 |
-| `types/index.ts` | Article, NewsResponse, ScrapeResponse, ChatMessage, NewsDataRawArticle | 72 | bundled | excl. | 19 | 0 | stays |
+| `types/index.ts` | Article, NewsResponse, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog | 96 | bundled | excl. | 23 | 0 | stays |
 
 ### Framework-pinned (never move)
 
@@ -264,7 +257,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/api/admin/logs/route.ts`
 
-- **Imports:** `lib/adminLogger.ts` _(type)_, `lib/supabase.ts`
+- **Imports:** `lib/supabase.ts`, `types/index.ts` _(type)_
 - **Used by:** —
 
 #### `app/api/admin/publish-article/route.ts`
@@ -414,7 +407,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `components/admin/ActivityLog.tsx`
 
-- **Imports:** `context/ThemeContext.tsx`, `lib/adminLogger.ts`
+- **Imports:** `components/admin/actionLabels.ts`, `context/ThemeContext.tsx`, `types/index.ts` _(type)_
 - **Used by:** `app/admin/page.tsx`
 
 #### `components/admin/ArticlesTable.tsx`
@@ -436,6 +429,11 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 - **Imports:** `context/ThemeContext.tsx`
 - **Used by:** `app/admin/page.tsx`
+
+#### `components/admin/actionLabels.ts`
+
+- **Imports:** `types/index.ts` _(type)_
+- **Used by:** `components/admin/ActivityLog.tsx`
 
 #### `context/LanguageContext.tsx`
 
@@ -459,8 +457,8 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `lib/adminLogger.ts`
 
-- **Imports:** `lib/supabase.ts`
-- **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/db-stats/route.ts`, `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/publish-article/route.ts`, `app/api/admin/seed-supabase/route.ts`, `app/api/cron/refresh-news/route.ts`, `components/admin/ActivityLog.tsx`
+- **Imports:** `lib/supabase.ts`, `types/index.ts` _(type)_
+- **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/db-stats/route.ts`, `app/api/admin/publish-article/route.ts`, `app/api/admin/seed-supabase/route.ts`, `app/api/cron/refresh-news/route.ts`
 
 #### `lib/adminSession.ts`
 
@@ -565,4 +563,4 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `types/index.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Chatbot.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `lib/bookmarks.test.ts` _(test)_, `lib/bookmarks.ts`, `lib/db.ts`, `lib/fetchNews.ts`, `lib/newsConfig.test.ts` _(test)_, `lib/newsConfig.ts`, `lib/newsdata.ts`, `lib/topicImages.ts`
+- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `components/admin/actionLabels.ts` _(type)_, `components/admin/ActivityLog.tsx` _(type)_, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Chatbot.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `lib/adminLogger.ts` _(type)_, `lib/bookmarks.test.ts` _(test)_, `lib/bookmarks.ts`, `lib/db.ts`, `lib/fetchNews.ts`, `lib/newsConfig.test.ts` _(test)_, `lib/newsConfig.ts`, `lib/newsdata.ts`, `lib/topicImages.ts`
