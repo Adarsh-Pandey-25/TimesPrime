@@ -100,7 +100,8 @@ src/
       server.ts         ← server-only public surface
     admin/              operator UI
     chat/               AI assistant
-  components/ui/        theme · i18n provider · layout/Footer · spinner · skeleton — no domain
+  components/ui/        layout/Footer · spinner · skeleton — presentation only, no state, no domain
+  context/              app-wide state providers: ThemeContext · LanguageContext   (unchanged)
   server/               backend-only: supabase · auth · auditLog · googleTranslate
   lib/                  cross-cutting, domain-free: cache · rateLimit · urlValidation · sentryScrub
   config/               static data: imageDomains · categoryColors · topicImages · translations
@@ -165,7 +166,8 @@ a time. Documentation does not prevent this; a linter does.
 | `features/news/` | Feed, article page, masthead, saved-article store; upstream fetching, editorial filters, classification, freshness, article storage | Import from another feature; expose server code through `index.ts` |
 | `features/admin/` | Operator UI, plus the public breaking-news banner whose data it owns (CR-08) | Be imported by another feature |
 | `features/chat/` | Assistant UI | Reach into news internals — take article context as a parameter |
-| `components/ui/` | Theme and language providers, Footer, spinner, skeleton — appearance only | Import a feature, or know what an Article is |
+| `components/ui/` | Presentational primitives: Footer, spinner, skeleton — appearance only, no app state | Import a feature, or know what an Article is |
+| `context/` | App-wide state providers: theme (light/dark) and language (EN/HI), each persisted to `localStorage` | Import anything but `config/` and `types/`; hold feature state |
 | `server/` | Supabase client, session issue/verify, audit logging, the translate client | Be imported by a client component |
 | `lib/` | Cross-cutting, **domain-free** utilities: cache, rate limiting, URL validation, error scrubbing | Know any product concept — see *What `lib/` means* below |
 | `config/` | Static data: allowlists, colour maps, topic images, UI strings | Import anything but `config/` and `types/`; `imageDomains.ts` imports nothing (CR-06) |
@@ -187,8 +189,15 @@ and **none of them imports a single project module** — only `@upstash/redis` a
 a future `lib/` module imports from `features/`, `config/` or `types/`, that is the signal it has
 picked up a domain and belongs elsewhere.
 
-`components/ui/i18n/LanguageContext` stays in `components/ui/` on the same test: it holds only the
-`"en" | "hi"` choice and knows nothing about articles.
+### What `context/` means — decided in Phase B close
+
+`components/ui/` is presentational primitives with no domain knowledge. A provider that owns app
+state does not fit it, so **both providers stay in `src/context/`**, which is now a defined layer:
+app-wide state providers, importing only `config/` and `types/` (rule R9 in `check-move-map`).
+`LanguageContext` holds the `"en" | "hi"` choice and imports the `Language` type from `config/`;
+`ThemeContext` holds light/dark, persists it, and sets classes on `document`. The same objection
+applies to both, so they stay together — moving one and not the other would make the rule
+inconsistent. Side benefit: `ThemeContext`'s 18 importers do not change in Phase D.
 
 ## 7. Decision records
 

@@ -42,8 +42,10 @@ with a lint rule rather than with documentation.
 - `app/` — routing only. Paths frozen.
 - `features/news`, `features/admin`, `features/chat` — one folder per capability, each with a
   `components/` (frontend) and, where it has one, a `server/` (backend) half.
-- Shared layers below the features: `components/ui/` (domain-free presentation), `server/`
-  (backend-only), `lib/` (cross-cutting utilities), `config/` (static data), `types/`.
+- Shared layers below the features: `components/ui/` (domain-free presentation), `context/`
+  (app-wide state providers — theme and language; added at Phase B close, since a stateful provider
+  is not a UI primitive), `server/` (backend-only), `lib/` (cross-cutting utilities), `config/`
+  (static data), `types/`.
 - Imports go **downward only**. Nothing imports sideways between features. Anything two features
   both need moves down into a shared layer.
 - Each feature exposes **at most two** public surfaces: `index.ts`, safe for client and server, and

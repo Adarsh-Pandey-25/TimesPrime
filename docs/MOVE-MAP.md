@@ -29,7 +29,7 @@ Every change below was forced by a measured violation, not by preference.
 
 | Draft said | Map now says | Evidence |
 |---|---|---|
-| `features/i18n` | **dissolved.** `translations.ts` → `config/`, `LanguageContext` → `components/ui/i18n/`, `googleTranslate.ts` → `server/` | 12 of the 21 violations. News, the article page, Header and Footer all need i18n, so it is shared infrastructure, not a feature. Rule 4: shared things move **down** |
+| `features/i18n` | **dissolved.** `translations.ts` → `config/`, `LanguageContext` **stays** in `context/` (Phase B close: a stateful provider is not a UI primitive), `googleTranslate.ts` → `server/` | 12 of the 21 violations. News, the article page, Header and Footer all need i18n, so it is shared infrastructure, not a feature. Rule 4: shared things move **down** |
 | `features/bookmarks` | **dissolved.** `bookmarks.ts` → `features/news/` | ArticleCard (news) and Header both import it — 2 violations as its own feature. Kept in `lib/` at first, but it stores `Article` objects, and `lib/` is domain-free; once Header moved into news, every importer was in news or `app/`, so it joined news with 0 violations (Phase C review) |
 | `features/article` | **merged into `features/news`** | `ArticleDetailView` renders `ArticleCard` for related stories. Keeping them apart needs either a sideways import or an entities layer, which ADR 0001 rejects |
 | `Header` → `components/ui/layout/` | **`features/news/components/`** | Header renders the news category mega-menu with article previews. It is the news site's masthead, not domain-free UI |
@@ -57,7 +57,8 @@ src/
                           · CategoryStatsCard · SyncDashboard · BreakingNewsBanner
     chat/components/      Chatbot · FloatingAiAssistant
   components/ui/
-    theme/ThemeContext    i18n/LanguageContext    layout/Footer    ThemeSpinner    NewsSkeletonGrid
+    layout/Footer    ThemeSpinner    NewsSkeletonGrid
+  context/                ThemeContext · LanguageContext   (app-wide state providers; unchanged)
   server/                 supabase · auth/adminSession · auditLog · googleTranslate
   lib/                    cache · rateLimit · sentryScrub · urlValidation   (domain-free; none moves)
   config/                 imageDomains · categoryColors · topicImages · translations
@@ -108,7 +109,7 @@ commit.
 | 1 | `features/chat` | 2 | **Low** | **Proves the mechanics** — `git mv`, `index.ts`, import rewrites, verify. Only `app/layout.tsx` imports it |
 | 2 | `config/` | 4 | **High** | `next.config.ts` imports `imageDomains.ts` at **config-load time**. Update that import in the same commit; a passing `build` confirms `remotePatterns` still resolves (CR-06) |
 | 3 | `server/` | 4 | Medium | After the move, `check-move-map.mjs` must still report 0 violations — `server/` is now unreachable from any client module, and must stay so |
-| 4 | `components/ui/` | 5 | Medium | `ThemeContext` has **18 importers** — the widest blast radius in the project |
+| 4 | `components/ui/` | 3 | Low | Presentation only. The providers no longer move, so `ThemeContext`'s 18 importers are untouched |
 | 5 | `features/admin` | 7 | Medium | Must not disturb the proxy matcher (CR-05). `actionLabels.ts` moves with `ActivityLog` — SC-1 is already done, so this is now a pure move |
 | 6 | `features/news` | 14 | **High** | Largest surface. Create `index.ts` **and** `server.ts` (with `import "server-only"`), and **prove** the guard — see the procedure. **Measure the client bundle before and after** |
 | ~~7~~ | ~~`app/` route groups~~ | — | — | **Skipped** — owner decision, Phase C review |
@@ -152,12 +153,10 @@ earliest. Recorded in ADR 0001.
 | `lib/adminLogger.ts` | `server/auditLog.ts` |
 | `lib/googleTranslate.ts` | `server/googleTranslate.ts` |
 
-**Slice 4 — `components/ui/`** (5 files)
+**Slice 4 — `components/ui/`** (3 files)
 
 | Current | Target |
 |---|---|
-| `context/ThemeContext.tsx` | `components/ui/theme/ThemeContext.tsx` |
-| `context/LanguageContext.tsx` | `components/ui/i18n/LanguageContext.tsx` |
 | `components/ThemeSpinner.tsx` | `components/ui/ThemeSpinner.tsx` |
 | `components/NewsSkeletonGrid.tsx` | `components/ui/NewsSkeletonGrid.tsx` |
 | `components/Footer.tsx` | `components/ui/layout/Footer.tsx` |
@@ -241,7 +240,7 @@ mid-migration.
 | `Header.tsx` | `features/news/` | Renders the category mega-menu with article previews — a news component. Domain-free it is not | `components/ui/layout/` — 1 upward violation. Phase F can invert this by passing the menu in as a slot |
 | `bookmarks.ts` | `features/news/` | Stores `Article` objects, so it carries product knowledge and cannot sit in a domain-free `lib/`. Its importers are Header and ArticleCard (both news) and the saved page (`app/`) | `features/bookmarks/` — 2 sideways violations, a one-file feature · `lib/` — would quietly redefine `lib/` · a new `shared/` layer — a whole layer for one file whose consumers already live in one feature |
 | `actionLabels.ts` | `features/admin/` (via slice 5) | One consumer, `ActivityLog` | `config/` — config holds data two layers share; this has one consumer |
-| `ThemeContext.tsx` | `components/ui/theme/` | Presentational, 18 importers across every layer. Shared, so it moves down | any feature — 18 cross-feature imports |
+| `ThemeContext.tsx`, `LanguageContext.tsx` | stay in `context/` | App-wide state providers, not presentational primitives; the same reason applies to both, so they stay together | `components/ui/` — contradicts "presentation only" · any feature — 18 cross-feature imports |
 
 ---
 

@@ -323,7 +323,7 @@ both generated from it. Edit it there and nowhere else.
 2. `config/` — `next.config.ts` imports `imageDomains.ts` at config-load time; move that import in
    the same commit (CR-06)
 3. `server/` — supabase, adminSession, adminLogger → auditLog, googleTranslate
-4. `components/ui/` — `ThemeContext` has 18 importers
+4. `components/ui/` — 3 files, presentation only; Theme/LanguageContext stay in `context/`
 5. `features/admin` — 7 files, including `actionLabels.ts` (SC-1 is done, so a pure move)
 6. `features/news` — 14 files including `bookmarks.ts`; create `index.ts` **and** `server.ts`
    (first line `import "server-only";`), **prove the guard fails a client import**, and measure the
