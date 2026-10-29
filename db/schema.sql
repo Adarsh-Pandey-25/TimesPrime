@@ -29,7 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_articles_created_at ON public.articles (created_a
 CREATE INDEX IF NOT EXISTS idx_articles_article_id ON public.articles (article_id);
 
 -- Row Level Security: public read, server-only (service_role) write.
--- See supabase_rls_policies.sql for the full policy set and rationale.
+-- See db/policies.sql for the full policy set and rationale.
 ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Public read access" ON public.articles
