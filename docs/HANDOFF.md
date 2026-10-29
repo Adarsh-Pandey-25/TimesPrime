@@ -22,7 +22,8 @@ owner's five decisions (§9) — the paraphraser, RSS, the contact form and both
 deleted. The structure decision is made: **layer separation with a CI-enforced import boundary** —
 not a top-level `backend/` folder, which the App Router cannot support without breaking every URL.
 
-**Phase C (structure design / ADR) is next and has NOT been started — it awaits owner approval.**
+**Phase C (structure design / ADR) is DONE and awaits owner approval. Phase D (moving files) has
+NOT started — do not start it without approval**, and not before SC-1 is decided (§6.1).
 The security items (Next.js bump, DEF-02, DEF-06) and the Supabase connection are reserved by the
 owner for a separate session. Do not start either here.
 
@@ -182,8 +183,8 @@ still importing the old path:
 ```
 
 The source is fine — do not "fix" it. `rm -rf .next/types` and re-run. This happened once already
-(RSS deletion, `bcd5393`) and **will hit Phase D slice 10**, which moves every page into a route
-group. Durable fix: `next typegen` in the `typecheck` script (BL-007).
+(RSS deletion, `bcd5393`) and **will hit Phase D slice 7** if route groups go ahead, since that
+moves every page. Durable fix: `next typegen` in the `typecheck` script (BL-007).
 
 ### 3.11 Verify claims against the build, not just the graph
 
@@ -293,35 +294,44 @@ which has already happened in `ActivityLog.tsx`.
 |---|---|---|
 | **0** | Baseline: four verifications, route table captured | ✅ **Done** |
 | **1** | Hygiene: package name, scripts, README, CI, `db/`, docs scaffold | ✅ **Done** |
-| **2** | **PRD** — author `docs/PRD.md` | ⬅ **NEXT. Gated on §9 answers** |
-| **3** | Structure design — tree, move map, ADR | Gate |
-| **4** | Migration — 10 slices, pure moves only | Gate |
-| **5** | Enforcement — boundary lint rule, path aliases | Gate |
-| **6** | Decomposition — split the 7 oversized files | Optional, last |
+| **A** | Knowledge base + PRD; review changes and owner decisions | ✅ **Done** |
+| **C** | Structure design — tree, move map, ADR 0001 | ✅ **Done, awaiting approval** |
+| **D** | Migration — 6 slices (+1 optional), pure moves only | Gate — **not started** |
+| **E** | Enforcement — boundary lint rule, path aliases | Gate |
+| **F** | Decomposition — split the 7 oversized files; route-handler extraction | Optional, last |
 
-The target structure and complete move map are **already designed** — see `docs/architecture.md`
-and `docs/MOVE-MAP.md`. Phase C should refine them rather than start over. The PRD is written, in
-`docs/PRD.md`.
+**Phase C changed the design.** `scripts/check-move-map.mjs` tested the Phase A draft against the
+import rules and found **21 violations**. The finalized map has **2**, both the known `ActivityLog`
+bug. Result: **three features — `news`, `admin`, `chat` — not six.** i18n and bookmarks are shared
+code; the article page is part of news; `Header` is news's masthead. Reasoning in
+`docs/adr/0001-feature-first-structure.md`.
 
-### Migration slice order (Phase 4)
+**The map is data:** `scripts/move-map.mjs`. MOVE-MAP's file lists and CODEMAP's Target column are
+both generated from it. Edit it there and nowhere else.
 
-1. `config/` — **do first, carefully.** `next.config.ts` imports `imageDomains.ts` at config-load
-   time; move the import in the same commit (CR-06)
-2. `server/` (db, supabase, adminSession, adminLogger)
-3. `features/bookmarks` — self-contained and tested, proves the mechanics
-4. `features/i18n`
-5. `features/chat` — has tests
-6. `features/news`
-7. `features/article` — **will likely hit the stop condition**, see §6.1
-8. `features/admin`
-9. `components/ui`
-10. `app/` route groups — URLs must be byte-identical; diff `docs/_baseline-routes.txt`
+### Migration slice order (Phase D)
 
-### 6.1 Stop condition
+1. `features/chat` — 2 files, smallest and safest; **proves the mechanics**
+2. `config/` — `next.config.ts` imports `imageDomains.ts` at config-load time; move that import in
+   the same commit (CR-06)
+3. `server/` — supabase, adminSession, adminLogger → auditLog, googleTranslate
+4. `components/ui/` — `ThemeContext` has 18 importers
+5. `features/admin` — carries the `ActivityLog` bug, see SC-1
+6. `features/news` — 12 files; create `index.ts` **and** `server.ts`; measure the client bundle
+   before and after
+7. `app/` route groups — **recommended: defer**; no URL or behaviour benefit yet
 
-If a slice cannot be done as a pure move and needs an edit to a module body — **stop**. Either write
-a characterization test first, or defer that file to Phase 6 and say so. Slice 7 almost certainly
-trips this: extracting 556 lines of scraper heuristics out of a route handler is not a pure move.
+Run `node scripts/check-move-map.mjs` before and after every slice — expect "2 known, 0 unexpected".
+
+### 6.1 Stop conditions
+
+If a slice cannot be done as a pure move — **stop**. Two are known:
+
+- **SC-1 — `adminLogger.ts` split.** Its two label constants must leave the module or Phase E's
+  rule fails. **Owner decision needed**: one approved extraction commit into `config/adminActions.ts`
+  (recommended), or allowlist the edge until Phase F.
+- **SC-2 — the scraper.** `scrape-article`'s 556 lines stay in their route through Phase D; extracting
+  them is Phase F, behind a characterization test.
 
 ---
 
@@ -400,9 +410,10 @@ collection that no longer happens. Legal copy — for the owner or legal review,
 
 **In this line of work** — the restructure:
 
-1. Owner approves the Phase A review changes → start **Phase C**: refine `docs/MOVE-MAP.md`, write
-   `docs/adr/0001-feature-first-structure.md`. **Not started; do not start without approval.**
-2. Before Phase D slice 10: put `next typegen` in the `typecheck` script (BL-007), or clear
+1. Owner approves the Phase C map + ADR 0001, decides **SC-1** (adminLogger split) and **slice 7**
+   (route groups: defer or do) → start **Phase D, slice 1**. **Not started; do not start without
+   approval.**
+2. Before any Phase D slice that moves a route file: put `next typegen` in the `typecheck` script (BL-007), or clear
    `.next/types` on every slice that moves a route file.
 3. Owner or legal rewrites the privacy policy (BL-008).
 

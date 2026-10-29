@@ -153,8 +153,8 @@ imports the old path, and fails:
 
 The source is fine. Clearing `.next/types` and re-running turns the gate green
 with no source change. CI is unaffected (a fresh checkout has no `.next/`), but
-every local migration slice that touches `src/app/` will hit it — slice 10 moves
-every page into a route group.
+every local migration slice that touches `src/app/` will hit it — slice 7 (route
+groups, currently recommended for deferral) moves every page.
 
 **Workaround until fixed:** `rm -rf .next/types` before `npm run verify` on any
 slice that moves or deletes a route file. Recorded in `MOVE-MAP.md`.

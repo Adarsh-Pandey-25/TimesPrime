@@ -83,25 +83,33 @@ which makes this the right moment to fix it and close the door.
 
 ## 4. Target structure
 
+Finalized in Phase C and **validated**: `node scripts/check-move-map.mjs` relocates every file and
+tests all 149 import edges against §5. The Phase A draft of this tree — six features — broke the
+rules 21 times; this one breaks them twice, both the one known bug. Full reasoning in
+[`adr/0001-feature-first-structure.md`](adr/0001-feature-first-structure.md).
+
 ```
 src/
-  app/                  ROUTING ONLY — handlers parse, delegate, serialize
-    (reader)/           / · article/[slug] · saved
-    (marketing)/        about · contact · privacy · terms
-    admin/              login · dashboard
-    api/                paths frozen — CR-01, CR-02
+  app/                  ROUTING ONLY — handlers parse, delegate, serialize. Paths frozen (CR-01)
   features/
-    news/ article/ admin/ chat/ bookmarks/ i18n/
+    news/               feed, article page, masthead, ingestion, classification, storage
       components/       ← frontend half
       server/           ← backend half
-      index.ts          ← the ONLY public surface
-  components/ui/        presentational primitives, zero domain knowledge
-  server/               backend-only: db · supabase · auth · auditLog
-  lib/                  cross-cutting, domain-free: cache · rateLimit · urlValidation · sentryScrub
-  config/               static data: imageDomains · categoryColors · topicImages
+      index.ts          ← client-safe public surface
+      server.ts         ← server-only public surface
+    admin/              operator UI
+    chat/               AI assistant
+  components/ui/        theme · i18n provider · layout/Footer · spinner · skeleton — no domain
+  server/               backend-only: supabase · auth · auditLog · googleTranslate
+  lib/                  cross-cutting: cache · rateLimit · urlValidation · sentryScrub · bookmarks
+  config/               static data: imageDomains · categoryColors · topicImages · translations
   types/                genuinely shared types
 db/  docs/  scripts/  public/
 ```
+
+**Three features, not six.** i18n, bookmarks and the article page all looked like features and
+measured as shared code or as part of news — see the ADR. Route groups under `app/` are deferred:
+they change no URL and buy nothing until a group layout exists.
 
 ### Why not a top-level `backend/` folder
 
@@ -116,23 +124,30 @@ The separation above is stronger than folder distance, because §5 makes a viola
 
 These are the rules a reviewer may cite in a pull request. Phase E enforces them mechanically.
 
-1. **One public surface per feature.** A feature is imported only through
-   `features/<name>/index.ts`. Reaching past it into internals is forbidden.
-2. **No sideways imports.** Nothing imports across feature boundaries. `features/news` may not
-   import from `features/article`.
-3. **Imports go downward only.** Features import into `components/ui`, `lib`, `server`, `config`.
-   Never upward, never laterally.
+1. **At most two public surfaces per feature.** `features/<name>/index.ts` is safe for client and
+   server; `features/<name>/server.ts` is server-only and **never** imported by client code. Nothing
+   outside the feature reaches past either. *Why two:* a single barrel re-exporting both would let a
+   client import of `ArticleCard` resolve `db.ts` too — the same mechanism that put the Supabase SDK
+   in `/admin`'s browser chunk, because `supabase.ts` calls `createClient()` at module scope and no
+   bundler can tree-shake that.
+2. **No sideways imports.** Nothing imports across feature boundaries. `features/admin` may not
+   import from `features/news`. (`app/` composes features and may import any of them.)
+3. **Imports go downward only.** Features import into `components/ui`, `lib`, `server`, `config`,
+   `types`. Never upward, never laterally.
 4. **Shared things move down.** If two features need the same thing, it moves into a shared layer.
    It does not get imported sideways.
 5. **`components/ui` is domain-free.** It may not import a feature, and must not know what an
    `Article` is.
 6. **`server/` is never imported by a client component.** This is the rule `ActivityLog.tsx`
    currently breaks.
-7. **`config/` imports nothing.** Static data only — no React, no `server-only`, no feature code.
-   `imageDomains.ts` depends on this (CR-06).
+7. **`config/` imports only `config/` and `types/`.** Static data — no React, no `server-only`, no
+   feature or server code. **`imageDomains.ts` imports nothing at all**: `next.config.ts` evaluates it
+   at config-load time (CR-06). *Refined in Phase C:* the draft said "config imports nothing", which
+   `topicImages.ts → imageDomains.ts` already contradicted.
 8. **`app/` holds no business logic.** Route handlers parse input, call a feature, serialise output.
    Extraction heuristics, SQL and filter logic belong in a feature where they can be tested without
-   constructing an HTTP request.
+   constructing an HTTP request. *Target state:* today `scrape-article` and `top-headlines` still
+   carry logic inline; extracting it is Phase F, behind characterization tests.
 
 Rule 4 is the one that matters most. Sideways imports are how a feature-first structure collapses
 back into the thing it replaced — usually within a quarter, always one reasonable-looking import at
@@ -143,20 +158,16 @@ a time. Documentation does not prevent this; a linter does.
 | Module | Owns | Must never |
 |---|---|---|
 | `app/` | URL structure, request/response shape, auth delegation | Contain extraction heuristics, filter logic or SQL |
-| `features/news/` | Upstream fetching, source allowlists, script and spam filters, classification, freshness | Import from another feature |
-| `features/article/` | Scraping, paywall detection, extraction, junk filtering, the detail view | Know about admin or chat |
-| `features/admin/` | Operator UI and its server actions | Be imported by reader-facing code |
-| `features/chat/` | Assistant UI, prompt assembly, streaming | Reach into article internals — take context as a parameter |
-| `features/bookmarks/` | Device-local persistence and its UI | Touch the server at all |
-| `features/i18n/` | Language state, static strings, translation client | Hold feature-specific copy |
-| `components/ui/` | Buttons, cards, skeletons, layout — appearance only | Import a feature, or know what an Article is |
-| `server/` | Database client, session issue/verify, audit logging | Be imported by a client component |
-| `lib/` | Genuinely cross-cutting, domain-free utilities | Become the next dumping ground — if it has a domain, it belongs in a feature |
-| `config/` | Static data: allowlists, colour maps, topic images | Import anything at all (CR-06) |
+| `features/news/` | Feed, article page, masthead; upstream fetching, editorial filters, classification, freshness, article storage | Import from another feature; expose server code through `index.ts` |
+| `features/admin/` | Operator UI, plus the public breaking-news banner whose data it owns (CR-08) | Be imported by another feature |
+| `features/chat/` | Assistant UI | Reach into news internals — take article context as a parameter |
+| `components/ui/` | Theme and language providers, Footer, spinner, skeleton — appearance only | Import a feature, or know what an Article is |
+| `server/` | Supabase client, session issue/verify, audit logging, the translate client | Be imported by a client component |
+| `lib/` | Cross-cutting utilities with no feature knowledge, including the client-side bookmark store | Become the next dumping ground — if it has a domain, it belongs in a feature |
+| `config/` | Static data: allowlists, colour maps, topic images, UI strings | Import anything but `config/` and `types/`; `imageDomains.ts` imports nothing (CR-06) |
 
 ## 7. Decision records
 
 Structural decisions and the alternatives rejected live in [`adr/`](adr/).
-`0001-feature-first-structure.md` is written in Phase C and must record the two-app split
-considered in §4, and why full Feature-Sliced Design was judged too heavy for a 13k-LOC codebase
-with two personas.
+[`0001-feature-first-structure.md`](adr/0001-feature-first-structure.md) records this structure,
+the measurements that shaped it, and the five alternatives rejected.
