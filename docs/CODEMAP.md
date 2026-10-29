@@ -3,7 +3,7 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `08b9e59` by `node scripts/generate-codemap.mjs`. Coverage read from
+Generated at commit `33b2315` by `node scripts/generate-codemap.mjs`. Coverage read from
 `coverage/coverage-final.json` (written 2026-10-29 17:26 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
@@ -55,9 +55,12 @@ non-`NEXT_PUBLIC_` env vars compile to `undefined` client-side. One fix clears b
 - **Server-only module:** an authored policy list in the generator — not derivable, since modules
   such as `supabase.ts` contain no code that would fail in a browser.
 - **Violation:** a server-only module inside the client bundle.
-- **Limits:** a dynamic `import()` with a non-literal specifier cannot be followed and is listed
-  separately; `require()` is not followed (none in `src/`). The Phase E lint rule replaces this
-  estimate with an enforced check.
+- **Limits:** the generator reads syntax, not types. An import written without `type` that only
+  brings in interfaces (`import { Article } from "@/types"`) is erased by the compiler but counted
+  here as a value edge — which is why `types/index.ts` shows as `bundled` though it compiles to
+  nothing. This can only over-include modules, never miss one, so the estimate errs high. A dynamic
+  `import()` with a non-literal specifier cannot be followed and is listed separately; `require()` is
+  not followed (none in `src/`). The Phase E lint rule replaces this estimate with an enforced check.
 
 ### Cross-check: Node built-ins
 
