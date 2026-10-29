@@ -72,3 +72,138 @@ and is correspondingly, accurately, much lower.
 
 Kept here as the reason the coverage number dropped sharply in one commit
 without any test being deleted.
+
+Note: coverage then fell again, 4.41% → 3.50%, in `3805007`. That was not a
+test regression either: the deleted paraphraser was one of the few well-covered
+modules (98.3%), so removing it took covered statements out of the numerator.
+
+---
+
+## BL-004 — Editorial publishing hardcodes `country: ["us"]` and bypasses the filters
+
+**Found:** Phase A review · **Owner decision (Q3):** keep the feature, fix later
+**Files:** `src/app/api/admin/publish-article/route.ts`
+**Status:** Open · **do not fix during the restructure**
+
+Editorial publishing stays, and moves with the admin feature like any other
+file. Two behaviours are logged rather than changed:
+
+- Every published article is stored with `country: ["us"]`, regardless of what
+  it is about. An India story published by an editor is therefore tagged
+  United States.
+- The route upserts straight into `articles`, skipping `saveArticlesToDB` and so
+  every filter in the pipeline (paywall, horoscope, wire-spam, script). This is
+  deliberate in the code — an editor's insert must not fail silently — but it
+  means editorial content is the one path with no filtering at all.
+
+**Pick up in:** after Phase D, as feature work. Needs a product call on whether
+the editor chooses the country, and whether editorial content should pass the
+script filter.
+
+---
+
+## BL-005 — Real contact and newsletter backends
+
+**Found:** Phase A review · **Owner decision (Q4):** remove both UIs now
+**Status:** Future feature work · UIs removed in `59b875d`
+
+The contact form and both newsletter forms (footer strip and article sidebar)
+were removed because each reported success while sending nothing — there was no
+endpoint behind any of them (DEF-09).
+
+If either returns, it returns with a real backend first: somewhere a message or
+address is actually stored or delivered, and a UI that reports failure honestly.
+Not before. The `/contact` page remains, listing the email addresses.
+
+---
+
+## BL-006 — Stored rows still carry paraphrased titles
+
+**Found:** `3805007` (paraphraser removal) · **Status:** Open · self-heals
+
+Headlines are now shown as the source published them. Rows written to Supabase
+before `3805007` hold paraphrased titles. `upsert` on `article_id` overwrites a
+title when the same article is fetched again; a row that is never re-fetched
+keeps its paraphrased title until the 7-day purge removes it.
+
+Until then, `dedupeArticlesByTitle` compares titles, so a stored paraphrased
+title and its raw upstream twin will not be recognised as the same story — a
+possible transient duplicate in the feed.
+
+**Currently moot:** Supabase is unreachable (DEF-01), so no stored rows are read.
+**Pick up:** only if duplicates are observed after the connection is restored.
+Waiting seven days resolves it with no code change.
+
+---
+
+## BL-007 — The verify gate fails on stale route types after a route moves
+
+**Found:** `bcd5393` (RSS removal) · **Status:** Open · **affects every Phase D
+slice that moves or deletes a route file**
+
+`tsconfig.json` includes `.next/types/**/*.ts`, which `next build` generates.
+`npm run verify` runs `typecheck` **before** `build`. So after a route file is
+moved or deleted, `tsc` reads the previous build's validator, which still
+imports the old path, and fails:
+
+```
+.next/types/validator.ts(242,39): error TS2307: Cannot find module
+'../../src/app/api/cron/refresh-rss/route.js'
+```
+
+The source is fine. Clearing `.next/types` and re-running turns the gate green
+with no source change. CI is unaffected (a fresh checkout has no `.next/`), but
+every local migration slice that touches `src/app/` will hit it — slice 10 moves
+every page into a route group.
+
+**Workaround until fixed:** `rm -rf .next/types` before `npm run verify` on any
+slice that moves or deletes a route file. Recorded in `MOVE-MAP.md`.
+
+**Fix:** Next 16 ships `next typegen`, which "generates TypeScript definitions
+for your application's routes without performing a full build" — its own docs
+name CI type-checking as the use case
+(`node_modules/next/dist/docs/01-app/03-api-reference/06-cli/next.md`).
+Changing `typecheck` to `next typegen && tsc --noEmit` regenerates the types
+from the current routes before checking them. A one-line config change; not
+made here because it was outside the item that found it.
+
+---
+
+## BL-008 — Privacy policy describes data collection that no longer happens
+
+**Found:** `59b875d` (form removal) · **Status:** Open · **needs owner or legal
+review — not a code decision**
+**Files:** `src/app/privacy/page.tsx`
+
+The policy still says email addresses are collected "when you subscribe to our
+newsletter or submit the contact form", that updates are sent "if you've opted
+in to our newsletter", and that readers can "unsubscribe from newsletter
+emails". None of those forms exist any more.
+
+A privacy policy that describes collection the product does not perform is
+inaccurate in a document with legal weight. The correct wording is the owner's
+or legal counsel's to choose, so it was deliberately not edited alongside the
+UI removal.
+
+---
+
+## BL-009 — Residual references to removed features
+
+**Found:** `bcd5393`, `59b875d` · **Status:** Open · cosmetic, low risk
+
+Each was left alone because it was not required by the item that removed the
+feature:
+
+- **Footer "RSS Feeds" link** (`src/components/Footer.tsx`) — points at
+  `href="#"`. It never reached the deleted `/api/cron/refresh-rss`; it was dead
+  before RSS was removed. It now advertises a feature the owner has deleted.
+- **Dead translation keys** (`src/lib/translations.ts`) — `rssFeeds`,
+  `newsletterTitle`, `newsletterDesc`, `newsletterStripTagline`,
+  `subscribedSuccess`, `newsletterEmailPlaceholder`, in the interface and both
+  languages. Read by nothing.
+- **`"use client"` on `src/app/contact/page.tsx`** — no longer needed now the
+  form's state is gone. Removing it changes the page's rendering mode, which is
+  a behaviour change, not a cleanup.
+
+**Pick up:** any time, as one small commit. The footer link is the one a user
+can see.
