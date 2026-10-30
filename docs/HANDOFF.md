@@ -2,7 +2,8 @@
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
 **State as of:** 2026-10-30, after **Phase D** (all six slices, `a626542`..`73e207f`) and **Phase
-E** (lint enforcement, `d892cf2`), branch `main`. Phase F is optional and not started. Run
+E** (lint enforcement, `d892cf2`), and Phases 0–1 of the audit fixes (`063e9a6`..`679c72e`; status
+per finding in `docs/AUDIT-FINDINGS.md`), branch `main`. Phase F is optional and not started. Run
 `git log --oneline -20` for the exact head.
 
 Read §1 and §3 before touching anything. §3 in particular will save you from false conclusions
@@ -38,10 +39,11 @@ each with `npm run verify` and `check-move-map` green. The built route table is 
 The security items (Next.js bump, DEF-02, DEF-06) and the Supabase connection are reserved by the
 owner for a separate session. Do not start either here.
 
-**The single most important fact:** every Supabase call is currently failing with
-`TypeError: fetch failed`. The app does not surface this — it silently serves NewsData.io directly
-on every request. Do not diagnose the database code as broken; the *connection* is broken. See
-DEF-01.
+**The single most important fact:** Supabase **was** failing every call with `TypeError: fetch
+failed` until about 29 Oct, and the app hid it by silently serving NewsData.io. On 30 Oct it is
+reachable again with no code change (F-002 in the audit ledger). It can no longer fail silently:
+`/api/health` answers 503 when it is down, and each fallback is reported to Sentry, rate-limited.
+Check `/api/health` before assuming the database is either up or down.
 
 **Key documents in this repo:**
 
@@ -68,7 +70,7 @@ There is also a published audit artifact (28 findings, severity-filterable):
 | | |
 |---|---|
 | Platform | Windows 11. Both PowerShell and Git Bash available |
-| Node / npm | v24.19.0 / 11.17.0 — **`.node-version` pins 20**, a real but so-far harmless drift |
+| Node / npm | v24.19.0 / 11.17.0. **Node 24 everywhere** since `974b255`: `.node-version`, `engines` `24.x`, CI |
 | Dependencies | Installed (841 packages via `npm ci`) |
 | Dev server | **Stopped** for the restructure (its Turbopack watcher can lock files during `git mv`). `npm run dev` to start |
 | Line endings | **CRLF** throughout `src/` |
@@ -120,13 +122,16 @@ The list in `src/lib/imageDomains.ts` holds 49. One slot free.
 > A previous pass flagged `preload` as a bug. It was wrong, and the bundled docs settled it.
 > **When docs and memory disagree, the bundled docs win.**
 
-### 3.2 Supabase is down — do not misdiagnose it
+### 3.2 Check whether Supabase is up before diagnosing anything
 
-Every operation fails: Select, Upsert, Purge, Freshness Check, breaking-news read. Confirm with:
+It was down until about 29 Oct — every operation failed: Select, Upsert, Purge, Freshness Check,
+breaking-news read — and it is up again on 30 Oct. `GET /api/health` answers 200 or 503;
+`/api/admin/health` (with a session) names the failing dependency and an error code. Or confirm
+with:
 
 ```bash
 curl -s -D - -o /dev/null "http://localhost:3000/api/news/top-headlines?refresh=true" | grep -i x-data-source
-# returns: newsdata     <- should be: supabase
+# newsdata on a fresh table means Supabase failed; supabase or cache means it answered
 ```
 
 The `X-Data-Source` header tells you which tier answered: `cache` / `supabase` / `newsdata` / `mock`.
@@ -477,6 +482,10 @@ collection that no longer happens. Legal copy — for the owner or legal review,
 ---
 
 ## 11. Immediate next actions
+
+**Audit fixes** (`docs/AUDIT-FINDINGS.md`): Phases 0 and 1 are done. **Phase 2 (security) is next**
+— tests first for `urlValidation` and `adminSession`, then F-003, F-010, F-020 / F-004 / F-011
+(D1: a Redis-backed limiter for login and the scraper), F-005, F-006.
 
 **In this line of work** — the restructure:
 

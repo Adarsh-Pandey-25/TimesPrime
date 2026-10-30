@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `d892cf2` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-30 05:17 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `679c72e` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 07:05 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -17,7 +17,7 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 
 | | |
 |---|---|
-| Modules (excl. tests) | **75** |
+| Modules (excl. tests) | **79** |
 | Modules with a `"use client"` directive | **24** |
 | Modules in the client bundle (directive + pulled in) | **33** |
 | Server-only modules in the client bundle (violations) | **0** |
@@ -88,7 +88,7 @@ Widest blast radius when moved.
 |--:|---|
 | 23 | `src/types/index.ts` |
 | 18 | `src/context/ThemeContext.tsx` |
-| 10 | `src/server/supabase.ts` |
+| 11 | `src/server/supabase.ts` |
 | 8 | `src/config/translations.ts` |
 | 8 | `src/context/LanguageContext.tsx` |
 | 8 | `src/features/news/index.ts` |
@@ -118,6 +118,7 @@ Widest blast radius when moved.
 | `app/api/admin/articles/route.ts` | API: /api/admin/articles | 247 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/breaking-news/route.ts` | API: /api/admin/breaking-news | 212 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/db-stats/route.ts` | API: /api/admin/db-stats | 42 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/health/route.ts` | API: /api/admin/health | 14 |  | 100% | 1 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/login/route.ts` | API: /api/admin/login | 32 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/logout/route.ts` | API: /api/admin/logout | 12 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/logs/route.ts` | API: /api/admin/logs | 123 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
@@ -126,9 +127,10 @@ Widest blast radius when moved.
 | `app/api/admin/stats/route.ts` | API: /api/admin/stats | 163 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/chat/route.ts` | API: /api/chat | 162 |  | 79.0% | 1 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/cron/refresh-news/route.ts` | API: /api/cron/refresh-news | 120 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
+| `app/api/health/route.ts` | API: /api/health | 15 |  | 100% | 1 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/news/check-new/route.ts` | API: /api/news/check-new | 51 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/news/scrape-article/route.ts` | API: /api/news/scrape-article | 556 |  | 0% | 0 | 4 | stays -- the path is the URL (CR-01) |
-| `app/api/news/top-headlines/route.ts` | API: /api/news/top-headlines | 258 |  | 0% | 0 | 3 | stays -- the path is the URL (CR-01) |
+| `app/api/news/top-headlines/route.ts` | API: /api/news/top-headlines | 265 |  | 0% | 0 | 4 | stays -- the path is the URL (CR-01) |
 | `app/api/translate/route.ts` | API: /api/translate | 54 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
 | `app/article/[slug]/page.tsx` | Page: /article/[slug] | 101 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
 | `app/contact/page.tsx` | Page: /contact | 86 | directive | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
@@ -184,15 +186,17 @@ Widest blast radius when moved.
 | `server/auditLog.ts` | Writes admin_logs rows (logAdminAction) | 40 |  | 0% | 7 | 2 | stays |
 | `server/auth/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 69 |  | 0% | 3 | 0 | stays |
 | `server/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 88 |  | 0% | 1 | 0 | stays |
-| `server/supabase.ts` | Supabase client; prefers service-role key when present | 22 |  | 0% | 10 | 0 | stays |
+| `server/health.ts` | Dependency health for /api/health (status only) and /api/admin/health (detail); D4 | 126 |  | 98.4% | 4 | 3 | stays |
+| `server/supabase.ts` | Supabase client; prefers service-role key when present | 22 |  | 0% | 11 | 0 | stays |
 
 ### Library — `src/lib/` (the folder being split)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `lib/cache.ts` | Upstash Redis with in-process Map fallback | 73 |  | 0% | 2 | 0 | stays |
+| `lib/cache.ts` | Upstash Redis with in-process Map fallback | 84 |  | 0% | 3 | 0 | stays |
 | `lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 26 |  | 96.2% | 2 | 0 | stays |
-| `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 52 |  | 0% | 4 | 0 | stays |
+| `lib/reportFallback.ts` | Rate-limited Sentry report of a fallback (D5); bounded by a fixed set of kinds | 39 |  | 100% | 2 | 0 | stays |
+| `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 70 |  | 88.6% | 5 | 0 | stays |
 | `lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 122 |  | 0% | 1 | 0 | stays |
 
 ### Config — `src/config/` (static data)
@@ -264,6 +268,11 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `features/news/server.ts`, `server/auditLog.ts`
 - **Used by:** —
 
+#### `app/api/admin/health/route.ts`
+
+- **Imports:** `server/health.ts`
+- **Used by:** `app/api/admin/health/route.test.ts` _(test)_
+
 #### `app/api/admin/login/route.ts`
 
 - **Imports:** `server/auth/adminSession.ts`
@@ -304,6 +313,11 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `features/news/server.ts`, `server/auditLog.ts`
 - **Used by:** —
 
+#### `app/api/health/route.ts`
+
+- **Imports:** `server/health.ts`
+- **Used by:** `app/api/health/route.test.ts` _(test)_
+
 #### `app/api/news/check-new/route.ts`
 
 - **Imports:** `features/news/server.ts`
@@ -316,7 +330,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/api/news/top-headlines/route.ts`
 
-- **Imports:** `features/news/server.ts`, `lib/cache.ts`, `types/index.ts`
+- **Imports:** `features/news/server.ts`, `lib/cache.ts`, `server/health.ts`, `types/index.ts`
 - **Used by:** —
 
 #### `app/api/translate/route.ts`
@@ -547,17 +561,22 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `lib/cache.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/news/scrape-article/route.ts`, `app/api/news/top-headlines/route.ts`
+- **Used by:** `app/api/news/scrape-article/route.ts`, `app/api/news/top-headlines/route.ts`, `server/health.ts`
 
 #### `lib/rateLimit.ts`
 
 - **Imports:** —
 - **Used by:** `app/api/chat/route.ts`, `app/api/translate/route.ts`
 
+#### `lib/reportFallback.ts`
+
+- **Imports:** —
+- **Used by:** `lib/reportFallback.test.ts` _(test)_, `server/health.ts`
+
 #### `lib/sentryScrub.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/news/scrape-article/route.ts`, `instrumentation-client.ts`, `sentry.edge.config.ts`, `sentry.server.config.ts`
+- **Used by:** `app/api/news/scrape-article/route.ts`, `instrumentation-client.ts`, `lib/sentryScrub.test.ts` _(test)_, `sentry.edge.config.ts`, `sentry.server.config.ts`
 
 #### `lib/urlValidation.ts`
 
@@ -594,10 +613,15 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** —
 - **Used by:** `app/api/translate/route.ts`
 
+#### `server/health.ts`
+
+- **Imports:** `lib/cache.ts`, `lib/reportFallback.ts`, `server/supabase.ts`
+- **Used by:** `app/api/admin/health/route.ts`, `app/api/health/route.ts`, `app/api/news/top-headlines/route.ts`, `server/health.test.ts` _(test)_
+
 #### `server/supabase.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/logs/route.ts`, `app/api/admin/publish-article/route.ts`, `app/api/admin/stats/route.ts`, `app/api/news/scrape-article/route.ts` _(dynamic)_, `features/news/server/categoryClassifier.ts`, `features/news/server/db.ts`, `server/auditLog.ts`
+- **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/logs/route.ts`, `app/api/admin/publish-article/route.ts`, `app/api/admin/stats/route.ts`, `app/api/news/scrape-article/route.ts` _(dynamic)_, `features/news/server/categoryClassifier.ts`, `features/news/server/db.ts`, `server/auditLog.ts`, `server/health.ts`
 
 #### `types/index.ts`
 

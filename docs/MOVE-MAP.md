@@ -92,9 +92,9 @@ the client by construction, rather than by hoping tree-shaking holds.
 by discipline. Per the Next.js 16 docs (`01-app/01-getting-started/05-server-and-client-components.md`,
 "Preventing environment poisoning"), importing such a module into a client component is a
 **build-time error**, and installing the `server-only` package is optional in Next.js — it resolves
-to a copy Next bundles (`node_modules/next/dist/compiled/server-only`). One caveat: Jest does not
-use Next's resolver, so the first test that imports a `server.ts` will need `npm install server-only`
-or a `moduleNameMapper` entry. No test does today.
+to a copy Next bundles (`node_modules/next/dist/compiled/server-only`). Under Jest no install is
+needed either: `next/jest` maps `server-only` to an empty module (confirmed in the audit fixes:
+`src/server/health.test.ts` imports a guarded module).
 
 Inside a feature, files import each other by relative path, never through their own `index.ts`
 (which would create cycles).

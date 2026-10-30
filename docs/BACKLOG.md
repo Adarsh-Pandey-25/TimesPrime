@@ -249,3 +249,43 @@ full log shows the path.
 
 **Fix:** add `"coverage/**"` to `globalIgnores` in `eslint.config.mjs`. One
 line; not made here because it was outside the item that found it.
+
+## BL-011 — `withSentryConfig` is imported from a deprecated path
+
+**Found:** audit fix F-007, bumping @sentry/nextjs to 10.78.0 (`31f4a54`) · **Status:** Open
+
+Every build and test run now prints: *"Importing `withSentryConfig` from `@sentry/nextjs` is
+deprecated and will stop working in v11. Import it from `@sentry/nextjs/config` instead."* The fix
+is one line in `next.config.ts`. Not made in `31f4a54` because it was outside that finding; it
+becomes mandatory only at v11, which is a major bump and needs owner approval anyway.
+
+## BL-012 — `@types/node` is `^20` while the runtime is Node 24
+
+**Found:** audit fix F-026 (`974b255`) · **Status:** Open — needs owner approval
+
+`.node-version`, `engines` and CI are on Node 24, but the type definitions still describe Node 20:
+APIs added since 20 are untyped, and the compiler will not flag anything removed. Nothing fails
+today. Moving to `@types/node@^24` is a major bump of the types package, which the audit-fix rules
+reserve for the owner.
+
+## BL-013 — The in-memory cache never evicts keys that are not read again
+
+**Found:** Phase 1 of the audit fixes, checking how `cache.ts` behaves without Upstash (D1) ·
+**Status:** Open (audit-ledger observation N-03)
+
+When Upstash is not configured — as on this machine — `cache.ts` falls back to a `Map` and deletes
+an expired entry only when `get()` reads it again. Keys that are never re-read stay forever: every
+distinct scraped URL, every search query. Memory grows with traffic, the same class of bug as
+F-020 (the rate limiter). **Pick up in:** Phase 2, alongside F-020, if the owner wants it in scope;
+with Upstash configured in production the in-memory path is only a fallback.
+
+## BL-014 — `db.ts` reports every failed Supabase operation to Sentry, unthrottled
+
+**Found:** Phase 1, the D5 outage simulation (`679c72e`) · **Status:** Open (observation N-04)
+
+Each feed request during an outage produced five Sentry events from `db.ts` — freshness check,
+purge, upsert, purge, select — on top of D5's single rate-limited fallback report. At real traffic
+that is thousands of events an hour and a Sentry quota problem. Options: route them through the
+same rate limiting as `reportFallback`, or demote them to breadcrumbs and let D5's report be the
+event. Owner decision; it changes how errors are reported, not behaviour. The double purge in the
+same trace is F-015, Phase 3.

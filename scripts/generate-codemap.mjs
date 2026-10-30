@@ -232,6 +232,7 @@ const PURPOSE = {
   "src/config/translations.ts": ["EN/HI static strings; translateHeadline is a no-op stub", "shared, not a feature"],
   "src/server/googleTranslate.ts": ["Unofficial translate.googleapis.com client, bounded concurrency", ""],
   "src/server/health.ts": ["Dependency health for /api/health (status only) and /api/admin/health (detail); D4", ""],
+  "src/lib/reportFallback.ts": ["Rate-limited Sentry report of a fallback (D5); bounded by a fixed set of kinds", ""],
   "src/features/news/bookmarks.ts": ["localStorage saved articles + change event", "stores Article objects, so not lib/"],
   "src/features/admin/components/actionLabels.ts": ["Display labels and icons for admin activity-log entries", "only consumer is ActivityLog (SC-1)"],
   "src/context/ThemeContext.tsx": ["Light/dark provider, localStorage-backed", "app-wide state provider, not a UI primitive"],

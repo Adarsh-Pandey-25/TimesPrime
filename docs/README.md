@@ -14,6 +14,7 @@ expensive mistake available.
 | 4 | [`architecture.md`](architecture.md) | How the system fits together; the import rules | 10 min |
 | 5 | [`MOVE-MAP.md`](MOVE-MAP.md) | Executing the restructure: slice order, risks, judgement calls | Reference |
 | 6 | [`BACKLOG.md`](BACKLOG.md) | Before "fixing" something that looks wrong — it may be deferred deliberately | 3 min |
+| 7 | [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md) | Working on a security or quality fix: status of every audit finding (F-001..F-028), with today's code locations | Reference |
 
 ## One source of truth
 
