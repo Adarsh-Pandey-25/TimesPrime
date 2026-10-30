@@ -16,4 +16,9 @@ Each record carries:
   arbitrary.
 - **Consequences** — what this makes easy, and what it makes harder
 
-`0001-feature-first-structure.md` is written in Phase 3.
+## Index
+
+| ADR | Decision | Status |
+|---|---|---|
+| [0001](0001-feature-first-structure.md) | Feature-first `src/` layout with layer separation and a CI-enforced boundary (restructure 1) | Superseded by 0002 |
+| [0002](0002-frontend-backend-separation.md) | One Next.js app split into `app/`, `frontend/`, `backend/`, `shared/` and `database/`, with rules F1–X1 and V1 (restructure 2) | Accepted |

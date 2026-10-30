@@ -1,6 +1,12 @@
 # ADR 0001 — Feature-first structure with layer separation and a CI-enforced boundary
 
-**Status:** **Accepted** — 2026-10-30, owner approval of Phase C, with conditions applied: a split
+**Status:** **Superseded by [ADR 0002](0002-frontend-backend-separation.md)** — 2026-10-30.
+Restructure 2 replaced this layout with `app/`, `frontend/`, `backend/`, `shared/` and `database/`.
+The lessons listed in ADR 0002's "Carried over from ADR 0001" still apply. The text below is kept as
+it was written, so its paths are restructure 1's (`src/…`). The import rules it refers to
+(architecture.md rules 1–8, and their Phase E enforcement table) were last in
+[`architecture.md` at `623b918`](https://github.com/Adarsh-Pandey-25/TimesPrime/blob/623b918/docs/architecture.md#5-import-rules).
+Before that: **Accepted** — 2026-10-30, owner approval of Phase C, with conditions applied: a split
 criterion for `features/news`, route groups recorded as deferred, `lib/` kept domain-free, and a
 `server-only` guard on every `server.ts`.
 **Supersedes:** nothing. **Related:** [`architecture.md`](../architecture.md),
