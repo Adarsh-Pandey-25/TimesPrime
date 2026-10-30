@@ -332,8 +332,9 @@ leaves both fetches alone.
 
 ## BL-017 — Data nothing reads, left after the S1 cleanup
 
-**Found:** restructure 2, S1 (`dc07a40`, `a81d3c4`) · **Status:** Open — needs owner approval; one
-change commit each
+**Found:** restructure 2, S1 (`dc07a40`, `a81d3c4`) · **Status:** **Resolved** in `dbc4821` (the 16
+keys) and `6327110` (the two fields), owner-approved after a dynamic-access check; one key is still
+open, below
 
 - **Sixteen translation keys** in `src/config/translations.ts` have no reader, in the interface
   and in both languages: `liveFeed`, `edition`, `globalNewsHub`, `aiAssistant`,
@@ -348,9 +349,23 @@ change commit each
   `text-cyan-600`, …) appear in no other file, so Tailwind still emits CSS for classes no element
   carries. Removing the fields drops those rules; measure the CSS before and after.
 
+The check that cleared them works by type, not text: it follows every value typed as the
+dictionary, a section, `TRANSLATIONS`, `CategoryColorDef` or `CATEGORY_COLORS` through computed
+lookups, destructuring, spreads, casts and calls. The only dynamic lookups are by language
+(`TRANSLATIONS[language]`), by category id (`t.categories[...]`, whose keys all stay) and by
+category name (`CATEGORY_COLORS[...]`, read only as `.hex` and `.badgeBg`). `6327110` removed 16
+CSS rules; the other two of the 18 lived on in this entry's own text until `6a1382d` (BL-018).
+
+**Still open: `refresh`.** The same check proves the top-level `refresh` key unreachable too; the
+text scan had counted `router.refresh()` as a reader. It was not on the approved list, so it stays
+until the owner decides.
+
 ## BL-018 — Tailwind scans `docs/` and `scripts/`, so editing a document can change the CSS
 
-**Found:** restructure 2, S1 (`26adbbd`) · **Status:** Open — owner decision
+**Found:** restructure 2, S1 (`26adbbd`) · **Status:** **Resolved** in `6a1382d` (owner-approved,
+S2): `@source not` for `docs/`, `scripts/`, `database/`, `db/` and the four root `.md` files, each
+proved by a probe build. The paths resolve from the stylesheet, so slices 1 and 10 rewrite them
+when it moves (`SLICE_CHECKLIST` in `scripts/move-map.mjs`)
 
 Tailwind v4 detects class names automatically in every file that is not git-ignored, Markdown
 included. Deleting `docs/MOVE-MAP.md` removed one utility rule from the production CSS (−219
@@ -363,3 +378,9 @@ code change.
 Fix: exclude the non-code folders in `globals.css` with `@source not "<path>"` (supported by the
 installed Tailwind 4.3.3; the path resolves from the stylesheet), or use `source(none)` and list
 the code folders. Either is a CSS configuration change, so it waits for the owner.
+
+**Outside the approved list, so still scanned:** code under `src/`, comments and tests included,
+and root tooling. Two cases so far: while `4ff0167` was being written, a test comment saying a
+scan could not "shrink" emitted `.shrink` until it was reworded; and `.transform` is in the CSS
+only because three `jest.config.ts` comments say "transform". Excluding test files or root
+configs would be a further owner decision.
