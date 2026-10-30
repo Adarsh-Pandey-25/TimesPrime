@@ -72,7 +72,25 @@ Found during triage. Not fixed; listed for the owner.
 | N-02 | README claims the admin password is "compared in constant time"; F-004 shows it is not yet | `README.md:70` | Open — fixed in the F-004 commit (owner ruling), so the claim becomes true in the change that makes it true |
 | N-03 | The in-memory cache (used when Upstash is not configured, as locally) removes an expired entry only when it is read again, so keys that are never re-read — every distinct scraped URL, every search — accumulate. Same class as F-020 | `src/lib/cache.ts` | Open — BL-013 |
 | N-04 | During a Supabase outage, `db.ts` sends every failed operation to Sentry unthrottled: five events per feed request (freshness, purge, upsert, purge, select), observed in the D5 run. D5's single rate-limited report covers visibility; these are the noise | `src/features/news/server/db.ts` | Open — BL-014 |
-| N-05 | `npm audit fix` (`5970692`) moved jest 30.4.2 → 30.5.2, which adds `@parcel/watcher` 2.6.0, the tree's first new package with an install script since the baseline (it builds from source only when no prebuilt binary exists). npm 11 does not run it locally | `package-lock.json` | Noted, no action |
+| N-05 | `npm audit fix` (`5970692`) moved jest 30.4.2 → 30.5.2, which adds `@parcel/watcher` 2.6.0, the tree's first new package with an install script since the baseline. npm 11 does not run the script | `package-lock.json` | **Investigated, no action.** See below |
+
+### N-05 — `@parcel/watcher` and its blocked install script
+
+- **What it is for.** File watching in `jest --watch` / `--watchAll`, and nothing else. It is a
+  dev-only dependency: `jest → @jest/core → jest-haste-map 30.5.1 → @parcel/watcher 2.6.0`.
+  `jest-haste-map` loads it lazily inside `_subscribe()`, with the comment *"Watch mode is the only
+  consumer of the native binding"*, so `npm test`, `npm run test:ci` and CI never load it. The app
+  never ships it.
+- **What the blocked script does.** `scripts/build-from-source.js` runs `node-gyp rebuild` **only**
+  when `npm_config_build_from_source=true`; otherwise it exits doing nothing. (An earlier version
+  of this row said it builds when no prebuilt binary exists; the script shows it does not.) The
+  native binary arrives as a per-platform optional package — `@parcel/watcher-win32-x64` here,
+  `-linux-x64-glibc` on the CI runner — so nothing depends on the script running.
+- **Does anything break with it blocked?** No, checked on 2026-10-30: `npm test` exit 0 (9 suites,
+  70 tests); `npm run build` exit 0 (28 routes); and the native binding itself loads from
+  `@parcel/watcher-win32-x64` and delivered a file event (`update probe.txt`) in a probe, so
+  `jest --watch` has what it needs. CI on Node 24 / npm 11 is green (run 41018035376).
+- **npm settings:** unchanged, by owner instruction.
 
 ## npm audit
 
