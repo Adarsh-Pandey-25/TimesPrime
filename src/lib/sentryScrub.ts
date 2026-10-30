@@ -6,7 +6,25 @@
  * its own request headers).
  */
 
-const SECRET_ENV_KEYS = ["ANTHROPIC_API_KEY", "SUPABASE_SERVICE_ROLE_KEY", "NEWSDATA_API_KEY"] as const;
+/**
+ * Every env var the code reads that holds a secret. sentryScrub.test.ts scans
+ * src/ and next.config.ts for process.env names containing KEY, SECRET, TOKEN
+ * or PASSWORD and fails if one is missing here, so a new secret cannot be
+ * added without being scrubbed. NEXT_PUBLIC_NEWSDATA_API_KEY is on the list
+ * despite its prefix: the seed route reads it as a fallback for the NewsData
+ * key, so when set it holds that secret.
+ */
+export const SECRET_ENV_KEYS = [
+  "ANTHROPIC_API_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "NEWSDATA_API_KEY",
+  "NEXT_PUBLIC_NEWSDATA_API_KEY",
+  "ADMIN_PASSWORD",
+  "ADMIN_SESSION_SECRET",
+  "CRON_SECRET",
+  "UPSTASH_REDIS_REST_TOKEN",
+  "SENTRY_AUTH_TOKEN",
+] as const;
 
 function getSecretValues(): string[] {
   return SECRET_ENV_KEYS.map((key) => process.env[key]).filter(
