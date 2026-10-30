@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { Article } from "@/types";
-import { supabase, isSupabaseConfigured } from "./supabase";
+import { supabase, isSupabaseConfigured } from "@/server/supabase";
 import {
   containsHindiScript,
   containsNonLatinIndicScript,

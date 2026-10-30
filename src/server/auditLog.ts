@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/server/supabase";
 import type { AdminAction } from "@/types";
 
 /**

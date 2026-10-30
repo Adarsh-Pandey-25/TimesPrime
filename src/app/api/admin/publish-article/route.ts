@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { logAdminAction } from "@/lib/adminLogger";
+import { supabase, isSupabaseConfigured } from "@/server/supabase";
+import { logAdminAction } from "@/server/auditLog";
 
 // Auth is handled upstream by src/proxy.ts (matcher covers /api/admin/:path*),
 // so by the time a request reaches this handler it has already been validated.

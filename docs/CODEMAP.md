@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `befacce` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-30 04:06 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `21c8951` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 04:38 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -60,8 +60,8 @@ A browser bundle cannot resolve Node built-ins, so a passing `next build` implie
 imports one. Modules importing built-ins, and whether any is in the client bundle:
 
 ```
-src/lib/adminSession.ts   server-side
 src/lib/urlValidation.ts   server-side
+src/server/auth/adminSession.ts   server-side
 ```
 
 Consistent with the build: no bundled module imports a Node built-in.
@@ -75,7 +75,7 @@ none
 ### Dynamic imports
 
 ```
-src/app/api/news/scrape-article/route.ts -> src/lib/supabase.ts
+src/app/api/news/scrape-article/route.ts -> src/server/supabase.ts
 src/instrumentation.ts -> src/sentry.server.config.ts
 src/instrumentation.ts -> src/sentry.edge.config.ts
 ```
@@ -88,7 +88,7 @@ Widest blast radius when moved.
 |--:|---|
 | 23 | `src/types/index.ts` |
 | 18 | `src/context/ThemeContext.tsx` |
-| 10 | `src/lib/supabase.ts` |
+| 10 | `src/server/supabase.ts` |
 | 8 | `src/components/Footer.tsx` |
 | 8 | `src/components/Header.tsx` |
 | 8 | `src/config/translations.ts` |
@@ -168,23 +168,28 @@ Widest blast radius when moved.
 | `components/admin/SyncDashboard.tsx` | Last/next sync, counts, manual sync | 198 | directive | 0% | 1 | 1 | `features/admin/components/SyncDashboard.tsx` · slice 5 |
 | `components/admin/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 0% | 1 | 1 | `features/admin/components/actionLabels.ts` · slice 5 — only consumer is ActivityLog (SC-1) |
 
+### Server — `src/server/` (backend-only)
+
+| Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
+|---|---|--:|:-:|--:|--:|--:|---|
+| `server/auditLog.ts` | Writes admin_logs rows (logAdminAction) | 38 |  | 0% | 7 | 2 | stays |
+| `server/auth/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 67 |  | 0% | 3 | 0 | stays |
+| `server/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 86 |  | 0% | 1 | 0 | stays |
+| `server/supabase.ts` | Supabase client; prefers service-role key when present | 20 |  | 0% | 10 | 0 | stays |
+
 ### Library — `src/lib/` (the folder being split)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `lib/adminLogger.ts` | Writes admin_logs rows (logAdminAction) | 38 |  | 0% | 7 | 2 | `server/auditLog.ts` · slice 3 |
-| `lib/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 67 |  | 0% | 3 | 0 | `server/auth/adminSession.ts` · slice 3 |
 | `lib/bookmarks.ts` | localStorage saved articles + change event | 56 | directive | 96.4% | 4 | 1 | `features/news/bookmarks.ts` · slice 6 — stores Article objects, so not lib/ |
 | `lib/cache.ts` | Upstash Redis with in-process Map fallback | 73 |  | 0% | 2 | 0 | stays |
 | `lib/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 133 |  | 0% | 1 | 1 | `features/news/server/categoryClassifier.ts` · slice 6 |
 | `lib/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 571 |  | 0% | 5 | 4 | `features/news/server/db.ts` · slice 6 — news editorial policy is baked in, hence features/news |
 | `lib/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 127 |  | 0% | 1 | 2 | `features/news/server/fetchNews.ts` · slice 6 |
-| `lib/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 86 |  | 0% | 1 | 0 | `server/googleTranslate.ts` · slice 3 |
 | `lib/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 94.8% | 7 | 1 | `features/news/newsConfig.ts` · slice 6 |
 | `lib/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 114 |  | 0% | 1 | 2 | `features/news/server/newsdata.ts` · slice 6 |
 | `lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 26 |  | 96.2% | 2 | 0 | stays |
 | `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 52 |  | 0% | 4 | 0 | stays |
-| `lib/supabase.ts` | Supabase client; prefers service-role key when present | 20 |  | 0% | 10 | 0 | `server/supabase.ts` · slice 3 |
 | `lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 122 |  | 0% | 1 | 0 | stays |
 
 ### Config — `src/config/` (static data)
@@ -238,52 +243,52 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/api/admin/articles/bulk/route.ts`
 
-- **Imports:** `lib/adminLogger.ts`, `lib/supabase.ts`
+- **Imports:** `server/auditLog.ts`, `server/supabase.ts`
 - **Used by:** —
 
 #### `app/api/admin/articles/route.ts`
 
-- **Imports:** `lib/adminLogger.ts`, `lib/supabase.ts`
+- **Imports:** `server/auditLog.ts`, `server/supabase.ts`
 - **Used by:** —
 
 #### `app/api/admin/breaking-news/route.ts`
 
-- **Imports:** `lib/adminLogger.ts`, `lib/supabase.ts`
+- **Imports:** `server/auditLog.ts`, `server/supabase.ts`
 - **Used by:** —
 
 #### `app/api/admin/db-stats/route.ts`
 
-- **Imports:** `lib/adminLogger.ts`, `lib/db.ts`
+- **Imports:** `lib/db.ts`, `server/auditLog.ts`
 - **Used by:** —
 
 #### `app/api/admin/login/route.ts`
 
-- **Imports:** `lib/adminSession.ts`
+- **Imports:** `server/auth/adminSession.ts`
 - **Used by:** —
 
 #### `app/api/admin/logout/route.ts`
 
-- **Imports:** `lib/adminSession.ts`
+- **Imports:** `server/auth/adminSession.ts`
 - **Used by:** —
 
 #### `app/api/admin/logs/route.ts`
 
-- **Imports:** `lib/supabase.ts`, `types/index.ts` _(type)_
+- **Imports:** `server/supabase.ts`, `types/index.ts` _(type)_
 - **Used by:** —
 
 #### `app/api/admin/publish-article/route.ts`
 
-- **Imports:** `lib/adminLogger.ts`, `lib/supabase.ts`
+- **Imports:** `server/auditLog.ts`, `server/supabase.ts`
 - **Used by:** —
 
 #### `app/api/admin/seed-supabase/route.ts`
 
-- **Imports:** `lib/adminLogger.ts`, `lib/db.ts`, `types/index.ts` _(type)_
+- **Imports:** `lib/db.ts`, `server/auditLog.ts`, `types/index.ts` _(type)_
 - **Used by:** —
 
 #### `app/api/admin/stats/route.ts`
 
-- **Imports:** `lib/supabase.ts`
+- **Imports:** `server/supabase.ts`
 - **Used by:** —
 
 #### `app/api/chat/route.ts`
@@ -293,7 +298,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/api/cron/refresh-news/route.ts`
 
-- **Imports:** `lib/adminLogger.ts`, `lib/db.ts`, `lib/newsdata.ts`
+- **Imports:** `lib/db.ts`, `lib/newsdata.ts`, `server/auditLog.ts`
 - **Used by:** —
 
 #### `app/api/news/check-new/route.ts`
@@ -303,7 +308,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/api/news/scrape-article/route.ts`
 
-- **Imports:** `lib/cache.ts`, `lib/sentryScrub.ts`, `lib/supabase.ts` _(dynamic)_, `lib/urlValidation.ts`
+- **Imports:** `lib/cache.ts`, `lib/sentryScrub.ts`, `lib/urlValidation.ts`, `server/supabase.ts` _(dynamic)_
 - **Used by:** —
 
 #### `app/api/news/top-headlines/route.ts`
@@ -313,7 +318,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/api/translate/route.ts`
 
-- **Imports:** `lib/googleTranslate.ts`, `lib/rateLimit.ts`
+- **Imports:** `lib/rateLimit.ts`, `server/googleTranslate.ts`
 - **Used by:** —
 
 #### `app/article/[slug]/page.tsx`
@@ -491,16 +496,6 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `sentry.edge.config.ts` _(dynamic)_, `sentry.server.config.ts` _(dynamic)_
 - **Used by:** —
 
-#### `lib/adminLogger.ts`
-
-- **Imports:** `lib/supabase.ts`, `types/index.ts` _(type)_
-- **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/db-stats/route.ts`, `app/api/admin/publish-article/route.ts`, `app/api/admin/seed-supabase/route.ts`, `app/api/cron/refresh-news/route.ts`
-
-#### `lib/adminSession.ts`
-
-- **Imports:** —
-- **Used by:** `app/api/admin/login/route.ts`, `app/api/admin/logout/route.ts`, `proxy.ts`
-
 #### `lib/bookmarks.ts`
 
 - **Imports:** `types/index.ts`
@@ -513,23 +508,18 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `lib/categoryClassifier.ts`
 
-- **Imports:** `lib/supabase.ts`
+- **Imports:** `server/supabase.ts`
 - **Used by:** `lib/db.ts`
 
 #### `lib/db.ts`
 
-- **Imports:** `lib/categoryClassifier.ts`, `lib/newsConfig.ts`, `lib/supabase.ts`, `types/index.ts`
+- **Imports:** `lib/categoryClassifier.ts`, `lib/newsConfig.ts`, `server/supabase.ts`, `types/index.ts`
 - **Used by:** `app/api/admin/db-stats/route.ts`, `app/api/admin/seed-supabase/route.ts`, `app/api/cron/refresh-news/route.ts`, `app/api/news/check-new/route.ts`, `app/api/news/top-headlines/route.ts`
 
 #### `lib/fetchNews.ts`
 
 - **Imports:** `lib/newsConfig.ts`, `types/index.ts`
 - **Used by:** `app/page.tsx`
-
-#### `lib/googleTranslate.ts`
-
-- **Imports:** —
-- **Used by:** `app/api/translate/route.ts`
 
 #### `lib/newsConfig.ts`
 
@@ -551,11 +541,6 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** —
 - **Used by:** `app/api/news/scrape-article/route.ts`, `instrumentation-client.ts`, `sentry.edge.config.ts`, `sentry.server.config.ts`
 
-#### `lib/supabase.ts`
-
-- **Imports:** —
-- **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/logs/route.ts`, `app/api/admin/publish-article/route.ts`, `app/api/admin/stats/route.ts`, `app/api/news/scrape-article/route.ts` _(dynamic)_, `lib/adminLogger.ts`, `lib/categoryClassifier.ts`, `lib/db.ts`
-
 #### `lib/urlValidation.ts`
 
 - **Imports:** —
@@ -563,7 +548,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `proxy.ts`
 
-- **Imports:** `lib/adminSession.ts`
+- **Imports:** `server/auth/adminSession.ts`
 - **Used by:** —
 
 #### `sentry.edge.config.ts`
@@ -576,7 +561,27 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `lib/sentryScrub.ts`
 - **Used by:** `instrumentation.ts` _(dynamic)_
 
+#### `server/auditLog.ts`
+
+- **Imports:** `server/supabase.ts`, `types/index.ts` _(type)_
+- **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/db-stats/route.ts`, `app/api/admin/publish-article/route.ts`, `app/api/admin/seed-supabase/route.ts`, `app/api/cron/refresh-news/route.ts`
+
+#### `server/auth/adminSession.ts`
+
+- **Imports:** —
+- **Used by:** `app/api/admin/login/route.ts`, `app/api/admin/logout/route.ts`, `proxy.ts`
+
+#### `server/googleTranslate.ts`
+
+- **Imports:** —
+- **Used by:** `app/api/translate/route.ts`
+
+#### `server/supabase.ts`
+
+- **Imports:** —
+- **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/logs/route.ts`, `app/api/admin/publish-article/route.ts`, `app/api/admin/stats/route.ts`, `app/api/news/scrape-article/route.ts` _(dynamic)_, `lib/categoryClassifier.ts`, `lib/db.ts`, `server/auditLog.ts`
+
 #### `types/index.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `components/admin/actionLabels.ts` _(type)_, `components/admin/ActivityLog.tsx` _(type)_, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `config/topicImages.ts`, `features/chat/components/Chatbot.tsx`, `lib/adminLogger.ts` _(type)_, `lib/bookmarks.test.ts` _(test)_, `lib/bookmarks.ts`, `lib/db.ts`, `lib/fetchNews.ts`, `lib/newsConfig.test.ts` _(test)_, `lib/newsConfig.ts`, `lib/newsdata.ts`
+- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `components/admin/actionLabels.ts` _(type)_, `components/admin/ActivityLog.tsx` _(type)_, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `config/topicImages.ts`, `features/chat/components/Chatbot.tsx`, `lib/bookmarks.test.ts` _(test)_, `lib/bookmarks.ts`, `lib/db.ts`, `lib/fetchNews.ts`, `lib/newsConfig.test.ts` _(test)_, `lib/newsConfig.ts`, `lib/newsdata.ts`, `server/auditLog.ts` _(type)_

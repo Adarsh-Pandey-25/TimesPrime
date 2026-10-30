@@ -158,9 +158,9 @@ const hasUseClient = (f) => parsed.get(f).directives.includes("use client");
 // (supabase.ts, googleTranslate.ts) contain no code that would fail in a
 // browser. They are server-only because of what they hold or do.
 const SERVER_ONLY = new Set([
-  "src/lib/db.ts", "src/lib/supabase.ts", "src/lib/adminSession.ts", "src/lib/adminLogger.ts",
+  "src/lib/db.ts", "src/server/supabase.ts", "src/server/auth/adminSession.ts", "src/server/auditLog.ts",
   "src/lib/categoryClassifier.ts", "src/lib/fetchNews.ts", "src/lib/newsdata.ts",
-  "src/lib/googleTranslate.ts", "src/lib/urlValidation.ts",
+  "src/server/googleTranslate.ts", "src/lib/urlValidation.ts",
 ]);
 // The list is keyed by path, so a move that forgets to update it would quietly
 // drop that module from the client-bundle check and still report 0 violations.
@@ -213,9 +213,9 @@ const bundledBuiltinUsers = builtinUsers.filter((f) => clientBundle.has(f));
 // always comes from scripts/move-map.mjs, so the two can never disagree.
 const PURPOSE = {
   "src/lib/db.ts": ["Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats", "news editorial policy is baked in, hence features/news"],
-  "src/lib/supabase.ts": ["Supabase client; prefers service-role key when present", ""],
-  "src/lib/adminSession.ts": ["HMAC session token issue/verify; timing-safe password compare", ""],
-  "src/lib/adminLogger.ts": ["Writes admin_logs rows (logAdminAction)", ""],
+  "src/server/supabase.ts": ["Supabase client; prefers service-role key when present", ""],
+  "src/server/auth/adminSession.ts": ["HMAC session token issue/verify; timing-safe password compare", ""],
+  "src/server/auditLog.ts": ["Writes admin_logs rows (logAdminAction)", ""],
   "src/lib/urlValidation.ts": ["SSRF guard: protocol allowlist + DNS resolution against blocked ranges", ""],
   "src/lib/cache.ts": ["Upstash Redis with in-process Map fallback", ""],
   "src/lib/rateLimit.ts": ["Fixed-window in-memory limiter; client IP extraction", ""],
@@ -228,7 +228,7 @@ const PURPOSE = {
   "src/config/imageDomains.ts": ["next/image hostname allowlist. Imported by next.config.ts at LOAD TIME", "CR-06: must import nothing"],
   "src/config/categoryColors.ts": ["Per-category hex/Tailwind class map", ""],
   "src/config/translations.ts": ["EN/HI static strings; translateHeadline is a no-op stub", "shared, not a feature"],
-  "src/lib/googleTranslate.ts": ["Unofficial translate.googleapis.com client, bounded concurrency", ""],
+  "src/server/googleTranslate.ts": ["Unofficial translate.googleapis.com client, bounded concurrency", ""],
   "src/lib/bookmarks.ts": ["localStorage saved articles + change event", "stores Article objects, so not lib/"],
   "src/components/admin/actionLabels.ts": ["Display labels and icons for admin activity-log entries", "only consumer is ActivityLog (SC-1)"],
   "src/context/ThemeContext.tsx": ["Light/dark provider, localStorage-backed", "app-wide state provider, not a UI primitive"],

@@ -514,7 +514,7 @@ export async function GET(request: NextRequest) {
 
     // Save full article content to Supabase database asynchronously
     try {
-      const { supabase, isSupabaseConfigured } = await import("@/lib/supabase");
+      const { supabase, isSupabaseConfigured } = await import("@/server/supabase");
       if (isSupabaseConfigured() && targetUrl) {
         supabase
           .from("articles")

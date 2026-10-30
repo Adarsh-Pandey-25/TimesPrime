@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDBStats, purgeOldArticles } from "@/lib/db";
-import { logAdminAction } from "@/lib/adminLogger";
+import { logAdminAction } from "@/server/auditLog";
 
 // Auth is handled upstream by src/proxy.ts (matcher covers /api/admin/:path*),
 // so by the time a request reaches this handler it has already been validated.
