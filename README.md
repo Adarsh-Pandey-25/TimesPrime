@@ -33,8 +33,8 @@ breaking-news banners, sync controls and an activity log.
 
 ## Prerequisites
 
-- Node.js **20** (see `.node-version`)
-- npm 10+
+- Node.js **24** (see `.node-version`; `package.json` `engines` is `24.x`, which Vercel also reads)
+- npm 11+ (bundled with Node 24)
 - A Supabase project, a NewsData.io API key, and an Anthropic API key
 
 ## Setup
