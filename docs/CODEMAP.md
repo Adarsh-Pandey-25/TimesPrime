@@ -1,10 +1,10 @@
-# CODEMAP — every module, what it does, where it goes
+# CODEMAP — every module, what it does, what touches it
 
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
-"what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
+"what imports Y" or "what would a change to Z touch", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `4ff0167` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-30 09:08 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `be74120` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 11:39 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -17,7 +17,7 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 
 | | |
 |---|---|
-| Modules (excl. tests) | **79** |
+| Modules (excl. tests) | **104** |
 | Modules with a `"use client"` directive | **24** |
 | Modules in the client bundle (directive + pulled in) | **33** |
 | Server-only modules in the client bundle (violations) | **0** |
@@ -29,8 +29,9 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 ### Boundary violations
 
 A server-only module that ends up in the client bundle, with the shortest import chain that pulls
-it in. **Treat this as an estimate** until the Phase E lint rule exists — see *How the boundary is
-detected* below.
+it in. This is a cross-check computed from the import graph. The enforced checks are rule F1 in lint
+and `npm run check:boundaries`, and `import "server-only"` in every backend module fails the build
+([`architecture.md`](architecture.md) §5). See *How the boundary is detected* below.
 
 ```
 none
@@ -48,11 +49,12 @@ none
   such as `supabase.ts` contain no code that would fail in a browser.
 - **Violation:** a server-only module inside the client bundle.
 - **Limits:** the generator reads syntax, not types. An import written without `type` that only
-  brings in interfaces (`import { Article } from "@/types"`) is erased by the compiler but counted
-  here as a value edge — which is why `types/index.ts` shows as `bundled` though it compiles to
+  brings in interfaces (`import { Article } from "@/shared/types"`) is erased by the compiler but counted
+  here as a value edge — which is why `shared/types/index.ts` shows as `bundled` though it compiles to
   nothing. This can only over-include modules, never miss one, so the estimate errs high. A dynamic
   `import()` with a non-literal specifier cannot be followed and is listed separately; `require()` is
-  not followed (none in `src/`). The Phase E lint rule replaces this estimate with an enforced check.
+  not followed (none in the source tree). Lint (F1) and `check:boundaries` enforce the boundary; this
+  section is the cross-check.
 
 ### Cross-check: Node built-ins
 
@@ -60,8 +62,8 @@ A browser bundle cannot resolve Node built-ins, so a passing `next build` implie
 imports one. Modules importing built-ins, and whether any is in the client bundle:
 
 ```
-src/lib/urlValidation.ts   server-side
-src/server/auth/adminSession.ts   server-side
+backend/auth/adminSession.ts   server-side
+backend/lib/urlValidation.ts   server-side
 ```
 
 Consistent with the build: no bundled module imports a Node built-in.
@@ -75,9 +77,9 @@ none
 ### Dynamic imports
 
 ```
-src/app/api/news/scrape-article/route.ts -> src/server/supabase.ts
-src/instrumentation.ts -> src/sentry.server.config.ts
-src/instrumentation.ts -> src/sentry.edge.config.ts
+backend/api/news/scrape-article.ts -> backend/lib/supabase.ts
+instrumentation.ts -> sentry.server.config.ts
+instrumentation.ts -> sentry.edge.config.ts
 ```
 
 ### Most depended-upon
@@ -86,12 +88,12 @@ Widest blast radius when moved.
 
 | Importers | Module |
 |--:|---|
-| 24 | `src/types/index.ts` |
-| 18 | `src/context/ThemeContext.tsx` |
-| 11 | `src/server/supabase.ts` |
-| 8 | `src/config/translations.ts` |
-| 8 | `src/context/LanguageContext.tsx` |
-| 8 | `src/features/news/index.ts` |
+| 24 | `shared/types/index.ts` |
+| 18 | `frontend/context/ThemeContext.tsx` |
+| 11 | `backend/lib/supabase.ts` |
+| 10 | `frontend/features/news/index.ts` |
+| 8 | `frontend/context/LanguageContext.tsx` |
+| 8 | `shared/config/translations.ts` |
 
 ## Legend
 
@@ -112,446 +114,626 @@ Widest blast radius when moved.
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `app/about/page.tsx` | Page: /about | 97 |  | 0% | 0 | 1 | `frontend/views/about/AboutView.tsx` · slice 10 |
-| `app/admin/login/page.tsx` | Page: /admin/login | 103 | directive | 0% | 0 | 1 | `frontend/views/admin/AdminLoginView.tsx` · slice 10 |
-| `app/admin/page.tsx` | Page: /admin | 506 | directive | 0% | 0 | 4 | `frontend/views/admin/AdminView.tsx` · slice 10 |
-| `app/api/admin/articles/bulk/route.ts` | API: /api/admin/articles/bulk | 79 |  | 0% | 0 | 2 | `backend/api/admin/articles-bulk.ts` · slice 7 |
-| `app/api/admin/articles/route.ts` | API: /api/admin/articles | 247 |  | 0% | 0 | 2 | `backend/api/admin/articles.ts` · slice 7 |
-| `app/api/admin/breaking-news/route.ts` | API: /api/admin/breaking-news | 212 |  | 0% | 0 | 2 | `backend/api/admin/breaking-news.ts` · slice 7 |
-| `app/api/admin/db-stats/route.ts` | API: /api/admin/db-stats | 42 |  | 0% | 0 | 2 | `backend/api/admin/db-stats.ts` · slice 7 |
-| `app/api/admin/health/route.ts` | API: /api/admin/health | 14 |  | 100% | 1 | 1 | `backend/api/admin/health.ts` · slice 7 |
-| `app/api/admin/login/route.ts` | API: /api/admin/login | 32 |  | 0% | 0 | 1 | `backend/api/admin/login.ts` · slice 7 |
-| `app/api/admin/logout/route.ts` | API: /api/admin/logout | 12 |  | 0% | 0 | 1 | `backend/api/admin/logout.ts` · slice 7 |
-| `app/api/admin/logs/route.ts` | API: /api/admin/logs | 123 |  | 0% | 0 | 2 | `backend/api/admin/logs.ts` · slice 7 |
-| `app/api/admin/publish-article/route.ts` | API: /api/admin/publish-article | 106 |  | 0% | 0 | 2 | `backend/api/admin/publish-article.ts` · slice 7 |
-| `app/api/admin/seed-supabase/route.ts` | API: /api/admin/seed-supabase | 70 |  | 0% | 0 | 3 | `backend/api/admin/seed-supabase.ts` · slice 7 |
-| `app/api/admin/stats/route.ts` | API: /api/admin/stats | 163 |  | 0% | 0 | 1 | `backend/api/admin/stats.ts` · slice 7 |
-| `app/api/chat/route.ts` | API: /api/chat | 162 |  | 79.0% | 1 | 1 | `backend/api/chat.ts` · slice 7 |
-| `app/api/cron/refresh-news/route.ts` | API: /api/cron/refresh-news | 120 |  | 0% | 0 | 2 | `backend/api/cron/refresh-news.ts` · slice 7 |
-| `app/api/health/route.ts` | API: /api/health | 15 |  | 100% | 1 | 1 | `backend/api/health.ts` · slice 7 |
-| `app/api/news/check-new/route.ts` | API: /api/news/check-new | 51 |  | 0% | 0 | 1 | `backend/api/news/check-new.ts` · slice 7 |
-| `app/api/news/scrape-article/route.ts` | API: /api/news/scrape-article | 556 |  | 0% | 0 | 4 | `backend/api/news/scrape-article.ts` · slice 7 |
-| `app/api/news/top-headlines/route.ts` | API: /api/news/top-headlines | 265 |  | 0% | 0 | 4 | `backend/api/news/top-headlines.ts` · slice 7 |
-| `app/api/translate/route.ts` | API: /api/translate | 54 |  | 0% | 0 | 2 | `backend/api/translate.ts` · slice 7 |
-| `app/article/[slug]/page.tsx` | Page: /article/[slug] | 101 |  | 0% | 0 | 2 | `app/article/[slug]/page.tsx` · slice 1 |
-| `app/contact/page.tsx` | Page: /contact | 86 | directive | 0% | 0 | 1 | `frontend/views/contact/ContactView.tsx` · slice 10 |
-| `app/layout.tsx` | Root layout: providers, metadata, fonts | 70 |  | 0% | 0 | 4 | `app/layout.tsx` · slice 1 |
-| `app/loading.tsx` | Route-level loading UI | 7 | directive | 0% | 0 | 1 | `app/loading.tsx` · slice 1 |
-| `app/page.tsx` | Page: / | 39 |  | 0% | 0 | 3 | `app/page.tsx` · slice 1 |
-| `app/privacy/page.tsx` | Page: /privacy | 113 |  | 0% | 0 | 1 | `frontend/views/privacy/PrivacyView.tsx` · slice 10 |
-| `app/saved/page.tsx` | Page: /saved | 123 | directive | 0% | 0 | 4 | `frontend/views/saved/SavedView.tsx` · slice 10 |
-| `app/terms/page.tsx` | Page: /terms | 108 |  | 0% | 0 | 1 | `frontend/views/terms/TermsView.tsx` · slice 10 |
+| `app/about/page.tsx` | Re-exports `frontend/views/about/AboutView.tsx` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/admin/login/page.tsx` | Re-exports `frontend/views/admin/AdminLoginView.tsx` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/admin/page.tsx` | Re-exports `frontend/views/admin/AdminView.tsx` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/articles/bulk/route.ts` | Re-exports `backend/api/admin/articles-bulk.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/articles/route.ts` | Re-exports `backend/api/admin/articles.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/breaking-news/route.ts` | Re-exports `backend/api/admin/breaking-news.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/db-stats/route.ts` | Re-exports `backend/api/admin/db-stats.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/health/route.ts` | Re-exports `backend/api/admin/health.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/login/route.ts` | Re-exports `backend/api/admin/login.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/logout/route.ts` | Re-exports `backend/api/admin/logout.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/logs/route.ts` | Re-exports `backend/api/admin/logs.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/publish-article/route.ts` | Re-exports `backend/api/admin/publish-article.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/seed-supabase/route.ts` | Re-exports `backend/api/admin/seed-supabase.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/stats/route.ts` | Re-exports `backend/api/admin/stats.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/chat/route.ts` | Re-exports `backend/api/chat.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/cron/refresh-news/route.ts` | Re-exports `backend/api/cron/refresh-news.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/health/route.ts` | Re-exports `backend/api/health.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/news/check-new/route.ts` | Re-exports `backend/api/news/check-new.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/news/scrape-article/route.ts` | Re-exports `backend/api/news/scrape-article.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/news/top-headlines/route.ts` | Re-exports `backend/api/news/top-headlines.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/translate/route.ts` | Re-exports `backend/api/translate.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/article/[slug]/page.tsx` | Page: /article/[slug] | 102 |  | 0% | 0 | 3 | here · slice 1 done |
+| `app/contact/page.tsx` | Re-exports `frontend/views/contact/ContactView.tsx` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/layout.tsx` | Root layout: providers, metadata, fonts | 70 |  | 0% | 0 | 4 | here · slice 1 done |
+| `app/loading.tsx` | Route-level loading UI | 7 | directive | 0% | 0 | 1 | here · slice 1 done |
+| `app/page.tsx` | Page: / | 39 |  | 0% | 0 | 3 | here · slice 1 done |
+| `app/privacy/page.tsx` | Re-exports `frontend/views/privacy/PrivacyView.tsx` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/saved/page.tsx` | Re-exports `frontend/views/saved/SavedView.tsx` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/terms/page.tsx` | Re-exports `frontend/views/terms/TermsView.tsx` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
 
-### Features — `features/`
-
-| Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
-|---|---|--:|:-:|--:|--:|--:|---|
-| `features/admin/components/ActivityLog.tsx` | Paginated admin_logs viewer | 235 | directive | 0% | 1 | 3 | `frontend/features/admin/ActivityLog.tsx` · slice 9 |
-| `features/admin/components/ArticlesTable.tsx` | Admin article list: filters, edit, delete, bulk | 751 | directive | 0% | 1 | 1 | `frontend/features/admin/ArticlesTable.tsx` · slice 9 — split in F |
-| `features/admin/components/BreakingNewsBanner.tsx` | Public banner polling /api/admin/breaking-news (CR-08) | 79 | directive | 0% | 1 | 1 | `frontend/features/news/BreakingNewsBanner.tsx` · slice 9 |
-| `features/admin/components/BreakingNewsManager.tsx` | Create/expire breaking news items | 289 | directive | 0% | 1 | 1 | `frontend/features/admin/BreakingNewsManager.tsx` · slice 9 |
-| `features/admin/components/CategoryStatsCard.tsx` | Category/language/country breakdown | 362 | directive | 0% | 1 | 1 | `frontend/features/admin/CategoryStatsCard.tsx` · slice 9 |
-| `features/admin/components/SyncDashboard.tsx` | Last/next sync, counts, manual sync | 198 | directive | 0% | 1 | 1 | `frontend/features/admin/SyncDashboard.tsx` · slice 9 |
-| `features/admin/components/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 0% | 1 | 1 | `frontend/features/admin/actionLabels.ts` · slice 9 — only consumer is ActivityLog (SC-1) |
-| `features/admin/index.ts` | Public surface of admin. No server.ts: admin has no server code | 8 | bundled | 0% | 2 | 6 | `frontend/features/admin/index.ts` · slice 9 |
-| `features/chat/components/Chatbot.tsx` | Chat drawer; streams /api/chat. Honest error handling | 192 | directive | 0% | 1 | 1 | `frontend/features/chat/Chatbot.tsx` · slice 9 |
-| `features/chat/components/FloatingAiAssistant.tsx` | Floating button wrapping Chatbot | 37 | directive | 0% | 1 | 1 | `frontend/features/chat/FloatingAiAssistant.tsx` · slice 9 |
-| `features/chat/index.ts` | Public surface of chat. No server.ts: chat has no server code | 3 |  | 0% | 1 | 1 | `frontend/features/chat/index.ts` · slice 9 |
-| `features/news/bookmarks.ts` | localStorage saved articles + change event | 56 | directive | 96.4% | 4 | 1 | `frontend/features/news/bookmarks.ts` · slice 9 — stores Article objects, so not lib/ |
-| `features/news/components/ArticleCard.tsx` | Feed card, featured and grid variants | 393 | directive | 0% | 3 | 8 | `frontend/features/news/ArticleCard.tsx` · slice 9 |
-| `features/news/components/ArticleDetailView.tsx` | Article page body: text, translation, AI panel, share, related | 963 | directive | 0% | 1 | 6 | `frontend/views/article/ArticleDetailView.tsx` · slice 9 — split in F |
-| `features/news/components/CategoryMegaMenu.tsx` | Hover mega-menu of category previews | 225 | directive | 0% | 1 | 5 | `frontend/features/news/CategoryMegaMenu.tsx` · slice 9 |
-| `features/news/components/Footer.tsx` | Footer nav, category links, copyright bar | 214 | directive | 0% | 2 | 3 | `frontend/features/news/Footer.tsx` · slice 9 |
-| `features/news/components/Header.tsx` | Nav, search, theme + language toggles, bookmarks count, clock | 568 | directive | 0% | 2 | 6 | `frontend/features/news/Header.tsx` · slice 9 — news masthead, not UI; split in F |
-| `features/news/components/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 532 | directive | 0% | 1 | 10 | `frontend/views/home/HomeClient.tsx` · slice 9 — split in F |
-| `features/news/components/MarqueeTicker.tsx` | Scrolling India/World headline ticker | 176 | directive | 0% | 2 | 3 | `frontend/features/news/MarqueeTicker.tsx` · slice 9 |
-| `features/news/index.ts` | Client-safe public surface of news: components and bookmark helpers | 10 | bundled | 0% | 8 | 7 | `frontend/features/news/index.ts` · slice 9 |
-| `features/news/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 100% | 6 | 1 | `shared/config/newsConfig.ts` · slice 3 |
-| `features/news/server.ts` | Server-only public surface of news: storage, upstream fetch, editorial policy | 25 |  | 0% | 6 | 4 | `backend/services/news/index.ts` · slice 6 — first line: import "server-only" |
-| `features/news/server/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 133 |  | 0% | 1 | 1 | `backend/services/classify/categoryClassifier.ts` · slice 6 |
-| `features/news/server/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 611 |  | 65.3% | 2 | 5 | `backend/repositories/db.ts` · slice 5 |
-| `features/news/server/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 127 |  | 0% | 1 | 2 | `backend/services/news/fetchNews.ts` · slice 6 |
-| `features/news/server/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 114 |  | 0% | 1 | 2 | `backend/services/news/newsdata.ts` · slice 6 |
-
-### Components — `components/`
+### Frontend views — `frontend/views/` (page bodies)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `components/ui/NewsSkeletonGrid.tsx` | Suspense fallback matching real card dimensions | 90 |  | 0% | 1 | 0 | `frontend/components/ui/NewsSkeletonGrid.tsx` · slice 8 |
-| `components/ui/ThemeSpinner.tsx` | Theme-aware loading spinner | 88 | directive | 0% | 2 | 1 | `frontend/components/ui/ThemeSpinner.tsx` · slice 8 |
+| `frontend/views/about/AboutView.tsx` | Page: /about | 97 |  | 0% | 1 | 1 | here · slice 10 done |
+| `frontend/views/admin/AdminLoginView.tsx` | Page: /admin/login | 103 | directive | 0% | 1 | 1 | here · slice 10 done |
+| `frontend/views/admin/AdminView.tsx` | Page: /admin | 506 | directive | 0% | 1 | 4 | here · slice 10 done |
+| `frontend/views/article/ArticleDetailView.tsx` | Article page body: text, translation, AI panel, share, related | 963 | directive | 0% | 1 | 6 | here · slice 9 done — split in F |
+| `frontend/views/contact/ContactView.tsx` | Page: /contact | 86 | directive | 0% | 1 | 1 | here · slice 10 done |
+| `frontend/views/home/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 529 | directive | 0% | 1 | 7 | here · slice 9 done — split in F |
+| `frontend/views/privacy/PrivacyView.tsx` | Page: /privacy | 113 |  | 0% | 1 | 1 | here · slice 10 done |
+| `frontend/views/saved/SavedView.tsx` | Page: /saved | 123 | directive | 0% | 1 | 4 | here · slice 10 done |
+| `frontend/views/terms/TermsView.tsx` | Page: /terms | 108 |  | 0% | 1 | 1 | here · slice 10 done |
 
-### Server — `server/` (backend-only)
-
-| Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
-|---|---|--:|:-:|--:|--:|--:|---|
-| `server/auditLog.ts` | Writes admin_logs rows (logAdminAction) | 40 |  | 0% | 7 | 2 | `backend/repositories/auditLog.ts` · slice 5 |
-| `server/auth/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 69 |  | 0% | 3 | 0 | `backend/auth/adminSession.ts` · slice 4 |
-| `server/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 88 |  | 0% | 1 | 0 | `backend/services/translate/googleTranslate.ts` · slice 6 |
-| `server/health.ts` | Dependency health for /api/health (status only) and /api/admin/health (detail); D4 | 126 |  | 98.4% | 4 | 3 | `backend/services/health/health.ts` · slice 6 |
-| `server/supabase.ts` | Supabase client; prefers service-role key when present | 22 |  | 0% | 11 | 0 | `backend/lib/supabase.ts` · slice 4 |
-
-### Library — `lib/` (the folder being split)
+### Frontend features — `frontend/features/`
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `lib/cache.ts` | Upstash Redis with in-process Map fallback | 84 |  | 0% | 3 | 0 | `backend/lib/cache.ts` · slice 4 |
-| `lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 26 |  | 96.2% | 2 | 0 | `backend/lib/rateLimit.ts` · slice 4 |
-| `lib/reportFallback.ts` | Rate-limited Sentry report of a fallback (D5); bounded by a fixed set of kinds | 50 |  | 100% | 4 | 0 | `backend/lib/reportFallback.ts` · slice 4 |
-| `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 70 |  | 88.6% | 5 | 0 | `shared/validation/sentryScrub.ts` · slice 3 |
-| `lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 122 |  | 0% | 1 | 0 | `backend/lib/urlValidation.ts` · slice 4 |
+| `frontend/features/admin/ActivityLog.tsx` | Paginated admin_logs viewer | 235 | directive | 0% | 1 | 3 | here · slice 9 done |
+| `frontend/features/admin/ArticlesTable.tsx` | Admin article list: filters, edit, delete, bulk | 751 | directive | 0% | 1 | 1 | here · slice 9 done — split in F |
+| `frontend/features/admin/BreakingNewsManager.tsx` | Create/expire breaking news items | 289 | directive | 0% | 1 | 1 | here · slice 9 done |
+| `frontend/features/admin/CategoryStatsCard.tsx` | Category/language/country breakdown | 362 | directive | 0% | 1 | 1 | here · slice 9 done |
+| `frontend/features/admin/SyncDashboard.tsx` | Last/next sync, counts, manual sync | 198 | directive | 0% | 1 | 1 | here · slice 9 done |
+| `frontend/features/admin/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 0% | 1 | 1 | here · slice 9 done — only consumer is ActivityLog (SC-1) |
+| `frontend/features/admin/index.ts` | Public surface of admin. No server.ts: admin has no server code | 7 | bundled | 0% | 1 | 5 | here · slice 9 done |
+| `frontend/features/chat/Chatbot.tsx` | Chat drawer; streams /api/chat. Honest error handling | 192 | directive | 0% | 1 | 1 | here · slice 9 done |
+| `frontend/features/chat/FloatingAiAssistant.tsx` | Floating button wrapping Chatbot | 37 | directive | 0% | 1 | 1 | here · slice 9 done |
+| `frontend/features/chat/index.ts` | Public surface of chat. No server.ts: chat has no server code | 3 |  | 0% | 1 | 1 | here · slice 9 done |
+| `frontend/features/news/ArticleCard.tsx` | Feed card, featured and grid variants | 393 | directive | 0% | 1 | 8 | here · slice 9 done |
+| `frontend/features/news/BreakingNewsBanner.tsx` | Public banner polling /api/admin/breaking-news (CR-08) | 79 | directive | 0% | 1 | 1 | here · slice 9 done |
+| `frontend/features/news/CategoryMegaMenu.tsx` | Hover mega-menu of category previews | 225 | directive | 0% | 1 | 5 | here · slice 9 done |
+| `frontend/features/news/Footer.tsx` | Footer nav, category links, copyright bar | 214 | directive | 0% | 1 | 3 | here · slice 9 done |
+| `frontend/features/news/Header.tsx` | Nav, search, theme + language toggles, bookmarks count, clock | 568 | directive | 0% | 1 | 6 | here · slice 9 done — news masthead, not UI; split in F |
+| `frontend/features/news/MarqueeTicker.tsx` | Scrolling India/World headline ticker | 176 | directive | 0% | 1 | 3 | here · slice 9 done |
+| `frontend/features/news/bookmarks.ts` | localStorage saved articles + change event | 56 | directive | 96.4% | 4 | 1 | here · slice 9 done — stores Article objects, so not lib/ |
+| `frontend/features/news/index.ts` | Client-safe public surface of news: components and bookmark helpers | 9 | bundled | 0% | 10 | 6 | here · slice 9 done |
 
-### Config — `config/` (static data)
+### Frontend components and context — `frontend/components/`, `frontend/context/`
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `config/categoryColors.ts` | Per-category hex/Tailwind class map | 64 | bundled | 0% | 1 | 0 | `shared/config/categoryColors.ts` · slice 3 |
-| `config/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 | bundled | 0% | 2 | 0 | `shared/config/imageDomains.ts` · slice 3 — CR-06: must import nothing |
-| `config/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 0% | 5 | 2 | `shared/config/topicImages.ts` · slice 3 |
-| `config/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 130 | bundled | 0% | 8 | 0 | `shared/config/translations.ts` · slice 3 — shared, not a feature |
+| `frontend/components/ui/NewsSkeletonGrid.tsx` | Suspense fallback matching real card dimensions | 90 |  | 0% | 1 | 0 | here · slice 8 done |
+| `frontend/components/ui/ThemeSpinner.tsx` | Theme-aware loading spinner | 88 | directive | 0% | 2 | 1 | here · slice 8 done |
+| `frontend/context/LanguageContext.tsx` | EN/HI provider, localStorage-backed | 57 | directive | 0% | 8 | 1 | here · slice 8 done — app-wide state provider, not a UI primitive |
+| `frontend/context/ThemeContext.tsx` | Light/dark provider, localStorage-backed | 63 | directive | 0% | 18 | 0 | here · slice 8 done — app-wide state provider, not a UI primitive |
 
-### Context and types
+### Backend API — `backend/api/` (route bodies)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `context/LanguageContext.tsx` | EN/HI provider, localStorage-backed | 57 | directive | 0% | 8 | 1 | `frontend/context/LanguageContext.tsx` · slice 8 — app-wide state provider, not a UI primitive |
-| `context/ThemeContext.tsx` | Light/dark provider, localStorage-backed | 63 | directive | 0% | 18 | 0 | `frontend/context/ThemeContext.tsx` · slice 8 — app-wide state provider, not a UI primitive |
-| `types/index.ts` | Article, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog | 89 | bundled | excl. | 24 | 0 | `shared/types/index.ts` · slice 3 |
+| `backend/api/admin/articles-bulk.ts` | API: /api/admin/articles/bulk | 81 |  | 0% | 1 | 2 | here · slice 7 done |
+| `backend/api/admin/articles.ts` | API: /api/admin/articles | 249 |  | 0% | 1 | 2 | here · slice 7 done |
+| `backend/api/admin/breaking-news.ts` | API: /api/admin/breaking-news | 214 |  | 0% | 1 | 2 | here · slice 7 done |
+| `backend/api/admin/db-stats.ts` | API: /api/admin/db-stats | 44 |  | 0% | 1 | 2 | here · slice 7 done |
+| `backend/api/admin/health.ts` | API: /api/admin/health | 16 |  | 100% | 2 | 1 | here · slice 7 done |
+| `backend/api/admin/login.ts` | API: /api/admin/login | 34 |  | 0% | 1 | 1 | here · slice 7 done |
+| `backend/api/admin/logout.ts` | API: /api/admin/logout | 14 |  | 0% | 1 | 1 | here · slice 7 done |
+| `backend/api/admin/logs.ts` | API: /api/admin/logs | 125 |  | 0% | 1 | 2 | here · slice 7 done |
+| `backend/api/admin/publish-article.ts` | API: /api/admin/publish-article | 108 |  | 0% | 1 | 2 | here · slice 7 done |
+| `backend/api/admin/seed-supabase.ts` | API: /api/admin/seed-supabase | 72 |  | 0% | 1 | 3 | here · slice 7 done |
+| `backend/api/admin/stats.ts` | API: /api/admin/stats | 165 |  | 0% | 1 | 1 | here · slice 7 done |
+| `backend/api/chat.ts` | API: /api/chat | 164 |  | 79.3% | 2 | 1 | here · slice 7 done |
+| `backend/api/cron/refresh-news.ts` | API: /api/cron/refresh-news | 122 |  | 0% | 1 | 2 | here · slice 7 done |
+| `backend/api/health.ts` | API: /api/health | 17 |  | 100% | 2 | 1 | here · slice 7 done |
+| `backend/api/news/check-new.ts` | API: /api/news/check-new | 53 |  | 0% | 1 | 1 | here · slice 7 done |
+| `backend/api/news/scrape-article.ts` | API: /api/news/scrape-article | 558 |  | 0% | 1 | 4 | here · slice 7 done |
+| `backend/api/news/top-headlines.ts` | API: /api/news/top-headlines | 267 |  | 0% | 1 | 4 | here · slice 7 done |
+| `backend/api/translate.ts` | API: /api/translate | 56 |  | 0% | 1 | 2 | here · slice 7 done |
+
+### Backend services — `backend/services/`
+
+| Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
+|---|---|--:|:-:|--:|--:|--:|---|
+| `backend/services/classify/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 135 |  | 0% | 1 | 1 | here · slice 6 done |
+| `backend/services/health/health.ts` | Dependency health for /api/health (status only) and /api/admin/health (detail); D4 | 126 |  | 98.4% | 4 | 3 | here · slice 6 done |
+| `backend/services/news/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 129 |  | 0% | 1 | 2 | here · slice 6 done |
+| `backend/services/news/index.ts` | Server-only public surface of news: storage, upstream fetch, editorial policy | 25 |  | 0% | 6 | 4 | here · slice 6 done — first line: import "server-only" |
+| `backend/services/news/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 116 |  | 0% | 1 | 2 | here · slice 6 done |
+| `backend/services/translate/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 88 |  | 0% | 1 | 0 | here · slice 6 done |
+
+### Backend repositories — `backend/repositories/`
+
+| Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
+|---|---|--:|:-:|--:|--:|--:|---|
+| `backend/repositories/auditLog.ts` | Writes admin_logs rows (logAdminAction) | 40 |  | 0% | 7 | 2 | here · slice 5 done |
+| `backend/repositories/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 613 |  | 65.4% | 2 | 5 | here · slice 5 done |
+
+### Backend auth and library — `backend/auth/`, `backend/lib/`
+
+| Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
+|---|---|--:|:-:|--:|--:|--:|---|
+| `backend/auth/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 69 |  | 0% | 3 | 0 | here · slice 4 done |
+| `backend/lib/cache.ts` | Upstash Redis with in-process Map fallback | 86 |  | 0% | 3 | 0 | here · slice 4 done |
+| `backend/lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 28 |  | 96.4% | 2 | 0 | here · slice 4 done |
+| `backend/lib/reportFallback.ts` | Rate-limited Sentry report of a fallback (D5); bounded by a fixed set of kinds | 52 |  | 100% | 4 | 0 | here · slice 4 done |
+| `backend/lib/supabase.ts` | Supabase client; prefers service-role key when present | 22 |  | 0% | 11 | 0 | here · slice 4 done |
+| `backend/lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 124 |  | 0% | 1 | 0 | here · slice 4 done |
+
+### Shared — `shared/` (imported by both sides)
+
+| Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
+|---|---|--:|:-:|--:|--:|--:|---|
+| `shared/config/categoryColors.ts` | Per-category hex/Tailwind class map | 64 | bundled | 0% | 1 | 0 | here · slice 3 done |
+| `shared/config/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 | bundled | 0% | 2 | 0 | here · slice 3 done — CR-06: must import nothing |
+| `shared/config/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 100% | 6 | 1 | here · slice 3 done |
+| `shared/config/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 0% | 5 | 2 | here · slice 3 done |
+| `shared/config/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 127 | bundled | 0% | 8 | 0 | here · slice 3 done — shared, not a feature |
+| `shared/types/index.ts` | Article, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog | 89 | bundled | excl. | 24 | 0 | here · slice 3 done |
+| `shared/validation/sentryScrub.ts` | Redacts secret env values from Sentry events | 70 |  | 88.6% | 5 | 0 | here · slice 3 done |
 
 ### Framework-pinned (never move)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `instrumentation-client.ts` | Sentry browser init | 13 |  | excl. | 0 | 1 | `instrumentation-client.ts` · slice 1 |
-| `instrumentation.ts` | Sentry server/edge init hook | 12 |  | excl. | 0 | 2 | `instrumentation.ts` · slice 1 |
-| `proxy.ts` | AUTH GATE. Next 16 Proxy (was middleware). Matches /admin/*, /api/admin/* | 46 |  | 0% | 0 | 1 | `proxy.ts` · slice 1 |
-| `sentry.edge.config.ts` | Sentry edge config | 8 |  | excl. | 1 | 1 | `sentry.edge.config.ts` · slice 1 |
-| `sentry.server.config.ts` | Sentry Node config | 8 |  | excl. | 1 | 1 | `sentry.server.config.ts` · slice 1 |
+| `instrumentation-client.ts` | Sentry browser init | 13 |  | excl. | 0 | 1 | here · slice 1 done |
+| `instrumentation.ts` | Sentry server/edge init hook | 12 |  | excl. | 0 | 2 | here · slice 1 done |
+| `proxy.ts` | AUTH GATE. Next 16 Proxy (was middleware). Matches /admin/*, /api/admin/* | 46 |  | 0% | 0 | 1 | here · slice 1 done |
+| `sentry.edge.config.ts` | Sentry edge config | 8 |  | excl. | 1 | 1 | here · slice 1 done |
+| `sentry.server.config.ts` | Sentry Node config | 8 |  | excl. | 1 | 1 | here · slice 1 done |
 
 ## Dependency index
 
 One entry per module. **Imports** = project-internal modules this file imports. **Used by** = files
-that import it, including tests and files outside `src/`. Edge kinds other than a plain value import
+that import it, including tests and the root tooling files. Edge kinds other than a plain value import
 are labelled. A _(type)_ edge is erased at compile time and never reaches a bundle, but it still
 breaks if its target moves — so it counts here, where the question is what a move would touch.
 
 #### `app/about/page.tsx`
 
-- **Imports:** `features/news/index.ts`
+- **Imports:** `frontend/views/about/AboutView.tsx` _(reexport)_
 - **Used by:** —
 
 #### `app/admin/login/page.tsx`
 
-- **Imports:** `context/ThemeContext.tsx`
+- **Imports:** `frontend/views/admin/AdminLoginView.tsx` _(reexport)_
 - **Used by:** —
 
 #### `app/admin/page.tsx`
 
-- **Imports:** `config/translations.ts`, `context/ThemeContext.tsx`, `features/admin/index.ts`, `features/news/index.ts`
+- **Imports:** `frontend/views/admin/AdminView.tsx` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/articles/bulk/route.ts`
 
-- **Imports:** `server/auditLog.ts`, `server/supabase.ts`
+- **Imports:** `backend/api/admin/articles-bulk.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/articles/route.ts`
 
-- **Imports:** `server/auditLog.ts`, `server/supabase.ts`
+- **Imports:** `backend/api/admin/articles.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/breaking-news/route.ts`
 
-- **Imports:** `server/auditLog.ts`, `server/supabase.ts`
+- **Imports:** `backend/api/admin/breaking-news.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/db-stats/route.ts`
 
-- **Imports:** `features/news/server.ts`, `server/auditLog.ts`
+- **Imports:** `backend/api/admin/db-stats.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/health/route.ts`
 
-- **Imports:** `server/health.ts`
-- **Used by:** `app/api/admin/health/route.test.ts` _(test)_
+- **Imports:** `backend/api/admin/health.ts` _(reexport)_
+- **Used by:** —
 
 #### `app/api/admin/login/route.ts`
 
-- **Imports:** `server/auth/adminSession.ts`
+- **Imports:** `backend/api/admin/login.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/logout/route.ts`
 
-- **Imports:** `server/auth/adminSession.ts`
+- **Imports:** `backend/api/admin/logout.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/logs/route.ts`
 
-- **Imports:** `server/supabase.ts`, `types/index.ts` _(type)_
+- **Imports:** `backend/api/admin/logs.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/publish-article/route.ts`
 
-- **Imports:** `server/auditLog.ts`, `server/supabase.ts`
+- **Imports:** `backend/api/admin/publish-article.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/seed-supabase/route.ts`
 
-- **Imports:** `features/news/server.ts`, `server/auditLog.ts`, `types/index.ts` _(type)_
+- **Imports:** `backend/api/admin/seed-supabase.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/stats/route.ts`
 
-- **Imports:** `server/supabase.ts`
+- **Imports:** `backend/api/admin/stats.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/chat/route.ts`
 
-- **Imports:** `lib/rateLimit.ts`
-- **Used by:** `app/api/chat/route.test.ts` _(test)_
+- **Imports:** `backend/api/chat.ts` _(reexport)_
+- **Used by:** —
 
 #### `app/api/cron/refresh-news/route.ts`
 
-- **Imports:** `features/news/server.ts`, `server/auditLog.ts`
+- **Imports:** `backend/api/cron/refresh-news.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/health/route.ts`
 
-- **Imports:** `server/health.ts`
-- **Used by:** `app/api/health/route.test.ts` _(test)_
+- **Imports:** `backend/api/health.ts` _(reexport)_
+- **Used by:** —
 
 #### `app/api/news/check-new/route.ts`
 
-- **Imports:** `features/news/server.ts`
+- **Imports:** `backend/api/news/check-new.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/news/scrape-article/route.ts`
 
-- **Imports:** `lib/cache.ts`, `lib/sentryScrub.ts`, `lib/urlValidation.ts`, `server/supabase.ts` _(dynamic)_
+- **Imports:** `backend/api/news/scrape-article.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/news/top-headlines/route.ts`
 
-- **Imports:** `features/news/server.ts`, `lib/cache.ts`, `server/health.ts`, `types/index.ts`
+- **Imports:** `backend/api/news/top-headlines.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/translate/route.ts`
 
-- **Imports:** `lib/rateLimit.ts`, `server/googleTranslate.ts`
+- **Imports:** `backend/api/translate.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/article/[slug]/page.tsx`
 
-- **Imports:** `features/news/index.ts`, `types/index.ts`
+- **Imports:** `frontend/features/news/index.ts`, `frontend/views/article/ArticleDetailView.tsx`, `shared/types/index.ts`
 - **Used by:** —
 
 #### `app/contact/page.tsx`
 
-- **Imports:** `features/news/index.ts`
+- **Imports:** `frontend/views/contact/ContactView.tsx` _(reexport)_
 - **Used by:** —
 
 #### `app/layout.tsx`
 
-- **Imports:** `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `features/admin/index.ts`, `features/chat/index.ts`
+- **Imports:** `frontend/context/LanguageContext.tsx`, `frontend/context/ThemeContext.tsx`, `frontend/features/chat/index.ts`, `frontend/features/news/index.ts`
 - **Used by:** —
 
 #### `app/loading.tsx`
 
-- **Imports:** `components/ui/ThemeSpinner.tsx`
+- **Imports:** `frontend/components/ui/ThemeSpinner.tsx`
 - **Used by:** —
 
 #### `app/page.tsx`
 
-- **Imports:** `components/ui/NewsSkeletonGrid.tsx`, `features/news/index.ts`, `features/news/server.ts`
+- **Imports:** `backend/services/news/index.ts`, `frontend/components/ui/NewsSkeletonGrid.tsx`, `frontend/views/home/HomeClient.tsx`
 - **Used by:** —
 
 #### `app/privacy/page.tsx`
 
-- **Imports:** `features/news/index.ts`
+- **Imports:** `frontend/views/privacy/PrivacyView.tsx` _(reexport)_
 - **Used by:** —
 
 #### `app/saved/page.tsx`
 
-- **Imports:** `config/topicImages.ts`, `context/ThemeContext.tsx`, `features/news/index.ts`, `types/index.ts`
+- **Imports:** `frontend/views/saved/SavedView.tsx` _(reexport)_
 - **Used by:** —
 
 #### `app/terms/page.tsx`
 
-- **Imports:** `features/news/index.ts`
+- **Imports:** `frontend/views/terms/TermsView.tsx` _(reexport)_
 - **Used by:** —
 
-#### `components/ui/NewsSkeletonGrid.tsx`
+#### `backend/api/admin/articles-bulk.ts`
+
+- **Imports:** `backend/lib/supabase.ts`, `backend/repositories/auditLog.ts`
+- **Used by:** `app/api/admin/articles/bulk/route.ts` _(reexport)_
+
+#### `backend/api/admin/articles.ts`
+
+- **Imports:** `backend/lib/supabase.ts`, `backend/repositories/auditLog.ts`
+- **Used by:** `app/api/admin/articles/route.ts` _(reexport)_
+
+#### `backend/api/admin/breaking-news.ts`
+
+- **Imports:** `backend/lib/supabase.ts`, `backend/repositories/auditLog.ts`
+- **Used by:** `app/api/admin/breaking-news/route.ts` _(reexport)_
+
+#### `backend/api/admin/db-stats.ts`
+
+- **Imports:** `backend/repositories/auditLog.ts`, `backend/services/news/index.ts`
+- **Used by:** `app/api/admin/db-stats/route.ts` _(reexport)_
+
+#### `backend/api/admin/health.ts`
+
+- **Imports:** `backend/services/health/health.ts`
+- **Used by:** `app/api/admin/health/route.ts` _(reexport)_, `backend/api/admin/health.test.ts` _(test)_
+
+#### `backend/api/admin/login.ts`
+
+- **Imports:** `backend/auth/adminSession.ts`
+- **Used by:** `app/api/admin/login/route.ts` _(reexport)_
+
+#### `backend/api/admin/logout.ts`
+
+- **Imports:** `backend/auth/adminSession.ts`
+- **Used by:** `app/api/admin/logout/route.ts` _(reexport)_
+
+#### `backend/api/admin/logs.ts`
+
+- **Imports:** `backend/lib/supabase.ts`, `shared/types/index.ts` _(type)_
+- **Used by:** `app/api/admin/logs/route.ts` _(reexport)_
+
+#### `backend/api/admin/publish-article.ts`
+
+- **Imports:** `backend/lib/supabase.ts`, `backend/repositories/auditLog.ts`
+- **Used by:** `app/api/admin/publish-article/route.ts` _(reexport)_
+
+#### `backend/api/admin/seed-supabase.ts`
+
+- **Imports:** `backend/repositories/auditLog.ts`, `backend/services/news/index.ts`, `shared/types/index.ts` _(type)_
+- **Used by:** `app/api/admin/seed-supabase/route.ts` _(reexport)_
+
+#### `backend/api/admin/stats.ts`
+
+- **Imports:** `backend/lib/supabase.ts`
+- **Used by:** `app/api/admin/stats/route.ts` _(reexport)_
+
+#### `backend/api/chat.ts`
+
+- **Imports:** `backend/lib/rateLimit.ts`
+- **Used by:** `app/api/chat/route.ts` _(reexport)_, `backend/api/chat.test.ts` _(test)_
+
+#### `backend/api/cron/refresh-news.ts`
+
+- **Imports:** `backend/repositories/auditLog.ts`, `backend/services/news/index.ts`
+- **Used by:** `app/api/cron/refresh-news/route.ts` _(reexport)_
+
+#### `backend/api/health.ts`
+
+- **Imports:** `backend/services/health/health.ts`
+- **Used by:** `app/api/health/route.ts` _(reexport)_, `backend/api/health.test.ts` _(test)_
+
+#### `backend/api/news/check-new.ts`
+
+- **Imports:** `backend/services/news/index.ts`
+- **Used by:** `app/api/news/check-new/route.ts` _(reexport)_
+
+#### `backend/api/news/scrape-article.ts`
+
+- **Imports:** `backend/lib/cache.ts`, `backend/lib/supabase.ts` _(dynamic)_, `backend/lib/urlValidation.ts`, `shared/validation/sentryScrub.ts`
+- **Used by:** `app/api/news/scrape-article/route.ts` _(reexport)_
+
+#### `backend/api/news/top-headlines.ts`
+
+- **Imports:** `backend/lib/cache.ts`, `backend/services/health/health.ts`, `backend/services/news/index.ts`, `shared/types/index.ts`
+- **Used by:** `app/api/news/top-headlines/route.ts` _(reexport)_
+
+#### `backend/api/translate.ts`
+
+- **Imports:** `backend/lib/rateLimit.ts`, `backend/services/translate/googleTranslate.ts`
+- **Used by:** `app/api/translate/route.ts` _(reexport)_
+
+#### `backend/auth/adminSession.ts`
+
+- **Imports:** —
+- **Used by:** `backend/api/admin/login.ts`, `backend/api/admin/logout.ts`, `proxy.ts`
+
+#### `backend/lib/cache.ts`
+
+- **Imports:** —
+- **Used by:** `backend/api/news/scrape-article.ts`, `backend/api/news/top-headlines.ts`, `backend/services/health/health.ts`
+
+#### `backend/lib/rateLimit.ts`
+
+- **Imports:** —
+- **Used by:** `backend/api/chat.ts`, `backend/api/translate.ts`
+
+#### `backend/lib/reportFallback.ts`
+
+- **Imports:** —
+- **Used by:** `backend/lib/reportFallback.test.ts` _(test)_, `backend/repositories/db.test.ts` _(test)_, `backend/repositories/db.ts`, `backend/services/health/health.ts`
+
+#### `backend/lib/supabase.ts`
+
+- **Imports:** —
+- **Used by:** `backend/api/admin/articles-bulk.ts`, `backend/api/admin/articles.ts`, `backend/api/admin/breaking-news.ts`, `backend/api/admin/logs.ts`, `backend/api/admin/publish-article.ts`, `backend/api/admin/stats.ts`, `backend/api/news/scrape-article.ts` _(dynamic)_, `backend/repositories/auditLog.ts`, `backend/repositories/db.ts`, `backend/services/classify/categoryClassifier.ts`, `backend/services/health/health.ts`
+
+#### `backend/lib/urlValidation.ts`
+
+- **Imports:** —
+- **Used by:** `backend/api/news/scrape-article.ts`
+
+#### `backend/repositories/auditLog.ts`
+
+- **Imports:** `backend/lib/supabase.ts`, `shared/types/index.ts` _(type)_
+- **Used by:** `backend/api/admin/articles-bulk.ts`, `backend/api/admin/articles.ts`, `backend/api/admin/breaking-news.ts`, `backend/api/admin/db-stats.ts`, `backend/api/admin/publish-article.ts`, `backend/api/admin/seed-supabase.ts`, `backend/api/cron/refresh-news.ts`
+
+#### `backend/repositories/db.ts`
+
+- **Imports:** `backend/lib/reportFallback.ts`, `backend/lib/supabase.ts`, `backend/services/classify/categoryClassifier.ts`, `shared/config/newsConfig.ts`, `shared/types/index.ts`
+- **Used by:** `backend/repositories/db.test.ts` _(test)_, `backend/services/news/index.ts` _(reexport)_
+
+#### `backend/services/classify/categoryClassifier.ts`
+
+- **Imports:** `backend/lib/supabase.ts`
+- **Used by:** `backend/repositories/db.ts`
+
+#### `backend/services/health/health.ts`
+
+- **Imports:** `backend/lib/cache.ts`, `backend/lib/reportFallback.ts`, `backend/lib/supabase.ts`
+- **Used by:** `backend/api/admin/health.ts`, `backend/api/health.ts`, `backend/api/news/top-headlines.ts`, `backend/services/health/health.test.ts` _(test)_
+
+#### `backend/services/news/fetchNews.ts`
+
+- **Imports:** `shared/config/newsConfig.ts`, `shared/types/index.ts`
+- **Used by:** `backend/services/news/index.ts` _(reexport)_
+
+#### `backend/services/news/index.ts`
+
+- **Imports:** `backend/repositories/db.ts` _(reexport)_, `backend/services/news/fetchNews.ts` _(reexport)_, `backend/services/news/newsdata.ts` _(reexport)_, `shared/config/newsConfig.ts` _(reexport)_
+- **Used by:** `app/page.tsx`, `backend/api/admin/db-stats.ts`, `backend/api/admin/seed-supabase.ts`, `backend/api/cron/refresh-news.ts`, `backend/api/news/check-new.ts`, `backend/api/news/top-headlines.ts`
+
+#### `backend/services/news/newsdata.ts`
+
+- **Imports:** `shared/config/newsConfig.ts`, `shared/types/index.ts`
+- **Used by:** `backend/services/news/index.ts` _(reexport)_
+
+#### `backend/services/translate/googleTranslate.ts`
+
+- **Imports:** —
+- **Used by:** `backend/api/translate.ts`
+
+#### `frontend/components/ui/NewsSkeletonGrid.tsx`
 
 - **Imports:** —
 - **Used by:** `app/page.tsx`
 
-#### `components/ui/ThemeSpinner.tsx`
+#### `frontend/components/ui/ThemeSpinner.tsx`
 
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `app/loading.tsx`, `features/news/components/HomeClient.tsx`
+- **Imports:** `frontend/context/ThemeContext.tsx`
+- **Used by:** `app/loading.tsx`, `frontend/views/home/HomeClient.tsx`
 
-#### `config/categoryColors.ts`
+#### `frontend/context/LanguageContext.tsx`
 
-- **Imports:** —
-- **Used by:** `features/news/components/ArticleCard.tsx`
+- **Imports:** `shared/config/translations.ts`
+- **Used by:** `app/layout.tsx`, `frontend/features/news/ArticleCard.tsx`, `frontend/features/news/CategoryMegaMenu.tsx`, `frontend/features/news/Footer.tsx`, `frontend/features/news/Header.tsx`, `frontend/features/news/MarqueeTicker.tsx`, `frontend/views/article/ArticleDetailView.tsx`, `frontend/views/home/HomeClient.tsx`
 
-#### `config/imageDomains.ts`
-
-- **Imports:** —
-- **Used by:** `next.config.ts`, `config/topicImages.ts`
-
-#### `config/topicImages.ts`
-
-- **Imports:** `config/imageDomains.ts`, `types/index.ts`
-- **Used by:** `app/saved/page.tsx`, `features/news/components/ArticleCard.tsx`, `features/news/components/ArticleDetailView.tsx`, `features/news/components/CategoryMegaMenu.tsx`, `features/news/components/HomeClient.tsx`
-
-#### `config/translations.ts`
+#### `frontend/context/ThemeContext.tsx`
 
 - **Imports:** —
-- **Used by:** `app/admin/page.tsx`, `context/LanguageContext.tsx`, `features/news/components/ArticleCard.tsx`, `features/news/components/ArticleDetailView.tsx`, `features/news/components/CategoryMegaMenu.tsx`, `features/news/components/Footer.tsx`, `features/news/components/Header.tsx`, `features/news/components/HomeClient.tsx`
+- **Used by:** `app/layout.tsx`, `frontend/components/ui/ThemeSpinner.tsx`, `frontend/features/admin/ActivityLog.tsx`, `frontend/features/admin/ArticlesTable.tsx`, `frontend/features/admin/BreakingNewsManager.tsx`, `frontend/features/admin/CategoryStatsCard.tsx`, `frontend/features/admin/SyncDashboard.tsx`, `frontend/features/news/ArticleCard.tsx`, `frontend/features/news/BreakingNewsBanner.tsx`, `frontend/features/news/CategoryMegaMenu.tsx`, `frontend/features/news/Footer.tsx`, `frontend/features/news/Header.tsx`, `frontend/features/news/MarqueeTicker.tsx`, `frontend/views/admin/AdminLoginView.tsx`, `frontend/views/admin/AdminView.tsx`, `frontend/views/article/ArticleDetailView.tsx`, `frontend/views/home/HomeClient.tsx`, `frontend/views/saved/SavedView.tsx`
 
-#### `context/LanguageContext.tsx`
+#### `frontend/features/admin/ActivityLog.tsx`
 
-- **Imports:** `config/translations.ts`
-- **Used by:** `app/layout.tsx`, `features/news/components/ArticleCard.tsx`, `features/news/components/ArticleDetailView.tsx`, `features/news/components/CategoryMegaMenu.tsx`, `features/news/components/Footer.tsx`, `features/news/components/Header.tsx`, `features/news/components/HomeClient.tsx`, `features/news/components/MarqueeTicker.tsx`
+- **Imports:** `frontend/context/ThemeContext.tsx`, `frontend/features/admin/actionLabels.ts`, `shared/types/index.ts` _(type)_
+- **Used by:** `frontend/features/admin/index.ts` _(reexport)_
 
-#### `context/ThemeContext.tsx`
+#### `frontend/features/admin/ArticlesTable.tsx`
 
-- **Imports:** —
-- **Used by:** `app/admin/login/page.tsx`, `app/admin/page.tsx`, `app/layout.tsx`, `app/saved/page.tsx`, `components/ui/ThemeSpinner.tsx`, `features/admin/components/ActivityLog.tsx`, `features/admin/components/ArticlesTable.tsx`, `features/admin/components/BreakingNewsBanner.tsx`, `features/admin/components/BreakingNewsManager.tsx`, `features/admin/components/CategoryStatsCard.tsx`, `features/admin/components/SyncDashboard.tsx`, `features/news/components/ArticleCard.tsx`, `features/news/components/ArticleDetailView.tsx`, `features/news/components/CategoryMegaMenu.tsx`, `features/news/components/Footer.tsx`, `features/news/components/Header.tsx`, `features/news/components/HomeClient.tsx`, `features/news/components/MarqueeTicker.tsx`
+- **Imports:** `frontend/context/ThemeContext.tsx`
+- **Used by:** `frontend/features/admin/index.ts` _(reexport)_
 
-#### `features/admin/components/ActivityLog.tsx`
+#### `frontend/features/admin/BreakingNewsManager.tsx`
 
-- **Imports:** `context/ThemeContext.tsx`, `features/admin/components/actionLabels.ts`, `types/index.ts` _(type)_
-- **Used by:** `features/admin/index.ts` _(reexport)_
+- **Imports:** `frontend/context/ThemeContext.tsx`
+- **Used by:** `frontend/features/admin/index.ts` _(reexport)_
 
-#### `features/admin/components/ArticlesTable.tsx`
+#### `frontend/features/admin/CategoryStatsCard.tsx`
 
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `features/admin/index.ts` _(reexport)_
+- **Imports:** `frontend/context/ThemeContext.tsx`
+- **Used by:** `frontend/features/admin/index.ts` _(reexport)_
 
-#### `features/admin/components/BreakingNewsBanner.tsx`
+#### `frontend/features/admin/SyncDashboard.tsx`
 
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `features/admin/index.ts` _(reexport)_
+- **Imports:** `frontend/context/ThemeContext.tsx`
+- **Used by:** `frontend/features/admin/index.ts` _(reexport)_
 
-#### `features/admin/components/BreakingNewsManager.tsx`
+#### `frontend/features/admin/actionLabels.ts`
 
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `features/admin/index.ts` _(reexport)_
+- **Imports:** `shared/types/index.ts` _(type)_
+- **Used by:** `frontend/features/admin/ActivityLog.tsx`
 
-#### `features/admin/components/CategoryStatsCard.tsx`
+#### `frontend/features/admin/index.ts`
 
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `features/admin/index.ts` _(reexport)_
+- **Imports:** `frontend/features/admin/ActivityLog.tsx` _(reexport)_, `frontend/features/admin/ArticlesTable.tsx` _(reexport)_, `frontend/features/admin/BreakingNewsManager.tsx` _(reexport)_, `frontend/features/admin/CategoryStatsCard.tsx` _(reexport)_, `frontend/features/admin/SyncDashboard.tsx` _(reexport)_
+- **Used by:** `frontend/views/admin/AdminView.tsx`
 
-#### `features/admin/components/SyncDashboard.tsx`
+#### `frontend/features/chat/Chatbot.tsx`
 
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `features/admin/index.ts` _(reexport)_
+- **Imports:** `shared/types/index.ts`
+- **Used by:** `frontend/features/chat/FloatingAiAssistant.tsx`
 
-#### `features/admin/components/actionLabels.ts`
+#### `frontend/features/chat/FloatingAiAssistant.tsx`
 
-- **Imports:** `types/index.ts` _(type)_
-- **Used by:** `features/admin/components/ActivityLog.tsx`
+- **Imports:** `frontend/features/chat/Chatbot.tsx`
+- **Used by:** `frontend/features/chat/index.ts` _(reexport)_
 
-#### `features/admin/index.ts`
+#### `frontend/features/chat/index.ts`
 
-- **Imports:** `features/admin/components/ActivityLog.tsx` _(reexport)_, `features/admin/components/ArticlesTable.tsx` _(reexport)_, `features/admin/components/BreakingNewsBanner.tsx` _(reexport)_, `features/admin/components/BreakingNewsManager.tsx` _(reexport)_, `features/admin/components/CategoryStatsCard.tsx` _(reexport)_, `features/admin/components/SyncDashboard.tsx` _(reexport)_
-- **Used by:** `app/admin/page.tsx`, `app/layout.tsx`
-
-#### `features/chat/components/Chatbot.tsx`
-
-- **Imports:** `types/index.ts`
-- **Used by:** `features/chat/components/FloatingAiAssistant.tsx`
-
-#### `features/chat/components/FloatingAiAssistant.tsx`
-
-- **Imports:** `features/chat/components/Chatbot.tsx`
-- **Used by:** `features/chat/index.ts` _(reexport)_
-
-#### `features/chat/index.ts`
-
-- **Imports:** `features/chat/components/FloatingAiAssistant.tsx` _(reexport)_
+- **Imports:** `frontend/features/chat/FloatingAiAssistant.tsx` _(reexport)_
 - **Used by:** `app/layout.tsx`
 
-#### `features/news/bookmarks.ts`
+#### `frontend/features/news/ArticleCard.tsx`
 
-- **Imports:** `types/index.ts`
-- **Used by:** `features/news/bookmarks.test.ts` _(test)_, `features/news/components/ArticleCard.tsx`, `features/news/components/Header.tsx`, `features/news/index.ts` _(reexport)_
+- **Imports:** `frontend/context/LanguageContext.tsx`, `frontend/context/ThemeContext.tsx`, `frontend/features/news/bookmarks.ts`, `shared/config/categoryColors.ts`, `shared/config/newsConfig.ts`, `shared/config/topicImages.ts`, `shared/config/translations.ts`, `shared/types/index.ts`
+- **Used by:** `frontend/features/news/index.ts` _(reexport)_
 
-#### `features/news/components/ArticleCard.tsx`
+#### `frontend/features/news/BreakingNewsBanner.tsx`
 
-- **Imports:** `config/categoryColors.ts`, `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `features/news/bookmarks.ts`, `features/news/newsConfig.ts`, `types/index.ts`
-- **Used by:** `features/news/components/ArticleDetailView.tsx`, `features/news/components/HomeClient.tsx`, `features/news/index.ts` _(reexport)_
+- **Imports:** `frontend/context/ThemeContext.tsx`
+- **Used by:** `frontend/features/news/index.ts` _(reexport)_
 
-#### `features/news/components/ArticleDetailView.tsx`
+#### `frontend/features/news/CategoryMegaMenu.tsx`
 
-- **Imports:** `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `features/news/components/ArticleCard.tsx`, `types/index.ts`
-- **Used by:** `features/news/index.ts` _(reexport)_
+- **Imports:** `frontend/context/LanguageContext.tsx`, `frontend/context/ThemeContext.tsx`, `shared/config/topicImages.ts`, `shared/config/translations.ts`, `shared/types/index.ts`
+- **Used by:** `frontend/features/news/Header.tsx`
 
-#### `features/news/components/CategoryMegaMenu.tsx`
+#### `frontend/features/news/Footer.tsx`
 
-- **Imports:** `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
-- **Used by:** `features/news/components/Header.tsx`
+- **Imports:** `frontend/context/LanguageContext.tsx`, `frontend/context/ThemeContext.tsx`, `shared/config/translations.ts`
+- **Used by:** `frontend/features/news/index.ts` _(reexport)_
 
-#### `features/news/components/Footer.tsx`
+#### `frontend/features/news/Header.tsx`
 
-- **Imports:** `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`
-- **Used by:** `features/news/components/HomeClient.tsx`, `features/news/index.ts` _(reexport)_
+- **Imports:** `frontend/context/LanguageContext.tsx`, `frontend/context/ThemeContext.tsx`, `frontend/features/news/bookmarks.ts`, `frontend/features/news/CategoryMegaMenu.tsx`, `shared/config/translations.ts`, `shared/types/index.ts`
+- **Used by:** `frontend/features/news/index.ts` _(reexport)_
 
-#### `features/news/components/Header.tsx`
+#### `frontend/features/news/MarqueeTicker.tsx`
 
-- **Imports:** `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `features/news/bookmarks.ts`, `features/news/components/CategoryMegaMenu.tsx`, `types/index.ts`
-- **Used by:** `features/news/components/HomeClient.tsx`, `features/news/index.ts` _(reexport)_
+- **Imports:** `frontend/context/LanguageContext.tsx`, `frontend/context/ThemeContext.tsx`, `shared/types/index.ts`
+- **Used by:** `frontend/features/news/index.ts` _(reexport)_
 
-#### `features/news/components/HomeClient.tsx`
+#### `frontend/features/news/bookmarks.ts`
 
-- **Imports:** `components/ui/ThemeSpinner.tsx`, `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `features/news/components/ArticleCard.tsx`, `features/news/components/Footer.tsx`, `features/news/components/Header.tsx`, `features/news/components/MarqueeTicker.tsx`, `types/index.ts`
-- **Used by:** `features/news/index.ts` _(reexport)_
+- **Imports:** `shared/types/index.ts`
+- **Used by:** `frontend/features/news/ArticleCard.tsx`, `frontend/features/news/bookmarks.test.ts` _(test)_, `frontend/features/news/Header.tsx`, `frontend/features/news/index.ts` _(reexport)_
 
-#### `features/news/components/MarqueeTicker.tsx`
+#### `frontend/features/news/index.ts`
 
-- **Imports:** `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
-- **Used by:** `features/news/components/HomeClient.tsx`, `features/news/index.ts` _(reexport)_
+- **Imports:** `frontend/features/news/ArticleCard.tsx` _(reexport)_, `frontend/features/news/bookmarks.ts` _(reexport)_, `frontend/features/news/BreakingNewsBanner.tsx` _(reexport)_, `frontend/features/news/Footer.tsx` _(reexport)_, `frontend/features/news/Header.tsx` _(reexport)_, `frontend/features/news/MarqueeTicker.tsx` _(reexport)_
+- **Used by:** `app/article/[slug]/page.tsx`, `app/layout.tsx`, `frontend/views/about/AboutView.tsx`, `frontend/views/admin/AdminView.tsx`, `frontend/views/article/ArticleDetailView.tsx`, `frontend/views/contact/ContactView.tsx`, `frontend/views/home/HomeClient.tsx`, `frontend/views/privacy/PrivacyView.tsx`, `frontend/views/saved/SavedView.tsx`, `frontend/views/terms/TermsView.tsx`
 
-#### `features/news/index.ts`
+#### `frontend/views/about/AboutView.tsx`
 
-- **Imports:** `features/news/bookmarks.ts` _(reexport)_, `features/news/components/ArticleCard.tsx` _(reexport)_, `features/news/components/ArticleDetailView.tsx` _(reexport)_, `features/news/components/Footer.tsx` _(reexport)_, `features/news/components/Header.tsx` _(reexport)_, `features/news/components/HomeClient.tsx` _(reexport)_, `features/news/components/MarqueeTicker.tsx` _(reexport)_
-- **Used by:** `app/about/page.tsx`, `app/admin/page.tsx`, `app/article/[slug]/page.tsx`, `app/contact/page.tsx`, `app/page.tsx`, `app/privacy/page.tsx`, `app/saved/page.tsx`, `app/terms/page.tsx`
+- **Imports:** `frontend/features/news/index.ts`
+- **Used by:** `app/about/page.tsx` _(reexport)_
 
-#### `features/news/newsConfig.ts`
+#### `frontend/views/admin/AdminLoginView.tsx`
 
-- **Imports:** `types/index.ts`
-- **Used by:** `features/news/components/ArticleCard.tsx`, `features/news/newsConfig.test.ts` _(test)_, `features/news/server.ts` _(reexport)_, `features/news/server/db.ts`, `features/news/server/fetchNews.ts`, `features/news/server/newsdata.ts`
+- **Imports:** `frontend/context/ThemeContext.tsx`
+- **Used by:** `app/admin/login/page.tsx` _(reexport)_
 
-#### `features/news/server.ts`
+#### `frontend/views/admin/AdminView.tsx`
 
-- **Imports:** `features/news/newsConfig.ts` _(reexport)_, `features/news/server/db.ts` _(reexport)_, `features/news/server/fetchNews.ts` _(reexport)_, `features/news/server/newsdata.ts` _(reexport)_
-- **Used by:** `app/api/admin/db-stats/route.ts`, `app/api/admin/seed-supabase/route.ts`, `app/api/cron/refresh-news/route.ts`, `app/api/news/check-new/route.ts`, `app/api/news/top-headlines/route.ts`, `app/page.tsx`
+- **Imports:** `frontend/context/ThemeContext.tsx`, `frontend/features/admin/index.ts`, `frontend/features/news/index.ts`, `shared/config/translations.ts`
+- **Used by:** `app/admin/page.tsx` _(reexport)_
 
-#### `features/news/server/categoryClassifier.ts`
+#### `frontend/views/article/ArticleDetailView.tsx`
 
-- **Imports:** `server/supabase.ts`
-- **Used by:** `features/news/server/db.ts`
+- **Imports:** `frontend/context/LanguageContext.tsx`, `frontend/context/ThemeContext.tsx`, `frontend/features/news/index.ts`, `shared/config/topicImages.ts`, `shared/config/translations.ts`, `shared/types/index.ts`
+- **Used by:** `app/article/[slug]/page.tsx`
 
-#### `features/news/server/db.ts`
+#### `frontend/views/contact/ContactView.tsx`
 
-- **Imports:** `features/news/newsConfig.ts`, `features/news/server/categoryClassifier.ts`, `lib/reportFallback.ts`, `server/supabase.ts`, `types/index.ts`
-- **Used by:** `features/news/server.ts` _(reexport)_, `features/news/server/db.test.ts` _(test)_
+- **Imports:** `frontend/features/news/index.ts`
+- **Used by:** `app/contact/page.tsx` _(reexport)_
 
-#### `features/news/server/fetchNews.ts`
+#### `frontend/views/home/HomeClient.tsx`
 
-- **Imports:** `features/news/newsConfig.ts`, `types/index.ts`
-- **Used by:** `features/news/server.ts` _(reexport)_
+- **Imports:** `frontend/components/ui/ThemeSpinner.tsx`, `frontend/context/LanguageContext.tsx`, `frontend/context/ThemeContext.tsx`, `frontend/features/news/index.ts`, `shared/config/topicImages.ts`, `shared/config/translations.ts`, `shared/types/index.ts`
+- **Used by:** `app/page.tsx`
 
-#### `features/news/server/newsdata.ts`
+#### `frontend/views/privacy/PrivacyView.tsx`
 
-- **Imports:** `features/news/newsConfig.ts`, `types/index.ts`
-- **Used by:** `features/news/server.ts` _(reexport)_
+- **Imports:** `frontend/features/news/index.ts`
+- **Used by:** `app/privacy/page.tsx` _(reexport)_
+
+#### `frontend/views/saved/SavedView.tsx`
+
+- **Imports:** `frontend/context/ThemeContext.tsx`, `frontend/features/news/index.ts`, `shared/config/topicImages.ts`, `shared/types/index.ts`
+- **Used by:** `app/saved/page.tsx` _(reexport)_
+
+#### `frontend/views/terms/TermsView.tsx`
+
+- **Imports:** `frontend/features/news/index.ts`
+- **Used by:** `app/terms/page.tsx` _(reexport)_
 
 #### `instrumentation-client.ts`
 
-- **Imports:** `lib/sentryScrub.ts`
+- **Imports:** `shared/validation/sentryScrub.ts`
 - **Used by:** —
 
 #### `instrumentation.ts`
@@ -559,72 +741,52 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `sentry.edge.config.ts` _(dynamic)_, `sentry.server.config.ts` _(dynamic)_
 - **Used by:** —
 
-#### `lib/cache.ts`
-
-- **Imports:** —
-- **Used by:** `app/api/news/scrape-article/route.ts`, `app/api/news/top-headlines/route.ts`, `server/health.ts`
-
-#### `lib/rateLimit.ts`
-
-- **Imports:** —
-- **Used by:** `app/api/chat/route.ts`, `app/api/translate/route.ts`
-
-#### `lib/reportFallback.ts`
-
-- **Imports:** —
-- **Used by:** `features/news/server/db.test.ts` _(test)_, `features/news/server/db.ts`, `lib/reportFallback.test.ts` _(test)_, `server/health.ts`
-
-#### `lib/sentryScrub.ts`
-
-- **Imports:** —
-- **Used by:** `app/api/news/scrape-article/route.ts`, `instrumentation-client.ts`, `lib/sentryScrub.test.ts` _(test)_, `sentry.edge.config.ts`, `sentry.server.config.ts`
-
-#### `lib/urlValidation.ts`
-
-- **Imports:** —
-- **Used by:** `app/api/news/scrape-article/route.ts`
-
 #### `proxy.ts`
 
-- **Imports:** `server/auth/adminSession.ts`
+- **Imports:** `backend/auth/adminSession.ts`
 - **Used by:** —
 
 #### `sentry.edge.config.ts`
 
-- **Imports:** `lib/sentryScrub.ts`
+- **Imports:** `shared/validation/sentryScrub.ts`
 - **Used by:** `instrumentation.ts` _(dynamic)_
 
 #### `sentry.server.config.ts`
 
-- **Imports:** `lib/sentryScrub.ts`
+- **Imports:** `shared/validation/sentryScrub.ts`
 - **Used by:** `instrumentation.ts` _(dynamic)_
 
-#### `server/auditLog.ts`
-
-- **Imports:** `server/supabase.ts`, `types/index.ts` _(type)_
-- **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/db-stats/route.ts`, `app/api/admin/publish-article/route.ts`, `app/api/admin/seed-supabase/route.ts`, `app/api/cron/refresh-news/route.ts`
-
-#### `server/auth/adminSession.ts`
+#### `shared/config/categoryColors.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/admin/login/route.ts`, `app/api/admin/logout/route.ts`, `proxy.ts`
+- **Used by:** `frontend/features/news/ArticleCard.tsx`
 
-#### `server/googleTranslate.ts`
-
-- **Imports:** —
-- **Used by:** `app/api/translate/route.ts`
-
-#### `server/health.ts`
-
-- **Imports:** `lib/cache.ts`, `lib/reportFallback.ts`, `server/supabase.ts`
-- **Used by:** `app/api/admin/health/route.ts`, `app/api/health/route.ts`, `app/api/news/top-headlines/route.ts`, `server/health.test.ts` _(test)_
-
-#### `server/supabase.ts`
+#### `shared/config/imageDomains.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/logs/route.ts`, `app/api/admin/publish-article/route.ts`, `app/api/admin/stats/route.ts`, `app/api/news/scrape-article/route.ts` _(dynamic)_, `features/news/server/categoryClassifier.ts`, `features/news/server/db.ts`, `server/auditLog.ts`, `server/health.ts`
+- **Used by:** `next.config.ts`, `shared/config/topicImages.ts`
 
-#### `types/index.ts`
+#### `shared/config/newsConfig.ts`
+
+- **Imports:** `shared/types/index.ts`
+- **Used by:** `backend/repositories/db.ts`, `backend/services/news/fetchNews.ts`, `backend/services/news/index.ts` _(reexport)_, `backend/services/news/newsdata.ts`, `frontend/features/news/ArticleCard.tsx`, `shared/config/newsConfig.test.ts` _(test)_
+
+#### `shared/config/topicImages.ts`
+
+- **Imports:** `shared/config/imageDomains.ts`, `shared/types/index.ts`
+- **Used by:** `frontend/features/news/ArticleCard.tsx`, `frontend/features/news/CategoryMegaMenu.tsx`, `frontend/views/article/ArticleDetailView.tsx`, `frontend/views/home/HomeClient.tsx`, `frontend/views/saved/SavedView.tsx`
+
+#### `shared/config/translations.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `config/topicImages.ts`, `features/admin/components/actionLabels.ts` _(type)_, `features/admin/components/ActivityLog.tsx` _(type)_, `features/chat/components/Chatbot.tsx`, `features/news/bookmarks.test.ts` _(test)_, `features/news/bookmarks.ts`, `features/news/components/ArticleCard.tsx`, `features/news/components/ArticleDetailView.tsx`, `features/news/components/CategoryMegaMenu.tsx`, `features/news/components/Header.tsx`, `features/news/components/HomeClient.tsx`, `features/news/components/MarqueeTicker.tsx`, `features/news/newsConfig.test.ts` _(test)_, `features/news/newsConfig.ts`, `features/news/server/db.test.ts` _(type)_ _(test)_, `features/news/server/db.ts`, `features/news/server/fetchNews.ts`, `features/news/server/newsdata.ts`, `server/auditLog.ts` _(type)_
+- **Used by:** `frontend/context/LanguageContext.tsx`, `frontend/features/news/ArticleCard.tsx`, `frontend/features/news/CategoryMegaMenu.tsx`, `frontend/features/news/Footer.tsx`, `frontend/features/news/Header.tsx`, `frontend/views/admin/AdminView.tsx`, `frontend/views/article/ArticleDetailView.tsx`, `frontend/views/home/HomeClient.tsx`
+
+#### `shared/types/index.ts`
+
+- **Imports:** —
+- **Used by:** `app/article/[slug]/page.tsx`, `backend/api/admin/logs.ts` _(type)_, `backend/api/admin/seed-supabase.ts` _(type)_, `backend/api/news/top-headlines.ts`, `backend/repositories/auditLog.ts` _(type)_, `backend/repositories/db.test.ts` _(type)_ _(test)_, `backend/repositories/db.ts`, `backend/services/news/fetchNews.ts`, `backend/services/news/newsdata.ts`, `frontend/features/admin/actionLabels.ts` _(type)_, `frontend/features/admin/ActivityLog.tsx` _(type)_, `frontend/features/chat/Chatbot.tsx`, `frontend/features/news/ArticleCard.tsx`, `frontend/features/news/bookmarks.test.ts` _(test)_, `frontend/features/news/bookmarks.ts`, `frontend/features/news/CategoryMegaMenu.tsx`, `frontend/features/news/Header.tsx`, `frontend/features/news/MarqueeTicker.tsx`, `frontend/views/article/ArticleDetailView.tsx`, `frontend/views/home/HomeClient.tsx`, `frontend/views/saved/SavedView.tsx`, `shared/config/newsConfig.test.ts` _(test)_, `shared/config/newsConfig.ts`, `shared/config/topicImages.ts`
+
+#### `shared/validation/sentryScrub.ts`
+
+- **Imports:** —
+- **Used by:** `backend/api/news/scrape-article.ts`, `instrumentation-client.ts`, `sentry.edge.config.ts`, `sentry.server.config.ts`, `shared/validation/sentryScrub.test.ts` _(test)_
