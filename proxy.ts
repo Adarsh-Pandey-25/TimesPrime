@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ADMIN_SESSION_COOKIE, verifySessionToken } from "@/server/auth/adminSession";
+import { ADMIN_SESSION_COOKIE, verifySessionToken } from "@/backend/auth/adminSession";
 
 // Next.js 16 renamed Middleware to Proxy — this file replaces what would
 // previously have been middleware.ts. Same runtime, new file name.

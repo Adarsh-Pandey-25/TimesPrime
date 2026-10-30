@@ -3,8 +3,8 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import * as Sentry from "@sentry/nextjs";
-import { validateExternalUrl } from "@/lib/urlValidation";
-import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/lib/cache";
+import { validateExternalUrl } from "@/backend/lib/urlValidation";
+import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/backend/lib/cache";
 import { urlToHostname } from "@/shared/validation/sentryScrub";
 
 interface ScrapeCacheEntry {
@@ -514,7 +514,7 @@ export async function GET(request: NextRequest) {
 
     // Save full article content to Supabase database asynchronously
     try {
-      const { supabase, isSupabaseConfigured } = await import("@/server/supabase");
+      const { supabase, isSupabaseConfigured } = await import("@/backend/lib/supabase");
       if (isSupabaseConfigured() && targetUrl) {
         supabase
           .from("articles")

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { supabase, isSupabaseConfigured } from "@/server/supabase";
+import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 
 // Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),
 // so by the time a request reaches this handler it has already been validated.

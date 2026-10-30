@@ -1,8 +1,8 @@
 import "server-only";
 
-import { supabase, isSupabaseConfigured } from "@/server/supabase";
-import { cache } from "@/lib/cache";
-import { reportFallback } from "@/lib/reportFallback";
+import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
+import { cache } from "@/backend/lib/cache";
+import { reportFallback } from "@/backend/lib/reportFallback";
 
 /**
  * Dependency health behind /api/health (public: overall status only) and

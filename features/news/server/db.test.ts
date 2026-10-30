@@ -8,14 +8,14 @@
 
 jest.mock("@sentry/nextjs", () => ({ captureMessage: jest.fn(), captureException: jest.fn() }));
 jest.mock("./categoryClassifier", () => ({ classifyCategoryRelevance: jest.fn(() => Promise.resolve()) }));
-jest.mock("@/server/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
+jest.mock("@/backend/lib/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
 
 import { getDBArticles, getLatestArticleTimestamp, saveArticlesToDB } from "./db";
-import { FALLBACK_REPORT_WINDOW_MS } from "@/lib/reportFallback";
+import { FALLBACK_REPORT_WINDOW_MS } from "@/backend/lib/reportFallback";
 import type { Article } from "@/shared/types";
 
 const sentry = jest.requireMock("@sentry/nextjs") as { captureMessage: jest.Mock; captureException: jest.Mock };
-const { supabase } = jest.requireMock("@/server/supabase") as { supabase: { from: jest.Mock } };
+const { supabase } = jest.requireMock("@/backend/lib/supabase") as { supabase: { from: jest.Mock } };
 
 // A query builder that accepts any chain of calls and resolves to `result`,
 // the way supabase-js reports a network failure: no throw, an error object.

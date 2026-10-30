@@ -6,7 +6,7 @@
  *
  * Kept deliberately small: article images come from hundreds of arbitrary
  * publisher domains via NewsData.io, which isn't a viable allowlist target
- * (same reasoning as the scraper's SSRF guard — see lib/urlValidation.ts).
+ * (same reasoning as the scraper's SSRF guard — see backend/lib/urlValidation.ts).
  * Anything not on this list falls back to the curated Unsplash topic image
  * instead of being rejected outright.
  */

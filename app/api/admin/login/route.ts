@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ADMIN_SESSION_COOKIE, createSessionToken, sessionCookieOptions, verifyAdminPassword } from "@/server/auth/adminSession";
+import { ADMIN_SESSION_COOKIE, createSessionToken, sessionCookieOptions, verifyAdminPassword } from "@/backend/auth/adminSession";
 
 export async function POST(request: NextRequest) {
   if (!process.env.ADMIN_PASSWORD || !process.env.ADMIN_SESSION_SECRET) {

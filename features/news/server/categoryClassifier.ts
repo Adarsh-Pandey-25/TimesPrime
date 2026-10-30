@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/nextjs";
-import { supabase } from "@/server/supabase";
+import { supabase } from "@/backend/lib/supabase";
 
 const MODEL = "claude-haiku-4-5"; // cheapest tier, same as chat route — good fit for a short classification task
 const BATCH_SIZE = 20;

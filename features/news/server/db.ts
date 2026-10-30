@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { Article } from "@/shared/types";
-import { supabase, isSupabaseConfigured } from "@/server/supabase";
+import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 import {
   containsHindiScript,
   containsNonLatinIndicScript,
@@ -9,7 +9,7 @@ import {
   isFromNonNewsListingSource,
 } from "@/shared/config/newsConfig";
 import { classifyCategoryRelevance } from "./categoryClassifier";
-import { throttleReport } from "@/lib/reportFallback";
+import { throttleReport } from "@/backend/lib/reportFallback";
 
 /**
  * Sends a failed Supabase operation to Sentry at most once per operation per

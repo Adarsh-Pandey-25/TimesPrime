@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ADMIN_SESSION_COOKIE } from "@/server/auth/adminSession";
+import { ADMIN_SESSION_COOKIE } from "@/backend/auth/adminSession";
 
 // Deliberately not gated by proxy.ts's session check (see the
 // PUBLIC_ADMIN_PATHS bypass there) — logout has to succeed even when the

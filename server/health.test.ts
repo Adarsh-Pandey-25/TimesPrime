@@ -2,25 +2,25 @@
  * @jest-environment node
  */
 
-jest.mock("@/server/supabase", () => {
+jest.mock("@/backend/lib/supabase", () => {
   const query = { select: jest.fn(), limit: jest.fn(), abortSignal: jest.fn() };
   query.select.mockReturnValue(query);
   query.limit.mockReturnValue(query);
   return { supabase: { from: jest.fn(() => query) }, isSupabaseConfigured: jest.fn(), __query: query };
 });
-jest.mock("@/lib/cache", () => ({ cache: { ping: jest.fn() } }));
-jest.mock("@/lib/reportFallback", () => ({ reportFallback: jest.fn(() => true) }));
+jest.mock("@/backend/lib/cache", () => ({ cache: { ping: jest.fn() } }));
+jest.mock("@/backend/lib/reportFallback", () => ({ reportFallback: jest.fn(() => true) }));
 
 import { getHealth, HEALTH_CACHE_MS, reportSupabaseFallback } from "./health";
 
-const { reportFallback } = jest.requireMock("@/lib/reportFallback") as { reportFallback: jest.Mock };
+const { reportFallback } = jest.requireMock("@/backend/lib/reportFallback") as { reportFallback: jest.Mock };
 
-const supabaseMock = jest.requireMock("@/server/supabase") as {
+const supabaseMock = jest.requireMock("@/backend/lib/supabase") as {
   supabase: { from: jest.Mock };
   isSupabaseConfigured: jest.Mock;
   __query: { abortSignal: jest.Mock };
 };
-const cacheMock = jest.requireMock("@/lib/cache") as { cache: { ping: jest.Mock } };
+const cacheMock = jest.requireMock("@/backend/lib/cache") as { cache: { ping: jest.Mock } };
 
 const saved = { NEWSDATA_API_KEY: process.env.NEWSDATA_API_KEY, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY };
 let clock = Date.parse("2026-10-30T00:00:00Z");

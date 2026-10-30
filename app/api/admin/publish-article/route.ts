@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase, isSupabaseConfigured } from "@/server/supabase";
+import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 import { logAdminAction } from "@/server/auditLog";
 
 // Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { cache, CACHE_TTL_NEWS_SECONDS } from "@/lib/cache";
+import { cache, CACHE_TTL_NEWS_SECONDS } from "@/backend/lib/cache";
 import { reportSupabaseFallback } from "@/server/health";
 import { Article, NewsDataRawArticle } from "@/shared/types";
 import {

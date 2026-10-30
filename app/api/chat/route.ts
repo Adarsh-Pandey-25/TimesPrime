@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/nextjs";
-import { isRateLimited, getClientIp } from "@/lib/rateLimit";
+import { isRateLimited, getClientIp } from "@/backend/lib/rateLimit";
 
 const MODEL = "claude-haiku-4-5"; // fast + cheap, good fit for chat
 
