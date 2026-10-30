@@ -102,7 +102,7 @@ Widest blast radius when moved.
 - **Importers / Imports** — counts of project-internal edges. The full path lists, with edge kinds,
   are in the *Dependency index* section below the tables.
 - **Target** — destination under the approved *layer separation* structure. `PINNED` = a framework
-  convention that must not move. Slice order is in [`MOVE-MAP.md`](MOVE-MAP.md).
+  convention that must not move.
 - **CR-nn** — a compatibility requirement from [`PRD.md`](PRD.md) §8.
 
 ## Modules

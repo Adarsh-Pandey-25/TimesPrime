@@ -1,8 +1,7 @@
 # Architecture
 
 **Structure decision:** layer separation with a CI-enforced import boundary. Approved 2026-10-29.
-Per-file destinations are in [`CODEMAP.md`](CODEMAP.md); slice order is in
-[`MOVE-MAP.md`](MOVE-MAP.md).
+Per-file destinations are in [`CODEMAP.md`](CODEMAP.md).
 
 ---
 

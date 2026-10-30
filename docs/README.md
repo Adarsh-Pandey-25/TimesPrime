@@ -12,9 +12,8 @@ expensive mistake available.
 | 2 | [`CODEMAP.md`](CODEMAP.md) | "Where does X live?" · "What imports Y?" · "What moves where?" | Reference |
 | 3 | [`PRD.md`](PRD.md) | What the product does, requirement by requirement, with code citations | 20 min |
 | 4 | [`architecture.md`](architecture.md) | How the system fits together; the import rules | 10 min |
-| 5 | [`MOVE-MAP.md`](MOVE-MAP.md) | Executing the restructure: slice order, risks, judgement calls | Reference |
-| 6 | [`BACKLOG.md`](BACKLOG.md) | Before "fixing" something that looks wrong — it may be deferred deliberately | 3 min |
-| 7 | [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md) | Working on a security or quality fix: status of every audit finding (F-001..F-028), with today's code locations | Reference |
+| 5 | [`BACKLOG.md`](BACKLOG.md) | Before "fixing" something that looks wrong — it may be deferred deliberately | 3 min |
+| 6 | [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md) | Working on a security or quality fix: status of every audit finding (F-001..F-028), with today's code locations | Reference |
 
 ## One source of truth
 
@@ -32,10 +31,9 @@ the language scope. **Do not consult it.** If a copy exists on disk, it is wrong
 |---|---|
 | [`adr/`](adr/) | Architecture decision records. One per structural decision, immutable once merged, each recording the alternatives rejected **and why** |
 | [`runbooks/`](runbooks/) | Operational procedures, written for someone under pressure who did not build the system |
-| [`prompts/`](prompts/) | The phased plans driving this work |
 | `_baseline-routes.txt` | Route table captured at Phase 0. The diff target the migration must match **byte for byte** |
 
-## If you only read three things
+## If you only read two things
 
 1. **`HANDOFF.md` §3** — the gotchas. Next.js 16 renamed Middleware to Proxy, deprecated
    `priority` in favour of `preload`, and matches image hostnames as globs. Source files are CRLF.
@@ -43,7 +41,6 @@ the language scope. **Do not consult it.** If a copy exists on disk, it is wrong
    answer once.
 2. **`PRD.md` §11** — the defect register. Ten behaviours that exist but are **not** requirements.
    A bug written into a spec becomes permanent.
-3. **`MOVE-MAP.md`** — the slice order and its stop condition, before moving any file.
 
 ## Keeping this true
 

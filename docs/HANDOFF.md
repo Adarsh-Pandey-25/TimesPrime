@@ -55,10 +55,8 @@ Check `/api/health` before assuming the database is either up or down.
 | `docs/CODEMAP.md` | **Every module: purpose, LOC, importers, target.** Answers "where does X live / what touches Y" without a single grep. Columns derived from the repo — regenerate after any move |
 | `docs/PRD.md` | Full PRD: FR-001..024 with code citations, NFR, CR, data model, defect register |
 | `docs/architecture.md` | How it works today, the target structure, and the 8 import rules |
-| `docs/MOVE-MAP.md` | Migration execution: slice order, risks, judgement calls, stop condition |
 | `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..010) |
 | `docs/_baseline-routes.txt` | Route table captured at Phase 0. The diff target Phase 4 must match exactly |
-| `docs/prompts/00-prd-and-restructure.md` | The phased plan being executed |
 | `CONTRIBUTING.md` | Commit convention and the verify gate |
 | `AGENTS.md` | Project instruction: read the bundled Next docs before using framework APIs |
 
@@ -335,7 +333,7 @@ src/
   types/               shared types
   proxy.ts, instrumentation*.ts, sentry.*.config.ts   ← framework-pinned, do not move
 db/                    schema.sql, policies.sql
-docs/                  README (index), PRD, CODEMAP, MOVE-MAP, architecture, BACKLOG, adr/, runbooks/
+docs/                  README (index), PRD, CODEMAP, architecture, BACKLOG, adr/, runbooks/
 ```
 
 LOC excludes tests; feature counts include `index.ts`/`server.ts` (and each feature's

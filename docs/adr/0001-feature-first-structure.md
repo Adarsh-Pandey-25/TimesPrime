@@ -4,7 +4,7 @@
 criterion for `features/news`, route groups recorded as deferred, `lib/` kept domain-free, and a
 `server-only` guard on every `server.ts`.
 **Supersedes:** nothing. **Related:** [`architecture.md`](../architecture.md),
-[`MOVE-MAP.md`](../MOVE-MAP.md), [`scripts/move-map.mjs`](../../scripts/move-map.mjs).
+[`scripts/move-map.mjs`](../../scripts/move-map.mjs).
 
 ## Context
 

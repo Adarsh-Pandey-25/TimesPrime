@@ -173,7 +173,7 @@ every local migration slice that touches `src/app/` will hit it — slice 7 (rou
 groups, currently recommended for deferral) moves every page.
 
 **Workaround until fixed:** `rm -rf .next/types` before `npm run verify` on any
-slice that moves or deletes a route file. Recorded in `MOVE-MAP.md`.
+slice that moves or deletes a route file.
 
 **Fix:** Next 16 ships `next typegen`, which "generates TypeScript definitions
 for your application's routes without performing a full build" — its own docs
