@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { ALLOWED_IMAGE_HOSTNAMES } from "./src/config/imageDomains";
 
 // Static (build-time) origin selection: dev always allows localhost, a
