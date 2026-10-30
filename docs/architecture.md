@@ -205,7 +205,7 @@ import (`../news/components/Header`) is caught exactly like the alias (`@/featur
 | 6 — server code never in client | local rule `boundaries/no-server-in-client` · `ui` → `server/` zone · local rule `boundaries/server-only-first` | a `"use client"` file importing `server/` or a feature's `server.ts` (alias or relative); a `server/` module or `server.ts` whose first statement is not `import "server-only"` |
 | 7 — `config/` is static data | `import/no-restricted-paths` + core `no-restricted-imports` | `config/` importing `react`, `server-only`, or `app`/`components`/`context`/`server`/`lib`; **CR-06**: any import at all in `imageDomains.ts` |
 | 8 — `app/` holds no logic | — | **Not expressible in lint**: it is about what code does, not what it imports. Review enforces it |
-| `lib/` is domain-free | `import/no-restricted-paths` | `lib/` importing any project module |
+| `lib/` is domain-free | `import/no-restricted-paths` | a `lib/` module importing any project module. A colocated `*.test.ts` may import its own subject — a test is not a module and never ships |
 | `context/` (R9) | `import/no-restricted-paths` | `context/` importing `app`/`components`/`server`/`lib` |
 
 **What lint cannot see, and what covers it.** Lint checks each import as written. Rule 6 is also

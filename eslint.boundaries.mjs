@@ -59,8 +59,11 @@ const zones = [
     message: "Rule 3: shared layers import downward only; a feature is above them.",
   },
   // What lib/ means — cross-cutting and domain-free: it imports no project module.
+  // The target is every lib module except colocated tests: a test importing
+  // its own subject is what a test is for, not a domain dependency. (A test is
+  // also not a module in CODEMAP's sense, and never ships.)
   {
-    target: LIB,
+    target: "./src/lib/**/!(*.test).ts",
     from: "./src",
     message: "lib/ is domain-free and imports no project module (architecture.md, \"What lib/ means\"). A module that needs one belongs elsewhere.",
   },
