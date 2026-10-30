@@ -41,7 +41,7 @@ jest.mock("@anthropic-ai/sdk", () => {
 
 // Imported after jest.mock so the route picks up the mocked SDK.
 import { NextRequest } from "next/server";
-import { POST } from "./route";
+import { POST } from "./chat";
 
 const { __mockStreamFn: mockStreamFn } = jest.requireMock("@anthropic-ai/sdk") as {
   __mockStreamFn: jest.Mock;
