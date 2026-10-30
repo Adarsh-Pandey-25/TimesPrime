@@ -140,8 +140,11 @@ changed should not be lost.
 component through the barrel would resolve `db.ts` as well. `supabase.ts` calls `createClient()` at
 module scope — a side effect no bundler can remove — which is precisely how the SDK reached the
 browser through `ActivityLog`. Two surfaces make server code unreachable from the client by
-construction. Slice 6 measures the client bundle before and after to confirm the barrels cost
-nothing.
+construction. The barrels were measured, and they were **not** free: slice 5 found that a server
+component importing one client component from a barrel pulled in every client component the
+barrel re-exports, on every route that rendered it. Each feature folder therefore carries a
+`package.json` declaring itself side-effect-free except for `server.ts`, after which the bundle
+matched the pre-slice build exactly (architecture.md rule 1). Slice 6 measures again.
 
 **6. A separate `src/shared/` layer for product-aware shared code.** Proposed as a home for
 modules that carry product knowledge but are used in more than one place, so that `lib/` could stay

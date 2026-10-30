@@ -132,6 +132,18 @@ These are the rules a reviewer may cite in a pull request. Phase E enforces them
    client import of `ArticleCard` resolve `db.ts` too — the same mechanism that put the Supabase SDK
    in `/admin`'s browser chunk, because `supabase.ts` calls `createClient()` at module scope and no
    bundler can tree-shake that.
+   **Each feature folder carries a `package.json` with `"sideEffects": ["./server.ts"]`.** Without
+   it a barrel is not free: when a server component — `app/layout.tsx`, any server page — imports
+   one export from a barrel of client components, every client component the barrel re-exports
+   becomes a client entry of that route. Measured on slice 5 before this was added: importing
+   `BreakingNewsBanner` from `@/features/admin` in the root layout put all five admin dashboard
+   components on **every** page — +46 KB on `/` (+36%), +150% on `/admin/login`. Marking the folder
+   side-effect-free lets the bundler drop unused re-exports; the same build then matched the
+   pre-slice bundle byte for byte. `server.ts` is listed as the exception so that even a bare
+   `import "@/features/x/server"` is kept, and its `import "server-only"` still fires. Nothing in a
+   feature may rely on an import made only for its side effects (a CSS file, a polyfill); those
+   belong in `app/`. The Next 16 docs make the same point from the other side: barrels slow builds,
+   so import from specific files where possible (`local-development.md`, "Barrel files").
 2. **No sideways imports.** Nothing imports across feature boundaries. `features/admin` may not
    import from `features/news`. (`app/` composes features and may import any of them.)
 3. **Imports go downward only.** Features import into `components/ui`, `lib`, `server`, `config`,

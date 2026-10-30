@@ -98,6 +98,10 @@ or a `moduleNameMapper` entry. No test does today.
 Inside a feature, files import each other by relative path, never through their own `index.ts`
 (which would create cycles).
 
+Each feature folder also holds a three-line `package.json`, `{ "sideEffects": ["./server.ts"] }`,
+without which a barrel imported by a server component ships every client component it re-exports.
+Measured and explained in `architecture.md` rule 1. Do not delete it as clutter.
+
 ---
 
 ## Slice order
