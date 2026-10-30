@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `679c72e` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-30 07:05 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `1231103` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 07:33 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -23,7 +23,7 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 | Server-only modules in the client bundle (violations) | **0** |
 | Orphans (nothing imports them) | **0** |
 | Dynamic `import()` edges | **3** |
-| Type-only edges (erased at compile time) | **5** |
+| Type-only edges (erased at compile time) | **6** |
 | Unresolved project imports | **0** — self-check passes |
 
 ### Boundary violations
@@ -86,7 +86,7 @@ Widest blast radius when moved.
 
 | Importers | Module |
 |--:|---|
-| 23 | `src/types/index.ts` |
+| 24 | `src/types/index.ts` |
 | 18 | `src/context/ThemeContext.tsx` |
 | 11 | `src/server/supabase.ts` |
 | 8 | `src/config/translations.ts` |
@@ -165,10 +165,10 @@ Widest blast radius when moved.
 | `features/news/components/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 532 | directive | 0% | 1 | 10 | stays — split in F |
 | `features/news/components/MarqueeTicker.tsx` | Scrolling India/World headline ticker | 176 | directive | 0% | 2 | 3 | stays |
 | `features/news/index.ts` | Client-safe public surface of news: components and bookmark helpers | 10 | bundled | 0% | 8 | 7 | stays |
-| `features/news/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 94.8% | 6 | 1 | stays |
+| `features/news/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 100% | 6 | 1 | stays |
 | `features/news/server.ts` | Server-only public surface of news: storage, upstream fetch, editorial policy | 25 |  | 0% | 6 | 4 | stays — first line: import "server-only" |
 | `features/news/server/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 133 |  | 0% | 1 | 1 | stays |
-| `features/news/server/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 571 |  | 0% | 1 | 4 | stays — news editorial policy is baked in, hence features/news |
+| `features/news/server/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 611 |  | 65.3% | 2 | 5 | stays — news editorial policy is baked in, hence features/news |
 | `features/news/server/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 127 |  | 0% | 1 | 2 | stays |
 | `features/news/server/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 114 |  | 0% | 1 | 2 | stays |
 
@@ -195,7 +195,7 @@ Widest blast radius when moved.
 |---|---|--:|:-:|--:|--:|--:|---|
 | `lib/cache.ts` | Upstash Redis with in-process Map fallback | 84 |  | 0% | 3 | 0 | stays |
 | `lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 26 |  | 96.2% | 2 | 0 | stays |
-| `lib/reportFallback.ts` | Rate-limited Sentry report of a fallback (D5); bounded by a fixed set of kinds | 39 |  | 100% | 2 | 0 | stays |
+| `lib/reportFallback.ts` | Rate-limited Sentry report of a fallback (D5); bounded by a fixed set of kinds | 50 |  | 100% | 4 | 0 | stays |
 | `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 70 |  | 88.6% | 5 | 0 | stays |
 | `lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 122 |  | 0% | 1 | 0 | stays |
 
@@ -214,7 +214,7 @@ Widest blast radius when moved.
 |---|---|--:|:-:|--:|--:|--:|---|
 | `context/LanguageContext.tsx` | EN/HI provider, localStorage-backed | 57 | directive | 0% | 8 | 1 | stays — app-wide state provider, not a UI primitive |
 | `context/ThemeContext.tsx` | Light/dark provider, localStorage-backed | 63 | directive | 0% | 18 | 0 | stays — app-wide state provider, not a UI primitive |
-| `types/index.ts` | Article, NewsResponse, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog | 96 | bundled | excl. | 23 | 0 | stays |
+| `types/index.ts` | Article, NewsResponse, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog | 96 | bundled | excl. | 24 | 0 | stays |
 
 ### Framework-pinned (never move)
 
@@ -535,8 +535,8 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `features/news/server/db.ts`
 
-- **Imports:** `features/news/newsConfig.ts`, `features/news/server/categoryClassifier.ts`, `server/supabase.ts`, `types/index.ts`
-- **Used by:** `features/news/server.ts` _(reexport)_
+- **Imports:** `features/news/newsConfig.ts`, `features/news/server/categoryClassifier.ts`, `lib/reportFallback.ts`, `server/supabase.ts`, `types/index.ts`
+- **Used by:** `features/news/server.ts` _(reexport)_, `features/news/server/db.test.ts` _(test)_
 
 #### `features/news/server/fetchNews.ts`
 
@@ -571,7 +571,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `lib/reportFallback.ts`
 
 - **Imports:** —
-- **Used by:** `lib/reportFallback.test.ts` _(test)_, `server/health.ts`
+- **Used by:** `features/news/server/db.test.ts` _(test)_, `features/news/server/db.ts`, `lib/reportFallback.test.ts` _(test)_, `server/health.ts`
 
 #### `lib/sentryScrub.ts`
 
@@ -626,4 +626,4 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `types/index.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `config/topicImages.ts`, `features/admin/components/actionLabels.ts` _(type)_, `features/admin/components/ActivityLog.tsx` _(type)_, `features/chat/components/Chatbot.tsx`, `features/news/bookmarks.test.ts` _(test)_, `features/news/bookmarks.ts`, `features/news/components/ArticleCard.tsx`, `features/news/components/ArticleDetailView.tsx`, `features/news/components/CategoryMegaMenu.tsx`, `features/news/components/Header.tsx`, `features/news/components/HomeClient.tsx`, `features/news/components/MarqueeTicker.tsx`, `features/news/newsConfig.test.ts` _(test)_, `features/news/newsConfig.ts`, `features/news/server/db.ts`, `features/news/server/fetchNews.ts`, `features/news/server/newsdata.ts`, `server/auditLog.ts` _(type)_
+- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `config/topicImages.ts`, `features/admin/components/actionLabels.ts` _(type)_, `features/admin/components/ActivityLog.tsx` _(type)_, `features/chat/components/Chatbot.tsx`, `features/news/bookmarks.test.ts` _(test)_, `features/news/bookmarks.ts`, `features/news/components/ArticleCard.tsx`, `features/news/components/ArticleDetailView.tsx`, `features/news/components/CategoryMegaMenu.tsx`, `features/news/components/Header.tsx`, `features/news/components/HomeClient.tsx`, `features/news/components/MarqueeTicker.tsx`, `features/news/newsConfig.test.ts` _(test)_, `features/news/newsConfig.ts`, `features/news/server/db.test.ts` _(type)_ _(test)_, `features/news/server/db.ts`, `features/news/server/fetchNews.ts`, `features/news/server/newsdata.ts`, `server/auditLog.ts` _(type)_

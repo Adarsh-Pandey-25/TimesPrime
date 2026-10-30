@@ -2,9 +2,11 @@
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
 **State as of:** 2026-10-30, after **Phase D** (all six slices, `a626542`..`73e207f`) and **Phase
-E** (lint enforcement, `d892cf2`), and Phases 0–1 of the audit fixes (`063e9a6`..`679c72e`; status
-per finding in `docs/AUDIT-FINDINGS.md`), branch `main`. Phase F is optional and not started. Run
-`git log --oneline -20` for the exact head.
+E** (lint enforcement, `d892cf2`), and Phases 0–1 of the audit fixes, **Phase 1 complete**
+(`063e9a6`..`1231103`; status per finding in `docs/AUDIT-FINDINGS.md`), branch `main`. **Next: a
+structure change** (frontend / backend / database / docs separation) under a separate owner prompt;
+audit Phase 2 follows it. Phase F is optional and not started. Run `git log --oneline -20` for the
+exact head.
 
 Read §1 and §3 before touching anything. §3 in particular will save you from false conclusions
 that have already been reached and discarded once.
@@ -483,9 +485,25 @@ collection that no longer happens. Legal copy — for the owner or legal review,
 
 ## 11. Immediate next actions
 
-**Audit fixes** (`docs/AUDIT-FINDINGS.md`): Phases 0 and 1 are done. **Phase 2 (security) is next**
-— tests first for `urlValidation` and `adminSession`, then F-003, F-010, F-020 / F-004 / F-011
-(D1: a Redis-backed limiter for login and the scraper), F-005, F-006.
+**Audit fixes** (`docs/AUDIT-FINDINGS.md`): **Phase 1 is complete**, including the follow-ups the
+owner added at its approval — BL-011 `7e578e0`, BL-012 `0066f27`, BL-014 `cc1d479`, N-05 `1231103`.
+
+1. **Next session: a structure change** — frontend / backend / database / docs separation — under
+   a separate owner prompt. **Not** audit Phase 2.
+2. **Then audit Phase 2 (security):** tests first for `urlValidation` and `adminSession`, then
+   F-003, F-010, F-020 with BL-013 (owner: deferred into Phase 2), F-004 / F-011 (D1: a
+   Redis-backed limiter for login and the scraper), F-005, F-006.
+3. **Open with the owner:**
+   - Is production on the same Supabase project as `.env.local` (project ref
+     `yhjotyxrdaqtcgsxigok`)? Not confirmable from here: production env lives in Vercel, and GitHub
+     carries no Vercel deployments or statuses. Read-only evidence against it: all 78 articles were
+     inserted in 7 minutes that match this machine's own activity, none on the cron's :00/:30
+     schedule, and `admin_logs` holds no `news_synced` row although the cron writes one per run.
+     So production either uses another project or its cron is not running. If it is the same
+     project, BACKLOG needs: "local dev writes to the production database; purge-on-read (F-015)
+     DELETEs there on every local feed read; needs a separate dev project".
+   - `/api/health` shares one result for 15 s per instance (`HEALTH_CACHE_MS`). Proposed: 60 s.
+     Not implemented; awaiting approval.
 
 **In this line of work** — the restructure:
 

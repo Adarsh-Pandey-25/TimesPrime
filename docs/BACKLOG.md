@@ -252,7 +252,8 @@ line; not made here because it was outside the item that found it.
 
 ## BL-011 — `withSentryConfig` is imported from a deprecated path
 
-**Found:** audit fix F-007, bumping @sentry/nextjs to 10.78.0 (`31f4a54`) · **Status:** Open
+**Found:** audit fix F-007, bumping @sentry/nextjs to 10.78.0 (`31f4a54`) · **Status:** **Resolved**
+in `7e578e0` — imported from `@sentry/nextjs/config`; the warning no longer appears
 
 Every build and test run now prints: *"Importing `withSentryConfig` from `@sentry/nextjs` is
 deprecated and will stop working in v11. Import it from `@sentry/nextjs/config` instead."* The fix
@@ -261,7 +262,8 @@ becomes mandatory only at v11, which is a major bump and needs owner approval an
 
 ## BL-012 — `@types/node` is `^20` while the runtime is Node 24
 
-**Found:** audit fix F-026 (`974b255`) · **Status:** Open — needs owner approval
+**Found:** audit fix F-026 (`974b255`) · **Status:** **Resolved** in `0066f27` (owner approved) —
+`@types/node` `^24`, resolving 24.19.2; typecheck clean with no source change
 
 `.node-version`, `engines` and CI are on Node 24, but the type definitions still describe Node 20:
 APIs added since 20 are untyped, and the compiler will not flag anything removed. Nothing fails
@@ -271,17 +273,20 @@ reserve for the owner.
 ## BL-013 — The in-memory cache never evicts keys that are not read again
 
 **Found:** Phase 1 of the audit fixes, checking how `cache.ts` behaves without Upstash (D1) ·
-**Status:** Open (audit-ledger observation N-03)
+**Status:** Open (audit-ledger observation N-03) — **deferred into audit Phase 2 with F-020** by the
+owner
 
 When Upstash is not configured — as on this machine — `cache.ts` falls back to a `Map` and deletes
 an expired entry only when `get()` reads it again. Keys that are never re-read stay forever: every
 distinct scraped URL, every search query. Memory grows with traffic, the same class of bug as
-F-020 (the rate limiter). **Pick up in:** Phase 2, alongside F-020, if the owner wants it in scope;
+F-020 (the rate limiter). **Pick up in:** Phase 2, alongside F-020 (owner decision);
 with Upstash configured in production the in-memory path is only a fallback.
 
 ## BL-014 — `db.ts` reports every failed Supabase operation to Sentry, unthrottled
 
-**Found:** Phase 1, the D5 outage simulation (`679c72e`) · **Status:** Open (observation N-04)
+**Found:** Phase 1, the D5 outage simulation (`679c72e`) · **Status:** **Resolved** in `cc1d479` —
+throttled through the D5 limiter, one key per operation, not demoted to breadcrumbs (owner ruling);
+a failing-DB test went from 15 events for three requests to one per operation per window
 
 Each feed request during an outage produced five Sentry events from `db.ts` — freshness check,
 purge, upsert, purge, select — on top of D5's single rate-limited fallback report. At real traffic
