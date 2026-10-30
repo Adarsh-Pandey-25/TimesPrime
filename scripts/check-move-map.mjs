@@ -6,8 +6,8 @@
 //
 // The check builds the real import graph with the TypeScript compiler API,
 // relocates every file to its final path, and tests every edge against the
-// rules below (F1–X1 from the restructure-2 plan, plus the restructure-1 rules
-// that still apply). Restructure 1's version of this check found its first
+// rules below (F1–X1 from the restructure-2 plan, V1, and the restructure-1
+// rules that still apply). Restructure 1's version of this check found its first
 // draft broke the rules 21 times before a single file moved; the same idea
 // applies here.
 //
@@ -167,6 +167,11 @@ for (const e of edges) {
   const test = isTest(e.from);
   let rule = null;
   if (lb === "database") rule = "D1 nothing imports database/";
+  // A1: app/ is the only place frontend and backend meet. Nothing else imports
+  // app/, and the root files Next pins in place each keep to one side.
+  else if (lb === "app" && la !== "app") rule = "A1 nothing outside app/ imports app/";
+  else if (a === "instrumentation-client.ts" && sb === "backend") rule = "A1 instrumentation-client.ts (browser) never imports backend/";
+  else if (la === "pinned" && a !== "instrumentation-client.ts" && sb === "frontend") rule = "A1 server instrumentation never imports frontend/";
   else if (sa === "frontend" && sb === "backend") rule = "F1 frontend never imports backend";
   else if (sa === "backend" && sb === "frontend") rule = "B1 backend never imports frontend";
   else if (sa === "shared" && ["frontend", "backend", "app"].includes(sb)) rule = "S1 shared imports no frontend/backend/app";
@@ -174,6 +179,9 @@ for (const e of edges) {
   else if (la === "next-config" && lb !== "sh-config") rule = "CR-06 next.config.ts imports only shared/config";
   else if (la.startsWith("fe-feature:") && lb.startsWith("fe-feature:") && la !== lb) rule = "X1 no cross-feature imports (frontend)";
   else if (la.startsWith("be-service:") && lb.startsWith("be-service:") && la !== lb) rule = "X1 no cross-service imports (backend)";
+  // V1: a view composes features through their entry points, so a feature that
+  // imports a view closes a cycle (slice 9: view -> news entry -> view).
+  else if (la.startsWith("fe-feature:") && lb === "fe-views") rule = "V1 features never import views";
   else if (["fe-ui", "fe-context"].includes(la) && (lb.startsWith("fe-feature:") || lb === "fe-views")) rule = `R3 ${la} never imports features or views`;
   // Theme is appearance, so a primitive may read it; language, UI strings and
   // category data are app state or product knowledge, so it may not.
