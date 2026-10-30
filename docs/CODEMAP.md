@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `1231103` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-30 07:33 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `284fdfc` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 08:32 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -111,120 +111,120 @@ Widest blast radius when moved.
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `app/about/page.tsx` | Page: /about | 97 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
-| `app/admin/login/page.tsx` | Page: /admin/login | 103 | directive | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
-| `app/admin/page.tsx` | Page: /admin | 506 | directive | 0% | 0 | 4 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/articles/bulk/route.ts` | API: /api/admin/articles/bulk | 79 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/articles/route.ts` | API: /api/admin/articles | 247 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/breaking-news/route.ts` | API: /api/admin/breaking-news | 212 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/db-stats/route.ts` | API: /api/admin/db-stats | 42 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/health/route.ts` | API: /api/admin/health | 14 |  | 100% | 1 | 1 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/login/route.ts` | API: /api/admin/login | 32 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/logout/route.ts` | API: /api/admin/logout | 12 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/logs/route.ts` | API: /api/admin/logs | 123 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/publish-article/route.ts` | API: /api/admin/publish-article | 106 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/seed-supabase/route.ts` | API: /api/admin/seed-supabase | 70 |  | 0% | 0 | 3 | stays -- the path is the URL (CR-01) |
-| `app/api/admin/stats/route.ts` | API: /api/admin/stats | 163 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
-| `app/api/chat/route.ts` | API: /api/chat | 162 |  | 79.0% | 1 | 1 | stays -- the path is the URL (CR-01) |
-| `app/api/cron/refresh-news/route.ts` | API: /api/cron/refresh-news | 120 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
-| `app/api/health/route.ts` | API: /api/health | 15 |  | 100% | 1 | 1 | stays -- the path is the URL (CR-01) |
-| `app/api/news/check-new/route.ts` | API: /api/news/check-new | 51 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
-| `app/api/news/scrape-article/route.ts` | API: /api/news/scrape-article | 556 |  | 0% | 0 | 4 | stays -- the path is the URL (CR-01) |
-| `app/api/news/top-headlines/route.ts` | API: /api/news/top-headlines | 265 |  | 0% | 0 | 4 | stays -- the path is the URL (CR-01) |
-| `app/api/translate/route.ts` | API: /api/translate | 54 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
-| `app/article/[slug]/page.tsx` | Page: /article/[slug] | 101 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
-| `app/contact/page.tsx` | Page: /contact | 86 | directive | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
-| `app/layout.tsx` | Root layout: providers, metadata, fonts | 70 |  | 0% | 0 | 4 | stays -- the path is the URL (CR-01) |
-| `app/loading.tsx` | Route-level loading UI | 7 | directive | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
-| `app/page.tsx` | Page: / | 39 |  | 0% | 0 | 3 | stays -- the path is the URL (CR-01) |
-| `app/privacy/page.tsx` | Page: /privacy | 113 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
-| `app/saved/page.tsx` | Page: /saved | 123 | directive | 0% | 0 | 4 | stays -- the path is the URL (CR-01) |
-| `app/terms/page.tsx` | Page: /terms | 108 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/about/page.tsx` | Page: /about | 97 |  | 0% | 0 | 1 | `frontend/views/about/AboutView.tsx` · slice 10 |
+| `app/admin/login/page.tsx` | Page: /admin/login | 103 | directive | 0% | 0 | 1 | `frontend/views/admin/AdminLoginView.tsx` · slice 10 |
+| `app/admin/page.tsx` | Page: /admin | 506 | directive | 0% | 0 | 4 | `frontend/views/admin/AdminView.tsx` · slice 10 |
+| `app/api/admin/articles/bulk/route.ts` | API: /api/admin/articles/bulk | 79 |  | 0% | 0 | 2 | `backend/api/admin/articles-bulk.ts` · slice 7 |
+| `app/api/admin/articles/route.ts` | API: /api/admin/articles | 247 |  | 0% | 0 | 2 | `backend/api/admin/articles.ts` · slice 7 |
+| `app/api/admin/breaking-news/route.ts` | API: /api/admin/breaking-news | 212 |  | 0% | 0 | 2 | `backend/api/admin/breaking-news.ts` · slice 7 |
+| `app/api/admin/db-stats/route.ts` | API: /api/admin/db-stats | 42 |  | 0% | 0 | 2 | `backend/api/admin/db-stats.ts` · slice 7 |
+| `app/api/admin/health/route.ts` | API: /api/admin/health | 14 |  | 100% | 1 | 1 | `backend/api/admin/health.ts` · slice 7 |
+| `app/api/admin/login/route.ts` | API: /api/admin/login | 32 |  | 0% | 0 | 1 | `backend/api/admin/login.ts` · slice 7 |
+| `app/api/admin/logout/route.ts` | API: /api/admin/logout | 12 |  | 0% | 0 | 1 | `backend/api/admin/logout.ts` · slice 7 |
+| `app/api/admin/logs/route.ts` | API: /api/admin/logs | 123 |  | 0% | 0 | 2 | `backend/api/admin/logs.ts` · slice 7 |
+| `app/api/admin/publish-article/route.ts` | API: /api/admin/publish-article | 106 |  | 0% | 0 | 2 | `backend/api/admin/publish-article.ts` · slice 7 |
+| `app/api/admin/seed-supabase/route.ts` | API: /api/admin/seed-supabase | 70 |  | 0% | 0 | 3 | `backend/api/admin/seed-supabase.ts` · slice 7 |
+| `app/api/admin/stats/route.ts` | API: /api/admin/stats | 163 |  | 0% | 0 | 1 | `backend/api/admin/stats.ts` · slice 7 |
+| `app/api/chat/route.ts` | API: /api/chat | 162 |  | 79.0% | 1 | 1 | `backend/api/chat.ts` · slice 7 |
+| `app/api/cron/refresh-news/route.ts` | API: /api/cron/refresh-news | 120 |  | 0% | 0 | 2 | `backend/api/cron/refresh-news.ts` · slice 7 |
+| `app/api/health/route.ts` | API: /api/health | 15 |  | 100% | 1 | 1 | `backend/api/health.ts` · slice 7 |
+| `app/api/news/check-new/route.ts` | API: /api/news/check-new | 51 |  | 0% | 0 | 1 | `backend/api/news/check-new.ts` · slice 7 |
+| `app/api/news/scrape-article/route.ts` | API: /api/news/scrape-article | 556 |  | 0% | 0 | 4 | `backend/api/news/scrape-article.ts` · slice 7 |
+| `app/api/news/top-headlines/route.ts` | API: /api/news/top-headlines | 265 |  | 0% | 0 | 4 | `backend/api/news/top-headlines.ts` · slice 7 |
+| `app/api/translate/route.ts` | API: /api/translate | 54 |  | 0% | 0 | 2 | `backend/api/translate.ts` · slice 7 |
+| `app/article/[slug]/page.tsx` | Page: /article/[slug] | 101 |  | 0% | 0 | 2 | `app/article/[slug]/page.tsx` · slice 1 |
+| `app/contact/page.tsx` | Page: /contact | 86 | directive | 0% | 0 | 1 | `frontend/views/contact/ContactView.tsx` · slice 10 |
+| `app/layout.tsx` | Root layout: providers, metadata, fonts | 70 |  | 0% | 0 | 4 | `app/layout.tsx` · slice 1 |
+| `app/loading.tsx` | Route-level loading UI | 7 | directive | 0% | 0 | 1 | `app/loading.tsx` · slice 1 |
+| `app/page.tsx` | Page: / | 39 |  | 0% | 0 | 3 | `app/page.tsx` · slice 1 |
+| `app/privacy/page.tsx` | Page: /privacy | 113 |  | 0% | 0 | 1 | `frontend/views/privacy/PrivacyView.tsx` · slice 10 |
+| `app/saved/page.tsx` | Page: /saved | 123 | directive | 0% | 0 | 4 | `frontend/views/saved/SavedView.tsx` · slice 10 |
+| `app/terms/page.tsx` | Page: /terms | 108 |  | 0% | 0 | 1 | `frontend/views/terms/TermsView.tsx` · slice 10 |
 
 ### Features — `src/features/`
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `features/admin/components/ActivityLog.tsx` | Paginated admin_logs viewer | 235 | directive | 0% | 1 | 3 | stays |
-| `features/admin/components/ArticlesTable.tsx` | Admin article list: filters, edit, delete, bulk | 751 | directive | 0% | 1 | 1 | stays — split in F |
-| `features/admin/components/BreakingNewsBanner.tsx` | Public banner polling /api/admin/breaking-news (CR-08) | 79 | directive | 0% | 1 | 1 | stays |
-| `features/admin/components/BreakingNewsManager.tsx` | Create/expire breaking news items | 289 | directive | 0% | 1 | 1 | stays |
-| `features/admin/components/CategoryStatsCard.tsx` | Category/language/country breakdown | 362 | directive | 0% | 1 | 1 | stays |
-| `features/admin/components/SyncDashboard.tsx` | Last/next sync, counts, manual sync | 198 | directive | 0% | 1 | 1 | stays |
-| `features/admin/components/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 0% | 1 | 1 | stays — only consumer is ActivityLog (SC-1) |
-| `features/admin/index.ts` | Public surface of admin. No server.ts: admin has no server code | 8 | bundled | 0% | 2 | 6 | stays |
-| `features/chat/components/Chatbot.tsx` | Chat drawer; streams /api/chat. Honest error handling | 192 | directive | 0% | 1 | 1 | stays |
-| `features/chat/components/FloatingAiAssistant.tsx` | Floating button wrapping Chatbot | 37 | directive | 0% | 1 | 1 | stays |
-| `features/chat/index.ts` | Public surface of chat. No server.ts: chat has no server code | 3 |  | 0% | 1 | 1 | stays |
-| `features/news/bookmarks.ts` | localStorage saved articles + change event | 56 | directive | 96.4% | 4 | 1 | stays — stores Article objects, so not lib/ |
-| `features/news/components/ArticleCard.tsx` | Feed card, featured and grid variants | 393 | directive | 0% | 3 | 8 | stays |
-| `features/news/components/ArticleDetailView.tsx` | Article page body: text, translation, AI panel, share, related | 963 | directive | 0% | 1 | 6 | stays — split in F |
-| `features/news/components/CategoryMegaMenu.tsx` | Hover mega-menu of category previews | 225 | directive | 0% | 1 | 5 | stays |
-| `features/news/components/Footer.tsx` | Footer nav, category links, copyright bar | 214 | directive | 0% | 2 | 3 | stays |
-| `features/news/components/Header.tsx` | Nav, search, theme + language toggles, bookmarks count, clock | 568 | directive | 0% | 2 | 6 | stays — news masthead, not UI; split in F |
-| `features/news/components/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 532 | directive | 0% | 1 | 10 | stays — split in F |
-| `features/news/components/MarqueeTicker.tsx` | Scrolling India/World headline ticker | 176 | directive | 0% | 2 | 3 | stays |
-| `features/news/index.ts` | Client-safe public surface of news: components and bookmark helpers | 10 | bundled | 0% | 8 | 7 | stays |
-| `features/news/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 100% | 6 | 1 | stays |
-| `features/news/server.ts` | Server-only public surface of news: storage, upstream fetch, editorial policy | 25 |  | 0% | 6 | 4 | stays — first line: import "server-only" |
-| `features/news/server/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 133 |  | 0% | 1 | 1 | stays |
-| `features/news/server/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 611 |  | 65.3% | 2 | 5 | stays — news editorial policy is baked in, hence features/news |
-| `features/news/server/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 127 |  | 0% | 1 | 2 | stays |
-| `features/news/server/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 114 |  | 0% | 1 | 2 | stays |
+| `features/admin/components/ActivityLog.tsx` | Paginated admin_logs viewer | 235 | directive | 0% | 1 | 3 | `frontend/features/admin/ActivityLog.tsx` · slice 9 |
+| `features/admin/components/ArticlesTable.tsx` | Admin article list: filters, edit, delete, bulk | 751 | directive | 0% | 1 | 1 | `frontend/features/admin/ArticlesTable.tsx` · slice 9 — split in F |
+| `features/admin/components/BreakingNewsBanner.tsx` | Public banner polling /api/admin/breaking-news (CR-08) | 79 | directive | 0% | 1 | 1 | `frontend/features/news/BreakingNewsBanner.tsx` · slice 9 |
+| `features/admin/components/BreakingNewsManager.tsx` | Create/expire breaking news items | 289 | directive | 0% | 1 | 1 | `frontend/features/admin/BreakingNewsManager.tsx` · slice 9 |
+| `features/admin/components/CategoryStatsCard.tsx` | Category/language/country breakdown | 362 | directive | 0% | 1 | 1 | `frontend/features/admin/CategoryStatsCard.tsx` · slice 9 |
+| `features/admin/components/SyncDashboard.tsx` | Last/next sync, counts, manual sync | 198 | directive | 0% | 1 | 1 | `frontend/features/admin/SyncDashboard.tsx` · slice 9 |
+| `features/admin/components/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 0% | 1 | 1 | `frontend/features/admin/actionLabels.ts` · slice 9 — only consumer is ActivityLog (SC-1) |
+| `features/admin/index.ts` | Public surface of admin. No server.ts: admin has no server code | 8 | bundled | 0% | 2 | 6 | `frontend/features/admin/index.ts` · slice 9 |
+| `features/chat/components/Chatbot.tsx` | Chat drawer; streams /api/chat. Honest error handling | 192 | directive | 0% | 1 | 1 | `frontend/features/chat/Chatbot.tsx` · slice 9 |
+| `features/chat/components/FloatingAiAssistant.tsx` | Floating button wrapping Chatbot | 37 | directive | 0% | 1 | 1 | `frontend/features/chat/FloatingAiAssistant.tsx` · slice 9 |
+| `features/chat/index.ts` | Public surface of chat. No server.ts: chat has no server code | 3 |  | 0% | 1 | 1 | `frontend/features/chat/index.ts` · slice 9 |
+| `features/news/bookmarks.ts` | localStorage saved articles + change event | 56 | directive | 96.4% | 4 | 1 | `frontend/features/news/bookmarks.ts` · slice 9 — stores Article objects, so not lib/ |
+| `features/news/components/ArticleCard.tsx` | Feed card, featured and grid variants | 393 | directive | 0% | 3 | 8 | `frontend/features/news/ArticleCard.tsx` · slice 9 |
+| `features/news/components/ArticleDetailView.tsx` | Article page body: text, translation, AI panel, share, related | 963 | directive | 0% | 1 | 6 | `frontend/views/article/ArticleDetailView.tsx` · slice 9 — split in F |
+| `features/news/components/CategoryMegaMenu.tsx` | Hover mega-menu of category previews | 225 | directive | 0% | 1 | 5 | `frontend/features/news/CategoryMegaMenu.tsx` · slice 9 |
+| `features/news/components/Footer.tsx` | Footer nav, category links, copyright bar | 214 | directive | 0% | 2 | 3 | `frontend/features/news/Footer.tsx` · slice 9 |
+| `features/news/components/Header.tsx` | Nav, search, theme + language toggles, bookmarks count, clock | 568 | directive | 0% | 2 | 6 | `frontend/features/news/Header.tsx` · slice 9 — news masthead, not UI; split in F |
+| `features/news/components/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 532 | directive | 0% | 1 | 10 | `frontend/views/home/HomeClient.tsx` · slice 9 — split in F |
+| `features/news/components/MarqueeTicker.tsx` | Scrolling India/World headline ticker | 176 | directive | 0% | 2 | 3 | `frontend/features/news/MarqueeTicker.tsx` · slice 9 |
+| `features/news/index.ts` | Client-safe public surface of news: components and bookmark helpers | 10 | bundled | 0% | 8 | 7 | `frontend/features/news/index.ts` · slice 9 |
+| `features/news/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 100% | 6 | 1 | `shared/config/newsConfig.ts` · slice 3 |
+| `features/news/server.ts` | Server-only public surface of news: storage, upstream fetch, editorial policy | 25 |  | 0% | 6 | 4 | `backend/services/news/index.ts` · slice 6 — first line: import "server-only" |
+| `features/news/server/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 133 |  | 0% | 1 | 1 | `backend/services/classify/categoryClassifier.ts` · slice 6 |
+| `features/news/server/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 611 |  | 65.3% | 2 | 5 | `backend/repositories/db.ts` · slice 5 — news editorial policy is baked in, hence features/news |
+| `features/news/server/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 127 |  | 0% | 1 | 2 | `backend/services/news/fetchNews.ts` · slice 6 |
+| `features/news/server/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 114 |  | 0% | 1 | 2 | `backend/services/news/newsdata.ts` · slice 6 |
 
 ### Components — `src/components/`
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `components/ui/NewsSkeletonGrid.tsx` | Suspense fallback matching real card dimensions | 90 |  | 0% | 1 | 0 | stays |
-| `components/ui/ThemeSpinner.tsx` | Theme-aware loading spinner | 88 | directive | 0% | 2 | 1 | stays |
+| `components/ui/NewsSkeletonGrid.tsx` | Suspense fallback matching real card dimensions | 90 |  | 0% | 1 | 0 | `frontend/components/ui/NewsSkeletonGrid.tsx` · slice 8 |
+| `components/ui/ThemeSpinner.tsx` | Theme-aware loading spinner | 88 | directive | 0% | 2 | 1 | `frontend/components/ui/ThemeSpinner.tsx` · slice 8 |
 
 ### Server — `src/server/` (backend-only)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `server/auditLog.ts` | Writes admin_logs rows (logAdminAction) | 40 |  | 0% | 7 | 2 | stays |
-| `server/auth/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 69 |  | 0% | 3 | 0 | stays |
-| `server/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 88 |  | 0% | 1 | 0 | stays |
-| `server/health.ts` | Dependency health for /api/health (status only) and /api/admin/health (detail); D4 | 126 |  | 98.4% | 4 | 3 | stays |
-| `server/supabase.ts` | Supabase client; prefers service-role key when present | 22 |  | 0% | 11 | 0 | stays |
+| `server/auditLog.ts` | Writes admin_logs rows (logAdminAction) | 40 |  | 0% | 7 | 2 | `backend/repositories/auditLog.ts` · slice 5 |
+| `server/auth/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 69 |  | 0% | 3 | 0 | `backend/auth/adminSession.ts` · slice 4 |
+| `server/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 88 |  | 0% | 1 | 0 | `backend/services/translate/googleTranslate.ts` · slice 6 |
+| `server/health.ts` | Dependency health for /api/health (status only) and /api/admin/health (detail); D4 | 126 |  | 98.4% | 4 | 3 | `backend/services/health/health.ts` · slice 6 |
+| `server/supabase.ts` | Supabase client; prefers service-role key when present | 22 |  | 0% | 11 | 0 | `backend/lib/supabase.ts` · slice 4 |
 
 ### Library — `src/lib/` (the folder being split)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `lib/cache.ts` | Upstash Redis with in-process Map fallback | 84 |  | 0% | 3 | 0 | stays |
-| `lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 26 |  | 96.2% | 2 | 0 | stays |
-| `lib/reportFallback.ts` | Rate-limited Sentry report of a fallback (D5); bounded by a fixed set of kinds | 50 |  | 100% | 4 | 0 | stays |
-| `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 70 |  | 88.6% | 5 | 0 | stays |
-| `lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 122 |  | 0% | 1 | 0 | stays |
+| `lib/cache.ts` | Upstash Redis with in-process Map fallback | 84 |  | 0% | 3 | 0 | `backend/lib/cache.ts` · slice 4 |
+| `lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 26 |  | 96.2% | 2 | 0 | `backend/lib/rateLimit.ts` · slice 4 |
+| `lib/reportFallback.ts` | Rate-limited Sentry report of a fallback (D5); bounded by a fixed set of kinds | 50 |  | 100% | 4 | 0 | `backend/lib/reportFallback.ts` · slice 4 |
+| `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 70 |  | 88.6% | 5 | 0 | `shared/validation/sentryScrub.ts` · slice 3 |
+| `lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 122 |  | 0% | 1 | 0 | `backend/lib/urlValidation.ts` · slice 4 |
 
 ### Config — `src/config/` (static data)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `config/categoryColors.ts` | Per-category hex/Tailwind class map | 78 | bundled | 0% | 1 | 0 | stays |
-| `config/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 | bundled | 0% | 2 | 0 | stays — CR-06: must import nothing |
-| `config/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 0% | 5 | 2 | stays |
-| `config/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 199 | bundled | 0% | 8 | 0 | stays — shared, not a feature |
+| `config/categoryColors.ts` | Per-category hex/Tailwind class map | 70 | bundled | 0% | 1 | 0 | `shared/config/categoryColors.ts` · slice 3 |
+| `config/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 | bundled | 0% | 2 | 0 | `shared/config/imageDomains.ts` · slice 3 — CR-06: must import nothing |
+| `config/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 0% | 5 | 2 | `shared/config/topicImages.ts` · slice 3 |
+| `config/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 178 | bundled | 0% | 8 | 0 | `shared/config/translations.ts` · slice 3 — shared, not a feature |
 
 ### Context and types
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `context/LanguageContext.tsx` | EN/HI provider, localStorage-backed | 57 | directive | 0% | 8 | 1 | stays — app-wide state provider, not a UI primitive |
-| `context/ThemeContext.tsx` | Light/dark provider, localStorage-backed | 63 | directive | 0% | 18 | 0 | stays — app-wide state provider, not a UI primitive |
-| `types/index.ts` | Article, NewsResponse, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog | 96 | bundled | excl. | 24 | 0 | stays |
+| `context/LanguageContext.tsx` | EN/HI provider, localStorage-backed | 57 | directive | 0% | 8 | 1 | `frontend/context/LanguageContext.tsx` · slice 8 — app-wide state provider, not a UI primitive |
+| `context/ThemeContext.tsx` | Light/dark provider, localStorage-backed | 63 | directive | 0% | 18 | 0 | `frontend/context/ThemeContext.tsx` · slice 8 — app-wide state provider, not a UI primitive |
+| `types/index.ts` | Article, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog | 89 | bundled | excl. | 24 | 0 | `shared/types/index.ts` · slice 3 |
 
 ### Framework-pinned (never move)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `instrumentation-client.ts` | Sentry browser init | 13 |  | excl. | 0 | 1 | PINNED -- do not move |
-| `instrumentation.ts` | Sentry server/edge init hook | 12 |  | excl. | 0 | 2 | PINNED -- do not move |
-| `proxy.ts` | AUTH GATE. Next 16 Proxy (was middleware). Matches /admin/*, /api/admin/* | 46 |  | 0% | 0 | 1 | PINNED -- do not move |
-| `sentry.edge.config.ts` | Sentry edge config | 8 |  | excl. | 1 | 1 | PINNED -- do not move |
-| `sentry.server.config.ts` | Sentry Node config | 8 |  | excl. | 1 | 1 | PINNED -- do not move |
+| `instrumentation-client.ts` | Sentry browser init | 13 |  | excl. | 0 | 1 | `instrumentation-client.ts` · slice 1 |
+| `instrumentation.ts` | Sentry server/edge init hook | 12 |  | excl. | 0 | 2 | `instrumentation.ts` · slice 1 |
+| `proxy.ts` | AUTH GATE. Next 16 Proxy (was middleware). Matches /admin/*, /api/admin/* | 46 |  | 0% | 0 | 1 | `proxy.ts` · slice 1 |
+| `sentry.edge.config.ts` | Sentry edge config | 8 |  | excl. | 1 | 1 | `sentry.edge.config.ts` · slice 1 |
+| `sentry.server.config.ts` | Sentry Node config | 8 |  | excl. | 1 | 1 | `sentry.server.config.ts` · slice 1 |
 
 ## Dependency index
 
