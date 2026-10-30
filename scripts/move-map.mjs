@@ -235,3 +235,12 @@ export const MOVES = [
 // Violations accepted for now, keyed by "<rule> <importer> -> <imported>"
 // (paths as targets), each with its reason and where it is resolved.
 export const KNOWN = {};
+
+// The app/ files a moved route or page body left behind: a one-line re-export of
+// the body, kept at its URL path (A2). Derived from MOVES, so it cannot drift:
+// jest.config.ts excludes them from coverage (there is nothing in a re-export to
+// cover), and eslint.boundaries.mjs holds them to re-exports only. Composition
+// pages (app/page.tsx, app/article/[slug]/page.tsx) and layouts are not shims.
+export const SHIMS = MOVES
+  .filter(([from, to]) => /^src\/app\/(.+\/)?(route\.ts|page\.tsx)$/.test(from) && !to.startsWith("app/"))
+  .map(([from]) => from.replace(/^src\//, ""));
