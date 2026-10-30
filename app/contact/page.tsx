@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Header, Footer } from "@/features/news";
+import { Header, Footer } from "@/frontend/features/news";
 import { ArrowLeft, Mail, Megaphone, MapPin } from "lucide-react";
 
 const CONTACT_INFO = [

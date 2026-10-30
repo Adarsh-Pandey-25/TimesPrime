@@ -12,7 +12,7 @@ import { ADMIN_SESSION_COOKIE, verifySessionToken } from "@/backend/auth/adminSe
 const PUBLIC_ADMIN_PATHS = new Set(["/admin/login", "/api/admin/login", "/api/admin/logout"]);
 
 // Breaking news is read by the public-facing homepage banner
-// (features/admin/components/BreakingNewsBanner.tsx), which has no admin session —
+// (frontend/features/news/BreakingNewsBanner.tsx), which has no admin session —
 // so only GET on this one path is public. POST/DELETE (admin management,
 // same route file) still require a session like every other /api/admin/*
 // endpoint; the check below is method-aware specifically for this reason.

@@ -3,8 +3,8 @@ import { PT_Serif } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/frontend/context/ThemeContext";
 import { LanguageProvider } from "@/frontend/context/LanguageContext";
-import { FloatingAiAssistant } from "@/features/chat";
-import { BreakingNewsBanner } from "@/features/admin";
+import { FloatingAiAssistant } from "@/frontend/features/chat";
+import { BreakingNewsBanner } from "@/frontend/features/news";
 
 const ptSerif = PT_Serif({
   weight: ["400", "700"],

@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { Header, Footer, ArticleDetailView } from "@/features/news";
+import { Header, Footer, ArticleDetailView } from "@/frontend/features/news";
 import { Article } from "@/shared/types";
 
 interface PageProps {

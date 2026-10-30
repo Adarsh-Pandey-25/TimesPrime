@@ -234,8 +234,4 @@ export const MOVES = [
 
 // Violations accepted for now, keyed by "<rule> <importer> -> <imported>"
 // (paths as targets), each with its reason and where it is resolved.
-export const KNOWN = {
-  "X1 frontend/features/admin/index.ts -> frontend/features/news/BreakingNewsBanner.tsx":
-    "The admin barrel re-exports the banner today. Slice 9 moves that re-export to the news barrel with the file " +
-    "(S0 judgement call 2, approved by the owner).",
-};
+export const KNOWN = {};

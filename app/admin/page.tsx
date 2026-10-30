@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Header, Footer, MarqueeTicker } from "@/features/news";
+import { Header, Footer, MarqueeTicker } from "@/frontend/features/news";
 import { CheckCircle2, Database, ShieldCheck, RefreshCw, AlertTriangle, LogOut } from "lucide-react";
 import { Language } from "@/shared/config/translations";
 import { useTheme } from "@/frontend/context/ThemeContext";
-import { ArticlesTable, CategoryStatsCard, BreakingNewsManager, SyncDashboard, ActivityLog } from "@/features/admin";
+import { ArticlesTable, CategoryStatsCard, BreakingNewsManager, SyncDashboard, ActivityLog } from "@/frontend/features/admin";
 
 interface DbStats {
   configured: boolean;

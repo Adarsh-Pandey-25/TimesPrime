@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Header, Footer, ArticleCard, getBookmarks, clearAllBookmarks } from "@/features/news";
+import { Header, Footer, ArticleCard, getBookmarks, clearAllBookmarks } from "@/frontend/features/news";
 import { Article } from "@/shared/types";
 import { Bookmark, Trash2, ArrowLeft, Layers } from "lucide-react";
 import { useTheme } from "@/frontend/context/ThemeContext";

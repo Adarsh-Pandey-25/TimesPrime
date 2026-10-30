@@ -10,7 +10,7 @@ import { Language, TRANSLATIONS } from "@/shared/config/translations";
 import CategoryMegaMenu from "./CategoryMegaMenu";
 import { Article } from "@/shared/types";
 import { useTheme } from "@/frontend/context/ThemeContext";
-import { getBookmarks } from "../bookmarks";
+import { getBookmarks } from "./bookmarks";
 import { useLanguage } from "@/frontend/context/LanguageContext";
 
 interface HeaderProps {

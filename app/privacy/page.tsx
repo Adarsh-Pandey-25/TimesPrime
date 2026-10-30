@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Header, Footer } from "@/features/news";
+import { Header, Footer } from "@/frontend/features/news";
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 

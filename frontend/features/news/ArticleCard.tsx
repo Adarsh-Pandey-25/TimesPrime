@@ -8,7 +8,7 @@ import { Article } from "@/shared/types";
 import { Clock, ExternalLink, Bookmark, Layers } from "lucide-react";
 import { Language, TRANSLATIONS, translateHeadline } from "@/shared/config/translations";
 import { useTheme } from "@/frontend/context/ThemeContext";
-import { isBookmarked, toggleBookmark } from "../bookmarks";
+import { isBookmarked, toggleBookmark } from "./bookmarks";
 import { useLanguage } from "@/frontend/context/LanguageContext";
 
 import { getTopicImageUrl } from "@/shared/config/topicImages";

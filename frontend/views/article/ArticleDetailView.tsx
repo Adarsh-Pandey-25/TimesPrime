@@ -20,7 +20,7 @@ import {
   ThumbsUp,
   BookOpen,
 } from "lucide-react";
-import ArticleCard from "./ArticleCard";
+import { ArticleCard } from "@/frontend/features/news";
 
 import { useLanguage } from "@/frontend/context/LanguageContext";
 import { useTheme } from "@/frontend/context/ThemeContext";
