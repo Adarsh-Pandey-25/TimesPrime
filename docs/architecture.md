@@ -144,7 +144,15 @@ These are the rules a reviewer may cite in a pull request. Phase E enforces them
    the Supabase SDK into `/admin`'s browser chunk — until `b01d528`. Each feature's `server.ts`
    begins with `import "server-only";`, so a client import of it is a **build error**, not a review
    comment (Next.js 16 docs, "Preventing environment poisoning"; the package is optional because Next
-   bundles it).
+   bundles it). **Every module in `src/server/` begins with it too** (added after slice 3), including
+   `auth/adminSession.ts`, which `src/proxy.ts` imports. That is valid in the proxy: Proxy runs on
+   the Node.js runtime by default (`proxy.md`, "Runtime"), and the Next 16 authentication guide's own
+   `proxy.ts` imports a session module that begins with `import 'server-only'`. *Seen to work:* a
+   temporary `import "@/server/supabase"` in a client component failed the build with "'server-only'
+   cannot be imported from a Client Component module"; without it the build passes, and under
+   `next start` the proxy still redirects `/admin` to the login page and returns 401 from
+   `/api/admin/stats` — including with a forged session cookie — while the public GET of
+   breaking-news still answers 200 (CR-08).
 7. **`config/` imports only `config/` and `types/`.** Static data — no React, no `server-only`, no
    feature or server code. **`imageDomains.ts` imports nothing at all**: `next.config.ts` evaluates it
    at config-load time (CR-06). *Refined in Phase C:* the draft said "config imports nothing", which

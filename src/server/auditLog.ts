@@ -1,3 +1,5 @@
+import "server-only";
+
 import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/server/supabase";
 import type { AdminAction } from "@/types";

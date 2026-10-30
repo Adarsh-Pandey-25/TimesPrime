@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createHmac, timingSafeEqual } from "crypto";
 
 export const ADMIN_SESSION_COOKIE = "timesprime_admin_session";

@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `21c8951` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-30 04:38 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `0c381f9` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 04:41 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -172,10 +172,10 @@ Widest blast radius when moved.
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `server/auditLog.ts` | Writes admin_logs rows (logAdminAction) | 38 |  | 0% | 7 | 2 | stays |
-| `server/auth/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 67 |  | 0% | 3 | 0 | stays |
-| `server/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 86 |  | 0% | 1 | 0 | stays |
-| `server/supabase.ts` | Supabase client; prefers service-role key when present | 20 |  | 0% | 10 | 0 | stays |
+| `server/auditLog.ts` | Writes admin_logs rows (logAdminAction) | 40 |  | 0% | 7 | 2 | stays |
+| `server/auth/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 69 |  | 0% | 3 | 0 | stays |
+| `server/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 88 |  | 0% | 1 | 0 | stays |
+| `server/supabase.ts` | Supabase client; prefers service-role key when present | 22 |  | 0% | 10 | 0 | stays |
 
 ### Library — `src/lib/` (the folder being split)
 

@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Thin wrapper around the free, unofficial Google Translate web endpoint
  * (translate.googleapis.com/translate_a/single) — the same one
