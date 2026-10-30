@@ -40,12 +40,12 @@ const config: Config = {
     // files (measured: the @/ui probe passed with this line removed), so this
     // is the fallback for anything that bypasses the transform. Order matters:
     // Jest takes the first match, so every alias that does not map 1:1 onto
-    // src/ comes before the catch-all.
+    // the repo root comes before the catch-all.
     "^@/frontend/(.*)$": "<rootDir>/frontend/$1",
     "^@/backend/(.*)$": "<rootDir>/backend/$1",
     "^@/shared/(.*)$": "<rootDir>/shared/$1",
-    "^@/ui/(.*)$": "<rootDir>/src/components/ui/$1",
-    "^@/(.*)$": "<rootDir>/src/$1",
+    "^@/ui/(.*)$": "<rootDir>/components/ui/$1",
+    "^@/(.*)$": "<rootDir>/$1",
   },
 };
 

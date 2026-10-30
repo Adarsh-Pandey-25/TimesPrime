@@ -22,12 +22,12 @@
       "@/frontend/*": ["./frontend/*"],
       "@/backend/*": ["./backend/*"],
       "@/shared/*": ["./shared/*"],
-      "@/features/*": ["./src/features/*"],
-      "@/server/*": ["./src/server/*"],
-      "@/lib/*": ["./src/lib/*"],
-      "@/config/*": ["./src/config/*"],
-      "@/ui/*": ["./src/components/ui/*"],
-      "@/*": ["./src/*"]
+      "@/features/*": ["./features/*"],
+      "@/server/*": ["./server/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/config/*": ["./config/*"],
+      "@/ui/*": ["./components/ui/*"],
+      "@/*": ["./*"]
     }
   },
   "include": [

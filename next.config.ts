@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
-import { ALLOWED_IMAGE_HOSTNAMES } from "./src/config/imageDomains";
+import { ALLOWED_IMAGE_HOSTNAMES } from "./config/imageDomains";
 
 // Static (build-time) origin selection: dev always allows localhost, a
 // production build always allows the configured deployed origin. next.config
@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
   ],
   images: {
     // https only, explicit hostnames only — kept in sync with topicImages.ts
-    // via the shared ALLOWED_IMAGE_HOSTNAMES list (src/config/imageDomains.ts).
+    // via the shared ALLOWED_IMAGE_HOSTNAMES list (config/imageDomains.ts).
     //
     // The `{,*.}` prefix is what makes that sync real rather than nominal.
     // Sharing the list is not enough on its own: isAllowedImageUrl matches
