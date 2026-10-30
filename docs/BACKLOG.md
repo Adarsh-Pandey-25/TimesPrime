@@ -384,3 +384,49 @@ and root tooling. Two cases so far: while `4ff0167` was being written, a test co
 scan could not "shrink" emitted `.shrink` until it was reworded; and `.transform` is in the CSS
 only because three `jest.config.ts` comments say "transform". Excluding test files or root
 configs would be a further owner decision.
+
+## BL-019 — An article-page trending image timed out at the image optimizer
+
+**Found:** restructure 2, S3 (the smoke test after slice 11) · **Status:** Open — **no config
+change** (owner, S4); act only if it recurs
+
+In the slice-11 smoke test's screenshot of `/article/[slug]`, one thumbnail in the lists the page
+builds from `/api/news/top-headlines` was empty. The `next start` log of that run has exactly one
+image error:
+
+    ⨯ upstream image response timed out for https://kubrick.htvapps.com/htv-prod/images/53baa842-b42a-46f7-96af-373e09efe30a.jpg
+
+- **Host:** `kubrick.htvapps.com`. **It is in `imageDomains`**: `ALLOWED_IMAGE_HOSTNAMES` in
+  `shared/config/imageDomains.ts:34`. So `isAllowedImageUrl` handed the URL to `<Image>`, and
+  `remotePatterns` (`{,*.}kubrick.htvapps.com`) let `/_next/image` fetch it. The allowlist is not
+  the cause, and no slot is needed: `remotePatterns` holds 49 entries against the cap of 50.
+- **What failed:** the optimizer's fetch from the publisher. `next/dist/server/image-optimizer.js:474`
+  logs that line and answers 504 when the upstream does not respond within
+  `images.imgOptTimeoutInSeconds`, default 7 (`next/dist/server/config-shared.js:229`). Fetched
+  directly in S4, the same URL returned 200 in 0.31 s (35,448 bytes). The CDN was slow once; the
+  image is not broken.
+- **Not caused by the restructure:** `remotePatterns` is unchanged.
+
+Nothing to fix for a one-off. If it recurs, the options are an `onError` fallback to the topic
+image, which covers any publisher outage, or a longer `imgOptTimeoutInSeconds`, which only makes
+readers wait longer. Either is a change for the owner to decide.
+
+## BL-020 — A curated Sports topic image is gone from Unsplash (404)
+
+**Found:** restructure 2, S3 (the smoke test after slice 1) · **Status:** Open — a one-line data
+fix in `shared/config/topicImages.ts`, for the owner
+
+The slice-1 smoke test's `next start` log:
+
+    ⨯ upstream image response failed for https://images.unsplash.com/photo-1540747913346-19212a729b62?w=1200&auto=format&fit=crop&q=80 404
+
+That URL is the "Cricket" image, second of the four in the Sports bucket of `TOPIC_IMAGE_MAP`
+(`shared/config/topicImages.ts:75`). It still returned 404 when re-checked in S4. The other 44 of
+the file's 45 Unsplash URLs (43 distinct, `GENERIC_NEWS_FALLBACK` included) returned 200.
+
+Unlike BL-019, this one fails every time. Take an article whose own image is missing or not
+allowlisted, whose headline matches the Sports keywords, and which `assignDedupedTopicImages`
+gives that slot: its thumbnail renders empty.
+
+Fix: replace the URL with a working photo, or drop it from the bucket. Not done in S4, which
+changes no data.
