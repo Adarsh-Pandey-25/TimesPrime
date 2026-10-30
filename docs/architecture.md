@@ -139,7 +139,12 @@ These are the rules a reviewer may cite in a pull request. Phase E enforces them
 4. **Shared things move down.** If two features need the same thing, it moves into a shared layer.
    It does not get imported sideways.
 5. **`components/ui` is domain-free.** It may not import a feature, and must not know what an
-   `Article` is.
+   `Article` is. It imports only `components/ui`, `lib` and `types` — plus `context/ThemeContext`,
+   because light/dark is appearance, which is exactly what a primitive owns. Language, UI strings
+   and category data are app state or product knowledge, so `LanguageContext` and `config/` are
+   off-limits (rule R5 in `check-move-map`; owner decision, Phase D, before slice 4). Footer is why
+   the rule exists: it read both and rendered category links, which the old "downward is fine"
+   reading could not catch.
 6. **`server/` is never imported by a client component.** `ActivityLog.tsx` broke this — pulling
    the Supabase SDK into `/admin`'s browser chunk — until `b01d528`. Each feature's `server.ts`
    begins with `import "server-only";`, so a client import of it is a **build error**, not a review
@@ -174,7 +179,7 @@ a time. Documentation does not prevent this; a linter does.
 | `features/news/` | Feed, article page, masthead and footer, saved-article store; upstream fetching, editorial filters, classification, freshness, article storage | Import from another feature; expose server code through `index.ts` |
 | `features/admin/` | Operator UI, plus the public breaking-news banner whose data it owns (CR-08) | Be imported by another feature |
 | `features/chat/` | Assistant UI | Reach into news internals — take article context as a parameter |
-| `components/ui/` | Presentational primitives: spinner, skeleton — appearance only, no app state | Import a feature, or know what an Article is |
+| `components/ui/` | Presentational primitives: spinner, skeleton — appearance only; may read the theme, no other app state | Import a feature, `config/` or `LanguageContext`, or know what an Article is |
 | `context/` | App-wide state providers: theme (light/dark) and language (EN/HI), each persisted to `localStorage` | Import anything but `config/` and `types/`; hold feature state |
 | `server/` | Supabase client, session issue/verify, audit logging, the translate client | Be imported by a client component |
 | `lib/` | Cross-cutting, **domain-free** utilities: cache, rate limiting, URL validation, error scrubbing | Know any product concept — see *What `lib/` means* below |

@@ -116,6 +116,10 @@ for (const e of edges) {
   else if (["server", "lib", "config", "ui", "context", "types"].includes(la) && fb) rule = `R3 no upward ${la} -> feature`;
   else if (la === "lib" && lb === "server") rule = "R3 no upward lib -> server";
   else if (la === "ui" && lb === "server") rule = "R6 ui never imports server";
+  // Theme is appearance, so a primitive may read it; language, UI strings and
+  // category data are app state or product knowledge, so it may not.
+  else if (la === "ui" && !["ui", "lib", "types"].includes(lb) && b !== "src/context/ThemeContext.tsx")
+    rule = "R5 ui imports only ui/lib/types and ThemeContext";
   else if (la === "config" && !["config", "types"].includes(lb)) rule = `R7 config imports only config/types`;
   else if (la === "context" && !["context", "config", "types"].includes(lb)) rule = `R9 context imports only config/types`;
   else if (e.kind !== "type" && bundle.has(e.from) && lb === "server") rule = "R6 client bundle never reaches server";
