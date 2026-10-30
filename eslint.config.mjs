@@ -10,8 +10,8 @@ const eslintConfig = defineConfig([
   ...boundaries,
   {
     rules: {
-      // Downgraded to a warning, deliberately not fixed. The three current
-      // violations (src/app/saved/page.tsx, src/features/news/components/ArticleCard.tsx)
+      // Downgraded to a warning, deliberately not fixed. The two current
+      // violations (frontend/views/saved/SavedView.tsx, frontend/features/news/ArticleCard.tsx)
       // would have to become derived state to satisfy this rule, which
       // changes render timing — a behavior change on files that have zero
       // test coverage today. They are scheduled for Phase 6, once

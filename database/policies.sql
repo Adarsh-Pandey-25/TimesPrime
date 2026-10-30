@@ -6,7 +6,7 @@
 --   - Enables RLS on public.articles (currently disabled, so any anon-key holder can read/write/delete every row)
 --   - Everyone (anon + authenticated) can SELECT — this is a public news feed
 --   - Only service_role can INSERT / UPDATE / DELETE — that's the role the Next.js server uses
---     (src/lib/supabase.ts prefers SUPABASE_SERVICE_ROLE_KEY when present, which this app's .env.local sets,
+--     (backend/lib/supabase.ts prefers SUPABASE_SERVICE_ROLE_KEY when present, which this app's .env.local sets,
 --     so server-side writes are unaffected by this change)
 --   - Table-level GRANTs are tightened to match: anon/authenticated get SELECT only
 
