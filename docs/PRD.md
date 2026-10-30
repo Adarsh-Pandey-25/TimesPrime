@@ -1,7 +1,8 @@
 # TimesPrime — Product Requirements Document
 
 **Type:** brownfield / reverse-engineered · **Baseline:** commit `506a4ab`, branch `main`, updated
-through `59b875d` to record the owner decisions in §12 · **Updated:** 2026-10-29
+through `59b875d` to record the owner decisions in §12 · **Updated:** 2026-10-29; code citations
+moved to the restructure-2 layout on 2026-10-30 (statuses unchanged)
 
 This document describes what TimesPrime **does**, not what anyone intended it to do. Every
 functional requirement cites the code implementing it; a requirement with no citation is marked
@@ -73,56 +74,57 @@ primary language plus a translation afterthought.
 
 ## 6. Functional requirements
 
-24 requirements. Status reflects **verified behaviour**, not intent. Paths are relative to `src/`.
+24 requirements. Status reflects **verified behaviour**, not intent. Paths are relative to the repository root; a route or
+page is cited at its body, which the one-line file in `app/` re-exports.
 
 ### Feed and ingestion
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-001 | Fetch headlines by category from NewsData.io | `features/news/server/newsdata.ts`, `features/news/server/fetchNews.ts` | Implemented |
-| FR-002 | Refresh all 7 categories on a 30-minute schedule | `app/api/cron/refresh-news/route.ts`, `vercel.json` | Implemented |
-| FR-003 | Serve from cache → store → upstream → mock, in that order | `app/api/news/top-headlines/route.ts` | **Partial** — tier 2 unreachable, DEF-01 |
-| FR-004 | Persist articles on a rolling 7-day window | `features/news/server/db.ts` → `purgeOldArticles` | **Partial** — runs on the read path, DEF-05 |
-| FR-005 | De-duplicate by normalised title | `features/news/newsConfig.ts` → `dedupeArticlesByTitle` | Implemented · tested |
-| FR-006 | Exclude horoscope/tarot filler, wire-spam and non-news listing sources | `features/news/newsConfig.ts` | Implemented · tested |
-| FR-007 | Exclude hard-paywalled publishers at write time | `features/news/server/db.ts` → `HARD_PAYWALL_SOURCE_DOMAINS` | Implemented |
-| FR-008 | Classify and suppress mis-tagged categories via LLM | `features/news/server/categoryClassifier.ts` | Implemented — fail-open by design |
-| FR-009 | Notify the reader when newer stories exist | `app/api/news/check-new/route.ts`, `features/news/components/HomeClient.tsx` | Implemented |
+| FR-001 | Fetch headlines by category from NewsData.io | `backend/services/news/newsdata.ts`, `backend/services/news/fetchNews.ts` | Implemented |
+| FR-002 | Refresh all 7 categories on a 30-minute schedule | `backend/api/cron/refresh-news.ts`, `vercel.json` | Implemented |
+| FR-003 | Serve from cache → store → upstream → mock, in that order | `backend/api/news/top-headlines.ts` | **Partial** — tier 2 unreachable, DEF-01 |
+| FR-004 | Persist articles on a rolling 7-day window | `backend/repositories/db.ts` → `purgeOldArticles` | **Partial** — runs on the read path, DEF-05 |
+| FR-005 | De-duplicate by normalised title | `shared/config/newsConfig.ts` → `dedupeArticlesByTitle` | Implemented · tested |
+| FR-006 | Exclude horoscope/tarot filler, wire-spam and non-news listing sources | `shared/config/newsConfig.ts` | Implemented · tested |
+| FR-007 | Exclude hard-paywalled publishers at write time | `backend/repositories/db.ts` → `HARD_PAYWALL_SOURCE_DOMAINS` | Implemented |
+| FR-008 | Classify and suppress mis-tagged categories via LLM | `backend/services/classify/categoryClassifier.ts` | Implemented — fail-open by design |
+| FR-009 | Notify the reader when newer stories exist | `backend/api/news/check-new.ts`, `frontend/views/home/HomeClient.tsx` | Implemented |
 
 ### Language
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-010 | Restrict each feed to its language by script detection | `features/news/newsConfig.ts`, `features/news/server/db.ts` | Implemented · tested |
-| FR-011 | Translate article text on demand | `app/api/translate/route.ts`, `server/googleTranslate.ts` | **Partial** — unofficial endpoint, no size cap |
-| FR-012 | Persist the language choice across visits | `context/LanguageContext.tsx` | Implemented |
+| FR-010 | Restrict each feed to its language by script detection | `shared/config/newsConfig.ts`, `backend/repositories/db.ts` | Implemented · tested |
+| FR-011 | Translate article text on demand | `backend/api/translate.ts`, `backend/services/translate/googleTranslate.ts` | **Partial** — unofficial endpoint, no size cap |
+| FR-012 | Persist the language choice across visits | `frontend/context/LanguageContext.tsx` | Implemented |
 
 ### Article reading
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-013 | Extract readable full text from a publisher page | `app/api/news/scrape-article/route.ts` | Implemented |
+| FR-013 | Extract readable full text from a publisher page | `backend/api/news/scrape-article.ts` | Implemented |
 | FR-014 | Detect paywalls and show publisher metadata instead of junk | same → `detectPaywall` | Implemented |
 | FR-015 | Strip author bios, nav and app-download boilerplate | same → `isJunkParagraph` | Implemented |
-| FR-016 | Refuse to fetch internal/private network addresses | `lib/urlValidation.ts` | **Partial** — redirects bypass it, DEF-02 |
-| FR-017 | Always link out to the original publisher | `features/news/components/ArticleDetailView.tsx` | **Partial** — 2 of 4 links unvalidated, DEF-03 |
+| FR-016 | Refuse to fetch internal/private network addresses | `backend/lib/urlValidation.ts` | **Partial** — redirects bypass it, DEF-02 |
+| FR-017 | Always link out to the original publisher | `frontend/views/article/ArticleDetailView.tsx` | **Partial** — 2 of 4 links unvalidated, DEF-03 |
 
 ### Reader features
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-018 | Save articles device-locally and list them | `features/news/bookmarks.ts`, `app/saved/page.tsx` | Implemented · tested |
-| FR-019 | Answer questions about a story, streamed | `app/api/chat/route.ts` | Implemented · tested — error path misleads, DEF-04 |
-| FR-020 | Provide a themed, topic-appropriate image for every card | `config/topicImages.ts`, `config/imageDomains.ts` | Implemented |
+| FR-018 | Save articles device-locally and list them | `frontend/features/news/bookmarks.ts`, `frontend/views/saved/SavedView.tsx` | Implemented · tested |
+| FR-019 | Answer questions about a story, streamed | `backend/api/chat.ts` | Implemented · tested — error path misleads, DEF-04 |
+| FR-020 | Provide a themed, topic-appropriate image for every card | `shared/config/topicImages.ts`, `shared/config/imageDomains.ts` | Implemented |
 
 ### Operations
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-021 | Gate every admin surface behind a session | `proxy.ts`, `server/auth/adminSession.ts` | **Partial** — unthrottled, DEF-06 |
-| FR-022 | List, search, edit, delete and bulk-delete stored articles | `app/api/admin/articles/*`, `features/admin/components/ArticlesTable.tsx` | Implemented |
-| FR-023 | Publish an editorial article directly | `app/api/admin/publish-article/route.ts` | Implemented — bypasses the filter pipeline by design |
-| FR-024 | Set a time-boxed breaking-news banner | `app/api/admin/breaking-news/route.ts` | **Blocked** — table absent from schema, DEF-07 |
+| FR-021 | Gate every admin surface behind a session | `proxy.ts`, `backend/auth/adminSession.ts` | **Partial** — unthrottled, DEF-06 |
+| FR-022 | List, search, edit, delete and bulk-delete stored articles | `backend/api/admin/articles.ts`, `backend/api/admin/articles-bulk.ts`, `frontend/features/admin/ArticlesTable.tsx` | Implemented |
+| FR-023 | Publish an editorial article directly | `backend/api/admin/publish-article.ts` | Implemented — bypasses the filter pipeline by design |
+| FR-024 | Set a time-boxed breaking-news banner | `backend/api/admin/breaking-news.ts` | **Blocked** — table absent from schema, DEF-07 |
 
 ## 7. Non-functional requirements
 
@@ -132,7 +134,7 @@ primary language plus a translation afterthought.
 | NFR-02 | No third-party outage produces a user-visible error | Met — arguably over-met; see §11 |
 | NFR-03 | Abuse-prone endpoints are rate-limited | **Partial.** Chat and translate only; login and scraper unprotected |
 | NFR-04 | Request bodies and upstream responses are size-capped | **Not met.** No cap on chat message, translate array, or scraped response |
-| NFR-05 | Secrets never reach the browser or an error report | Met — `lib/sentryScrub.ts` redacts; no secret is `NEXT_PUBLIC_` |
+| NFR-05 | Secrets never reach the browser or an error report | Met — `shared/validation/sentryScrub.ts` redacts; no secret is `NEXT_PUBLIC_` |
 | NFR-06 | Stored articles are purged after 7 days | Met, on the wrong execution path |
 | NFR-07 | Usable at 400 px width | Appears met from the breakpoint set; **not verified in a browser** |
 | NFR-08 | Typecheck, lint, test and build pass on every commit | Met, and enforced in CI since `506a4ab` |
@@ -151,7 +153,7 @@ the restructure as firmly as any functional requirement.
 | CR-03 | The `articles` table shape | Live data exists; no migration tooling in place |
 | CR-04 | Every `process.env` name | Set in the Vercel dashboard, outside version control |
 | CR-05 | `proxy.ts` location and matcher semantics | Framework-pinned, and the sole authorisation boundary |
-| CR-06 | `imageDomains.ts` importable from `next.config.ts` | Evaluated at config-load time — must never import React or `server-only` |
+| CR-06 | `shared/config/imageDomains.ts` importable from `next.config.ts` | Evaluated at config-load time — must never import React or `server-only` |
 | CR-07 | Sentry and instrumentation file locations | Framework conventions; silently inert if moved |
 | CR-08 | Public GET on `/api/admin/breaking-news` | The homepage banner has no session and reads it directly |
 
@@ -159,9 +161,9 @@ the restructure as firmly as any functional requirement.
 
 | Table | Defined in | Status | Shape |
 |---|---|---|---|
-| `articles` | `db/schema.sql` | Committed | 15 columns. `article_id` unique. `category`/`country`/`category_mismatches` are `TEXT[]`. **Only `id`, `article_id`, `title`, `created_at` are NOT NULL** |
-| `breaking_news` | route-file comment | **Not committed** | `id`, `text`, `is_active`, `expires_at`, `created_at` |
-| `admin_logs` | route-file comment | **Not committed** | `id`, `action`, `details`, `metadata` (JSONB), `created_at` |
+| `articles` | `database/schema.sql` | Committed | 15 columns. `article_id` unique. `category`/`country`/`category_mismatches` are `TEXT[]`. **Only `id`, `article_id`, `title`, `created_at` are NOT NULL** |
+| `breaking_news` | comment in `backend/api/admin/breaking-news.ts` | **Not committed** | `id`, `text`, `is_active`, `expires_at`, `created_at` |
+| `admin_logs` | comment in `backend/api/admin/logs.ts` | **Not committed** | `id`, `action`, `details`, `metadata` (JSONB), `created_at` |
 
 The nullability of `link` and `pub_date` is the root of **BL-001**: `Article.link` and
 `Article.pubDate` are required strings in TypeScript, so the row mapping relies on `any` to hide
