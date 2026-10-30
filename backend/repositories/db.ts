@@ -176,7 +176,7 @@ function isFromHindiSource(link: string | undefined): boolean {
 
 // Sources that gate nearly all article content behind a subscription, so
 // storing them just means the reader hits scrape-article's paywall branch
-// (see app/api/news/scrape-article/route.ts) every time — better to
+// (see backend/api/news/scrape-article.ts) every time — better to
 // not show them in the feed at all.
 //
 // Deliberately NOT domain-wide for every "premium" publisher: Supabase's

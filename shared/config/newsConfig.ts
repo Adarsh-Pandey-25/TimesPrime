@@ -1,7 +1,7 @@
 /**
  * Shared constants/utilities for the news-fetching pipeline.
  * Previously duplicated between backend/services/news/fetchNews.ts (server-side initial fetch)
- * and app/api/news/top-headlines/route.ts (client-side refetch endpoint).
+ * and backend/api/news/top-headlines.ts (client-side refetch endpoint).
  */
 
 import { Article } from "@/shared/types";

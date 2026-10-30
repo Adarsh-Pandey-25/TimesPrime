@@ -29,7 +29,7 @@ import { assignDedupedTopicImages } from "@/shared/config/topicImages";
 
 // Generic placeholder sentences the scraper/route layer substitutes in when
 // it can't extract real paragraphs from the publisher page (see
-// app/api/news/scrape-article/route.ts and app/article/[slug]/page.tsx).
+// backend/api/news/scrape-article.ts and app/article/[slug]/page.tsx).
 // Rendered verbatim they look like a broken app, not a deliberate message —
 // detect them here so the UI can swap in a styled "read at source" CTA instead.
 const SCRAPE_FALLBACK_MESSAGES = [
