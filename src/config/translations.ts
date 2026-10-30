@@ -32,10 +32,7 @@ export interface TranslationDictionary {
     verifiedSources: string;
     realtimeCaching: string;
     newsCategories: string;
-    newsletterTitle: string;
-    newsletterDesc: string;
     emailPlaceholder: string;
-    subscribe: string;
     allRightsReserved: string;
     followUs: string;
     newsHeading: string;
@@ -47,10 +44,6 @@ export interface TranslationDictionary {
     advertiseWithUs: string;
     privacyPolicy: string;
     termsOfUse: string;
-    newsletterStripTagline: string;
-    subscribedSuccess: string;
-    newsletterEmailPlaceholder: string;
-    rssFeeds: string;
     backToTop: string;
   };
   articleView: {
@@ -97,10 +90,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
       verifiedSources: "Verified Sources",
       realtimeCaching: "Real-time Caching",
       newsCategories: "News Categories",
-      newsletterTitle: "Daily Digest Newsletter",
-      newsletterDesc: "Get the top global stories delivered straight to your inbox every morning.",
       emailPlaceholder: "Enter your email address",
-      subscribe: "Subscribe",
       allRightsReserved: "All rights reserved.",
       followUs: "Follow Us:",
       newsHeading: "News",
@@ -112,10 +102,6 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
       advertiseWithUs: "Advertise With Us",
       privacyPolicy: "Privacy Policy",
       termsOfUse: "Terms of Use",
-      newsletterStripTagline: "Stay Informed — Get Your Daily News Digest",
-      subscribedSuccess: "You're subscribed!",
-      newsletterEmailPlaceholder: "Enter your email",
-      rssFeeds: "RSS Feeds",
       backToTop: "Back to top",
     },
     articleView: {
@@ -160,10 +146,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
       verifiedSources: "सत्यापित स्रोत",
       realtimeCaching: "रियल-टाइम कैशिंग",
       newsCategories: "समाचार श्रेणियां",
-      newsletterTitle: "दैनिक समाचार पत्रिका",
-      newsletterDesc: "हर सुबह प्रमुख वैश्विक समाचार सीधे अपने इनबॉक्स में प्राप्त करें।",
       emailPlaceholder: "अपना ईमेल पता दर्ज करें",
-      subscribe: "सदस्यता लें",
       allRightsReserved: "सर्वाधिकार सुरक्षित।",
       followUs: "हमें फॉलो करें:",
       newsHeading: "समाचार",
@@ -175,10 +158,6 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
       advertiseWithUs: "विज्ञापन दें",
       privacyPolicy: "गोपनीयता नीति",
       termsOfUse: "उपयोग की शर्तें",
-      newsletterStripTagline: "जुड़े रहें — अपनी दैनिक समाचार डाइजेस्ट पाएं",
-      subscribedSuccess: "सदस्यता सफल!",
-      newsletterEmailPlaceholder: "अपना ईमेल दर्ज करें",
-      rssFeeds: "आरएसएस फीड",
       backToTop: "ऊपर जाएं",
     },
     articleView: {
