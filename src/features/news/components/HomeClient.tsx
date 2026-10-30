@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import ArticleCard from "@/components/ArticleCard";
-import MarqueeTicker from "@/components/MarqueeTicker";
+import Header from "./Header";
+import Footer from "./Footer";
+import ArticleCard from "./ArticleCard";
+import MarqueeTicker from "./MarqueeTicker";
 import ThemeSpinner from "@/components/ui/ThemeSpinner";
 import { Article } from "@/types";
 import { Flame, Layers, RefreshCw, X, ChevronDown } from "lucide-react";

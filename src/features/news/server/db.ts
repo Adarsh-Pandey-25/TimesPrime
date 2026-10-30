@@ -7,7 +7,7 @@ import {
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
-} from "./newsConfig";
+} from "../newsConfig";
 import { classifyCategoryRelevance } from "./categoryClassifier";
 
 export interface DBArticle extends Article {

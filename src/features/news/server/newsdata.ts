@@ -1,10 +1,10 @@
 import { Article } from "@/types";
-import { mapCategory } from "@/lib/newsConfig";
+import { mapCategory } from "../newsConfig";
 
 /**
  * Shared NewsData.io fetch + normalize.
  *
- * Unlike lib/fetchNews.ts this deliberately does NOT fall back to
+ * Unlike features/news/server/fetchNews.ts this deliberately does NOT fall back to
  * MOCK_ARTICLES on failure — it throws instead. The background cron writes
  * whatever it gets straight into Supabase, so a silent mock fallback would
  * poison the database with fake articles on every upstream outage.

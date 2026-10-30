@@ -6,7 +6,7 @@ import {
   getDBArticles,
   getLatestArticleTimestamp,
   NEWS_FRESHNESS_WINDOW_MS,
-} from "@/lib/db";
+} from "@/features/news/server";
 import {
   mapCategory,
   MOCK_ARTICLES,
@@ -15,7 +15,7 @@ import {
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
-} from "@/lib/newsConfig";
+} from "@/features/news/server";
 
 export async function GET(request: NextRequest) {
   try {

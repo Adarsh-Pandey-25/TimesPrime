@@ -1,6 +1,6 @@
 import { Suspense } from "react";
-import { fetchInitialNews } from "@/lib/fetchNews";
-import HomeClient from "@/components/HomeClient";
+import { fetchInitialNews } from "@/features/news/server";
+import { HomeClient } from "@/features/news";
 import NewsSkeletonGrid from "@/components/ui/NewsSkeletonGrid";
 
 interface HomePageProps {

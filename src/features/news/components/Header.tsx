@@ -7,10 +7,10 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Globe, Menu, X, Sun, Moon, Search, ChevronDown, Bookmark } from "lucide-react";
 import { Language, TRANSLATIONS } from "@/config/translations";
-import CategoryMegaMenu from "@/components/CategoryMegaMenu";
+import CategoryMegaMenu from "./CategoryMegaMenu";
 import { Article } from "@/types";
 import { useTheme } from "@/context/ThemeContext";
-import { getBookmarks } from "@/lib/bookmarks";
+import { getBookmarks } from "../bookmarks";
 import { useLanguage } from "@/context/LanguageContext";
 
 interface HeaderProps {

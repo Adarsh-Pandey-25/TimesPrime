@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { countArticlesSince } from "@/lib/db";
-import { mapCategory } from "@/lib/newsConfig";
+import { countArticlesSince } from "@/features/news/server";
+import { mapCategory } from "@/features/news/server";
 
 /**
  * Lightweight poll target for the "new stories available" banner.

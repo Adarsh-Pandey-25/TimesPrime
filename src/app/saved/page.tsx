@@ -2,12 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import ArticleCard from "@/components/ArticleCard";
+import { Header, Footer, ArticleCard, getBookmarks, clearAllBookmarks } from "@/features/news";
 import { Article } from "@/types";
 import { Bookmark, Trash2, ArrowLeft, Layers } from "lucide-react";
-import { getBookmarks, clearAllBookmarks } from "@/lib/bookmarks";
 import { useTheme } from "@/context/ThemeContext";
 import { assignDedupedTopicImages } from "@/config/topicImages";
 

@@ -8,7 +8,7 @@ import {
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
-} from "@/lib/newsConfig";
+} from "../newsConfig";
 
 /**
  * Server-side news fetching function.
