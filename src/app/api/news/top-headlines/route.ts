@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { cache, CACHE_TTL_NEWS_SECONDS } from "@/lib/cache";
+import { reportSupabaseFallback } from "@/server/health";
 import { Article, NewsDataRawArticle } from "@/types";
 import {
   saveArticlesToDB,
@@ -89,6 +90,12 @@ export async function GET(request: NextRequest) {
         }
       }
     }
+
+    // Past this point the answer comes from NewsData.io or the mock set, not
+    // the cache or Supabase. If that is because Supabase is down, report it
+    // (rate-limited) after the response is sent, so the reader waits for
+    // nothing (owner decision D5).
+    after(() => reportSupabaseFallback({ category, language }));
 
     // Server-Side Isolated API Key (Never sent to client)
     const apiKey = process.env.NEWSDATA_API_KEY;

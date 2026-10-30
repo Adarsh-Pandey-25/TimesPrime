@@ -2,6 +2,7 @@ import "server-only";
 
 import { supabase, isSupabaseConfigured } from "@/server/supabase";
 import { cache } from "@/lib/cache";
+import { reportFallback } from "@/lib/reportFallback";
 
 /**
  * Dependency health behind /api/health (public: overall status only) and
@@ -110,4 +111,16 @@ export function getHealth(): Promise<HealthReport> {
   if (memo && now - memo.at < HEALTH_CACHE_MS) return memo.report;
   memo = { at: now, report: runChecks() };
   return memo.report;
+}
+
+/**
+ * Owner decision D5: called when a feed request was not answered from the
+ * cache or Supabase. Reports a fallback only if Supabase is actually down —
+ * a stale table, a search or a page request reaching NewsData.io is normal
+ * and stays quiet. Uses the shared health result, so it adds no load.
+ */
+export async function reportSupabaseFallback(context: { category: string; language: string }): Promise<boolean> {
+  const { dependencies } = await getHealth();
+  if (dependencies.supabase.ok) return false;
+  return reportFallback("supabase->newsdata", { error: dependencies.supabase.error ?? "error", ...context });
 }

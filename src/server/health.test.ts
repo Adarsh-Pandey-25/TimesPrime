@@ -9,8 +9,11 @@ jest.mock("@/server/supabase", () => {
   return { supabase: { from: jest.fn(() => query) }, isSupabaseConfigured: jest.fn(), __query: query };
 });
 jest.mock("@/lib/cache", () => ({ cache: { ping: jest.fn() } }));
+jest.mock("@/lib/reportFallback", () => ({ reportFallback: jest.fn(() => true) }));
 
-import { getHealth, HEALTH_CACHE_MS } from "./health";
+import { getHealth, HEALTH_CACHE_MS, reportSupabaseFallback } from "./health";
+
+const { reportFallback } = jest.requireMock("@/lib/reportFallback") as { reportFallback: jest.Mock };
 
 const supabaseMock = jest.requireMock("@/server/supabase") as {
   supabase: { from: jest.Mock };
@@ -24,8 +27,9 @@ let clock = Date.parse("2026-10-30T00:00:00Z");
 
 beforeEach(() => {
   jest.useFakeTimers();
-  // Step past the shared result from the previous test.
-  clock += HEALTH_CACHE_MS + 1;
+  // Step well past the shared result from the previous test, including one a
+  // test produced after moving the clock forward itself.
+  clock += 10 * HEALTH_CACHE_MS;
   jest.setSystemTime(clock);
   supabaseMock.supabase.from.mockClear();
   supabaseMock.isSupabaseConfigured.mockReturnValue(true);
@@ -113,6 +117,19 @@ describe("getHealth", () => {
     jest.setSystemTime(clock + HEALTH_CACHE_MS + 1);
     await getHealth();
     expect(supabaseMock.supabase.from).toHaveBeenCalledTimes(2);
+  });
+
+  test("reports a Supabase fallback (D5) only when Supabase is down", async () => {
+    reportFallback.mockClear();
+    supabaseMock.__query.abortSignal.mockResolvedValue({ error: { message: "TypeError: fetch failed", code: "" } });
+    await expect(reportSupabaseFallback({ category: "general", language: "en" })).resolves.toBe(true);
+    expect(reportFallback).toHaveBeenCalledWith("supabase->newsdata", { error: "fetch-failed", category: "general", language: "en" });
+  });
+
+  test("stays quiet when Supabase is healthy — a stale table or a search is not a fallback", async () => {
+    reportFallback.mockClear();
+    await expect(reportSupabaseFallback({ category: "general", language: "en" })).resolves.toBe(false);
+    expect(reportFallback).not.toHaveBeenCalled();
   });
 
   test("never includes a secret value", async () => {
