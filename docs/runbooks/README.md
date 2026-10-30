@@ -19,5 +19,5 @@ Candidates, based on failure modes already observed in this system:
 - **Admin lockout** — `ADMIN_PASSWORD` or `ADMIN_SESSION_SECRET` unset makes
   `/api/admin/login` return 503 and every `/admin/*` path redirect to the login
   page.
-- **Restoring the database** — schema from `db/schema.sql`, then
-  `db/policies.sql`.
+- **Restoring the database** — schema from `database/schema.sql`, then
+  `database/policies.sql`.

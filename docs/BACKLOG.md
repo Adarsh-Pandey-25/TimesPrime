@@ -10,12 +10,12 @@ commit that found it.
 ## BL-001 — `db.ts` row mapping relies on `any` to hide unhandled nulls
 
 **Found:** Phase 0b (lint baseline)
-**Files:** `src/lib/db.ts` — the two `.map()` calls in `saveArticlesToDB` and `getDBArticles`
+**Files:** `backend/repositories/db.ts` — the two `.map()` calls in `saveArticlesToDB` and `getDBArticles`
 **Status:** Open · two `eslint-disable-next-line @typescript-eslint/no-explicit-any` in place
 
-`db/schema.sql` declares `link`, `pub_date`, `description`, `content`,
+`database/schema.sql` declares `link`, `pub_date`, `description`, `content`,
 `image_url`, `source_id`, `source_name`, `category`, `country` and `language` as
-nullable. `Article` (in `src/types/index.ts`) declares `link: string` and
+nullable. `Article` (in `shared/types/index.ts`) declares `link: string` and
 `pubDate: string` as required.
 
 The accurate row type (`ArticleRow`, now defined in `db.ts` and checked against
@@ -42,7 +42,7 @@ null.
 ## BL-002 — `react-hooks/set-state-in-effect` downgraded to a warning
 
 **Found:** Phase 0b (lint baseline)
-**Files:** `src/app/saved/page.tsx:24`, `src/components/ArticleCard.tsx:83`
+**Files:** `frontend/views/saved/SavedView.tsx:21`, `frontend/features/news/ArticleCard.tsx:83` (the two warnings `npm run lint` reports)
 **Status:** Open · rule set to `"warn"` in `eslint.config.mjs`
 
 Both call `setState` synchronously inside an effect body. Satisfying the rule
@@ -67,8 +67,8 @@ the rule to `"error"` in the same commit that fixes the last violation.
 
 Before Phase 0c, `collectCoverageFrom` was unset, so coverage instrumented only
 the five modules the four test suites import. The reported 91.42% described
-5 of 73 source files. The number is now measured against the whole `src/` tree
-and is correspondingly, accurately, much lower.
+5 of 73 source files. The number is now measured against the whole source tree (since restructure 2,
+less the one-line `app/` shims) and is correspondingly, accurately, much lower.
 
 Kept here as the reason the coverage number dropped sharply in one commit
 without any test being deleted.
@@ -98,7 +98,7 @@ not, by itself, evidence of progress — check the covered count.
 ## BL-004 — Editorial publishing hardcodes `country: ["us"]` and bypasses the filters
 
 **Found:** Phase A review · **Owner decision (Q3):** keep the feature, fix later
-**Files:** `src/app/api/admin/publish-article/route.ts`
+**Files:** `backend/api/admin/publish-article.ts`
 **Status:** Open · **do not fix during the restructure**
 
 Editorial publishing stays, and moves with the admin feature like any other
@@ -154,8 +154,8 @@ Waiting seven days resolves it with no code change.
 
 ## BL-007 — The verify gate fails on stale route types after a route moves
 
-**Found:** `bcd5393` (RSS removal) · **Status:** Open · **affects every Phase D
-slice that moves or deletes a route file**
+**Found:** `bcd5393` (RSS removal) · **Status:** Open · **affects any change that
+moves or deletes a route file**
 
 `tsconfig.json` includes `.next/types/**/*.ts`, which `next build` generates.
 `npm run verify` runs `typecheck` **before** `build`. So after a route file is
@@ -169,8 +169,8 @@ imports the old path, and fails:
 
 The source is fine. Clearing `.next/types` and re-running turns the gate green
 with no source change. CI is unaffected (a fresh checkout has no `.next/`), but
-every local migration slice that touches `src/app/` will hit it — slice 7 (route
-groups, currently recommended for deferral) moves every page.
+every local change that moves or deletes a route under `app/` will hit it. Every restructure-2 slice
+that touched `app/` did, and cleared `.next/types` first.
 
 **Workaround until fixed:** `rm -rf .next/types` before `npm run verify` on any
 slice that moves or deletes a route file.
@@ -189,7 +189,7 @@ made here because it was outside the item that found it.
 
 **Found:** `59b875d` (form removal) · **Status:** Open · **needs owner or legal
 review — not a code decision**
-**Files:** `src/app/privacy/page.tsx`
+**Files:** `frontend/views/privacy/PrivacyView.tsx` (`app/privacy/page.tsx` re-exports it)
 
 The policy still says email addresses are collected "when you subscribe to our
 newsletter or submit the contact form", that updates are sent "if you've opted
@@ -218,7 +218,7 @@ feature:
   `newsletterStripTagline`, `subscribedSuccess`, `newsletterEmailPlaceholder`)
   plus `subscribe`, which this list missed, removed from the interface and both
   languages. Sixteen more unread keys are BL-017.
-- **`"use client"` on `src/app/contact/page.tsx`** — no longer needed now the
+- **`"use client"` on the contact page (`frontend/views/contact/ContactView.tsx`)** — no longer needed now the
   form's state is gone. Removing it changes the page's rendering mode, which is
   a behaviour change, not a cleanup.
 
@@ -301,8 +301,8 @@ same trace is F-015, Phase 3.
 **Found:** restructure 2, S0 judgement call 3 (owner, at the S0 approval) · **Status:** Open —
 **pick up with F-005** (audit Phase 2)
 
-Move map v2 puts `src/lib/urlValidation.ts` in `backend/lib/` because its only importer today is
-the scraper route, `src/app/api/news/scrape-article/route.ts`. The F-005 fix needs URL validation
+Move map v2 put `urlValidation.ts` in `backend/lib/` because its only importer is the scraper,
+`backend/api/news/scrape-article.ts`. The F-005 fix needs URL validation
 on the frontend link sinks (`ArticleDetailView.tsx`'s `href={targetUrl}`); the module moves to
 `shared/validation/` then (owner decision).
 
@@ -317,10 +317,10 @@ whole.
 **Found:** restructure 2, S0 (the F1 list) · **Status:** Open — possible improvement; **not changed
 in restructure 2** (owner)
 
-`src/app/article/[slug]/page.tsx` is a server component, yet it reaches the scraper and the feed
+`app/article/[slug]/page.tsx` is a server component, yet it reaches the scraper and the feed
 over HTTP to its own deployment: `getArticleContent()` fetches `/api/news/scrape-article`
-(`:37–41`, `revalidate: 3600`) and `getSuggestedArticles()` fetches `/api/news/top-headlines`
-(`:57–61`, `revalidate: 900`), both at `NEXT_PUBLIC_BASE_URL`, falling back to
+(`:38–42`, `revalidate: 3600`) and `getSuggestedArticles()` fetches `/api/news/top-headlines`
+(`:58–62`, `revalidate: 900`), both at `NEXT_PUBLIC_BASE_URL`, falling back to
 `http://localhost:3000`. Every uncached render costs two extra round trips. If the variable is
 wrong or unset in an environment, both fetches fail and the page silently shows its placeholder
 text and no suggestions.
@@ -379,7 +379,7 @@ Fix: exclude the non-code folders in `globals.css` with `@source not "<path>"` (
 installed Tailwind 4.3.3; the path resolves from the stylesheet), or use `source(none)` and list
 the code folders. Either is a CSS configuration change, so it waits for the owner.
 
-**Outside the approved list, so still scanned:** code under `src/`, comments and tests included,
+**Outside the approved list, so still scanned:** the code (`app/`, `frontend/`, `backend/`, `shared/`), comments and tests included,
 and root tooling. Two cases so far: while `4ff0167` was being written, a test comment saying a
 scan could not "shrink" emitted `.shrink` until it was reworded; and `.transform` is in the CSS
 only because three `jest.config.ts` comments say "transform". Excluding test files or root

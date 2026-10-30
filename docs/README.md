@@ -8,8 +8,8 @@ expensive mistake available.
 
 | # | File | Read it when | Size |
 |--:|---|---|---|
-| 1 | [`HANDOFF.md`](HANDOFF.md) | **Always first.** Current state, environment, and nine gotchas that have already caused wrong conclusions | 12 min |
-| 2 | [`CODEMAP.md`](CODEMAP.md) | "Where does X live?" · "What imports Y?" · "What moves where?" | Reference |
+| 1 | [`HANDOFF.md`](HANDOFF.md) | **Always first.** Current state, environment, and the gotchas that have already caused wrong conclusions | 12 min |
+| 2 | [`CODEMAP.md`](CODEMAP.md) | "Where does X live?" · "What imports Y?" · "What would a change to Z touch?" | Reference |
 | 3 | [`PRD.md`](PRD.md) | What the product does, requirement by requirement, with code citations | 20 min |
 | 4 | [`architecture.md`](architecture.md) | How the system fits together; the import rules | 10 min |
 | 5 | [`BACKLOG.md`](BACKLOG.md) | Before "fixing" something that looks wrong — it may be deferred deliberately | 3 min |
@@ -36,8 +36,9 @@ the language scope. **Do not consult it.** If a copy exists on disk, it is wrong
 ## If you only read two things
 
 1. **`HANDOFF.md` §3** — the gotchas. Next.js 16 renamed Middleware to Proxy, deprecated
-   `priority` in favour of `preload`, and matches image hostnames as globs. Source files are CRLF.
-   Supabase is currently down and the app hides it. Each of these has already produced a wrong
+   `priority` in favour of `preload`, and matches image hostnames as globs. Source files are CRLF
+   in the working tree. When Supabase fails, the feed falls back to NewsData.io without an error,
+   so check `/api/health` before diagnosing anything. Each of these has already produced a wrong
    answer once.
 2. **`PRD.md` §11** — the defect register. Ten behaviours that exist but are **not** requirements.
    A bug written into a spec becomes permanent.
