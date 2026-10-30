@@ -1,7 +1,12 @@
 # Architecture
 
-**Structure decision:** layer separation with a CI-enforced import boundary. Approved 2026-10-29.
-Per-file destinations are in [`CODEMAP.md`](CODEMAP.md).
+**Structure:** one Next.js app in five top-level parts. `app/` is the routing shell; `frontend/`,
+`backend/`, `shared/` and `database/` sit beside it, and an import boundary between them fails CI
+when it is broken. Decided in restructure 2 ([ADR 0002](adr/0002-frontend-backend-separation.md),
+2026-10-30), which supersedes the feature-first `src/` layout of
+[ADR 0001](adr/0001-feature-first-structure.md). Every module, with what imports it and what it
+imports, is in [`CODEMAP.md`](CODEMAP.md). Where new code goes:
+[`CONTRIBUTING.md`](../CONTRIBUTING.md#where-does-new-code-go).
 
 ---
 
@@ -17,6 +22,8 @@ INGEST ─ every 30 minutes, Vercel cron
               · non-news listing sources
     → upsert into Supabase on article_id
     → fire-and-forget: Claude Haiku flags category tags that do not fit
+  code: backend/api/cron/refresh-news.ts → backend/services/news
+        → backend/repositories/db.ts → backend/services/classify
 
 SERVE ─ per reader request
   /api/news/top-headlines
@@ -24,15 +31,18 @@ SERVE ─ per reader request
     2. Supabase           newest row < 30 min old    → supabase
     3. NewsData.io        live call                  → newsdata
     4. MOCK_ARTICLES      built-in fallback          → mock
-  Each tier degrades silently to the next. The header is the only signal
-  of which tier actually answered.
+  Each tier degrades to the next without an error to the reader. The header
+  says which tier answered; a Supabase → NewsData fallback is also reported
+  to Sentry, rate-limited, and /api/health reports whether Supabase answers.
+  code: backend/api/news/top-headlines.ts → backend/lib/cache, backend/services/news
 
 AUTHORISE ─ every admin request
-  src/proxy.ts   matcher: /admin/*, /api/admin/*
+  proxy.ts   matcher: /admin/*, /api/admin/*
     public:          /admin/login, /api/admin/login, /api/admin/logout
     public GET only: /api/admin/breaking-news   (homepage banner, no session)
     otherwise:       HMAC-SHA256 cookie, 12 h, httpOnly, SameSite=Lax
   No route handler performs its own auth check.
+  code: proxy.ts → backend/auth/adminSession.ts
 ```
 
 **Authorisation is a single choke point.** That is a good design — one place to audit, one place to
@@ -44,103 +54,105 @@ has no test. Keep this property visible; do not scatter it.
 Fixed by Next.js 16. These are not design choices, and three of them have already caused wrong
 conclusions (see [`HANDOFF.md`](HANDOFF.md) §3).
 
-- Files under `src/app/**` named `page`, `layout`, `route`, `loading` or `error` **are** the routing
+- Files under `app/**` named `page`, `layout`, `route`, `loading` or `error` **are** the routing
   table. Their path **is** the URL. Route groups `(name)` reorganise without changing a URL;
-  private folders `_name` opt out of routing entirely.
-- `src/proxy.ts` is the Proxy entrypoint — Next 16's rename of Middleware. Location-pinned.
-- `src/instrumentation.ts`, `src/instrumentation-client.ts` and `src/sentry.*.config.ts` are
-  location-pinned conventions. Silently inert if moved.
-- `next.config.ts` imports `ALLOWED_IMAGE_HOSTNAMES` from `imageDomains.ts` and evaluates it at
-  **config-load time**. That module must never import React or `server-only`.
+  private folders `_name` opt out of routing entirely. This is why `app/` stays a shell (§4).
+- `proxy.ts`, at the repository root, is the Proxy entrypoint — Next 16's rename of Middleware.
+  Location-pinned.
+- `instrumentation.ts`, `instrumentation-client.ts`, `sentry.server.config.ts` and
+  `sentry.edge.config.ts`, also at the root, are location-pinned conventions. Silently inert if
+  moved.
+- `next.config.ts` imports `ALLOWED_IMAGE_HOSTNAMES` from `shared/config/imageDomains.ts` and
+  evaluates it at **config-load time**. That module imports nothing (CR-06).
 - `images.remotePatterns` hostnames are matched with **picomatch globs**, not string equality, and
-  the array is capped at **50 entries**.
+  the array is capped at **50 entries**. 49 are used.
 - `vercel.json` pins the cron to `/api/cron/refresh-news`.
 
 > Next.js is explicitly **unopinionated** about project organisation. Its own documentation presents
 > three strategies and concludes: *"choose a strategy that works for you and your team and be
 > consistent across the project."* The structure below is a team decision, not a framework mandate.
 
-## 3. Why the current structure needs changing
+## 3. How the structure got here
 
-*Resolved by Phase D (`a626542`..`73e207f`). Kept, in the tense it was written, for the
-reasoning.*
+Two restructures, each recorded in an ADR with the alternatives it rejected.
 
-`src/lib/` is not a module. It is a folder named after the absence of a decision, and it holds six
-genuinely different kinds of thing:
+- **Restructure 1** (Phases A–E, [ADR 0001](adr/0001-feature-first-structure.md)). `src/lib/` was
+  a folder named after the absence of a decision: data access, security primitives, infrastructure,
+  domain logic, static data and i18n side by side, and nothing stopped a React component from
+  importing a Supabase client. One did. `ActivityLog.tsx`, a client component, imported the audit
+  logger for two constants and pulled the whole Supabase SDK into `/admin`'s browser bundle (fixed
+  in `b01d528`). Restructure 1 grouped code by feature under `src/features/`, defined the shared
+  layers, and made the import rules fail CI.
+- **Restructure 2** (S0–S5, [ADR 0002](adr/0002-frontend-backend-separation.md)). The owner's
+  reviewer asked for frontend, backend, database and documentation to be visibly separate. The App
+  Router fixes where route files live (§2), so `app/` became a shell. Its route and page files
+  re-export bodies that live in `backend/api/` and `frontend/views/`. Dead code went first (S1), so
+  only code in use moved: 95 files in 11 slices. Every slice was gated on an identical route table
+  and byte-identical CSS. Client JS changed by 35 bytes in total (974,032 → 974,067; `/` +50). The
+  import rules were rewritten for the new layers in S4.
 
-| Concern | Files |
-|---|---|
-| Data access | `db.ts` (571) · `supabase.ts` |
-| Security primitives | `adminSession.ts` · `urlValidation.ts` |
-| Cross-cutting infrastructure | `cache.ts` · `rateLimit.ts` · `sentryScrub.ts` · `adminLogger.ts` |
-| Domain logic | `newsConfig.ts` · `categoryClassifier.ts` · `fetchNews.ts` · `newsdata.ts` |
-| Static configuration data | `imageDomains.ts` · `categoryColors.ts` · `topicImages.ts` (414) |
-| Presentation / i18n | `translations.ts` · `googleTranslate.ts` · `bookmarks.ts` *(today; see "What `lib/` means" for where each goes)* |
-
-Nothing in the folder name tells a reader which of those a given file is, and nothing prevents a
-React component importing a Supabase client. **That has already happened**: `ActivityLog.tsx` is a
-client component that imports `adminLogger.ts` for two constants and drags the entire Supabase SDK
-into the browser bundle. The import graph confirms it is currently the *only* such violation —
-which makes this the right moment to fix it and close the door.
-
-## 4. Target structure
-
-**This is now the actual structure** — Phase D executed it. Finalized in Phase C and **validated**: `node scripts/check-move-map.mjs` relocates every file and
-tests every import edge against §5. The Phase A draft of this tree — six features — broke the
-rules 21 times; this one broke them twice, both the one known `ActivityLog` bug, and has broken them
-**zero** times since that bug was fixed in `b01d528`. Full reasoning in
-[`adr/0001-feature-first-structure.md`](adr/0001-feature-first-structure.md).
+## 4. Layout
 
 ```
-src/
-  app/                  ROUTING ONLY — handlers parse, delegate, serialize. Paths frozen (CR-01)
-  features/
-    news/               feed, article page, masthead and footer, ingestion, classification, storage
-      components/       ← frontend half
-      server/           ← backend half
-      index.ts          ← client-safe public surface
-      server.ts         ← server-only public surface
-    admin/              operator UI
-    chat/               AI assistant
-  components/ui/        spinner · skeleton — presentation only, no state, no domain
-  context/              app-wide state providers: ThemeContext · LanguageContext   (unchanged)
-  server/               backend-only: supabase · auth · auditLog · googleTranslate
-  lib/                  cross-cutting, domain-free: cache · rateLimit · urlValidation · sentryScrub
-  config/               static data: imageDomains · categoryColors · topicImages · translations
-  types/                genuinely shared types
-db/  docs/  scripts/  public/
+app/                       the routing shell: URLs, the root layout, and re-exports
+  api/**/route.ts          one line each, e.g.  export { GET } from "@/backend/api/health";
+  <page>/page.tsx          one line each, e.g.  export { default, metadata } from "@/frontend/views/about/AboutView";
+  page.tsx                 composition: fetches the first page of the feed, renders HomeClient
+  article/[slug]/page.tsx  composition: fetches the article and suggestions, renders ArticleDetailView
+  layout.tsx, loading.tsx
+frontend/                  the UI; never imports backend/
+  views/<page>/            page bodies: home, article, saved, admin, about, contact, privacy, terms
+  features/<feature>/      UI a feature owns: news, admin, chat, each behind its index.ts
+  components/ui/           presentational primitives: ThemeSpinner, NewsSkeletonGrid
+  context/                 app-wide state providers: ThemeContext, LanguageContext
+  styles/                  globals.css (Tailwind v4)
+backend/                   server-only: every module opens with import "server-only"
+  api/                     route bodies, one per route: parse, delegate, serialise
+  services/<service>/      domain logic: news (behind its index.ts), classify, health, translate
+  repositories/            data access: db.ts (articles), auditLog.ts (admin_logs)
+  auth/                    adminSession.ts: issue and verify the admin session cookie
+  lib/                     domain-free infrastructure: cache, rateLimit, reportFallback, supabase,
+                           urlValidation
+shared/                    imported by both sides; imports neither
+  config/                  static data and the editorial rules both sides apply: imageDomains,
+                           categoryColors, topicImages, translations, newsConfig
+  types/                   types both sides use (Article, …)
+  validation/              sentryScrub: strips secrets from Sentry events, in every runtime
+database/                  schema.sql, policies.sql, seed/: applied by hand, imported by nothing
+proxy.ts                   admin authorisation, the single choke point (§1)
+instrumentation.ts · instrumentation-client.ts · sentry.*.config.ts    Sentry wiring, pinned at the root
+docs/  scripts/  public/
 ```
 
-**Three features, not six.** i18n, bookmarks and the article page all looked like features and
-measured as shared code or as part of news — see the ADR. Route groups under `app/` are deferred:
-they change no URL and buy nothing until a group layout exists.
+### Why `app/` is a shell
 
-### Why not a top-level `backend/` folder
+In the App Router a route file's path is its URL, so route and page files cannot move into
+`backend/` or `frontend/` without breaking every public URL (CR-01), the cron contract (CR-02) and
+the proxy matcher (CR-05). Restructure 1 concluded from this that a top-level `backend/` folder would
+take a rewrite. Restructure 2 kept every URL a different way: the route file stays where it is,
+holds a single re-export, and its body moves. `app/api/health/route.ts` is one line,
+`export { GET } from "@/backend/api/health";`. The route table and segment config came out
+identical, and the client JS within 35 bytes.
 
-Considered and rejected. In the App Router, `src/app/api/**/route.ts` **is** the backend and its
-path **is** the URL. Moving it breaks every API URL (CR-01), the cron contract (CR-02) and the auth
-matcher (CR-05). A genuine two-app split is a rewrite, not a reorganisation, and would discard the
-co-location that makes server components work.
+Two pages stay in `app/` as composition, because they combine backend data with a view, and
+splitting the fetch from the markup would be a logic change (the page rule, ADR 0002):
 
-The separation above is stronger than folder distance, because §5 makes a violation fail CI.
+- `app/page.tsx` calls `fetchInitialNews` and renders `HomeClient`.
+- `app/article/[slug]/page.tsx` fetches the scraped article and the suggestions, over HTTP from its
+  own API (BL-016), and renders `ArticleDetailView`.
+
+A two-app split, with a separate API service, was rejected (ADR 0002). Every API URL, the Vercel
+cron and the proxy's cookie auth would change, and deployments would double.
 
 ## 5. Import rules
 
-These are the rules a reviewer may cite in a pull request. Since Phase E, `npm run lint` enforces
-every one that an import can break — see *How each rule is enforced* below.
-
-### Restructure 2 rules (enforced from S4)
-
-Restructure 2 changed the layout ([ADR 0002](adr/0002-frontend-backend-separation.md)): `app/` is
-the routing shell, and `frontend/`, `backend/`, `shared/` and `database/` sit beside it. The rules
-below replace the numbered rules that follow for that layout; S5 rewrites this section around them.
-Every rule an import can break fails both `npm run lint`
-([`eslint.boundaries.mjs`](../eslint.boundaries.mjs)) and `npm run check:boundaries`
-([`scripts/check-move-map.mjs`](../scripts/check-move-map.mjs)), both part of `npm run verify` and
-CI, with the rule's ID at the start of the message. Lint uses `import/no-restricted-paths` zones,
-which judge the resolved path, so a relative import is caught like an alias, plus three local rules.
-Each rule was proven in S4 by a deliberate violation that failed with its message, then passed
-once removed.
+These are the rules a reviewer may cite in a pull request, by ID. Every rule an import can break
+fails both `npm run lint` ([`eslint.boundaries.mjs`](../eslint.boundaries.mjs)) and
+`npm run check:boundaries` ([`scripts/check-move-map.mjs`](../scripts/check-move-map.mjs)), both
+part of `npm run verify` and CI, with the rule's ID at the start of the message. Lint uses
+`import/no-restricted-paths` zones, which judge the resolved path, so a relative import is caught
+like an alias, plus three local rules. Each rule was proven in S4 by a deliberate violation that
+failed with its message, then passed once removed.
 
 | ID | Rule | Lint | `check:boundaries` |
 |---|---|---|---|
@@ -152,14 +164,14 @@ once removed.
 | P1 | `proxy.ts` imports only `backend/auth` and `shared/` | zones | yes |
 | D1 | Nothing imports `database/` | zone | yes |
 | X1 | No imports between features (`frontend/features/*`) or between services (`backend/services/*`). From outside, a feature is reached only through its `index.ts`, and so is a service that has one (`news`) | zones, generated from the folders on disk | yes |
-| **V1** | **`frontend/features/**` never imports `frontend/views/**`.** A view composes features through their entry points; a feature that imports or re-exports a view closes a cycle, the one slice 9 found (view → news entry → view, removed in `4460a40`) | zone | yes |
+| V1 | `frontend/features/**` never imports `frontend/views/**` | zone | yes |
 
 Carried over from restructure 1, for the new paths:
 
 | ID | Rule | Lint | `check:boundaries` |
 |---|---|---|---|
 | R3 | `frontend/components/ui` and `frontend/context` never import features or views | zone | yes |
-| R5 | `ui` imports only `ui/`, `shared/types`, `shared/validation` and `ThemeContext` (rule 5 below: `shared/config` is product data) | zones | yes |
+| R5 | `ui` imports only `ui/`, `shared/types`, `shared/validation` and `ThemeContext` | zones | yes |
 | R9 | `frontend/context` imports only `shared/config` and `shared/types` | zone | yes |
 | R7 | `shared/config` imports only `shared/config` and `shared/types`, with no React and no `server-only`; `shared/types` imports only `shared/types` | zones, and `no-restricted-imports` for the packages | yes, for project imports |
 | LIB | `backend/lib` imports no project module | zone | yes |
@@ -167,146 +179,137 @@ Carried over from restructure 1, for the new paths:
 
 Both tools exempt colocated tests from the X1 entry points, R5, R9, R7 and LIB: a test may import
 its own subject. Where two rules match one import, both report the first in this order: D1, A1,
-F1, B1, S1, P1, CR-06, X1, V1, R3, R5, R9, R7, LIB. One rule is not about imports: `app/` holds no
-business logic (rule 8 below), and review enforces it.
+F1, B1, S1, P1, CR-06, X1, V1, R3, R5, R9, R7, LIB.
 
-1. **At most two public surfaces per feature.** `features/<name>/index.ts` is safe for client and
-   server; `features/<name>/server.ts` is server-only and **never** imported by client code. Nothing
-   outside the feature reaches past either. *Why two:* a single barrel re-exporting both would let a
-   client import of `ArticleCard` resolve `db.ts` too — the same mechanism that put the Supabase SDK
-   in `/admin`'s browser chunk, because `supabase.ts` calls `createClient()` at module scope and no
-   bundler can tree-shake that.
-   **Each feature folder carries a `package.json` with `"sideEffects": ["./server.ts"]`.** Without
-   it a barrel is not free: when a server component — `app/layout.tsx`, any server page — imports
-   one export from a barrel of client components, every client component the barrel re-exports
-   becomes a client entry of that route. Measured on slice 5 before this was added: importing
-   `BreakingNewsBanner` from `@/features/admin` in the root layout put all five admin dashboard
-   components on **every** page — +46 KB on `/` (+36%), +150% on `/admin/login`. Marking the folder
-   side-effect-free lets the bundler drop unused re-exports; the same build then matched the
-   pre-slice bundle byte for byte. `server.ts` is listed as the exception so that even a bare
-   `import "@/features/x/server"` is kept, and its `import "server-only"` still fires. Nothing in a
-   feature may rely on an import made only for its side effects (a CSS file, a polyfill); those
-   belong in `app/`. The Next 16 docs make the same point from the other side: barrels slow builds,
-   so import from specific files where possible (`local-development.md`, "Barrel files").
-2. **No sideways imports.** Nothing imports across feature boundaries. `features/admin` may not
-   import from `features/news`. (`app/` composes features and may import any of them.)
-3. **Imports go downward only.** Features import into `components/ui`, `lib`, `server`, `config`,
-   `types`. Never upward, never laterally.
-4. **Shared things move down.** If two features need the same thing, it moves into a shared layer.
-   It does not get imported sideways.
-5. **`components/ui` is domain-free.** It may not import a feature, and must not know what an
-   `Article` is. It imports only `components/ui`, `lib` and `types` — plus `context/ThemeContext`,
-   because light/dark is appearance, which is exactly what a primitive owns. Language, UI strings
-   and category data are app state or product knowledge, so `LanguageContext` and `config/` are
-   off-limits (rule R5 in `check-move-map`; owner decision, Phase D, before slice 4). Footer is why
-   the rule exists: it read both and rendered category links, which the old "downward is fine"
-   reading could not catch.
-6. **`server/` is never imported by a client component.** `ActivityLog.tsx` broke this — pulling
-   the Supabase SDK into `/admin`'s browser chunk — until `b01d528`. Each feature's `server.ts`
-   begins with `import "server-only";`, so a client import of it is a **build error**, not a review
-   comment (Next.js 16 docs, "Preventing environment poisoning"; the package is optional because Next
-   bundles it). **Every module in `src/server/` begins with it too** (added after slice 3), including
-   `auth/adminSession.ts`, which `src/proxy.ts` imports. That is valid in the proxy: Proxy runs on
-   the Node.js runtime by default (`proxy.md`, "Runtime"), and the Next 16 authentication guide's own
-   `proxy.ts` imports a session module that begins with `import 'server-only'`. *Seen to work:* a
-   temporary `import "@/server/supabase"` in a client component failed the build with "'server-only'
-   cannot be imported from a Client Component module"; without it the build passes, and under
-   `next start` the proxy still redirects `/admin` to the login page and returns 401 from
-   `/api/admin/stats` — including with a forged session cookie — while the public GET of
-   breaking-news still answers 200 (CR-08).
-7. **`config/` imports only `config/` and `types/`.** Static data — no React, no `server-only`, no
-   feature or server code. **`imageDomains.ts` imports nothing at all**: `next.config.ts` evaluates it
-   at config-load time (CR-06). *Refined in Phase C:* the draft said "config imports nothing", which
-   `topicImages.ts → imageDomains.ts` already contradicted.
-8. **`app/` holds no business logic.** Route handlers parse input, call a feature, serialise output.
-   Extraction heuristics, SQL and filter logic belong in a feature where they can be tested without
-   constructing an HTTP request. *Target state:* today `scrape-article` and `top-headlines` still
-   carry logic inline; extracting it is Phase F, behind characterization tests.
+### Why each rule exists
 
-Rule 4 is the one that matters most. Sideways imports are how a feature-first structure collapses
-back into the thing it replaced — usually within a quarter, always one reasonable-looking import at
-a time. Documentation does not prevent this; a linter does.
+- **F1, B1, S1: the two sides stay apart.** A client bundle that reaches backend code ships server
+  code to every reader. In restructure 1 that is how the Supabase SDK reached `/admin`'s browser
+  chunk: `supabase.ts` calls `createClient()` at module scope, and no bundler can tree-shake that.
+  F1 is therefore checked three ways: lint on each import, `check:boundaries` on the transitive
+  client-bundle closure, and `import "server-only"` at the top of every backend module, which turns
+  a client import into a build error (Next.js 16 docs, "Preventing environment poisoning"). *Seen to
+  work* (`19d255c`): a temporary `import "@/backend/lib/cache"` in a client component failed
+  `next build` with "'server-only' cannot be imported from a Client Component module"; without the
+  guard the same build passed. `proxy.ts` imports the server-only `backend/auth/adminSession.ts`,
+  which is valid: Proxy runs on the Node.js runtime by default (`proxy.md`, "Runtime"). Shared code
+  is imported by both sides, so it can depend on neither (S1).
+- **A1, A2: `app/` is the shell.** Frontend and backend meet only in `app/`, the top of the graph.
+  If anything else imported `app/`, it would reach both sides through it. The root files Next pins
+  in place keep to the side of the runtime they load in. A route file, and a page whose body moved,
+  holds only re-exports and literal segment config, so no logic hides in the URL contract.
+- **P1: one choke point.** Authorisation lives in `proxy.ts` (§1). What it needs lives in
+  `backend/auth`, and it needs nothing else.
+- **D1: the database folder is for people.** `database/` holds the SQL and the seed script, which
+  the owner applies by hand. No code depends on them.
+- **X1: features and services stay independent.** Nothing imports sideways. If two features (or two
+  services) need the same thing, it moves down a layer; it does not get imported sideways. Sideways
+  imports are how a layered structure collapses back into the thing it replaced, usually within a
+  quarter and always one reasonable-looking import at a time. Documentation does not prevent this;
+  a linter does. Entry points are covered below.
+- **V1: features never import views.** A view composes features through their entry points, so a
+  feature that imports or re-exports a view closes a cycle. Slice 9 found one (view → news entry →
+  view), removed in `4460a40`.
+- **R3, R5, R9: the frontend's lower layers.** `components/ui` and `context` sit below features and
+  views. A UI primitive must not know what an `Article` is. It may read the theme, because light
+  and dark are appearance, which is exactly what a primitive owns. Language, UI strings and
+  category data are app state or product knowledge, so `LanguageContext` and `shared/config` are
+  off-limits (owner decision, Phase D; confirmed in S4). Footer is why the rule exists: it read
+  both and rendered category links, which a plain "downward is fine" rule could not catch. The
+  providers in `context` import only the config and types they hold (see §6).
+- **R7, CR-06: static data.** `shared/config` holds static data and the editorial rules both sides
+  apply. It may import other config and types, but no React, no `server-only`, and no code from
+  either side. `imageDomains.ts` imports nothing at all, because `next.config.ts` evaluates it at
+  config-load time. *Refined in restructure 1:* the first draft said "config imports nothing",
+  which `topicImages.ts → imageDomains.ts` already contradicted.
+- **LIB: `backend/lib` is domain-free** (§6).
 
-### How each rule is enforced (Phase E)
+### Feature entry points and `sideEffects`
 
-*Superseded in S4 by the restructure-2 tables at the top of this section. This is the restructure-1
-version, with restructure-1 paths and aliases; S5 rewrites it.*
+Each `frontend/features/<feature>/` folder has an `index.ts`, its entry point, and a `package.json`
+with `"sideEffects": false`. Without that field a barrel is not free. When a server component (the
+root layout, any server page) imports one export from a barrel of client components, every client
+component the barrel re-exports becomes a client entry of that route. Restructure 1 measured +46 KB
+on `/` (+36%) when the root layout imported one banner from an unmarked barrel. Restructure 2
+measured it again, with the field removed: every route got heavier, by +457 bytes to +84,579 bytes.
+Marking the folder side-effect-free lets the bundler drop unused re-exports. So nothing in a feature
+may rely on an import made only for its side effects (a CSS file, a polyfill); those belong in
+`app/`. The Next 16 docs make the same point from the other side: barrels slow builds, so import
+from specific files where possible (`local-development.md`, "Barrel files"). Routing views through
+the entry point cost 109 bytes of client JS on `/`, which the owner accepted (ADR 0002).
 
-`npm run lint` fails on every rule below that an import can break. The rules live in
-[`eslint.boundaries.mjs`](../eslint.boundaries.mjs), each block naming the rule it implements, and
-every one was proven by a deliberate violation that failed lint with its message, then removed.
-Path rules use `import/no-restricted-paths`, which judges the **resolved** path, so a relative
-import (`../news/components/Header`) is caught exactly like the alias (`@/features/news/...`).
+### What lint cannot see, and what covers it
 
-| Rule | Mechanism | Fails on |
-|---|---|---|
-| 1 — two public surfaces | `import/no-restricted-paths`, `except` `index.ts` / `server.ts` | `app/` importing `@/features/news/components/Header` |
-| 2 — no sideways imports | `import/no-restricted-paths`, one zone per feature pair | `features/chat` importing `features/news`, by alias or relative path |
-| 3 — downward only | `import/no-restricted-paths` | `server/`, `ui`, `context/`, `config/`, `types/` importing a feature |
-| 4 — shared things move down | — | The remedy for rule 2, not a check |
-| 5 — `ui` is domain-free | `import/no-restricted-paths`, `except` `ThemeContext.tsx` | `ui` importing `LanguageContext`, `config/`, `app/` |
-| 6 — server code never in client | local rule `boundaries/no-server-in-client` · `ui` → `server/` zone · local rule `boundaries/server-only-first` | a `"use client"` file importing `server/` or a feature's `server.ts` (alias or relative); a `server/` module or `server.ts` whose first statement is not `import "server-only"` (colocated `*.test.ts` files are not modules and are exempt) |
-| 7 — `config/` is static data | `import/no-restricted-paths` + core `no-restricted-imports` | `config/` importing `react`, `server-only`, or `app`/`components`/`context`/`server`/`lib`; **CR-06**: any import at all in `imageDomains.ts` |
-| 8 — `app/` holds no logic | — | **Not expressible in lint**: it is about what code does, not what it imports. Review enforces it |
-| `lib/` is domain-free | `import/no-restricted-paths` | a `lib/` module importing any project module. A colocated `*.test.ts` may import its own subject — a test is not a module and never ships |
-| `context/` (R9) | `import/no-restricted-paths` | `context/` importing `app`/`components`/`server`/`lib` |
+- **F1, transitively.** Lint checks each import as written. A client module that imports a plain
+  module that imports `backend/` is caught twice more: `import "server-only"` fails `next build`,
+  and `check:boundaries` walks the client-bundle closure before the build runs.
+- **A shim that has gone missing.** A file that does not exist cannot be linted.
+  `check:boundaries` reports a moved body whose `app/` file is gone.
+- **What code does.** Route bodies in `backend/api/` parse input, delegate and serialise output;
+  extraction heuristics, SQL and filter logic belong in a service or a repository, where they can be
+  tested without constructing an HTTP request. Review enforces this. *Target state:* today
+  `backend/api/news/scrape-article.ts` and `backend/api/news/top-headlines.ts` still carry logic
+  inline. Extracting it is behaviour-preserving work for later, behind characterization tests.
 
-**What lint cannot see, and what covers it.** Lint checks each import as written. Rule 6 is also
-*transitive* — a client module importing a plain module that imports `server/` — and that is
-caught twice more: `import "server-only"` fails `next build`, and `npm run check:boundaries`
-(`scripts/check-move-map.mjs`, part of `npm run verify` and of CI) walks the client-bundle closure
-before the build runs. It is not redundant with lint for that reason, so it stayed.
+### Path aliases
 
-**Path aliases** (`tsconfig.json`): `@/features/*`, `@/server/*`, `@/lib/*`, `@/config/*`,
-`@/ui/*` → `src/components/ui/*`, and the catch-all `@/*`. Jest mirrors `@/ui/*` in
-`moduleNameMapper` (the others map 1:1 through `@/*`); both graph scripts read the aliases from
-`tsconfig.json`, longest prefix first.
-
+`@/frontend/*`, `@/backend/*` and `@/shared/*` (`tsconfig.json`), one per layer and no catch-all,
+so every import names its layer (the `@/*` catch-all was removed in `d6bd8b5`). `app/` and
+`database/` have no alias, because nothing may import them (A1, D1). Jest mirrors the three in
+`moduleNameMapper`; `check:boundaries` and the CODEMAP generator read them from `tsconfig.json`.
 
 ## 6. Module responsibilities
 
 | Module | Owns | Must never |
 |---|---|---|
-| `app/` | URL structure, request/response shape, auth delegation | Contain extraction heuristics, filter logic or SQL |
-| `features/news/` | Feed, article page, masthead and footer, saved-article store; upstream fetching, editorial filters, classification, freshness, article storage | Import from another feature; expose server code through `index.ts` |
-| `features/admin/` | Operator UI, plus the public breaking-news banner whose data it owns (CR-08) | Be imported by another feature |
-| `features/chat/` | Assistant UI | Reach into news internals — take article context as a parameter |
-| `components/ui/` | Presentational primitives: spinner, skeleton — appearance only; may read the theme, no other app state | Import a feature, `config/` or `LanguageContext`, or know what an Article is |
-| `context/` | App-wide state providers: theme (light/dark) and language (EN/HI), each persisted to `localStorage` | Import anything but `config/` and `types/`; hold feature state |
-| `server/` | Supabase client, session issue/verify, audit logging, the translate client | Be imported by a client component |
-| `lib/` | Cross-cutting, **domain-free** utilities: cache, rate limiting, URL validation, error scrubbing | Know any product concept — see *What `lib/` means* below |
-| `config/` | Static data: allowlists, colour maps, topic images, UI strings | Import anything but `config/` and `types/`; `imageDomains.ts` imports nothing (CR-06) |
+| `app/` | URLs; the root layout and loading UI; one-line re-exports; the two composition pages | Hold logic in a route file (A2); be imported (A1) |
+| `frontend/views/` | One page body per page | Be imported by a feature (V1) |
+| `frontend/features/news/` | Feed cards, masthead and footer, category menu, ticker, breaking-news banner, saved-article store | Import another feature or a view; be reached past its `index.ts` (X1, V1) |
+| `frontend/features/admin/` | The operator dashboard: articles table, breaking-news manager, sync controls, stats, activity log | The same |
+| `frontend/features/chat/` | The assistant: the chat widget and the floating panel | Import from the news feature (X1); article context reaches it as data, not as an import |
+| `frontend/components/ui/` | Presentational primitives; may read the theme, no other app state | Import a feature, a view, `shared/config` or `LanguageContext` (R3, R5) |
+| `frontend/context/` | App-wide providers: theme (light/dark) and language (EN/HI), each persisted to `localStorage` | Import anything but `shared/config` and `shared/types` (R9); hold feature state |
+| `backend/api/` | One route body per route: parse, delegate, serialise | Be imported by frontend code (F1) |
+| `backend/services/` | Domain logic: news ingestion and the feed (`news`, behind `index.ts`), category classification, health, translation | Import another service (X1) |
+| `backend/repositories/` | Supabase queries: articles (`db.ts`) and the audit log (`auditLog.ts`) | Be imported by frontend code (F1) |
+| `backend/auth/` | Issuing and verifying the admin session cookie | Be imported by frontend code (F1) |
+| `backend/lib/` | Domain-free infrastructure | Import any project module (LIB) |
+| `shared/config/` | Static data: allowlists, colour maps, topic images, UI strings, the editorial filters | Import anything but config and types, or React, or `server-only` (R7); `imageDomains.ts` imports nothing (CR-06) |
+| `shared/types/` | Types both sides use | Import anything but types (R7) |
+| `shared/validation/` | Checks every runtime runs: `sentryScrub` | Import `frontend/`, `backend/` or `app/` (S1) |
+| `database/` | The schema, the RLS policies and the seed script, applied by hand | Be imported by code (D1) |
 
-### What `lib/` means — unchanged, and now true
+### What `backend/lib/` means
 
-`lib/` is **cross-cutting and domain-free**: a module belongs there only if it knows no product
-concept — no `Article`, no category, no editorial rule, no UI string. The definition was **not**
-loosened to fit what happened to live there. Instead, the two modules that broke it moved out:
+`backend/lib/` is **cross-cutting and domain-free**: a module belongs there only if it knows no
+product concept — no `Article`, no category, no editorial rule, no UI string. Restructure 1 kept the
+definition rather than loosening it to fit what happened to live in `lib/`: `bookmarks.ts`, which
+stores `Article` objects, went to the news feature, and `translations.ts`, which holds product copy,
+went to config.
 
-- `bookmarks.ts` stores `Article` objects → `features/news/` (every importer is in news or `app/`).
-- `translations.ts` holds product copy → `config/`, which is defined as static data.
+**Checkable**, and enforced as LIB: `backend/lib/` holds `cache`, `rateLimit`, `reportFallback`,
+`supabase` and `urlValidation`, and **none of them imports a project module**. `cache` imports
+`@upstash/redis`, `reportFallback` imports `@sentry/nextjs`, `supabase` imports
+`@supabase/supabase-js`, `urlValidation` imports `dns/promises` and `net`, and `rateLimit` imports
+nothing. A `lib/` module that needs a project import has picked up a domain and belongs in a service
+or a repository. `urlValidation` moves to `shared/validation/` with audit finding F-005, split at
+its DNS step, which cannot run in the browser ([BACKLOG](BACKLOG.md) BL-015).
 
-A new `src/shared/` layer was considered for them and rejected: it would add a layer for one file
-whose consumers already live in a single feature.
+### What `frontend/context/` means
 
-**Checkable:** after Phase D, `lib/` holds `cache`, `rateLimit`, `sentryScrub` and `urlValidation`,
-and **none of them imports a single project module** — only `@upstash/redis` and Node built-ins. If
-a future `lib/` module imports from `features/`, `config/` or `types/`, that is the signal it has
-picked up a domain and belongs elsewhere. *Checked at the Phase D close-out: true* — `cache` imports
-`@upstash/redis`, `urlValidation` imports `dns/promises` and `net`, the other two import nothing.
-
-### What `context/` means — decided in Phase B close
-
-`components/ui/` is presentational primitives with no domain knowledge. A provider that owns app
-state does not fit it, so **both providers stay in `src/context/`**, which is now a defined layer:
-app-wide state providers, importing only `config/` and `types/` (rule R9 in `check-move-map`).
-`LanguageContext` holds the `"en" | "hi"` choice and imports the `Language` type from `config/`;
-`ThemeContext` holds light/dark, persists it, and sets classes on `document`. The same objection
-applies to both, so they stay together — moving one and not the other would make the rule
-inconsistent. Side benefit: `ThemeContext`'s 18 importers do not change in Phase D.
+`frontend/components/ui/` is presentational primitives with no domain knowledge. A provider that
+owns app state does not fit it, so **both providers live in `frontend/context/`**, a layer of
+app-wide state providers importing only `shared/config` and `shared/types` (R9). `LanguageContext`
+holds the `"en" | "hi"` choice and imports the `Language` type from `shared/config/translations.ts`;
+`ThemeContext` holds light/dark, persists it, and sets classes on `document`. Both stay together,
+because the same objection applies to both.
 
 ## 7. Decision records
 
-Structural decisions and the alternatives rejected live in [`adr/`](adr/).
-[`0001-feature-first-structure.md`](adr/0001-feature-first-structure.md) records this structure,
-the measurements that shaped it, and the five alternatives rejected.
+Structural decisions, and the alternatives rejected, live in [`adr/`](adr/):
+
+- [`0002-frontend-backend-separation.md`](adr/0002-frontend-backend-separation.md), **Accepted**:
+  this layout, the rules in §5, and the measurements from the move.
+- [`0001-feature-first-structure.md`](adr/0001-feature-first-structure.md), **Superseded by
+  0002**: the feature-first `src/` layout of restructure 1. Its text is kept, including the
+  measurements that shaped it and the alternatives it rejected.
