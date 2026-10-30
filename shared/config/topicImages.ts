@@ -72,7 +72,7 @@ const TOPIC_IMAGE_MAP = [
     ],
     imageUrls: [
       "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1200&auto=format&fit=crop&q=80", // Stadium
-      "https://images.unsplash.com/photo-1540747913346-19212a729b62?w=1200&auto=format&fit=crop&q=80", // Cricket
+      "https://images.unsplash.com/photo-1593341646782-e0b495cff86d?w=1200&auto=format&fit=crop&q=80", // Cricket
       "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1200&auto=format&fit=crop&q=80", // Football
       "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=1200&auto=format&fit=crop&q=80", // Running track
     ],
