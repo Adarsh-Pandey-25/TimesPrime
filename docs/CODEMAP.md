@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `24ef99b` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-29 19:42 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `ab8661b` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 03:40 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -17,7 +17,7 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 
 | | |
 |---|---|
-| Modules (excl. tests) | **71** |
+| Modules (excl. tests) | **72** |
 | Modules with a `"use client"` directive | **24** |
 | Modules in the client bundle (directive + pulled in) | **31** |
 | Server-only modules in the client bundle (violations) | **0** |
@@ -139,6 +139,14 @@ Widest blast radius when moved.
 | `app/saved/page.tsx` | Page: /saved | 126 | directive | 0% | 0 | 7 | stays -- the path is the URL (CR-01) |
 | `app/terms/page.tsx` | Page: /terms | 109 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
 
+### Features — `src/features/`
+
+| Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
+|---|---|--:|:-:|--:|--:|--:|---|
+| `features/chat/components/Chatbot.tsx` | Chat drawer; streams /api/chat. Honest error handling | 192 | directive | 0% | 1 | 1 | stays |
+| `features/chat/components/FloatingAiAssistant.tsx` | Floating button wrapping Chatbot | 37 | directive | 0% | 1 | 1 | stays |
+| `features/chat/index.ts` | Public surface of chat. No server.ts: chat has no server code | 3 |  | 0% | 1 | 1 | stays |
+
 ### Components — `src/components/`
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
@@ -147,8 +155,6 @@ Widest blast radius when moved.
 | `components/ArticleDetailView.tsx` | Article page body: text, translation, AI panel, share, related | 963 | directive | 0% | 1 | 6 | `features/news/components/ArticleDetailView.tsx` · slice 6 — split in F |
 | `components/BreakingNewsBanner.tsx` | Public banner polling /api/admin/breaking-news (CR-08) | 79 | directive | 0% | 1 | 1 | `features/admin/components/BreakingNewsBanner.tsx` · slice 5 |
 | `components/CategoryMegaMenu.tsx` | Hover mega-menu of category previews | 225 | directive | 0% | 1 | 5 | `features/news/components/CategoryMegaMenu.tsx` · slice 6 |
-| `components/Chatbot.tsx` | Chat drawer; streams /api/chat. Honest error handling | 192 | directive | 0% | 1 | 1 | `features/chat/components/Chatbot.tsx` · slice 1 |
-| `components/FloatingAiAssistant.tsx` | Floating button wrapping Chatbot | 37 | directive | 0% | 1 | 1 | `features/chat/components/FloatingAiAssistant.tsx` · slice 1 |
 | `components/Footer.tsx` | Footer nav, category links, copyright bar. Dead "RSS Feeds" link remains (BL-009) | 214 | directive | 0% | 8 | 3 | `components/ui/layout/Footer.tsx` · slice 4 |
 | `components/Header.tsx` | Nav, search, theme + language toggles, bookmarks count, clock | 568 | directive | 0% | 8 | 6 | `features/news/components/Header.tsx` · slice 6 — news masthead, not UI; split in F |
 | `components/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 532 | directive | 0% | 1 | 10 | `features/news/components/HomeClient.tsx` · slice 6 — split in F |
@@ -317,7 +323,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/layout.tsx`
 
-- **Imports:** `components/BreakingNewsBanner.tsx`, `components/FloatingAiAssistant.tsx`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`
+- **Imports:** `components/BreakingNewsBanner.tsx`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `features/chat/index.ts`
 - **Used by:** —
 
 #### `app/loading.tsx`
@@ -364,16 +370,6 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 - **Imports:** `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `lib/topicImages.ts`, `lib/translations.ts`, `types/index.ts`
 - **Used by:** `components/Header.tsx`
-
-#### `components/Chatbot.tsx`
-
-- **Imports:** `types/index.ts`
-- **Used by:** `components/FloatingAiAssistant.tsx`
-
-#### `components/FloatingAiAssistant.tsx`
-
-- **Imports:** `components/Chatbot.tsx`
-- **Used by:** `app/layout.tsx`
 
 #### `components/Footer.tsx`
 
@@ -444,6 +440,21 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 - **Imports:** —
 - **Used by:** `app/admin/login/page.tsx`, `app/admin/page.tsx`, `app/layout.tsx`, `app/saved/page.tsx`, `components/admin/ActivityLog.tsx`, `components/admin/ArticlesTable.tsx`, `components/admin/BreakingNewsManager.tsx`, `components/admin/CategoryStatsCard.tsx`, `components/admin/SyncDashboard.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/BreakingNewsBanner.tsx`, `components/CategoryMegaMenu.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `components/ThemeSpinner.tsx`
+
+#### `features/chat/components/Chatbot.tsx`
+
+- **Imports:** `types/index.ts`
+- **Used by:** `features/chat/components/FloatingAiAssistant.tsx`
+
+#### `features/chat/components/FloatingAiAssistant.tsx`
+
+- **Imports:** `features/chat/components/Chatbot.tsx`
+- **Used by:** `features/chat/index.ts` _(reexport)_
+
+#### `features/chat/index.ts`
+
+- **Imports:** `features/chat/components/FloatingAiAssistant.tsx` _(reexport)_
+- **Used by:** `app/layout.tsx`
 
 #### `instrumentation-client.ts`
 
@@ -563,4 +574,4 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `types/index.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `components/admin/actionLabels.ts` _(type)_, `components/admin/ActivityLog.tsx` _(type)_, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Chatbot.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `lib/adminLogger.ts` _(type)_, `lib/bookmarks.test.ts` _(test)_, `lib/bookmarks.ts`, `lib/db.ts`, `lib/fetchNews.ts`, `lib/newsConfig.test.ts` _(test)_, `lib/newsConfig.ts`, `lib/newsdata.ts`, `lib/topicImages.ts`
+- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `components/admin/actionLabels.ts` _(type)_, `components/admin/ActivityLog.tsx` _(type)_, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `features/chat/components/Chatbot.tsx`, `lib/adminLogger.ts` _(type)_, `lib/bookmarks.test.ts` _(test)_, `lib/bookmarks.ts`, `lib/db.ts`, `lib/fetchNews.ts`, `lib/newsConfig.test.ts` _(test)_, `lib/newsConfig.ts`, `lib/newsdata.ts`, `lib/topicImages.ts`

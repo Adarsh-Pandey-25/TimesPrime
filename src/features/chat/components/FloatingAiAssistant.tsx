@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Sparkles, X } from "lucide-react";
-import Chatbot from "@/components/Chatbot";
+import Chatbot from "./Chatbot";
 
 export default function FloatingAiAssistant() {
   const [isChatOpen, setIsChatOpen] = useState(false);

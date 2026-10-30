@@ -3,7 +3,7 @@ import { PT_Serif } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { LanguageProvider } from "@/context/LanguageContext";
-import FloatingAiAssistant from "@/components/FloatingAiAssistant";
+import { FloatingAiAssistant } from "@/features/chat";
 import BreakingNewsBanner from "@/components/BreakingNewsBanner";
 
 const ptSerif = PT_Serif({
