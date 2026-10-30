@@ -6,7 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ArticleCard from "@/components/ArticleCard";
 import MarqueeTicker from "@/components/MarqueeTicker";
-import ThemeSpinner from "@/components/ThemeSpinner";
+import ThemeSpinner from "@/components/ui/ThemeSpinner";
 import { Article } from "@/types";
 import { Flame, Layers, RefreshCw, X, ChevronDown } from "lucide-react";
 import { Language, TRANSLATIONS } from "@/config/translations";

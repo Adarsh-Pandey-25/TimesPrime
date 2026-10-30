@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `0c381f9` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-30 04:41 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `b4192f0` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 04:47 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -159,14 +159,14 @@ Widest blast radius when moved.
 | `components/Header.tsx` | Nav, search, theme + language toggles, bookmarks count, clock | 568 | directive | 0% | 8 | 6 | `features/news/components/Header.tsx` · slice 6 — news masthead, not UI; split in F |
 | `components/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 532 | directive | 0% | 1 | 10 | `features/news/components/HomeClient.tsx` · slice 6 — split in F |
 | `components/MarqueeTicker.tsx` | Scrolling India/World headline ticker | 176 | directive | 0% | 2 | 3 | `features/news/components/MarqueeTicker.tsx` · slice 6 |
-| `components/NewsSkeletonGrid.tsx` | Suspense fallback matching real card dimensions | 90 |  | 0% | 1 | 0 | `components/ui/NewsSkeletonGrid.tsx` · slice 4 |
-| `components/ThemeSpinner.tsx` | Theme-aware loading spinner | 88 | directive | 0% | 2 | 1 | `components/ui/ThemeSpinner.tsx` · slice 4 |
 | `components/admin/ActivityLog.tsx` | Paginated admin_logs viewer | 235 | directive | 0% | 1 | 3 | `features/admin/components/ActivityLog.tsx` · slice 5 |
 | `components/admin/ArticlesTable.tsx` | Admin article list: filters, edit, delete, bulk | 751 | directive | 0% | 1 | 1 | `features/admin/components/ArticlesTable.tsx` · slice 5 — split in F |
 | `components/admin/BreakingNewsManager.tsx` | Create/expire breaking news items | 289 | directive | 0% | 1 | 1 | `features/admin/components/BreakingNewsManager.tsx` · slice 5 |
 | `components/admin/CategoryStatsCard.tsx` | Category/language/country breakdown | 362 | directive | 0% | 1 | 1 | `features/admin/components/CategoryStatsCard.tsx` · slice 5 |
 | `components/admin/SyncDashboard.tsx` | Last/next sync, counts, manual sync | 198 | directive | 0% | 1 | 1 | `features/admin/components/SyncDashboard.tsx` · slice 5 |
 | `components/admin/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 0% | 1 | 1 | `features/admin/components/actionLabels.ts` · slice 5 — only consumer is ActivityLog (SC-1) |
+| `components/ui/NewsSkeletonGrid.tsx` | Suspense fallback matching real card dimensions | 90 |  | 0% | 1 | 0 | stays |
+| `components/ui/ThemeSpinner.tsx` | Theme-aware loading spinner | 88 | directive | 0% | 2 | 1 | stays |
 
 ### Server — `src/server/` (backend-only)
 
@@ -338,12 +338,12 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/loading.tsx`
 
-- **Imports:** `components/ThemeSpinner.tsx`
+- **Imports:** `components/ui/ThemeSpinner.tsx`
 - **Used by:** —
 
 #### `app/page.tsx`
 
-- **Imports:** `components/HomeClient.tsx`, `components/NewsSkeletonGrid.tsx`, `lib/fetchNews.ts`
+- **Imports:** `components/HomeClient.tsx`, `components/ui/NewsSkeletonGrid.tsx`, `lib/fetchNews.ts`
 - **Used by:** —
 
 #### `app/privacy/page.tsx`
@@ -393,23 +393,13 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `components/HomeClient.tsx`
 
-- **Imports:** `components/ArticleCard.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/MarqueeTicker.tsx`, `components/ThemeSpinner.tsx`, `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
+- **Imports:** `components/ArticleCard.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/MarqueeTicker.tsx`, `components/ui/ThemeSpinner.tsx`, `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
 - **Used by:** `app/page.tsx`
 
 #### `components/MarqueeTicker.tsx`
 
 - **Imports:** `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
 - **Used by:** `app/admin/page.tsx`, `components/HomeClient.tsx`
-
-#### `components/NewsSkeletonGrid.tsx`
-
-- **Imports:** —
-- **Used by:** `app/page.tsx`
-
-#### `components/ThemeSpinner.tsx`
-
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `app/loading.tsx`, `components/HomeClient.tsx`
 
 #### `components/admin/ActivityLog.tsx`
 
@@ -441,6 +431,16 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `types/index.ts` _(type)_
 - **Used by:** `components/admin/ActivityLog.tsx`
 
+#### `components/ui/NewsSkeletonGrid.tsx`
+
+- **Imports:** —
+- **Used by:** `app/page.tsx`
+
+#### `components/ui/ThemeSpinner.tsx`
+
+- **Imports:** `context/ThemeContext.tsx`
+- **Used by:** `app/loading.tsx`, `components/HomeClient.tsx`
+
 #### `config/categoryColors.ts`
 
 - **Imports:** —
@@ -469,7 +469,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `context/ThemeContext.tsx`
 
 - **Imports:** —
-- **Used by:** `app/admin/login/page.tsx`, `app/admin/page.tsx`, `app/layout.tsx`, `app/saved/page.tsx`, `components/admin/ActivityLog.tsx`, `components/admin/ArticlesTable.tsx`, `components/admin/BreakingNewsManager.tsx`, `components/admin/CategoryStatsCard.tsx`, `components/admin/SyncDashboard.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/BreakingNewsBanner.tsx`, `components/CategoryMegaMenu.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `components/ThemeSpinner.tsx`
+- **Used by:** `app/admin/login/page.tsx`, `app/admin/page.tsx`, `app/layout.tsx`, `app/saved/page.tsx`, `components/admin/ActivityLog.tsx`, `components/admin/ArticlesTable.tsx`, `components/admin/BreakingNewsManager.tsx`, `components/admin/CategoryStatsCard.tsx`, `components/admin/SyncDashboard.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/BreakingNewsBanner.tsx`, `components/CategoryMegaMenu.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `components/ui/ThemeSpinner.tsx`
 
 #### `features/chat/components/Chatbot.tsx`
 
