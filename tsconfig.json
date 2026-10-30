@@ -19,6 +19,11 @@
       }
     ],
     "paths": {
+      "@/features/*": ["./src/features/*"],
+      "@/server/*": ["./src/server/*"],
+      "@/lib/*": ["./src/lib/*"],
+      "@/config/*": ["./src/config/*"],
+      "@/ui/*": ["./src/components/ui/*"],
       "@/*": ["./src/*"]
     }
   },

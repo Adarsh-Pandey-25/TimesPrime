@@ -10,6 +10,12 @@
 // first draft of the map, written by reasoning rather than measurement, broke
 // those rules 21 times.
 //
+// Since Phase D every move is done, and this runs in `npm run verify` and CI
+// (`npm run check:boundaries`). ESLint (eslint.boundaries.mjs) now checks each
+// import as it is written; this stays for what lint cannot see: the client
+// bundle is TRANSITIVE, so a "use client" module that imports a plain module
+// that imports server/ is caught here and nowhere else before the build.
+//
 // Exit code 1 if there is any violation not listed in KNOWN.
 
 import fs from "node:fs";
@@ -24,6 +30,13 @@ const files = execSync('git ls-files "src/*" "src/**/*"', { encoding: "utf8" })
 const tracked = new Set(files);
 const target = new Map(MOVES.map(([from, to]) => [from, to]));
 const where = (f) => target.get(f) ?? f;
+
+// tsconfig "paths", longest prefix first, as TypeScript matches them.
+const tsconfig = ts.readConfigFile("tsconfig.json", ts.sys.readFile).config ?? {};
+const aliases = Object.entries(tsconfig.compilerOptions?.paths ?? {})
+  .filter(([key, to]) => key.endsWith("/*") && to[0]?.endsWith("/*"))
+  .map(([key, to]) => [key.slice(0, -1), path.posix.normalize(to[0].slice(0, -1)).replace(/^\.\//, "")])
+  .sort((a, b) => b[0].length - a[0].length);
 
 // Usable throughout Phase D: a move whose target already exists is done, and
 // the file is simply checked where it now lives.
@@ -68,7 +81,8 @@ for (const file of files) {
     }
     if (spec) {
       let to = null;
-      if (spec.startsWith("@/")) to = resolve("src/" + spec.slice(2));
+      const alias = aliases.find(([prefix]) => spec.startsWith(prefix));
+      if (alias) to = resolve(alias[1] + spec.slice(alias[0].length));
       else if (spec.startsWith(".")) to = resolve(path.posix.join(path.posix.dirname(file), spec));
       if (to && to !== file) edges.push({ from: file, to, kind });
     }

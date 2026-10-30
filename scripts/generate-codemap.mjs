@@ -47,7 +47,9 @@ const aliases = Object.entries(tsconfig.compilerOptions?.paths ?? {})
   .map(([key, targets]) => ({
     prefix: key.slice(0, -1), // "@/*" -> "@/"
     target: path.posix.normalize(targets[0].slice(0, -1)).replace(/^\.\//, ""), // "./src/*" -> "src/"
-  }));
+  }))
+  // Longest prefix first, as TypeScript matches: "@/ui/x" must not fall to "@/".
+  .sort((a, b) => b.prefix.length - a.prefix.length);
 
 function firstExisting(base) {
   for (const suffix of CANDIDATE_SUFFIXES) if (srcSet.has(base + suffix)) return base + suffix;

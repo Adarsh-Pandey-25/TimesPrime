@@ -1,14 +1,17 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import { boundaries } from "./eslint.boundaries.mjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // Import boundaries: docs/architecture.md §5, rule by rule.
+  ...boundaries,
   {
     rules: {
       // Downgraded to a warning, deliberately not fixed. The three current
-      // violations (src/app/saved/page.tsx, src/components/ArticleCard.tsx)
+      // violations (src/app/saved/page.tsx, src/features/news/components/ArticleCard.tsx)
       // would have to become derived state to satisfy this rule, which
       // changes render timing — a behavior change on files that have zero
       // test coverage today. They are scheduled for Phase 6, once
