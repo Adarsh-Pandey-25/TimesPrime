@@ -19,6 +19,9 @@
       }
     ],
     "paths": {
+      "@/frontend/*": ["./frontend/*"],
+      "@/backend/*": ["./backend/*"],
+      "@/shared/*": ["./shared/*"],
       "@/features/*": ["./src/features/*"],
       "@/server/*": ["./src/server/*"],
       "@/lib/*": ["./src/lib/*"],
