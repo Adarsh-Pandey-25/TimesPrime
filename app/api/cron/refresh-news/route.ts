@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { saveArticlesToDB } from "@/features/news/server";
-import { fetchNewsDataArticles } from "@/features/news/server";
+import { saveArticlesToDB } from "@/backend/services/news";
+import { fetchNewsDataArticles } from "@/backend/services/news";
 import { logAdminAction } from "@/backend/repositories/auditLog";
 
 /**

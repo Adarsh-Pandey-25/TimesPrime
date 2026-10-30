@@ -12,8 +12,8 @@ export {
   getDBStats,
   NEWS_FRESHNESS_WINDOW_MS,
 } from "@/backend/repositories/db";
-export { fetchInitialNews } from "./server/fetchNews";
-export { fetchNewsDataArticles } from "./server/newsdata";
+export { fetchInitialNews } from "./fetchNews";
+export { fetchNewsDataArticles } from "./newsdata";
 export {
   mapCategory,
   MOCK_ARTICLES,

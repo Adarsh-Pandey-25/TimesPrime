@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { cache, CACHE_TTL_NEWS_SECONDS } from "@/backend/lib/cache";
-import { reportSupabaseFallback } from "@/server/health";
+import { reportSupabaseFallback } from "@/backend/services/health/health";
 import { Article, NewsDataRawArticle } from "@/shared/types";
 import {
   saveArticlesToDB,
   getDBArticles,
   getLatestArticleTimestamp,
   NEWS_FRESHNESS_WINDOW_MS,
-} from "@/features/news/server";
+} from "@/backend/services/news";
 import {
   mapCategory,
   MOCK_ARTICLES,
@@ -16,7 +16,7 @@ import {
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
-} from "@/features/news/server";
+} from "@/backend/services/news";
 
 export async function GET(request: NextRequest) {
   try {

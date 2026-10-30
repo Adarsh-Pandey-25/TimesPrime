@@ -2,11 +2,11 @@
  * @jest-environment node
  */
 
-jest.mock("@/server/health", () => ({ getHealth: jest.fn() }));
+jest.mock("@/backend/services/health/health", () => ({ getHealth: jest.fn() }));
 
 import { GET } from "./route";
 
-const { getHealth } = jest.requireMock("@/server/health") as { getHealth: jest.Mock };
+const { getHealth } = jest.requireMock("@/backend/services/health/health") as { getHealth: jest.Mock };
 
 const report = {
   status: "degraded",

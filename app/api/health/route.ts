@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getHealth } from "@/server/health";
+import { getHealth } from "@/backend/services/health/health";
 
 // Public health check for uptime monitors (owner decision D4): the overall
 // status and nothing else — no dependency names, error codes, hosts or keys.

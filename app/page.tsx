@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { fetchInitialNews } from "@/features/news/server";
+import { fetchInitialNews } from "@/backend/services/news";
 import { HomeClient } from "@/features/news";
 import NewsSkeletonGrid from "@/components/ui/NewsSkeletonGrid";
 

@@ -8,7 +8,7 @@ import {
   isFromWireSpamSource,
   isFromNonNewsListingSource,
 } from "@/shared/config/newsConfig";
-import { classifyCategoryRelevance } from "@/features/news/server/categoryClassifier";
+import { classifyCategoryRelevance } from "@/backend/services/classify/categoryClassifier";
 import { throttleReport } from "@/backend/lib/reportFallback";
 
 /**

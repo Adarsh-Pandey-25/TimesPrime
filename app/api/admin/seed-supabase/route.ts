@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { saveArticlesToDB } from "@/features/news/server";
+import { saveArticlesToDB } from "@/backend/services/news";
 import { logAdminAction } from "@/backend/repositories/auditLog";
 import type { NewsDataRawArticle } from "@/shared/types";
 

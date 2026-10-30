@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDBStats, purgeOldArticles } from "@/features/news/server";
+import { getDBStats, purgeOldArticles } from "@/backend/services/news";
 import { logAdminAction } from "@/backend/repositories/auditLog";
 
 // Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),

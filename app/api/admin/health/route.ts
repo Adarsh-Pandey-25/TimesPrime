@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getHealth } from "@/server/health";
+import { getHealth } from "@/backend/services/health/health";
 
 // Per-dependency health detail (owner decision D4). Auth is handled upstream
 // by proxy.ts (matcher covers /api/admin/:path*), so only a request with

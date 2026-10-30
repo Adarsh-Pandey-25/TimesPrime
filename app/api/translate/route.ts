@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { translateBatch } from "@/server/googleTranslate";
+import { translateBatch } from "@/backend/services/translate/googleTranslate";
 import { isRateLimited, getClientIp } from "@/backend/lib/rateLimit";
 
 interface TranslateRequestBody {
