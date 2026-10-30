@@ -77,6 +77,21 @@ Note: coverage then fell again, 4.41% → 3.50%, in `3805007`. That was not a
 test regression either: the deleted paraphraser was one of the few well-covered
 modules (98.3%), so removing it took covered statements out of the numerator.
 
+It has since crept back up, 3.50% → 3.63%, with **no test added**. Measured per commit (`jest
+--coverage`, statements):
+
+| Commit | Change | Coverage | Covered / total |
+|---|---|--:|--:|
+| `3805007` | paraphraser deleted | 3.50% | 428 / 12,201 |
+| `bcd5393` | RSS ingestion deleted | 3.58% | 428 / 11,937 |
+| `59b875d` | contact and newsletter forms deleted | 3.63% | 428 / 11,772 |
+| `b01d528` | SC-1 split | 3.63% | 428 / 11,760 |
+| `d3ba8fa` | footer RSS link deleted | 3.64% | 428 / 11,756 |
+| `9f3b76f` | after slices 1–2 (the chat barrel adds 3 uncovered statements) | 3.63% | 428 / 11,759 |
+
+The covered count is 428 at every step; only the denominator moved. A rising coverage number is
+not, by itself, evidence of progress — check the covered count.
+
 ---
 
 ## BL-004 — Editorial publishing hardcodes `country: ["us"]` and bypasses the filters

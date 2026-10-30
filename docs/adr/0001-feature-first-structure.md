@@ -31,7 +31,7 @@ Forces that are not choices:
   `sentry.server.config.ts`, `sentry.edge.config.ts`.
 - **`imageDomains.ts` is evaluated by `next.config.ts` at config-load time** and must import nothing
   (CR-06).
-- **Test coverage is 3.50%.** `tsc` and `build` prove a pure move compiles; almost nothing proves
+- **Test coverage is under 4%** (3.63% at `9f3b76f`). `tsc` and `build` prove a pure move compiles; almost nothing proves
   behaviour. So the restructure must be moves and import rewrites only.
 
 ## Decision

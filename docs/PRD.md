@@ -137,7 +137,7 @@ primary language plus a translation afterthought.
 | NFR-07 | Usable at 400 px width | Appears met from the breakpoint set; **not verified in a browser** |
 | NFR-08 | Typecheck, lint, test and build pass on every commit | Met, and enforced in CI since `506a4ab` |
 | NFR-09 | No dependency carries a known critical advisory | **Not met.** 2 critical, 9 high — including the framework |
-| NFR-10 | Business logic is covered by tests | **Not met.** 3.50% statements. Was 4.41%; it fell because the deleted paraphraser was one of the few well-covered modules, not because any test regressed (BL-003) |
+| NFR-10 | Business logic is covered by tests | **Not met.** Measured baseline: 3.63% statements (428 of 11,759) at `9f3b76f`. It fell 4.41% → 3.50% when the well-covered paraphraser was deleted, not because any test regressed; it has since crept up only because later deletions shrank the denominator — 428 statements have been covered throughout (BL-003) |
 
 ## 8. Compatibility requirements
 
@@ -238,7 +238,7 @@ review as BL-008.
 | Upstream calls per day | ≤ 350 | 7 categories × 48 cron runs, plus headroom |
 | Feed items surviving the filter pipeline | 30–40 per category | Below 30 suggests over-filtering (DEF-08) |
 | Scrape success (real text, not fallback copy) | ≥ 85% | Measured ~96% in a 120-URL sample |
-| Statement coverage, non-UI modules | ≥ 60% | From 3.50%; security and data modules first |
+| Statement coverage, non-UI modules | ≥ 60% | From 3.63%; security and data modules first |
 | Critical/high dependency advisories | 0 | Currently 2 critical, 9 high |
 
 ## 14. Appendix — environment variables

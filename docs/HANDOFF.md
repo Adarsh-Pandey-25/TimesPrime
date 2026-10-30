@@ -83,8 +83,8 @@ jest --ci      3 suites, 31 tests passed
 next build     exit 0   (26 routes)
 ```
 
-**Coverage is 3.50% statements**, project-wide. It was 4.41% until the well-covered paraphraser was
-deleted. Treat any memory of "91%" as wrong — see §3.6.
+**Coverage is 3.63% statements** (428 of 11,759 at `9f3b76f`), project-wide. It was 4.41% until the
+well-covered paraphraser was deleted (3.50%); later deletions shrank the denominator, never the 428. Treat any memory of "91%" as wrong — see §3.6.
 
 ---
 
@@ -149,8 +149,8 @@ directory, not the cwd. Use absolute Windows paths, and for project modules use
 
 `collectCoverageFrom` was unset, so coverage instrumented only files the tests imported — it
 reported **91.42%** while describing 5 of 73 source files. Fixed in `4e79cb1`. The real number was
-**4.41%**, and is **3.50%** since `3805007` deleted the paraphraser — one of the few well-covered
-modules. Every file in the Phase 6 decomposition table reads **0%**.
+**4.41%**, fell to **3.50%** when `3805007` deleted the paraphraser — one of the few well-covered
+modules — and is **3.63%** at `9f3b76f` only because later deletions shrank the denominator. Every file in the Phase 6 decomposition table reads **0%**.
 
 ### 3.7 `eslint-disable-next-line` placement
 
