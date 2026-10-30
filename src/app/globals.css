@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* Automatic detection scans every file git does not ignore, Markdown included,
+   so prose could add or drop a utility (BL-018). None of these hold markup.
+   Paths resolve from this stylesheet: if it moves, rewrite them in the same
+   commit and compare the built CSS. */
+@source not "../../docs";
+@source not "../../scripts";
+@source not "../../database";
+@source not "../../db";
+@source not "../../README.md";
+@source not "../../CLAUDE.md";
+@source not "../../AGENTS.md";
+@source not "../../CONTRIBUTING.md";
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
