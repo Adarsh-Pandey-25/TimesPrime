@@ -3,7 +3,6 @@ export type Language = "en" | "hi";
 export interface TranslationDictionary {
   currentFeed: string;
   topWorldStories: string;
-  refresh: string;
   featuredCoverage: string;
   topStories: string;
   latestUpdates: string;
@@ -45,7 +44,6 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
   en: {
     currentFeed: "Current Feed",
     topWorldStories: "Top World Stories",
-    refresh: "Refresh",
     featuredCoverage: "Featured Coverage",
     topStories: "Top Stories",
     latestUpdates: "Latest Updates",
@@ -85,7 +83,6 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
   hi: {
     currentFeed: "मुख्य समाचार",
     topWorldStories: "दुनिया की प्रमुख खबरें",
-    refresh: "रिफ्रेश करें",
     featuredCoverage: "मुख्य विशेष कवरेज",
     topStories: "प्रमुख खबरें",
     latestUpdates: "ताजा अपडेट",
