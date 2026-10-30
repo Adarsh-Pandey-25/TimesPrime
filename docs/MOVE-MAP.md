@@ -1,7 +1,8 @@
 # MOVE MAP — migration execution plan
 
-**Status: approved 2026-10-30, with the Phase C review's conditions applied.** Nothing has moved
-yet. Phase D starts at slice 1 on the owner's go-ahead.
+**Status: executed 2026-10-30.** All 34 moves are committed as six slices, `a626542`..`73e207f`
+(one commit per slice; see HANDOFF §4). `check-move-map` reports "34 moves (34 done) · 0
+violation(s)". The map stays the record of where each file came from.
 
 **Source of truth.** The map is data, in [`scripts/move-map.mjs`](../scripts/move-map.mjs). The
 file lists below are generated from it (`node scripts/check-move-map.mjs --plan`); CODEMAP's
@@ -9,7 +10,7 @@ file lists below are generated from it (`node scripts/check-move-map.mjs --plan`
 same table drift, and then one of them lies.
 
 **Validated, not just designed.** `node scripts/check-move-map.mjs` builds the real import graph,
-relocates every file to its target, and tests every import edge (152 today) against the import rules in
+relocates every file to its target, and tests every import edge (155 at the end of Phase D) against the import rules in
 [`architecture.md`](architecture.md) §5. Run it before and after every slice.
 
 | Map | Rule violations |

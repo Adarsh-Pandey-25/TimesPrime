@@ -88,6 +88,7 @@ It has since crept back up, 3.50% → 3.63%, with **no test added**. Measured pe
 | `b01d528` | SC-1 split | 3.63% | 428 / 11,760 |
 | `d3ba8fa` | footer RSS link deleted | 3.64% | 428 / 11,756 |
 | `9f3b76f` | after slices 1–2 (the chat barrel adds 3 uncovered statements) | 3.63% | 428 / 11,759 |
+| `73e207f` | after Phase D (the admin and news barrels add 36 more) | 3.62% | 428 / 11,795 |
 
 The covered count is 428 at every step; only the denominator moved. A rising coverage number is
 not, by itself, evidence of progress — check the covered count.

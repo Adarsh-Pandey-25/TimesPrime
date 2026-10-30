@@ -63,6 +63,9 @@ conclusions (see [`HANDOFF.md`](HANDOFF.md) §3).
 
 ## 3. Why the current structure needs changing
 
+*Resolved by Phase D (`a626542`..`73e207f`). Kept, in the tense it was written, for the
+reasoning.*
+
 `src/lib/` is not a module. It is a folder named after the absence of a decision, and it holds six
 genuinely different kinds of thing:
 
@@ -83,7 +86,7 @@ which makes this the right moment to fix it and close the door.
 
 ## 4. Target structure
 
-Finalized in Phase C and **validated**: `node scripts/check-move-map.mjs` relocates every file and
+**This is now the actual structure** — Phase D executed it. Finalized in Phase C and **validated**: `node scripts/check-move-map.mjs` relocates every file and
 tests every import edge against §5. The Phase A draft of this tree — six features — broke the
 rules 21 times; this one broke them twice, both the one known `ActivityLog` bug, and has broken them
 **zero** times since that bug was fixed in `b01d528`. Full reasoning in
@@ -212,7 +215,8 @@ whose consumers already live in a single feature.
 **Checkable:** after Phase D, `lib/` holds `cache`, `rateLimit`, `sentryScrub` and `urlValidation`,
 and **none of them imports a single project module** — only `@upstash/redis` and Node built-ins. If
 a future `lib/` module imports from `features/`, `config/` or `types/`, that is the signal it has
-picked up a domain and belongs elsewhere.
+picked up a domain and belongs elsewhere. *Checked at the Phase D close-out: true* — `cache` imports
+`@upstash/redis`, `urlValidation` imports `dns/promises` and `net`, the other two import nothing.
 
 ### What `context/` means — decided in Phase B close
 

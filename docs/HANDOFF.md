@@ -1,8 +1,9 @@
 # TimesPrime — Session Handoff
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
-**State as of:** 2026-10-29, after the Phase A review changes (`08b9e59`..`7ceae74` plus the docs
-commits that follow), branch `main`. Run `git log --oneline -20` for the exact head.
+**State as of:** 2026-10-30, after **Phase D** (all six slices, `a626542`..`73e207f`) and its
+close-out, branch `main`. **Phase E (enforcement) is next.** Run `git log --oneline -20` for the
+exact head.
 
 Read §1 and §3 before touching anything. §3 in particular will save you from false conclusions
 that have already been reached and discarded once.
@@ -24,8 +25,14 @@ not a top-level `backend/` folder, which the App Router cannot support without b
 
 **Phase C is approved** (ADR 0001 Accepted), and its review's conditions are applied: SC-1 fixed
 (`b01d528`, the Supabase SDK no longer reaches the browser), BL-009 and BL-010 fixed, slice 7
-skipped, bookmarks moved into news so `lib/` stays domain-free. **Phase D (moving files) has NOT
-started — do not start it without the owner's go-ahead.**
+skipped, bookmarks moved into news so `lib/` stays domain-free.
+
+**Phase D is done.** All 34 moves in `scripts/move-map.mjs` are committed as six pure-move slices,
+each with `npm run verify` and `check-move-map` green. The built route table is identical to
+`_baseline-routes.txt` (26 URLs); `lib/` holds only `cache`, `rateLimit`, `sentryScrub`,
+`urlValidation`, none importing a project module; every `server/` module and
+`features/news/server.ts` begins with `import "server-only"`, seen to fail a client import.
+**Phase E (lint enforcement, path aliases) is next** — see §11.
 The security items (Next.js bump, DEF-02, DEF-06) and the Supabase connection are reserved by the
 owner for a separate session. Do not start either here.
 
@@ -43,7 +50,7 @@ DEF-01.
 | `docs/PRD.md` | Full PRD: FR-001..024 with code citations, NFR, CR, data model, defect register |
 | `docs/architecture.md` | How it works today, the target structure, and the 8 import rules |
 | `docs/MOVE-MAP.md` | Migration execution: slice order, risks, judgement calls, stop condition |
-| `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..003) |
+| `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..010) |
 | `docs/_baseline-routes.txt` | Route table captured at Phase 0. The diff target Phase 4 must match exactly |
 | `docs/prompts/00-prd-and-restructure.md` | The phased plan being executed |
 | `CONTRIBUTING.md` | Commit convention and the verify gate |
@@ -61,7 +68,7 @@ There is also a published audit artifact (28 findings, severity-filterable):
 | Platform | Windows 11. Both PowerShell and Git Bash available |
 | Node / npm | v24.19.0 / 11.17.0 — **`.node-version` pins 20**, a real but so-far harmless drift |
 | Dependencies | Installed (841 packages via `npm ci`) |
-| Dev server | Running on `http://localhost:3000` (was PID 22308 — verify, it may have changed) |
+| Dev server | **Stopped** for the restructure (its Turbopack watcher can lock files during `git mv`). `npm run dev` to start |
 | Line endings | **CRLF** throughout `src/` |
 | Git identity | Set locally for this repo: `Vivek Singh <vivektech.dev25@gmail.com>`. Not global |
 
@@ -83,8 +90,9 @@ jest --ci      3 suites, 31 tests passed
 next build     exit 0   (26 routes)
 ```
 
-**Coverage is 3.63% statements** (428 of 11,759 at `9f3b76f`), project-wide. It was 4.41% until the
-well-covered paraphraser was deleted (3.50%); later deletions shrank the denominator, never the 428. Treat any memory of "91%" as wrong — see §3.6.
+**Coverage is 3.62% statements** (428 of 11,795 at `73e207f`), project-wide. It was 4.41% until the
+well-covered paraphraser was deleted (3.50%); later deletions shrank the denominator and the new
+feature barrels grew it, never the 428. Treat any memory of "91%" as wrong — see §3.6.
 
 ---
 
@@ -196,6 +204,28 @@ chunk in `.next/server/app/**/page_client-reference-manifest.js`. That is how th
 violation was confirmed (Supabase's `GoTrueClient` ships in a chunk loaded only by `/admin`), with
 server-only strings as a negative control.
 
+### 3.12 A barrel imported by a server component ships every client component it re-exports
+
+Measured in slice 5: `app/layout.tsx` importing `BreakingNewsBanner` from `@/features/admin` put all
+five admin dashboard components on **every** route (+46 KB on `/`). `"use client"` on the barrel
+does not help — the module count drops but the bytes stay. What fixes it is the three-line
+`package.json` in each feature folder, `{ "sideEffects": ["./server.ts"] }` (`8864691`). **Do not
+delete those files as clutter**, and do not put a side-effect-only import (CSS, polyfill) inside a
+feature. To measure: total `.next/static/chunks/**/*.js` bytes, and per route the chunks listed in
+`entryJSFiles` of `.next/server/app/**/page_client-reference-manifest.js`.
+
+### 3.13 `sed -i` silently converts CRLF files to LF
+
+Git Bash's `sed -i` rewrites the line endings of every file it touches. The index is LF
+(`core.autocrlf=true`), so commits are unaffected, but the working copy drifts. Rewrite with a Node
+script that detects and restores `\r\n`, and check with `git ls-files --eol <file>`.
+
+### 3.14 Path-keyed lists in the scripts go stale silently on a move
+
+`generate-codemap.mjs` keys `PURPOSE`, `SERVER_ONLY` and its table groups by path. Each now throws if
+an entry names a missing file or a module matches no group (`ab8661b`, `21c8951`). Keep it that
+way: a policy list that tolerates a stale path reports success while checking nothing.
+
 ---
 
 ## 4. Commits made this session
@@ -228,9 +258,25 @@ Oldest to newest. `0e7f1f7` was the pre-existing HEAD.
 | `b01d528` | `refactor: keep the Supabase SDK out of the admin page's browser bundle` | SC-1. `GoTrueClient` in browser chunks 1 → 0; violations 2 → 0 |
 | `d3ba8fa` | `fix: remove the footer's "RSS Feeds" link` | BL-009 |
 | `755fadc` | `build: stop ESLint linting the generated coverage/ directory` | BL-010. Lint warnings 15 → 14 |
+| `127096f` | `build: move bookmarks into features/news; keep lib/ domain-free` | Phase C review. `lib/` stays domain-free |
+| `24ef99b` | `docs: apply the Phase C review conditions; ADR 0001 accepted` | ADR split criteria, route groups deferred |
+| `d44b9cc` | `build: keep the theme and language providers in src/context/` | Phase B close. `context/` becomes a layer; rule R9 |
+| `ea2a869` | `docs: record context/ as the app-wide provider layer` |  |
+| `ab8661b` | `build: give CODEMAP a table group for every target layer` | Moved modules were silently dropping out of CODEMAP's tables; now a missing group throws |
+| `a626542` | `refactor(slice 1): move chat into features/chat` | Phase D begins. `features/chat/index.ts` |
+| `befacce` | `refactor(slice 2): move static data into config/` | CR-06: built `remotePatterns` byte-identical before/after; picomatch probe true |
+| `9f3b76f` | `build: move Footer to features/news instead of components/ui` | Owner decision. Footer reads app state and renders category links |
+| `e14c948` | `docs: replace the stale 3.50% coverage figure with the measured 3.63%` | Covered count 428 at every commit; only the denominator moved |
+| `21c8951` | `build: fail CODEMAP generation when SERVER_ONLY names a missing file` | The list is path-keyed; a stale entry would have hidden a module from the client-bundle check |
+| `0c381f9` | `refactor(slice 3): move backend-only modules into server/` | Security-session files moved as-is |
+| `e3753b3` | `feat: guard every server/ module with import "server-only"` | Condition 2. Guard seen to fail a client import; proxy re-tested under `next start` |
+| `b4192f0` | `build: rule R5, what components/ui may import` | `ui` → `ui`/`lib`/`types` + `ThemeContext` only. Seen to fire on the old Footer plan |
+| `f965c1d` | `refactor(slice 4): move ThemeSpinner and NewsSkeletonGrid into components/ui` |  |
+| `8864691` | `build: mark each feature folder side-effect-free except server.ts` | **Found by measurement**: without it slice 5 put the admin dashboard on every page (+46 KB on `/`). See §3.12 |
+| `8b44939` | `refactor(slice 5): move the admin UI into features/admin` | Bundle 0.00% vs pre-slice; proxy matcher untouched (CR-05) |
+| `73e207f` | `refactor(slice 6): move news into features/news` | All 34 moves done. `server.ts` guard seen to fail; bundle +0.04%, max route +0.14% |
 
-Followed by the knowledge-base commits that bring PRD, MOVE-MAP, architecture, this file and
-CODEMAP up to date.
+Followed by the Phase D close-out docs commit (CODEMAP, PRD paths, this file).
 
 **Retired:** `docs/TimesPrime-PRD-and-Architecture.pdf` was committed in `ddbcc9f`, then untracked
 and git-ignored at the owner's direction. `docs/PRD.md` is the only canonical spec — do not consult
@@ -261,38 +307,47 @@ AUTHORISE ─ src/proxy.ts, matcher /admin/* and /api/admin/*
   NO route handler does its own auth check — this is the only gate.
 ```
 
-### Where things live today
+### Where things live today (after Phase D)
 
 ```
 src/
-  app/            routing + route handlers (several carry business logic inline)
-  components/     17 files, flat, admin and reader mixed  (5,483 LOC)
-  context/        Theme + Language providers
-  lib/            SIX unrelated concerns in one folder    (2,909 LOC)
-  types/          shared types
+  app/                 routing + route handlers; paths are the URLs      27 files  3,640 LOC
+  features/news/       feed, article page, masthead, footer, ingestion   15 files  4,340 LOC
+    components/ server/ newsConfig bookmarks · index.ts · server.ts
+  features/admin/      operator UI + breaking-news banner                 8 files  1,951 LOC
+  features/chat/       AI assistant UI                                    3 files    232 LOC
+  components/ui/       ThemeSpinner · NewsSkeletonGrid                    2 files    178 LOC
+  context/             Theme + Language providers                         2 files    120 LOC
+  server/              supabase · auth/adminSession · auditLog · googleTranslate   219 LOC
+  lib/                 cache · rateLimit · sentryScrub · urlValidation    4 files    273 LOC
+  config/              imageDomains · categoryColors · topicImages · translations  796 LOC
+  types/               shared types
   proxy.ts, instrumentation*.ts, sentry.*.config.ts   ← framework-pinned, do not move
-db/               schema.sql, policies.sql
-docs/             README (index), PRD, CODEMAP, MOVE-MAP, architecture, BACKLOG, adr/, runbooks/
+db/                    schema.sql, policies.sql
+docs/                  README (index), PRD, CODEMAP, MOVE-MAP, architecture, BACKLOG, adr/, runbooks/
 ```
 
-**The problem is `src/lib/`** — it mixes data access (`db.ts`, `supabase.ts`), security primitives
+LOC excludes tests; feature counts include `index.ts`/`server.ts` (and each feature's
+`package.json`, §3.12, is not counted).
+
+**The problem was `src/lib/`** (resolved by Phase D; kept for the reasoning) — it mixed data access (`db.ts`, `supabase.ts`), security primitives
 (`adminSession.ts`, `urlValidation.ts`), infrastructure (`cache.ts`, `rateLimit.ts`,
 `sentryScrub.ts`), domain logic (`newsConfig.ts`, `categoryClassifier.ts`, `fetchNews.ts`), static
 config (`imageDomains.ts`, `topicImages.ts`, `categoryColors.ts`) and i18n (`translations.ts`).
-Nothing marks which is which, and nothing stops a client component importing a Supabase client —
-which has already happened in `ActivityLog.tsx`.
+Nothing marked which was which, and nothing stopped a client component importing a Supabase client —
+which happened in `ActivityLog.tsx` until `b01d528`.
 
 ### Files over 500 lines (all at 0% coverage)
 
 | File | LOC |
 |---|---|
-| `components/ArticleDetailView.tsx` | 963 |
-| `components/admin/ArticlesTable.tsx` | 751 |
-| `lib/db.ts` | 571 |
-| `components/Header.tsx` | 568 |
+| `features/news/components/ArticleDetailView.tsx` | 963 |
+| `features/admin/components/ArticlesTable.tsx` | 751 |
+| `features/news/server/db.ts` | 571 |
+| `features/news/components/Header.tsx` | 568 |
 | `app/api/news/scrape-article/route.ts` | 556 |
-| `components/HomeClient.tsx` | 532 |
-| `app/admin/page.tsx` | 512 |
+| `features/news/components/HomeClient.tsx` | 532 |
+| `app/admin/page.tsx` | 506 |
 
 ---
 
@@ -304,8 +359,8 @@ which has already happened in `ActivityLog.tsx`.
 | **1** | Hygiene: package name, scripts, README, CI, `db/`, docs scaffold | ✅ **Done** |
 | **A** | Knowledge base + PRD; review changes and owner decisions | ✅ **Done** |
 | **C** | Structure design — tree, move map, ADR 0001 | ✅ **Done, approved** |
-| **D** | Migration — 6 slices, pure moves only (slice 7 skipped) | Gate — **not started** |
-| **E** | Enforcement — boundary lint rule, path aliases | Gate |
+| **D** | Migration — 6 slices, pure moves only (slice 7 skipped) | ✅ **Done** — `a626542`..`73e207f` |
+| **E** | Enforcement — boundary lint rule, path aliases | **Next** |
 | **F** | Decomposition — split the 7 oversized files; route-handler extraction | Optional, last |
 
 **Phase C changed the design.** `scripts/check-move-map.mjs` tested the Phase A draft against the
@@ -318,6 +373,8 @@ code; the article page is part of news; `Header` is news's masthead. Reasoning i
 both generated from it. Edit it there and nowhere else.
 
 ### Migration slice order (Phase D)
+
+All six are done — commit per slice in §4.
 
 1. `features/chat` — 2 files, smallest and safest; **proves the mechanics**
 2. `config/` — `next.config.ts` imports `imageDomains.ts` at config-load time; move that import in
@@ -337,7 +394,7 @@ Run `node scripts/check-move-map.mjs` before and after every slice — expect "0
 If a slice cannot be done as a pure move — **stop**.
 
 - **SC-1 — `adminLogger.ts` split.** ✅ **Resolved in `b01d528`**: types → `types/`, labels →
-  `components/admin/actionLabels.ts` (moves with `ActivityLog` in slice 5).
+  `components/admin/actionLabels.ts`, now `features/admin/components/actionLabels.ts` (slice 5).
 - **SC-2 — the scraper.** `scrape-article`'s 556 lines stay in their route through Phase D; extracting
   them is Phase F, behind a characterization test.
 
@@ -418,11 +475,12 @@ collection that no longer happens. Legal copy — for the owner or legal review,
 
 **In this line of work** — the restructure:
 
-1. Owner gives the go-ahead → start **Phase D, slice 1** (`features/chat`). **Not started; do not
-   start without approval.** BL-007 stays deferred unless a slice actually hits it.
-2. Before any Phase D slice that moves a route file: put `next typegen` in the `typecheck` script (BL-007), or clear
-   `.next/types` on every slice that moves a route file.
+1. **Phase E** — ESLint boundary rules for architecture.md §5, path aliases, `check-move-map` folded
+   into the gate, CI confirmed; prove each rule by a deliberate violation.
+2. BL-007 stays deferred: no Phase D slice moved a route file, so it never fired.
 3. Owner or legal rewrites the privacy policy (BL-008).
+4. Phase F (optional, not started): decomposition of the seven files in §5, each behind a
+   characterization test.
 
 **Reserved by the owner for a separate session** — do not start them here:
 
@@ -446,7 +504,8 @@ curl -s -D - -o /dev/null "http://localhost:3000/api/news/top-headlines?refresh=
 # real runtime errors
 tail -40 .next/dev/logs/next-development.log
 
-# route table drift vs Phase 0 baseline
+# route table drift vs Phase 0 baseline: _baseline-routes.txt is the BUILT URL table
+# (f/o + path), so compare the "Route (app)" block of `next build` output, not a file list
 git ls-files 'src/app/**/page.tsx' 'src/app/**/route.ts' | sort
 
 # confirm framework behaviour instead of guessing
@@ -466,8 +525,8 @@ Indexes: `created_at`, `article_id`. Queries also filter on `category`/`country`
 
 ### Test suite
 
-3 files, 31 tests, all passing: `lib/newsConfig.test.ts`, `lib/bookmarks.test.ts`,
+3 files, 31 tests, all passing: `features/news/newsConfig.test.ts`, `features/news/bookmarks.test.ts`,
 `app/api/chat/route.test.ts`. (`lib/paraphraser.test.ts` was deleted with its subject in `3805007`.)
 
-**Untested and security-critical:** `lib/urlValidation.ts` (122 lines) and `lib/adminSession.ts`
-(67 lines). Both pure, no I/O, trivially testable. Highest value-per-hour work available.
+**Untested and security-critical:** `lib/urlValidation.ts` (122 lines) and
+`server/auth/adminSession.ts` (69 lines, including the `server-only` guard). Both pure, no I/O, trivially testable. Highest value-per-hour work available.

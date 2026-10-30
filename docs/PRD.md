@@ -79,22 +79,22 @@ primary language plus a translation afterthought.
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-001 | Fetch headlines by category from NewsData.io | `lib/newsdata.ts`, `lib/fetchNews.ts` | Implemented |
+| FR-001 | Fetch headlines by category from NewsData.io | `features/news/server/newsdata.ts`, `features/news/server/fetchNews.ts` | Implemented |
 | FR-002 | Refresh all 7 categories on a 30-minute schedule | `app/api/cron/refresh-news/route.ts`, `vercel.json` | Implemented |
 | FR-003 | Serve from cache → store → upstream → mock, in that order | `app/api/news/top-headlines/route.ts` | **Partial** — tier 2 unreachable, DEF-01 |
-| FR-004 | Persist articles on a rolling 7-day window | `lib/db.ts` → `purgeOldArticles` | **Partial** — runs on the read path, DEF-05 |
-| FR-005 | De-duplicate by normalised title | `lib/newsConfig.ts` → `dedupeArticlesByTitle` | Implemented · tested |
-| FR-006 | Exclude horoscope/tarot filler, wire-spam and non-news listing sources | `lib/newsConfig.ts` | Implemented · tested |
-| FR-007 | Exclude hard-paywalled publishers at write time | `lib/db.ts` → `HARD_PAYWALL_SOURCE_DOMAINS` | Implemented |
-| FR-008 | Classify and suppress mis-tagged categories via LLM | `lib/categoryClassifier.ts` | Implemented — fail-open by design |
-| FR-009 | Notify the reader when newer stories exist | `app/api/news/check-new/route.ts`, `components/HomeClient.tsx` | Implemented |
+| FR-004 | Persist articles on a rolling 7-day window | `features/news/server/db.ts` → `purgeOldArticles` | **Partial** — runs on the read path, DEF-05 |
+| FR-005 | De-duplicate by normalised title | `features/news/newsConfig.ts` → `dedupeArticlesByTitle` | Implemented · tested |
+| FR-006 | Exclude horoscope/tarot filler, wire-spam and non-news listing sources | `features/news/newsConfig.ts` | Implemented · tested |
+| FR-007 | Exclude hard-paywalled publishers at write time | `features/news/server/db.ts` → `HARD_PAYWALL_SOURCE_DOMAINS` | Implemented |
+| FR-008 | Classify and suppress mis-tagged categories via LLM | `features/news/server/categoryClassifier.ts` | Implemented — fail-open by design |
+| FR-009 | Notify the reader when newer stories exist | `app/api/news/check-new/route.ts`, `features/news/components/HomeClient.tsx` | Implemented |
 
 ### Language
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-010 | Restrict each feed to its language by script detection | `lib/newsConfig.ts`, `lib/db.ts` | Implemented · tested |
-| FR-011 | Translate article text on demand | `app/api/translate/route.ts`, `lib/googleTranslate.ts` | **Partial** — unofficial endpoint, no size cap |
+| FR-010 | Restrict each feed to its language by script detection | `features/news/newsConfig.ts`, `features/news/server/db.ts` | Implemented · tested |
+| FR-011 | Translate article text on demand | `app/api/translate/route.ts`, `server/googleTranslate.ts` | **Partial** — unofficial endpoint, no size cap |
 | FR-012 | Persist the language choice across visits | `context/LanguageContext.tsx` | Implemented |
 
 ### Article reading
@@ -105,22 +105,22 @@ primary language plus a translation afterthought.
 | FR-014 | Detect paywalls and show publisher metadata instead of junk | same → `detectPaywall` | Implemented |
 | FR-015 | Strip author bios, nav and app-download boilerplate | same → `isJunkParagraph` | Implemented |
 | FR-016 | Refuse to fetch internal/private network addresses | `lib/urlValidation.ts` | **Partial** — redirects bypass it, DEF-02 |
-| FR-017 | Always link out to the original publisher | `components/ArticleDetailView.tsx` | **Partial** — 2 of 4 links unvalidated, DEF-03 |
+| FR-017 | Always link out to the original publisher | `features/news/components/ArticleDetailView.tsx` | **Partial** — 2 of 4 links unvalidated, DEF-03 |
 
 ### Reader features
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-018 | Save articles device-locally and list them | `lib/bookmarks.ts`, `app/saved/page.tsx` | Implemented · tested |
+| FR-018 | Save articles device-locally and list them | `features/news/bookmarks.ts`, `app/saved/page.tsx` | Implemented · tested |
 | FR-019 | Answer questions about a story, streamed | `app/api/chat/route.ts` | Implemented · tested — error path misleads, DEF-04 |
-| FR-020 | Provide a themed, topic-appropriate image for every card | `lib/topicImages.ts`, `lib/imageDomains.ts` | Implemented |
+| FR-020 | Provide a themed, topic-appropriate image for every card | `config/topicImages.ts`, `config/imageDomains.ts` | Implemented |
 
 ### Operations
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-021 | Gate every admin surface behind a session | `proxy.ts`, `lib/adminSession.ts` | **Partial** — unthrottled, DEF-06 |
-| FR-022 | List, search, edit, delete and bulk-delete stored articles | `app/api/admin/articles/*`, `components/admin/ArticlesTable.tsx` | Implemented |
+| FR-021 | Gate every admin surface behind a session | `proxy.ts`, `server/auth/adminSession.ts` | **Partial** — unthrottled, DEF-06 |
+| FR-022 | List, search, edit, delete and bulk-delete stored articles | `app/api/admin/articles/*`, `features/admin/components/ArticlesTable.tsx` | Implemented |
 | FR-023 | Publish an editorial article directly | `app/api/admin/publish-article/route.ts` | Implemented — bypasses the filter pipeline by design |
 | FR-024 | Set a time-boxed breaking-news banner | `app/api/admin/breaking-news/route.ts` | **Blocked** — table absent from schema, DEF-07 |
 
@@ -137,7 +137,7 @@ primary language plus a translation afterthought.
 | NFR-07 | Usable at 400 px width | Appears met from the breakpoint set; **not verified in a browser** |
 | NFR-08 | Typecheck, lint, test and build pass on every commit | Met, and enforced in CI since `506a4ab` |
 | NFR-09 | No dependency carries a known critical advisory | **Not met.** 2 critical, 9 high — including the framework |
-| NFR-10 | Business logic is covered by tests | **Not met.** Measured baseline: 3.63% statements (428 of 11,759) at `9f3b76f`. It fell 4.41% → 3.50% when the well-covered paraphraser was deleted, not because any test regressed; it has since crept up only because later deletions shrank the denominator — 428 statements have been covered throughout (BL-003) |
+| NFR-10 | Business logic is covered by tests | **Not met.** Measured baseline: 3.62% statements (428 of 11,795) at `73e207f`. It fell 4.41% → 3.50% when the well-covered paraphraser was deleted, not because any test regressed; it has since crept up only because later deletions shrank the denominator — 428 statements have been covered throughout (BL-003) |
 
 ## 8. Compatibility requirements
 
@@ -238,7 +238,7 @@ review as BL-008.
 | Upstream calls per day | ≤ 350 | 7 categories × 48 cron runs, plus headroom |
 | Feed items surviving the filter pipeline | 30–40 per category | Below 30 suggests over-filtering (DEF-08) |
 | Scrape success (real text, not fallback copy) | ≥ 85% | Measured ~96% in a 120-URL sample |
-| Statement coverage, non-UI modules | ≥ 60% | From 3.63%; security and data modules first |
+| Statement coverage, non-UI modules | ≥ 60% | From 3.62%; security and data modules first |
 | Critical/high dependency advisories | 0 | Currently 2 critical, 9 high |
 
 ## 14. Appendix — environment variables
