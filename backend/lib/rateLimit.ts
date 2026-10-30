@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Basic in-memory fixed-window rate limiter. Fine for a single-instance dev
  * server; on serverless (multiple instances) it's advisory rather than a

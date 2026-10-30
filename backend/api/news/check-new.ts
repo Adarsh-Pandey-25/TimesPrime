@@ -1,3 +1,5 @@
+import "server-only";
+
 import { NextRequest, NextResponse } from "next/server";
 import { countArticlesSince } from "@/backend/services/news";
 import { mapCategory } from "@/backend/services/news";

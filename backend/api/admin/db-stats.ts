@@ -1,3 +1,5 @@
+import "server-only";
+
 import { NextResponse } from "next/server";
 import { getDBStats, purgeOldArticles } from "@/backend/services/news";
 import { logAdminAction } from "@/backend/repositories/auditLog";

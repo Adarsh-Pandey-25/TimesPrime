@@ -1,3 +1,5 @@
+import "server-only";
+
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_SESSION_COOKIE, createSessionToken, sessionCookieOptions, verifyAdminPassword } from "@/backend/auth/adminSession";
 

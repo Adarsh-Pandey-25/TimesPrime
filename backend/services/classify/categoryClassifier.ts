@@ -1,3 +1,5 @@
+import "server-only";
+
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/nextjs";
 import { supabase } from "@/backend/lib/supabase";

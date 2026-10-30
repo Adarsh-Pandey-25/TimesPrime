@@ -1,3 +1,5 @@
+import "server-only";
+
 import * as Sentry from "@sentry/nextjs";
 import { Article } from "@/shared/types";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";

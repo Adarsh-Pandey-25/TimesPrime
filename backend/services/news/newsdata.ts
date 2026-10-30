@@ -1,3 +1,5 @@
+import "server-only";
+
 import { Article } from "@/shared/types";
 import { mapCategory } from "@/shared/config/newsConfig";
 

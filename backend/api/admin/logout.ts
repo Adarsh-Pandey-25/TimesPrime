@@ -1,3 +1,5 @@
+import "server-only";
+
 import { NextResponse } from "next/server";
 import { ADMIN_SESSION_COOKIE } from "@/backend/auth/adminSession";
 

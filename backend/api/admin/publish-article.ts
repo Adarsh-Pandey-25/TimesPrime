@@ -1,3 +1,5 @@
+import "server-only";
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 import { logAdminAction } from "@/backend/repositories/auditLog";

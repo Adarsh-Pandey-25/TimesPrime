@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * SSRF guard for server-side fetches of user/attacker-influenced URLs
  * (e.g. the article scraper, which fetches whatever link the news API returns).
