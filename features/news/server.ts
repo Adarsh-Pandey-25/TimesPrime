@@ -11,7 +11,7 @@ export {
   purgeOldArticles,
   getDBStats,
   NEWS_FRESHNESS_WINDOW_MS,
-} from "./server/db";
+} from "@/backend/repositories/db";
 export { fetchInitialNews } from "./server/fetchNews";
 export { fetchNewsDataArticles } from "./server/newsdata";
 export {

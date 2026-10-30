@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { saveArticlesToDB } from "@/features/news/server";
-import { logAdminAction } from "@/server/auditLog";
+import { logAdminAction } from "@/backend/repositories/auditLog";
 import type { NewsDataRawArticle } from "@/shared/types";
 
 // Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),

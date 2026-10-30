@@ -45,7 +45,7 @@ const ACTION_COLOR_CLASSES: Record<AdminAction, string> = {
 };
 
 /**
- * Timeline view of every logged admin action (server/auditLog.ts),
+ * Timeline view of every logged admin action (backend/repositories/auditLog.ts),
  * paginated 10-per-page with a 30s auto-refresh and a destructive
  * "Clear All Logs" action. Self-contained — owns its own fetch/pagination
  * state and renders its own card + heading.

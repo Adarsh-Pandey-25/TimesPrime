@@ -7,7 +7,7 @@
  */
 
 jest.mock("@sentry/nextjs", () => ({ captureMessage: jest.fn(), captureException: jest.fn() }));
-jest.mock("./categoryClassifier", () => ({ classifyCategoryRelevance: jest.fn(() => Promise.resolve()) }));
+jest.mock("@/features/news/server/categoryClassifier", () => ({ classifyCategoryRelevance: jest.fn(() => Promise.resolve()) }));
 jest.mock("@/backend/lib/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
 
 import { getDBArticles, getLatestArticleTimestamp, saveArticlesToDB } from "./db";

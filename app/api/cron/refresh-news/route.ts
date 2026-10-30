@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { saveArticlesToDB } from "@/features/news/server";
 import { fetchNewsDataArticles } from "@/features/news/server";
-import { logAdminAction } from "@/server/auditLog";
+import { logAdminAction } from "@/backend/repositories/auditLog";
 
 /**
  * Background refresh: pulls every category from NewsData.io into Supabase.
