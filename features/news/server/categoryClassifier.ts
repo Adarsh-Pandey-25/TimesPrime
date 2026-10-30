@@ -33,7 +33,7 @@ interface ClassificationResult {
 
 // Cached for the process lifetime — avoids spending on Haiku calls whose
 // results could never be saved if the category_mismatches migration
-// (see db/schema.sql) hasn't been run yet in this environment.
+// (see database/schema.sql) hasn't been run yet in this environment.
 let columnExists: boolean | null = null;
 
 async function ensureColumnExists(): Promise<boolean> {
@@ -42,7 +42,7 @@ async function ensureColumnExists(): Promise<boolean> {
   columnExists = !error;
   if (!columnExists) {
     console.warn(
-      "category_mismatches column not found — run the migration in db/schema.sql to enable category classification."
+      "category_mismatches column not found — run the migration in database/schema.sql to enable category classification."
     );
   }
   return columnExists;

@@ -4,7 +4,7 @@ const apiKey = process.env.NEWSDATA_API_KEY;
 
 if (!supabaseUrl || !serviceRoleKey || !apiKey) {
   console.error(
-    "Missing required env vars. Run with: node --env-file=.env.local scripts/seed_supabase.mjs\n" +
+    "Missing required env vars. Run with: node --env-file=.env.local database/seed/seed_supabase.mjs\n" +
       "Required: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEWSDATA_API_KEY"
   );
   process.exit(1);

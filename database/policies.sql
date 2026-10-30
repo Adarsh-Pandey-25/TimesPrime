@@ -1,6 +1,6 @@
 -- TimesPrime — Row Level Security migration for public.articles
 -- Run this in the Supabase Dashboard -> SQL Editor -> New query -> Run.
--- Safe to run against the table created by db/schema.sql; idempotent (drops policies before recreating them).
+-- Safe to run against the table created by database/schema.sql; idempotent (drops policies before recreating them).
 --
 -- What this does:
 --   - Enables RLS on public.articles (currently disabled, so any anon-key holder can read/write/delete every row)

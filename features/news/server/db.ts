@@ -29,7 +29,7 @@ export interface DBArticle extends Article {
 }
 
 /**
- * A row of public.articles exactly as db/schema.sql declares it — nullability
+ * A row of public.articles exactly as database/schema.sql declares it — nullability
  * included. Only `id`, `article_id`, `title` and `created_at` are NOT NULL
  * there; everything else is nullable, and this type says so rather than
  * flattering the mapping code below.
@@ -332,7 +332,7 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
       ).catch((err) => console.error("Background category classification error:", err));
     }
 
-    // Typing this row as ArticleRow (above) is correct per db/schema.sql but
+    // Typing this row as ArticleRow (above) is correct per database/schema.sql but
     // does not compile: link and pub_date are nullable in Postgres while
     // Article.link and Article.pubDate are required strings, so this mapping
     // silently relies on `any` to paper over unhandled nulls. Fixing it needs
