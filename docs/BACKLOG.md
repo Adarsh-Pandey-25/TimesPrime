@@ -413,8 +413,9 @@ readers wait longer. Either is a change for the owner to decide.
 
 ## BL-020 — A curated Sports topic image is gone from Unsplash (404)
 
-**Found:** restructure 2, S3 (the smoke test after slice 1) · **Status:** Open — a one-line data
-fix in `shared/config/topicImages.ts`, for the owner
+**Found:** restructure 2, S3 (the smoke test after slice 1) · **Status:** **Resolved** in
+`c3c4387` (owner-approved, S5): the slot now holds `photo-1593341646782-e0b495cff86d`, a batsman
+hitting the ball, on the same host. It returned 200 before the commit
 
 The slice-1 smoke test's `next start` log:
 
@@ -428,5 +429,5 @@ Unlike BL-019, this one fails every time. Take an article whose own image is mis
 allowlisted, whose headline matches the Sports keywords, and which `assignDedupedTopicImages`
 gives that slot: its thumbnail renders empty.
 
-Fix: replace the URL with a working photo, or drop it from the bucket. Not done in S4, which
-changes no data.
+Fixed by replacing the URL with a working photo that shows cricket being played. It is on the
+same host, so `imageDomains` and `remotePatterns` are unchanged.
