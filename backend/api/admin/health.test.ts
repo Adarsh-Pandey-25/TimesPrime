@@ -4,7 +4,7 @@
 
 jest.mock("@/backend/services/health/health", () => ({ getHealth: jest.fn() }));
 
-import { GET } from "./route";
+import { GET } from "./health";
 
 const { getHealth } = jest.requireMock("@/backend/services/health/health") as { getHealth: jest.Mock };
 
