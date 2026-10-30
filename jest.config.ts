@@ -17,14 +17,20 @@ const config: Config = {
   // Exclusions are files with no meaningful runtime branches to cover:
   // type-only modules, and the Sentry/instrumentation entrypoints, which are
   // location-pinned Next.js conventions that only call SDK init.
+  // The globs name no folder, so moving code (restructure 2 empties src/)
+  // cannot quietly drop it from the measurement; root tooling is excluded.
   collectCoverageFrom: [
-    "src/**/*.{ts,tsx}",
-    "!src/**/*.d.ts",
-    "!src/**/*.test.{ts,tsx}",
-    "!src/types/**",
-    "!src/instrumentation.ts",
-    "!src/instrumentation-client.ts",
-    "!src/sentry.*.config.ts",
+    "**/*.{ts,tsx}",
+    "!**/node_modules/**",
+    "!**/*.d.ts",
+    "!**/*.test.{ts,tsx}",
+    "!**/types/**",
+    "!**/instrumentation.ts",
+    "!**/instrumentation-client.ts",
+    "!**/sentry.*.config.ts",
+    "!next.config.ts",
+    "!jest.config.ts",
+    "!jest.setup.ts",
   ],
   testEnvironment: "jsdom",
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
