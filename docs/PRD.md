@@ -199,6 +199,29 @@ intent. **Do not promote any of these into §6.**
 | DEF-08 | Feed fetches 80 rows, filters in JS, slices to 40 — under-fills exactly when a spam source floods | Medium |
 | DEF-09 | ~~Contact form and newsletter show success, send nothing.~~ **Resolved by removal** in `59b875d`: all three forms deleted — the contact form and **two** newsletter forms, footer and article sidebar (owner decision Q4). A real backend is future work, BL-005 | Resolved |
 | DEF-10 | Scraper returns HTTP 200 with placeholder prose on failure; UI detects errors by string-matching three hard-coded sentences | Medium |
+| DEF-11 | `next` 16.3.0 carries 13 advisories, four of them critical unauthenticated RCE; fixed in a non-major release (audit F-001) | **Critical** |
+| DEF-12 | The feed search interpolates the raw query into a PostgREST `.or()` filter string — filter injection (audit F-006) | High |
+| DEF-13 | `axios` 1.19.0 carries advisories including redirect-based SSRF and ReDoS (audit F-007) | High |
+| DEF-14 | `.env.local.example` documents `ADMIN_SECRET_TOKEN`, which no code reads, and omits `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`, which the code requires (audit F-009; README is already correct) | High |
+| DEF-15 | No input size caps: translate `texts[]` (count and item length), chat `message`, scraper response size (audit F-010) | High |
+| DEF-16 | The public scraper, which makes arbitrary outbound requests, has no rate limit (audit F-011) | High |
+| DEF-17 | Admin purge and sync show a success message from their `catch` blocks, and nothing when `!res.ok` (audit F-014) | Medium |
+| DEF-18 | Two indexes for seven filtered columns: array `.contains()` wants GIN, `ILIKE '%x%'` wants `pg_trgm` (audit F-018) | Medium |
+| DEF-19 | The in-memory rate limiter never evicts keys — unbounded memory growth (audit F-020) | Medium |
+| DEF-20 | The home feed starts overlapping fetches with no `AbortController` or sequence guard; a stale response can overwrite a fresh one (audit F-021) | Medium |
+| DEF-21 | Article page title is doubled: `… \| TimesPrime News \| TimesPrime News` (audit F-022) | Low |
+| DEF-22 | `translateHeadline()` ignores its `lang` argument yet runs on every card title and description (audit F-024) | Low |
+| DEF-23 | Node version drift: `.node-version` and CI use 20, the local runtime is 24, `package.json` has no `engines`, Vercel's version is unconfirmed (audit F-026) | Low |
+| DEF-24 | The chat drawer has no dark mode (audit F-027) | Low |
+| DEF-25 | Theme flash on load: the theme is read from `localStorage` in an effect, after first paint (audit F-028) | Low |
+
+**Audit cross-reference.** The 2026-10-29 audit (F-001..F-028, at commit `0e7f1f7`) maps onto this
+register as: DEF-01 = F-002, DEF-02 = F-003, DEF-03 = F-005, DEF-04 = F-013, DEF-05 = F-015,
+DEF-06 = F-004, DEF-07 = F-008, DEF-08 = F-016, DEF-09 = F-012, DEF-10 = F-017; DEF-11..25 were
+added from the audit and name their F-ID inline. F-019, F-023 and F-025 were resolved before they
+were registered and have no DEF. Status per finding, with today's code locations:
+[`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md). The audit rates F-003 High and F-013 Medium; this register
+rates DEF-02 Critical and DEF-04 High — both ratings are kept, and the ledger notes the difference.
 
 **Refuted — do not re-report.** A `javascript:` URL XSS via `targetUrl` was suspected and
 **disproven**: React 19 blocks it, rendering
