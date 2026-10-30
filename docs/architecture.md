@@ -202,7 +202,7 @@ import (`../news/components/Header`) is caught exactly like the alias (`@/featur
 | 3 — downward only | `import/no-restricted-paths` | `server/`, `ui`, `context/`, `config/`, `types/` importing a feature |
 | 4 — shared things move down | — | The remedy for rule 2, not a check |
 | 5 — `ui` is domain-free | `import/no-restricted-paths`, `except` `ThemeContext.tsx` | `ui` importing `LanguageContext`, `config/`, `app/` |
-| 6 — server code never in client | local rule `boundaries/no-server-in-client` · `ui` → `server/` zone · local rule `boundaries/server-only-first` | a `"use client"` file importing `server/` or a feature's `server.ts` (alias or relative); a `server/` module or `server.ts` whose first statement is not `import "server-only"` |
+| 6 — server code never in client | local rule `boundaries/no-server-in-client` · `ui` → `server/` zone · local rule `boundaries/server-only-first` | a `"use client"` file importing `server/` or a feature's `server.ts` (alias or relative); a `server/` module or `server.ts` whose first statement is not `import "server-only"` (colocated `*.test.ts` files are not modules and are exempt) |
 | 7 — `config/` is static data | `import/no-restricted-paths` + core `no-restricted-imports` | `config/` importing `react`, `server-only`, or `app`/`components`/`context`/`server`/`lib`; **CR-06**: any import at all in `imageDomains.ts` |
 | 8 — `app/` holds no logic | — | **Not expressible in lint**: it is about what code does, not what it imports. Review enforces it |
 | `lib/` is domain-free | `import/no-restricted-paths` | a `lib/` module importing any project module. A colocated `*.test.ts` may import its own subject — a test is not a module and never ships |

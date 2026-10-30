@@ -184,6 +184,9 @@ export const boundaries = [
   },
   {
     files: ["src/server/**/*.ts", "src/features/*/server.ts"],
+    // A colocated test is not a server module and never ships; it also has to
+    // open with its @jest-environment docblock, which an import cannot precede.
+    ignores: ["**/*.test.ts"],
     rules: { "boundaries/server-only-first": "error" },
   },
   // Rule 7 — config/ holds static data: no React, no server-only.
