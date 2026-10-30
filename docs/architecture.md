@@ -93,14 +93,14 @@ rules 21 times; this one broke them twice, both the one known `ActivityLog` bug,
 src/
   app/                  ROUTING ONLY — handlers parse, delegate, serialize. Paths frozen (CR-01)
   features/
-    news/               feed, article page, masthead, ingestion, classification, storage
+    news/               feed, article page, masthead and footer, ingestion, classification, storage
       components/       ← frontend half
       server/           ← backend half
       index.ts          ← client-safe public surface
       server.ts         ← server-only public surface
     admin/              operator UI
     chat/               AI assistant
-  components/ui/        layout/Footer · spinner · skeleton — presentation only, no state, no domain
+  components/ui/        spinner · skeleton — presentation only, no state, no domain
   context/              app-wide state providers: ThemeContext · LanguageContext   (unchanged)
   server/               backend-only: supabase · auth · auditLog · googleTranslate
   lib/                  cross-cutting, domain-free: cache · rateLimit · urlValidation · sentryScrub
@@ -163,10 +163,10 @@ a time. Documentation does not prevent this; a linter does.
 | Module | Owns | Must never |
 |---|---|---|
 | `app/` | URL structure, request/response shape, auth delegation | Contain extraction heuristics, filter logic or SQL |
-| `features/news/` | Feed, article page, masthead, saved-article store; upstream fetching, editorial filters, classification, freshness, article storage | Import from another feature; expose server code through `index.ts` |
+| `features/news/` | Feed, article page, masthead and footer, saved-article store; upstream fetching, editorial filters, classification, freshness, article storage | Import from another feature; expose server code through `index.ts` |
 | `features/admin/` | Operator UI, plus the public breaking-news banner whose data it owns (CR-08) | Be imported by another feature |
 | `features/chat/` | Assistant UI | Reach into news internals — take article context as a parameter |
-| `components/ui/` | Presentational primitives: Footer, spinner, skeleton — appearance only, no app state | Import a feature, or know what an Article is |
+| `components/ui/` | Presentational primitives: spinner, skeleton — appearance only, no app state | Import a feature, or know what an Article is |
 | `context/` | App-wide state providers: theme (light/dark) and language (EN/HI), each persisted to `localStorage` | Import anything but `config/` and `types/`; hold feature state |
 | `server/` | Supabase client, session issue/verify, audit logging, the translate client | Be imported by a client component |
 | `lib/` | Cross-cutting, **domain-free** utilities: cache, rate limiting, URL validation, error scrubbing | Know any product concept — see *What `lib/` means* below |

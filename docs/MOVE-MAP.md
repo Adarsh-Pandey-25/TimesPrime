@@ -47,7 +47,8 @@ src/
   app/                    ROUTING ONLY — handlers parse, delegate, serialize. Paths frozen (CR-01).
   features/
     news/                 feed, article page, masthead, ingestion, classification, storage
-      components/         ArticleCard · HomeClient · ArticleDetailView · Header · MarqueeTicker · CategoryMegaMenu
+      components/         ArticleCard · HomeClient · ArticleDetailView · Header · Footer · MarqueeTicker
+                          · CategoryMegaMenu
       server/             db · categoryClassifier · fetchNews · newsdata
       newsConfig.ts       editorial policy — pure, so client-safe
       bookmarks.ts        device-local saved articles — client-safe
@@ -57,7 +58,7 @@ src/
                           · CategoryStatsCard · SyncDashboard · BreakingNewsBanner
     chat/components/      Chatbot · FloatingAiAssistant
   components/ui/
-    layout/Footer    ThemeSpinner    NewsSkeletonGrid
+    ThemeSpinner    NewsSkeletonGrid
   context/                ThemeContext · LanguageContext   (app-wide state providers; unchanged)
   server/                 supabase · auth/adminSession · auditLog · googleTranslate
   lib/                    cache · rateLimit · sentryScrub · urlValidation   (domain-free; none moves)
@@ -66,8 +67,8 @@ src/
   proxy.ts · instrumentation*.ts · sentry.*.config.ts   PINNED
 ```
 
-After slice 6, `src/context/` and `src/components/admin/` are empty and disappear; `src/components/`
-holds only `ui/`.
+After slice 6, `src/components/admin/` is empty and disappears, and `src/components/` holds only
+`ui/`. `src/context/` stays.
 
 ---
 
@@ -109,9 +110,9 @@ commit.
 | 1 | `features/chat` | 2 | **Low** | **Proves the mechanics** — `git mv`, `index.ts`, import rewrites, verify. Only `app/layout.tsx` imports it |
 | 2 | `config/` | 4 | **High** | `next.config.ts` imports `imageDomains.ts` at **config-load time**. Update that import in the same commit; a passing `build` confirms `remotePatterns` still resolves (CR-06) |
 | 3 | `server/` | 4 | Medium | After the move, `check-move-map.mjs` must still report 0 violations — `server/` is now unreachable from any client module, and must stay so |
-| 4 | `components/ui/` | 3 | Low | Presentation only. The providers no longer move, so `ThemeContext`'s 18 importers are untouched |
+| 4 | `components/ui/` | 2 | Low | Presentation only. The providers no longer move, so `ThemeContext`'s 18 importers are untouched. Footer moved to slice 6 — see *Judgement calls* |
 | 5 | `features/admin` | 7 | Medium | Must not disturb the proxy matcher (CR-05). `actionLabels.ts` moves with `ActivityLog` — SC-1 is already done, so this is now a pure move |
-| 6 | `features/news` | 14 | **High** | Largest surface. Create `index.ts` **and** `server.ts` (with `import "server-only"`), and **prove** the guard — see the procedure. **Measure the client bundle before and after** |
+| 6 | `features/news` | 15 | **High** | Largest surface. Create `index.ts` **and** `server.ts` (with `import "server-only"`), and **prove** the guard — see the procedure. **Measure the client bundle before and after** |
 | ~~7~~ | ~~`app/` route groups~~ | — | — | **Skipped** — owner decision, Phase C review |
 
 ### Slice 7 — skipped
@@ -153,13 +154,12 @@ earliest. Recorded in ADR 0001.
 | `lib/adminLogger.ts` | `server/auditLog.ts` |
 | `lib/googleTranslate.ts` | `server/googleTranslate.ts` |
 
-**Slice 4 — `components/ui/`** (3 files)
+**Slice 4 — `components/ui/`** (2 files)
 
 | Current | Target |
 |---|---|
 | `components/ThemeSpinner.tsx` | `components/ui/ThemeSpinner.tsx` |
 | `components/NewsSkeletonGrid.tsx` | `components/ui/NewsSkeletonGrid.tsx` |
-| `components/Footer.tsx` | `components/ui/layout/Footer.tsx` |
 
 **Slice 5 — `features/admin`** (7 files)
 
@@ -173,7 +173,7 @@ earliest. Recorded in ADR 0001.
 | `components/BreakingNewsBanner.tsx` | `features/admin/components/BreakingNewsBanner.tsx` |
 | `components/admin/actionLabels.ts` | `features/admin/components/actionLabels.ts` |
 
-**Slice 6 — `features/news`** (14 files)
+**Slice 6 — `features/news`** (15 files)
 
 | Current | Target |
 |---|---|
@@ -189,6 +189,7 @@ earliest. Recorded in ADR 0001.
 | `components/CategoryMegaMenu.tsx` | `features/news/components/CategoryMegaMenu.tsx` |
 | `components/ArticleDetailView.tsx` | `features/news/components/ArticleDetailView.tsx` |
 | `components/Header.tsx` | `features/news/components/Header.tsx` |
+| `components/Footer.tsx` | `features/news/components/Footer.tsx` |
 | `lib/bookmarks.ts` | `features/news/bookmarks.ts` |
 | `lib/bookmarks.test.ts` | `features/news/bookmarks.test.ts` |
 
@@ -238,6 +239,7 @@ mid-migration.
 | `translations.ts` | `config/` | Static strings, imports nothing — exactly what `config/` holds | `components/ui/i18n/` beside its provider — data and React provider are different kinds of thing |
 | `BreakingNewsBanner.tsx` | `features/admin/` | Reader-facing, but its entire contract is the admin breaking-news API (CR-08). Owned by the feature that produces the data. Only `app/layout.tsx` imports it | `components/ui/` — would hide a data dependency behind a "shared" label |
 | `Header.tsx` | `features/news/` | Renders the category mega-menu with article previews — a news component. Domain-free it is not | `components/ui/layout/` — 1 upward violation. Phase F can invert this by passing the menu in as a slot |
+| `Footer.tsx` | `features/news/` (via slice 6) | Reads theme and language state from `context/` and renders 9 category links — app state *and* a product concept, so it fails both halves of `components/ui`'s "no state, no domain". Its importers are pages in `app/` and `HomeClient` (news). Owner decision, Phase D, before slice 4 | `components/ui/layout/` — the Phase C plan. It passed the checker only because `ui → context` and `ui → config` are downward imports, so the rule could not see the problem |
 | `bookmarks.ts` | `features/news/` | Stores `Article` objects, so it carries product knowledge and cannot sit in a domain-free `lib/`. Its importers are Header and ArticleCard (both news) and the saved page (`app/`) | `features/bookmarks/` — 2 sideways violations, a one-file feature · `lib/` — would quietly redefine `lib/` · a new `shared/` layer — a whole layer for one file whose consumers already live in one feature |
 | `actionLabels.ts` | `features/admin/` (via slice 5) | One consumer, `ActivityLog` | `config/` — config holds data two layers share; this has one consumer |
 | `ThemeContext.tsx`, `LanguageContext.tsx` | stay in `context/` | App-wide state providers, not presentational primitives; the same reason applies to both, so they stay together | `components/ui/` — contradicts "presentation only" · any feature — 18 cross-feature imports |

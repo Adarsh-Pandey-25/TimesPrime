@@ -323,9 +323,9 @@ both generated from it. Edit it there and nowhere else.
 2. `config/` — `next.config.ts` imports `imageDomains.ts` at config-load time; move that import in
    the same commit (CR-06)
 3. `server/` — supabase, adminSession, adminLogger → auditLog, googleTranslate
-4. `components/ui/` — 3 files, presentation only; Theme/LanguageContext stay in `context/`
+4. `components/ui/` — 2 files, presentation only; Theme/LanguageContext stay in `context/`; Footer moved to slice 6 (owner decision)
 5. `features/admin` — 7 files, including `actionLabels.ts` (SC-1 is done, so a pure move)
-6. `features/news` — 14 files including `bookmarks.ts`; create `index.ts` **and** `server.ts`
+6. `features/news` — 15 files including `bookmarks.ts` and `Footer.tsx`; create `index.ts` **and** `server.ts`
    (first line `import "server-only";`), **prove the guard fails a client import**, and measure the
    client bundle before and after
 7. ~~`app/` route groups~~ — **skipped**, owner decision

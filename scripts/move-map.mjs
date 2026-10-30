@@ -33,7 +33,6 @@ export const MOVES = [
   // 4 — components/ui/ (presentation only; the two state providers stay in src/context/)
   ["src/components/ThemeSpinner.tsx", "src/components/ui/ThemeSpinner.tsx", 4],
   ["src/components/NewsSkeletonGrid.tsx", "src/components/ui/NewsSkeletonGrid.tsx", 4],
-  ["src/components/Footer.tsx", "src/components/ui/layout/Footer.tsx", 4],
   // 5 — features/admin
   ["src/components/admin/ActivityLog.tsx", "src/features/admin/components/ActivityLog.tsx", 5],
   ["src/components/admin/ArticlesTable.tsx", "src/features/admin/components/ArticlesTable.tsx", 5],
@@ -55,6 +54,9 @@ export const MOVES = [
   ["src/components/CategoryMegaMenu.tsx", "src/features/news/components/CategoryMegaMenu.tsx", 6],
   ["src/components/ArticleDetailView.tsx", "src/features/news/components/ArticleDetailView.tsx", 6],
   ["src/components/Header.tsx", "src/features/news/components/Header.tsx", 6],
+  // Reads theme/language state and renders category links: news's footer, not a UI
+  // primitive (owner decision, Phase D, before slice 4).
+  ["src/components/Footer.tsx", "src/features/news/components/Footer.tsx", 6],
   // Stores Article objects — product knowledge, so not lib/. Every importer is in news or app/.
   ["src/lib/bookmarks.ts", "src/features/news/bookmarks.ts", 6],
   ["src/lib/bookmarks.test.ts", "src/features/news/bookmarks.test.ts", 6],

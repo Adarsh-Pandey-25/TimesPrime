@@ -99,7 +99,8 @@ these holds. Each is checkable, not a matter of taste.
    `ArticleCard`, `newsConfig` — can move down first, so `check-move-map` still reports **0**
    violations. If they cannot, the split is premature.
 2. **Size tripwire: more than 20 modules or 6,000 lines.** At acceptance it is **12 modules and
-   4,091 lines** (excluding tests and the two surface files). Roughly 50% headroom; crossing it
+   4,091 lines** (excluding tests and the two surface files); moving Footer in before slice 4 makes it **13 and
+   4,305**. Roughly 40% headroom; crossing it
    means reviewing the feature's boundary, not adding more.
 3. **A news module is needed by another feature.** Then it moves down (import rule 4). It does not
    get re-exported sideways.
@@ -166,7 +167,7 @@ layout can own the shared Header and Footer — which is a code change, so Phase
 - CODEMAP's targets and MOVE-MAP's file lists both render from one data file, so they cannot drift.
 
 **Harder.**
-- `features/news` is large — 12 files, the core of the product — and will be the main subject of
+- `features/news` is large — 13 files, the core of the product — and will be the main subject of
   Phase F decomposition.
 - `Header` lives in a feature although every page uses it. Pages import it from `app/`, which is
   allowed; a cleaner design passes the category menu in as a slot, which is a Phase F change.

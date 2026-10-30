@@ -239,7 +239,7 @@ const PURPOSE = {
   "src/components/ArticleCard.tsx": ["Feed card, featured and grid variants", ""],
   "src/components/HomeClient.tsx": ["Feed state, new-story polling, grid, load-more", "split in F"],
   "src/components/Header.tsx": ["Nav, search, theme + language toggles, bookmarks count, clock", "news masthead, not UI; split in F"],
-  "src/components/Footer.tsx": ["Footer nav, category links, copyright bar. Dead \"RSS Feeds\" link remains (BL-009)", ""],
+  "src/components/Footer.tsx": ["Footer nav, category links, copyright bar", ""],
   "src/components/CategoryMegaMenu.tsx": ["Hover mega-menu of category previews", ""],
   "src/components/MarqueeTicker.tsx": ["Scrolling India/World headline ticker", ""],
   "src/components/BreakingNewsBanner.tsx": ["Public banner polling /api/admin/breaking-news (CR-08)", ""],
