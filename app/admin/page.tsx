@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Header, Footer, MarqueeTicker } from "@/features/news";
 import { CheckCircle2, Database, ShieldCheck, RefreshCw, AlertTriangle, LogOut } from "lucide-react";
-import { Language } from "@/config/translations";
+import { Language } from "@/shared/config/translations";
 import { useTheme } from "@/context/ThemeContext";
 import { ArticlesTable, CategoryStatsCard, BreakingNewsManager, SyncDashboard, ActivityLog } from "@/features/admin";
 

@@ -2,7 +2,7 @@ import "server-only";
 
 import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/server/supabase";
-import type { AdminAction } from "@/types";
+import type { AdminAction } from "@/shared/types";
 
 /**
  * Records an admin action to the admin_logs table for the Activity Log.

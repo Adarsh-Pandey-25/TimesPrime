@@ -12,7 +12,7 @@ jest.mock("@/server/supabase", () => ({ supabase: { from: jest.fn() }, isSupabas
 
 import { getDBArticles, getLatestArticleTimestamp, saveArticlesToDB } from "./db";
 import { FALLBACK_REPORT_WINDOW_MS } from "@/lib/reportFallback";
-import type { Article } from "@/types";
+import type { Article } from "@/shared/types";
 
 const sentry = jest.requireMock("@sentry/nextjs") as { captureMessage: jest.Mock; captureException: jest.Mock };
 const { supabase } = jest.requireMock("@/server/supabase") as { supabase: { from: jest.Mock } };

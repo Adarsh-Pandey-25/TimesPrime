@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Article } from "@/types";
+import { Article } from "@/shared/types";
 import { ChevronRight, Sparkles } from "lucide-react";
-import { Language, TRANSLATIONS, translateHeadline } from "@/config/translations";
+import { Language, TRANSLATIONS, translateHeadline } from "@/shared/config/translations";
 import { useTheme } from "@/context/ThemeContext";
 
 import { useLanguage } from "@/context/LanguageContext";
 
-import { assignDedupedTopicImages } from "@/config/topicImages";
+import { assignDedupedTopicImages } from "@/shared/config/topicImages";
 
 interface CategoryMegaMenuProps {
   category: string;

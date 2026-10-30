@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { Article } from "@/types";
+import { Article } from "@/shared/types";
 import { supabase, isSupabaseConfigured } from "@/server/supabase";
 import {
   containsHindiScript,
@@ -7,7 +7,7 @@ import {
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
-} from "../newsConfig";
+} from "@/shared/config/newsConfig";
 import { classifyCategoryRelevance } from "./categoryClassifier";
 import { throttleReport } from "@/lib/reportFallback";
 

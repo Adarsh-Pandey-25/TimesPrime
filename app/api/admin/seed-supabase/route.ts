@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { saveArticlesToDB } from "@/features/news/server";
 import { logAdminAction } from "@/server/auditLog";
-import type { NewsDataRawArticle } from "@/types";
+import type { NewsDataRawArticle } from "@/shared/types";
 
 // Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),
 // so by the time a request reaches this handler it has already been validated.

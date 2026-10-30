@@ -1,5 +1,5 @@
 import { getBookmarks, isBookmarked, toggleBookmark, clearAllBookmarks } from "./bookmarks";
-import { Article } from "@/types";
+import { Article } from "@/shared/types";
 
 // jsdom's built-in localStorage is an in-memory implementation, not real
 // browser storage — cleared between tests so state never leaks across them.

@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { Header, Footer, ArticleDetailView } from "@/features/news";
-import { Article } from "@/types";
+import { Article } from "@/shared/types";
 
 interface PageProps {
   params: Promise<{ slug: string }>;

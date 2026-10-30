@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Header, Footer, ArticleCard, getBookmarks, clearAllBookmarks } from "@/features/news";
-import { Article } from "@/types";
+import { Article } from "@/shared/types";
 import { Bookmark, Trash2, ArrowLeft, Layers } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
-import { assignDedupedTopicImages } from "@/config/topicImages";
+import { assignDedupedTopicImages } from "@/shared/config/topicImages";
 
 export default function SavedArticlesPage() {
   const { theme } = useTheme();

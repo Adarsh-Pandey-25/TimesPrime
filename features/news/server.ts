@@ -22,4 +22,4 @@ export {
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
-} from "./newsConfig";
+} from "@/shared/config/newsConfig";

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Article } from "@/types";
+import { Article } from "@/shared/types";
 import {
   Share2,
   Copy,
@@ -24,8 +24,8 @@ import ArticleCard from "./ArticleCard";
 
 import { useLanguage } from "@/context/LanguageContext";
 import { useTheme } from "@/context/ThemeContext";
-import { TRANSLATIONS } from "@/config/translations";
-import { assignDedupedTopicImages } from "@/config/topicImages";
+import { TRANSLATIONS } from "@/shared/config/translations";
+import { assignDedupedTopicImages } from "@/shared/config/topicImages";
 
 // Generic placeholder sentences the scraper/route layer substitutes in when
 // it can't extract real paragraphs from the publisher page (see

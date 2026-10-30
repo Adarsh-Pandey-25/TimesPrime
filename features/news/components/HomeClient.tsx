@@ -7,12 +7,12 @@ import Footer from "./Footer";
 import ArticleCard from "./ArticleCard";
 import MarqueeTicker from "./MarqueeTicker";
 import ThemeSpinner from "@/components/ui/ThemeSpinner";
-import { Article } from "@/types";
+import { Article } from "@/shared/types";
 import { Flame, Layers, RefreshCw, X, ChevronDown } from "lucide-react";
-import { Language, TRANSLATIONS } from "@/config/translations";
+import { Language, TRANSLATIONS } from "@/shared/config/translations";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { assignDedupedTopicImages } from "@/config/topicImages";
+import { assignDedupedTopicImages } from "@/shared/config/topicImages";
 
 interface HomeClientProps {
   initialArticles: Article[];

@@ -6,7 +6,7 @@ import {
   filterArticlesByLanguageScript,
   dedupeArticlesByTitle,
 } from "./newsConfig";
-import { Article } from "@/types";
+import { Article } from "@/shared/types";
 
 function makeArticle(overrides: Partial<Article> & Pick<Article, "article_id" | "title">): Article {
   return {

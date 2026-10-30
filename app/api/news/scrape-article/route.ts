@@ -5,7 +5,7 @@ import type { CheerioAPI } from "cheerio";
 import * as Sentry from "@sentry/nextjs";
 import { validateExternalUrl } from "@/lib/urlValidation";
 import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/lib/cache";
-import { urlToHostname } from "@/lib/sentryScrub";
+import { urlToHostname } from "@/shared/validation/sentryScrub";
 
 interface ScrapeCacheEntry {
   title: string;

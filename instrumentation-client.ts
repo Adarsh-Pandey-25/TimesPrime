@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { scrubSentryEvent } from "@/lib/sentryScrub";
+import { scrubSentryEvent } from "@/shared/validation/sentryScrub";
 
 // DSN is not a secret (Sentry's own docs use it client-side) but must be
 // NEXT_PUBLIC_-prefixed to actually reach the browser bundle.

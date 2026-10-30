@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { Article, NewsDataRawArticle } from "@/types";
+import { Article, NewsDataRawArticle } from "@/shared/types";
 import {
   mapCategory,
   MOCK_ARTICLES,
@@ -8,7 +8,7 @@ import {
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
-} from "../newsConfig";
+} from "@/shared/config/newsConfig";
 
 /**
  * Server-side news fetching function.

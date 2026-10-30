@@ -1,5 +1,5 @@
-import { Article } from "@/types";
-import { mapCategory } from "../newsConfig";
+import { Article } from "@/shared/types";
+import { mapCategory } from "@/shared/config/newsConfig";
 
 /**
  * Shared NewsData.io fetch + normalize.
