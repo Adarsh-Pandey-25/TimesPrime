@@ -129,6 +129,47 @@ The separation above is stronger than folder distance, because §5 makes a viola
 These are the rules a reviewer may cite in a pull request. Since Phase E, `npm run lint` enforces
 every one that an import can break — see *How each rule is enforced* below.
 
+### Restructure 2 rules (enforced from S4)
+
+Restructure 2 changed the layout ([ADR 0002](adr/0002-frontend-backend-separation.md)): `app/` is
+the routing shell, and `frontend/`, `backend/`, `shared/` and `database/` sit beside it. The rules
+below replace the numbered rules that follow for that layout; S5 rewrites this section around them.
+Every rule an import can break fails both `npm run lint`
+([`eslint.boundaries.mjs`](../eslint.boundaries.mjs)) and `npm run check:boundaries`
+([`scripts/check-move-map.mjs`](../scripts/check-move-map.mjs)), both part of `npm run verify` and
+CI, with the rule's ID at the start of the message. Lint uses `import/no-restricted-paths` zones,
+which judge the resolved path, so a relative import is caught like an alias, plus three local rules.
+Each rule was proven in S4 by a deliberate violation that failed with its message, then passed
+once removed.
+
+| ID | Rule | Lint | `check:boundaries` |
+|---|---|---|---|
+| F1 | `frontend/` never imports `backend/`, and the client bundle never reaches it | zone; `boundaries/no-server-in-client` for a `"use client"` module in `app/`; `boundaries/server-only-first`: every `backend/` module opens with `import "server-only"`, so a client import of it fails `next build` | direct imports, and the client-bundle closure (transitive) |
+| B1 | `backend/` never imports `frontend/` | zone | yes |
+| S1 | `shared/` imports nothing from `frontend/`, `backend/` or `app/` | zone (`app/` reports as A1) | yes |
+| A1 | `app/` may import `frontend/`, `backend/` and `shared/`, and it is the only place they meet. Nothing outside `app/` imports it; `instrumentation-client.ts` (browser) never imports `backend/`; `instrumentation.ts` and `sentry.*.config.ts` (server) never import `frontend/` | zones | yes |
+| A2 | `app/**/route.ts`, and every page whose body moved to `frontend/views/` (`SHIMS` in `scripts/move-map.mjs`), holds only re-exports and literal segment config | `boundaries/shim-only` | yes, and also a moved body whose `app/` file is missing, which lint cannot see |
+| P1 | `proxy.ts` imports only `backend/auth` and `shared/` | zones | yes |
+| D1 | Nothing imports `database/` | zone | yes |
+| X1 | No imports between features (`frontend/features/*`) or between services (`backend/services/*`). From outside, a feature is reached only through its `index.ts`, and so is a service that has one (`news`) | zones, generated from the folders on disk | yes |
+| **V1** | **`frontend/features/**` never imports `frontend/views/**`.** A view composes features through their entry points; a feature that imports or re-exports a view closes a cycle, the one slice 9 found (view → news entry → view, removed in `4460a40`) | zone | yes |
+
+Carried over from restructure 1, for the new paths:
+
+| ID | Rule | Lint | `check:boundaries` |
+|---|---|---|---|
+| R3 | `frontend/components/ui` and `frontend/context` never import features or views | zone | yes |
+| R5 | `ui` imports only `ui/`, `shared/types`, `shared/validation` and `ThemeContext` (rule 5 below: `shared/config` is product data) | zones | yes |
+| R9 | `frontend/context` imports only `shared/config` and `shared/types` | zone | yes |
+| R7 | `shared/config` imports only `shared/config` and `shared/types`, with no React and no `server-only`; `shared/types` imports only `shared/types` | zones, and `no-restricted-imports` for the packages | yes, for project imports |
+| LIB | `backend/lib` imports no project module | zone | yes |
+| CR-06 | `next.config.ts` imports only `shared/config`; `shared/config/imageDomains.ts` imports nothing | zones, and `no-restricted-imports` | yes |
+
+Both tools exempt colocated tests from the X1 entry points, R5, R9, R7 and LIB: a test may import
+its own subject. Where two rules match one import, both report the first in this order: D1, A1,
+F1, B1, S1, P1, CR-06, X1, V1, R3, R5, R9, R7, LIB. One rule is not about imports: `app/` holds no
+business logic (rule 8 below), and review enforces it.
+
 1. **At most two public surfaces per feature.** `features/<name>/index.ts` is safe for client and
    server; `features/<name>/server.ts` is server-only and **never** imported by client code. Nothing
    outside the feature reaches past either. *Why two:* a single barrel re-exporting both would let a
@@ -187,6 +228,9 @@ back into the thing it replaced — usually within a quarter, always one reasona
 a time. Documentation does not prevent this; a linter does.
 
 ### How each rule is enforced (Phase E)
+
+*Superseded in S4 by the restructure-2 tables at the top of this section. This is the restructure-1
+version, with restructure-1 paths and aliases; S5 rewrites it.*
 
 `npm run lint` fails on every rule below that an import can break. The rules live in
 [`eslint.boundaries.mjs`](../eslint.boundaries.mjs), each block naming the rule it implements, and

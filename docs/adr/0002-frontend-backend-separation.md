@@ -31,20 +31,23 @@ One Next.js app, organised as:
 - `proxy.ts`, `instrumentation*.ts` and `sentry.*.config.ts` stay at the root, where Next looks for
   them.
 
-The rules, as `check:boundaries` enforces them (lint enforces them too from S4):
+The rules, as `check:boundaries` and, from S4, lint enforce them
+([`architecture.md`](../architecture.md) §5 says where each is enforced):
 
 | Rule | What it says |
 |---|---|
 | F1 | Frontend never imports backend, and the client bundle never reaches it transitively |
 | B1 | Backend never imports frontend |
 | S1 | Shared imports nothing from frontend, backend or `app/` |
+| A1 | `app/` composes frontend, backend and shared, and is the only place they meet: nothing else imports `app/`, and the root files Next pins in place keep to their runtime's side |
+| A2 | Every `app/**/route.ts`, and every page whose body has moved, holds only re-exports and literal segment config |
 | P1 | The proxy imports only `backend/auth` and `shared/` |
 | D1 | Nothing imports `database/` |
 | X1 | No cross-feature or cross-service imports; other code reaches a feature or service only through its entry point |
-| A2 | A route or page file whose body has moved holds only re-exports |
-| R5, R7, R9 | UI, config, types and context import only what their layer allows |
+| V1 | Features never import views (owner, S4) |
+| R3, R5, R7, R9 | UI, config, types and context import only what their layer allows |
 | LIB | `backend/lib` imports no project module |
-| CR-06 | `next.config.ts` imports only `shared/config` |
+| CR-06 | `next.config.ts` imports only `shared/config`, and `imageDomains.ts` imports nothing |
 
 ### Recorded during the move (S3)
 
@@ -53,12 +56,23 @@ The rules, as `check:boundaries` enforces them (lint enforces them too from S4):
   After slice 9 the news barrel still re-exported `HomeClient` and `ArticleDetailView`. That formed
   a runtime import cycle (view → news entry → view). It cost nothing in size, but it was a latent
   module-initialisation risk. Removed in `4460a40`; pages now import their views from
-  `@/frontend/views/...`.
+  `@/frontend/views/...`. From S4, rule V1 enforces it in lint and `check:boundaries`.
 - **Views import features only through the entry point (X1), at an accepted cost.** Routing
   `HomeClient` through `@/frontend/features/news` added 109 bytes (0.09%) of client JS to `/`: the
   bindings Turbopack emits for imports that go through a re-export. Three throwaway builds showed
   the cost is not caused by the cycle and is not removed by `sideEffects` (`0efa628`). The owner
   kept X1.
+
+### Recorded during enforcement (S4)
+
+- **R5 keeps its Phase D meaning.** When `check:boundaries` was rewritten for the new layers in
+  S2, R5's "ui imports only ui/, lib/, types/" became "ui/ and shared/". But `shared/` also holds
+  `config/`, which the Phase D decision keeps out of UI primitives. So a UI primitive could import
+  `shared/config` unflagged. Restored in `52d283e`: `ui` imports only `ui/`, `shared/types`,
+  `shared/validation` and `ThemeContext`. No existing import changed status.
+- **A2 is in lint as well as `check:boundaries`.** ESLint can express it, as the local rule
+  `boundaries/shim-only`, which runs the same check. Only `check:boundaries` sees a shim that has
+  gone missing.
 
 ## Carried over from ADR 0001
 
