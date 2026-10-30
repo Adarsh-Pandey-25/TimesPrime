@@ -9,6 +9,19 @@ import {
   isFromNonNewsListingSource,
 } from "../newsConfig";
 import { classifyCategoryRelevance } from "./categoryClassifier";
+import { throttleReport } from "@/lib/reportFallback";
+
+/**
+ * Sends a failed Supabase operation to Sentry at most once per operation per
+ * window (BL-014). During an outage every feed request fails several
+ * operations, and unthrottled that was five events a request. Uses the same
+ * limiter as the D5 fallback report; `send` receives the number suppressed
+ * since the last report, to add to its extras. The console.error lines stay
+ * per call.
+ */
+function reportSupabaseFailure(operation: string, send: (suppressed: { suppressedSinceLastReport: number }) => void): void {
+  throttleReport(`supabase:${operation}`, (suppressedSinceLastReport) => send({ suppressedSinceLastReport }));
+}
 
 export interface DBArticle extends Article {
   fetchedAt?: number;
@@ -208,17 +221,21 @@ export async function purgeOldArticles(): Promise<number> {
 
     if (error) {
       console.error("Supabase Purge Error:", error.message);
-      Sentry.captureMessage(`Supabase purge error: ${error.message}`, {
-        tags: { source: "supabase" },
-        extra: { operation: "purgeOldArticles" },
-      });
+      reportSupabaseFailure("purgeOldArticles", (suppressed) =>
+        Sentry.captureMessage(`Supabase purge error: ${error.message}`, {
+          tags: { source: "supabase" },
+          extra: { operation: "purgeOldArticles", ...suppressed },
+        })
+      );
       return 0;
     }
 
     return data ? data.length : 0;
   } catch (err) {
     console.error("Failed to purge old articles from Supabase:", err);
-    Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "purgeOldArticles" } });
+    reportSupabaseFailure("purgeOldArticles", (suppressed) =>
+      Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "purgeOldArticles", ...suppressed } })
+    );
     return 0;
   }
 }
@@ -288,10 +305,12 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
 
     if (error) {
       console.error("Supabase Upsert Error:", error.message);
-      Sentry.captureMessage(`Supabase upsert error: ${error.message}`, {
-        tags: { source: "supabase" },
-        extra: { operation: "saveArticlesToDB", rowCount: rowsToUpsert.length },
-      });
+      reportSupabaseFailure("saveArticlesToDB", (suppressed) =>
+        Sentry.captureMessage(`Supabase upsert error: ${error.message}`, {
+          tags: { source: "supabase" },
+          extra: { operation: "saveArticlesToDB", rowCount: rowsToUpsert.length, ...suppressed },
+        })
+      );
       return incomingArticles;
     }
 
@@ -337,7 +356,9 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
     }));
   } catch (err) {
     console.error("Error saving to Supabase:", err);
-    Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "saveArticlesToDB" } });
+    reportSupabaseFailure("saveArticlesToDB", (suppressed) =>
+      Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "saveArticlesToDB", ...suppressed } })
+    );
     return incomingArticles;
   }
 }
@@ -367,10 +388,12 @@ export async function getDBArticles(
 
     if (error) {
       console.error("Supabase Select Error:", error.message);
-      Sentry.captureMessage(`Supabase select error: ${error.message}`, {
-        tags: { source: "supabase" },
-        extra: { operation: "getDBArticles", category, language },
-      });
+      reportSupabaseFailure("getDBArticles", (suppressed) =>
+        Sentry.captureMessage(`Supabase select error: ${error.message}`, {
+          tags: { source: "supabase" },
+          extra: { operation: "getDBArticles", category, language, ...suppressed },
+        })
+      );
       return [];
     }
 
@@ -417,7 +440,12 @@ export async function getDBArticles(
     }));
   } catch (err) {
     console.error("Error fetching from Supabase:", err);
-    Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "getDBArticles", category, language } });
+    reportSupabaseFailure("getDBArticles", (suppressed) =>
+      Sentry.captureException(err, {
+        tags: { source: "supabase" },
+        extra: { operation: "getDBArticles", category, language, ...suppressed },
+      })
+    );
     return [];
   }
 }
@@ -453,10 +481,12 @@ export async function getLatestArticleTimestamp(
 
     if (error) {
       console.error("Supabase Freshness Check Error:", error.message);
-      Sentry.captureMessage(`Supabase freshness check error: ${error.message}`, {
-        tags: { source: "supabase" },
-        extra: { operation: "getLatestArticleTimestamp", category, language },
-      });
+      reportSupabaseFailure("getLatestArticleTimestamp", (suppressed) =>
+        Sentry.captureMessage(`Supabase freshness check error: ${error.message}`, {
+          tags: { source: "supabase" },
+          extra: { operation: "getLatestArticleTimestamp", category, language, ...suppressed },
+        })
+      );
       return null;
     }
 
@@ -465,10 +495,12 @@ export async function getLatestArticleTimestamp(
     return match?.created_at ?? null;
   } catch (err) {
     console.error("Failed to read latest article timestamp:", err);
-    Sentry.captureException(err, {
-      tags: { source: "supabase" },
-      extra: { operation: "getLatestArticleTimestamp", category, language },
-    });
+    reportSupabaseFailure("getLatestArticleTimestamp", (suppressed) =>
+      Sentry.captureException(err, {
+        tags: { source: "supabase" },
+        extra: { operation: "getLatestArticleTimestamp", category, language, ...suppressed },
+      })
+    );
     return null;
   }
 }
@@ -500,10 +532,12 @@ export async function countArticlesSince(
 
     if (error) {
       console.error("Supabase New-Count Error:", error.message);
-      Sentry.captureMessage(`Supabase new-count error: ${error.message}`, {
-        tags: { source: "supabase" },
-        extra: { operation: "countArticlesSince", category, language },
-      });
+      reportSupabaseFailure("countArticlesSince", (suppressed) =>
+        Sentry.captureMessage(`Supabase new-count error: ${error.message}`, {
+          tags: { source: "supabase" },
+          extra: { operation: "countArticlesSince", category, language, ...suppressed },
+        })
+      );
       return { newCount: 0, latestTimestamp: null };
     }
 
@@ -516,10 +550,12 @@ export async function countArticlesSince(
     };
   } catch (err) {
     console.error("Failed to count new articles:", err);
-    Sentry.captureException(err, {
-      tags: { source: "supabase" },
-      extra: { operation: "countArticlesSince", category, language },
-    });
+    reportSupabaseFailure("countArticlesSince", (suppressed) =>
+      Sentry.captureException(err, {
+        tags: { source: "supabase" },
+        extra: { operation: "countArticlesSince", category, language, ...suppressed },
+      })
+    );
     return { newCount: 0, latestTimestamp: null };
   }
 }
@@ -546,10 +582,12 @@ export async function getDBStats() {
 
     if (error) {
       console.error("Supabase Stats Error:", error.message);
-      Sentry.captureMessage(`Supabase stats error: ${error.message}`, {
-        tags: { source: "supabase" },
-        extra: { operation: "getDBStats" },
-      });
+      reportSupabaseFailure("getDBStats", (suppressed) =>
+        Sentry.captureMessage(`Supabase stats error: ${error.message}`, {
+          tags: { source: "supabase" },
+          extra: { operation: "getDBStats", ...suppressed },
+        })
+      );
     }
 
     return {
@@ -560,7 +598,9 @@ export async function getDBStats() {
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     };
   } catch (err) {
-    Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "getDBStats" } });
+    reportSupabaseFailure("getDBStats", (suppressed) =>
+      Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "getDBStats", ...suppressed } })
+    );
     return {
       configured: true,
       totalStoredArticles: 0,

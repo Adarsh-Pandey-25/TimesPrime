@@ -1,6 +1,6 @@
 jest.mock("@sentry/nextjs", () => ({ captureMessage: jest.fn() }));
 
-import { reportFallback, FALLBACK_REPORT_WINDOW_MS } from "./reportFallback";
+import { reportFallback, throttleReport, FALLBACK_REPORT_WINDOW_MS } from "./reportFallback";
 
 const { captureMessage } = jest.requireMock("@sentry/nextjs") as { captureMessage: jest.Mock };
 
@@ -49,6 +49,16 @@ describe("reportFallback", () => {
     expect(reportFallback("test->window")).toBe(true);
     expect(captureMessage).toHaveBeenCalledTimes(2);
     expect(captureMessage.mock.calls[1][1].extra).toEqual({ suppressedSinceLastReport: 2 });
+  });
+
+  test("throttleReport hands its sender the suppressed count, once per window", () => {
+    const send = jest.fn();
+    expect(throttleReport("test:direct", send)).toBe(true);
+    expect(throttleReport("test:direct", send)).toBe(false);
+    expect(throttleReport("test:direct", send)).toBe(false);
+    jest.setSystemTime(clock + FALLBACK_REPORT_WINDOW_MS);
+    expect(throttleReport("test:direct", send)).toBe(true);
+    expect(send.mock.calls).toEqual([[0], [2]]);
   });
 
   test("rate-limits each kind independently", () => {

@@ -21,19 +21,30 @@ type Detail = Record<string, string | number | boolean>;
 
 const lastReport = new Map<string, { at: number; suppressed: number }>();
 
-/** Returns true when this call produced a report, false when it was suppressed. */
-export function reportFallback(kind: string, detail: Detail = {}): boolean {
+/**
+ * The limiter behind reportFallback, for callers that make their own Sentry
+ * call (db.ts keeps its own messages and tags, BL-014). Runs `send` at most
+ * once per key per FALLBACK_REPORT_WINDOW_MS per instance and passes it how
+ * many calls were suppressed since the last report. Keys must come from a
+ * small fixed set, so the map stays bounded. Returns whether `send` ran.
+ */
+export function throttleReport(key: string, send: (suppressedSinceLastReport: number) => void): boolean {
   const now = Date.now();
-  const entry = lastReport.get(kind);
+  const entry = lastReport.get(key);
   if (entry && now - entry.at < FALLBACK_REPORT_WINDOW_MS) {
     entry.suppressed += 1;
     return false;
   }
-
-  const extra = { ...detail, suppressedSinceLastReport: entry?.suppressed ?? 0 };
-  lastReport.set(kind, { at: now, suppressed: 0 });
-
-  console.warn(`[fallback] ${kind}`, extra);
-  Sentry.captureMessage(`Fallback: ${kind}`, { level: "warning", tags: { fallback: kind }, extra });
+  lastReport.set(key, { at: now, suppressed: 0 });
+  send(entry?.suppressed ?? 0);
   return true;
+}
+
+/** Returns true when this call produced a report, false when it was suppressed. */
+export function reportFallback(kind: string, detail: Detail = {}): boolean {
+  return throttleReport(`fallback:${kind}`, (suppressedSinceLastReport) => {
+    const extra = { ...detail, suppressedSinceLastReport };
+    console.warn(`[fallback] ${kind}`, extra);
+    Sentry.captureMessage(`Fallback: ${kind}`, { level: "warning", tags: { fallback: kind }, extra });
+  });
 }
