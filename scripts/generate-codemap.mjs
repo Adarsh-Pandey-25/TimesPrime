@@ -162,6 +162,10 @@ const SERVER_ONLY = new Set([
   "src/lib/categoryClassifier.ts", "src/lib/fetchNews.ts", "src/lib/newsdata.ts",
   "src/lib/googleTranslate.ts", "src/lib/urlValidation.ts",
 ]);
+// The list is keyed by path, so a move that forgets to update it would quietly
+// drop that module from the client-bundle check and still report 0 violations.
+const staleServerOnly = [...SERVER_ONLY].filter((f) => !text.has(f));
+if (staleServerOnly.length) throw new Error(`SERVER_ONLY lists missing files: ${staleServerOnly.join(", ")}`);
 
 // The client bundle is TRANSITIVE. "use client" marks a boundary: that module
 // and everything it imports — directly, or through any chain of modules that
