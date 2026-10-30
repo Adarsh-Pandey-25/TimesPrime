@@ -10,8 +10,8 @@
 //   - dynamic `import("...")` is captured,
 //   - `export ... from` re-exports are captured,
 //   - aliases are resolved from tsconfig.json `paths`, not hardcoded.
-// Purpose and Target are authored in PURPOSE below — update them when a
-// module's role or destination changes.
+// Purpose is authored in PURPOSE below — update it when a module's role
+// changes. Target comes from scripts/move-map.mjs.
 //
 // Run this after any file move. A stale CODEMAP is worse than none, because it
 // is trusted.
@@ -31,14 +31,35 @@ const ASSET_EXT = /\.(css|scss|svg|png|jpe?g|gif|webp|json)$/;
 const gitFiles = (pattern) =>
   execSync(`git ls-files ${pattern}`, { encoding: "utf8" }).split("\n").map((s) => s.trim()).filter(Boolean);
 
-// Source modules: the rows of the table.
-const srcFiles = gitFiles('"src/*" "src/**/*"').filter((f) => /\.(ts|tsx)$/.test(f));
-// Files outside src/ that can import src/ modules. next.config.ts matters most:
+// Source modules: the rows of the table. Every tracked TypeScript file except
+// root tooling — no folder is named, so the rows follow the code through the
+// restructure-2 moves (src/ until slice 1; the root, then frontend/, backend/
+// and shared/ after it).
+const TOOLING = new Set(["next.config.ts", "jest.config.ts", "jest.setup.ts"]);
+const srcFiles = gitFiles('"*.ts" "*.tsx"').filter((f) => !f.endsWith(".d.ts") && !TOOLING.has(f));
+// Files that are not modules but can import them. next.config.ts matters most:
 // it imports imageDomains.ts at config-load time (CR-06).
-const extraImporters = gitFiles('"*.ts" "*.mjs" "scripts/*.mjs"').filter((f) => !f.startsWith("src/"));
+const srcList = new Set(srcFiles);
+const extraImporters = gitFiles('"*.ts" "*.mjs" "scripts/*.mjs"').filter((f) => !srcList.has(f) && !f.endsWith(".d.ts"));
 
 const text = new Map([...srcFiles, ...extraImporters].map((f) => [f, fs.readFileSync(f, "utf8")]));
 const srcSet = new Set(srcFiles);
+
+// ---- move map: each entry found from any path its file can have ----------
+// An entry is [path before S3, final path, slice]. The file sits at the first
+// path, at the lifted path (slice 1 drops the src/ prefix) or at the final
+// path. A route or page whose body has moved leaves a re-export at its URL
+// path: that file is a shim, not the module.
+const ENTRY = new Map();
+for (const [from, to, slice] of MOVES) {
+  for (const at of new Set([from, from.replace(/^src\//, ""), to])) {
+    if (ENTRY.has(at) && ENTRY.get(at).from !== from) throw new Error(`move map: ${at} belongs to two entries`);
+    ENTRY.set(at, { from, to, slice });
+  }
+}
+const isShim = (f) => { const e = ENTRY.get(f); return !!e && f !== e.to && text.has(e.to); };
+// The key PURPOSE and SERVER_ONLY use: the module's path before S3.
+const keyOf = (f) => { const e = ENTRY.get(f); return e && !isShim(f) ? e.from : f; };
 
 // ---- alias resolution, from tsconfig.json ----------------------------------
 const tsconfig = ts.readConfigFile("tsconfig.json", ts.sys.readFile).config ?? {};
@@ -64,10 +85,9 @@ function resolveSpecifier(spec, from) {
   }
   if (spec.startsWith(".")) {
     const joined = path.posix.join(path.posix.dirname(from), spec);
-    // A relative import between two files outside src/ (e.g. one script
+    // A relative import between two files that are not modules (one script
     // importing another) is not an edge in the module graph this maps.
-    if (!joined.startsWith("src/")) return "external";
-    return firstExisting(joined);
+    return firstExisting(joined) ?? (srcSet.has(from) ? null : "external");
   }
   return "external";
 }
@@ -164,9 +184,12 @@ const SERVER_ONLY = new Set([
   "src/features/news/server/categoryClassifier.ts", "src/features/news/server/fetchNews.ts", "src/features/news/server/newsdata.ts",
   "src/server/googleTranslate.ts", "src/lib/urlValidation.ts", "src/server/health.ts",
 ]);
-// The list is keyed by path, so a move that forgets to update it would quietly
-// drop that module from the client-bundle check and still report 0 violations.
-const staleServerOnly = [...SERVER_ONLY].filter((f) => !text.has(f));
+// Keyed by each module's path before S3; keyOf() finds the module wherever it
+// has moved. A key that matches no file means a module was deleted or renamed
+// without this list, which would quietly drop it from the client-bundle check
+// and still report 0 violations.
+const presentKeys = new Set([...text.keys()].map(keyOf));
+const staleServerOnly = [...SERVER_ONLY].filter((k) => !presentKeys.has(k));
 if (staleServerOnly.length) throw new Error(`SERVER_ONLY lists missing files: ${staleServerOnly.join(", ")}`);
 
 // The client bundle is TRANSITIVE. "use client" marks a boundary: that module
@@ -200,7 +223,7 @@ const chainTo = (f) => {
 };
 
 // Boundary rule: a server-only module that ends up in the client bundle.
-const violations = [...clientBundle].filter((f) => SERVER_ONLY.has(f)).sort()
+const violations = [...clientBundle].filter((f) => SERVER_ONLY.has(keyOf(f))).sort()
   .map((target) => ({ target, chain: chainTo(target) }));
 
 // Independent cross-check. A browser bundle cannot resolve Node built-ins, so
@@ -214,7 +237,7 @@ const bundledBuiltinUsers = builtinUsers.filter((f) => clientBundle.has(f));
 // [purpose, note]. The note is appended to the Target column; the target itself
 // always comes from scripts/move-map.mjs, so the two can never disagree.
 const PURPOSE = {
-  "src/features/news/server/db.ts": ["Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats", "news editorial policy is baked in, hence features/news"],
+  "src/features/news/server/db.ts": ["Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats", ""],
   "src/server/supabase.ts": ["Supabase client; prefers service-role key when present", ""],
   "src/server/auth/adminSession.ts": ["HMAC session token issue/verify; timing-safe password compare", ""],
   "src/server/auditLog.ts": ["Writes admin_logs rows (logAdminAction)", ""],
@@ -266,24 +289,31 @@ const PURPOSE = {
   "src/features/admin/components/ActivityLog.tsx": ["Paginated admin_logs viewer", ""],
 };
 
-const MOVE_TO = new Map(MOVES.map(([from, to, slice]) => [from, { to, slice }]));
-const PINNED_FILE = /^src\/(proxy|instrumentation|sentry)/;
+const PINNED_FILE = /^(src\/)?(proxy|instrumentation|sentry)/;
+const appPath = (f) => f.replace(/^(src\/)?app/, "");
 
 function describe(file) {
+  const entry = ENTRY.get(file);
+  const shim = isShim(file);
+  // Purposes are recorded, or derived, from the path the module had before S3,
+  // so a route body keeps "API: /api/..." after it leaves app/.
+  const basis = keyOf(file);
   let purpose;
   let note = "";
-  if (PURPOSE[file]) [purpose, note] = PURPOSE[file];
-  else if (file.endsWith("/route.ts")) purpose = "API: " + file.replace("src/app", "").replace("/route.ts", "");
-  else if (file.endsWith("/page.tsx")) purpose = "Page: " + (file.replace("src/app", "").replace("/page.tsx", "") || "/");
-  else if (file.endsWith("layout.tsx")) purpose = "Root layout: providers, metadata, fonts";
-  else if (file.endsWith("loading.tsx")) purpose = "Route-level loading UI";
+  if (shim) purpose = `Re-exports \`${entry.to}\``;
+  else if (PURPOSE[basis]) [purpose, note] = PURPOSE[basis];
+  else if (basis.endsWith("/route.ts")) purpose = "API: " + appPath(basis).replace("/route.ts", "");
+  else if (basis.endsWith("/page.tsx")) purpose = "Page: " + (appPath(basis).replace("/page.tsx", "") || "/");
+  else if (basis.endsWith("layout.tsx")) purpose = "Root layout: providers, metadata, fonts";
+  else if (basis.endsWith("loading.tsx")) purpose = "Route-level loading UI";
   else purpose = "(no purpose recorded -- add it to PURPOSE in this script)";
 
   let target;
-  const move = MOVE_TO.get(file);
-  if (move) target = `\`${move.to.replace(/^src\//, "")}\` · slice ${move.slice}`;
+  if (shim) target = "stays -- the path is the URL (CR-01)";
+  else if (entry && file === entry.to) target = `here · slice ${entry.slice} done`;
+  else if (entry) target = `\`${entry.to}\` · slice ${entry.slice}`;
   else if (PINNED_FILE.test(file)) target = "PINNED -- do not move";
-  else if (file.startsWith("src/app/")) target = "stays -- the path is the URL (CR-01)";
+  else if (/^(src\/)?app\//.test(file)) target = "stays -- the path is the URL (CR-01)";
   else target = "stays";
   return [purpose, note ? `${target} — ${note}` : target];
 }
@@ -294,8 +324,8 @@ const short = (f) => f.replace(/^src\//, "");
 // the ones cited elsewhere in docs/. split("\n").length over-counts by one.
 const loc = (f) => (text.get(f).match(/\n/g) ?? []).length;
 const rows = srcFiles.filter((f) => !isTest(f)).sort();
-const PINNED = /^src\/(proxy|instrumentation|sentry)/;
-const orphans = rows.filter((f) => inn.get(f).length === 0 && !f.startsWith("src/app/") && !PINNED.test(f));
+const PINNED = /^(src\/)?(proxy|instrumentation|sentry)/;
+const orphans = rows.filter((f) => inn.get(f).length === 0 && !/^(src\/)?app\//.test(f) && !PINNED.test(f));
 const importerCount = (f) => new Set(inn.get(f).map((e) => e.from)).size;
 const mostUsed = [...rows].sort((a, b) => importerCount(b) - importerCount(a)).slice(0, 6);
 const dynamicEdges = [...out].flatMap(([from, es]) => es.filter((e) => e.kind === "dynamic").map((e) => `${from} -> ${e.to}`));
@@ -328,7 +358,7 @@ L.push(
   "Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with",
   "the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is",
   "recognised, dynamic `import()` and `export … from` are captured, and aliases are resolved from",
-  "`tsconfig.json`. Files outside `src/` (notably `next.config.ts`) are scanned as importers too.", "",
+  "`tsconfig.json`. Root tooling (notably `next.config.ts`) and `scripts/` are scanned as importers too.", "",
   "**Regenerate after any file move.** A stale CODEMAP is worse than none, because it is trusted.", "",
   "## At a glance", "",
   "| | |", "|---|---|",
@@ -398,20 +428,33 @@ L.push(
   "  `collectCoverageFrom` (type-only modules, Sentry/instrumentation entrypoints).",
   "- **Importers / Imports** — counts of project-internal edges. The full path lists, with edge kinds,",
   "  are in the *Dependency index* section below the tables.",
-  "- **Target** — destination under the approved *layer separation* structure. `PINNED` = a framework",
-  "  convention that must not move.",
+  "- **Target** — the destination in move map v2 (`scripts/move-map.mjs`): `path · slice N` until the",
+  "  file moves, `here · slice N done` after. A route or page whose body has moved keeps a re-export at",
+  "  its URL path, shown as `stays`. `PINNED` marks a framework-convention file the map does not list.",
   "- **CR-nn** — a compatibility requirement from [`PRD.md`](PRD.md) §8.", "",
   "## Modules"
 );
 
+// Groups cover every layout the S3 moves pass through: restructure 2's layers,
+// then restructure 1's (under src/ until slice 1, at the root after it). Empty
+// groups are skipped, so each CODEMAP shows only the folders that exist.
+const under = (...dirs) => (f) => dirs.some((d) => new RegExp(`^(src/)?${d}/`).test(f));
 const GROUPS = [
-  ["Routing — `src/app/` (locations are the URL contract)", (f) => f.startsWith("src/app/")],
-  ["Features — `src/features/`", (f) => f.startsWith("src/features/")],
-  ["Components — `src/components/`", (f) => f.startsWith("src/components/")],
-  ["Server — `src/server/` (backend-only)", (f) => f.startsWith("src/server/")],
-  ["Library — `src/lib/` (the folder being split)", (f) => f.startsWith("src/lib/")],
-  ["Config — `src/config/` (static data)", (f) => f.startsWith("src/config/")],
-  ["Context and types", (f) => f.startsWith("src/context/") || f.startsWith("src/types/")],
+  ["Routing — `app/` (locations are the URL contract)", under("app")],
+  ["Frontend views — `frontend/views/` (page bodies)", (f) => f.startsWith("frontend/views/")],
+  ["Frontend features — `frontend/features/`", (f) => f.startsWith("frontend/features/")],
+  ["Frontend components and context — `frontend/components/`, `frontend/context/`", (f) => /^frontend\/(components|context)\//.test(f)],
+  ["Backend API — `backend/api/` (route bodies)", (f) => f.startsWith("backend/api/")],
+  ["Backend services — `backend/services/`", (f) => f.startsWith("backend/services/")],
+  ["Backend repositories — `backend/repositories/`", (f) => f.startsWith("backend/repositories/")],
+  ["Backend auth and library — `backend/auth/`, `backend/lib/`", (f) => /^backend\/(auth|lib)\//.test(f)],
+  ["Shared — `shared/` (imported by both sides)", (f) => f.startsWith("shared/")],
+  ["Features — `features/`", under("features")],
+  ["Components — `components/`", under("components")],
+  ["Server — `server/` (backend-only)", under("server")],
+  ["Library — `lib/` (the folder being split)", under("lib")],
+  ["Config — `config/` (static data)", under("config")],
+  ["Context and types", under("context", "types")],
   ["Framework-pinned (never move)", (f) => PINNED.test(f)],
 ];
 // A module in no group would vanish from the tables while still counting in

@@ -3,13 +3,13 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `284fdfc` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-30 08:32 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `4ff0167` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 09:08 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
 recognised, dynamic `import()` and `export … from` are captured, and aliases are resolved from
-`tsconfig.json`. Files outside `src/` (notably `next.config.ts`) are scanned as importers too.
+`tsconfig.json`. Root tooling (notably `next.config.ts`) and `scripts/` are scanned as importers too.
 
 **Regenerate after any file move.** A stale CODEMAP is worse than none, because it is trusted.
 
@@ -101,13 +101,14 @@ Widest blast radius when moved.
   `collectCoverageFrom` (type-only modules, Sentry/instrumentation entrypoints).
 - **Importers / Imports** — counts of project-internal edges. The full path lists, with edge kinds,
   are in the *Dependency index* section below the tables.
-- **Target** — destination under the approved *layer separation* structure. `PINNED` = a framework
-  convention that must not move.
+- **Target** — the destination in move map v2 (`scripts/move-map.mjs`): `path · slice N` until the
+  file moves, `here · slice N done` after. A route or page whose body has moved keeps a re-export at
+  its URL path, shown as `stays`. `PINNED` marks a framework-convention file the map does not list.
 - **CR-nn** — a compatibility requirement from [`PRD.md`](PRD.md) §8.
 
 ## Modules
 
-### Routing — `src/app/` (locations are the URL contract)
+### Routing — `app/` (locations are the URL contract)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
@@ -141,7 +142,7 @@ Widest blast radius when moved.
 | `app/saved/page.tsx` | Page: /saved | 123 | directive | 0% | 0 | 4 | `frontend/views/saved/SavedView.tsx` · slice 10 |
 | `app/terms/page.tsx` | Page: /terms | 108 |  | 0% | 0 | 1 | `frontend/views/terms/TermsView.tsx` · slice 10 |
 
-### Features — `src/features/`
+### Features — `features/`
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
@@ -168,18 +169,18 @@ Widest blast radius when moved.
 | `features/news/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 100% | 6 | 1 | `shared/config/newsConfig.ts` · slice 3 |
 | `features/news/server.ts` | Server-only public surface of news: storage, upstream fetch, editorial policy | 25 |  | 0% | 6 | 4 | `backend/services/news/index.ts` · slice 6 — first line: import "server-only" |
 | `features/news/server/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 133 |  | 0% | 1 | 1 | `backend/services/classify/categoryClassifier.ts` · slice 6 |
-| `features/news/server/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 611 |  | 65.3% | 2 | 5 | `backend/repositories/db.ts` · slice 5 — news editorial policy is baked in, hence features/news |
+| `features/news/server/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 611 |  | 65.3% | 2 | 5 | `backend/repositories/db.ts` · slice 5 |
 | `features/news/server/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 127 |  | 0% | 1 | 2 | `backend/services/news/fetchNews.ts` · slice 6 |
 | `features/news/server/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 114 |  | 0% | 1 | 2 | `backend/services/news/newsdata.ts` · slice 6 |
 
-### Components — `src/components/`
+### Components — `components/`
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
 | `components/ui/NewsSkeletonGrid.tsx` | Suspense fallback matching real card dimensions | 90 |  | 0% | 1 | 0 | `frontend/components/ui/NewsSkeletonGrid.tsx` · slice 8 |
 | `components/ui/ThemeSpinner.tsx` | Theme-aware loading spinner | 88 | directive | 0% | 2 | 1 | `frontend/components/ui/ThemeSpinner.tsx` · slice 8 |
 
-### Server — `src/server/` (backend-only)
+### Server — `server/` (backend-only)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
@@ -189,7 +190,7 @@ Widest blast radius when moved.
 | `server/health.ts` | Dependency health for /api/health (status only) and /api/admin/health (detail); D4 | 126 |  | 98.4% | 4 | 3 | `backend/services/health/health.ts` · slice 6 |
 | `server/supabase.ts` | Supabase client; prefers service-role key when present | 22 |  | 0% | 11 | 0 | `backend/lib/supabase.ts` · slice 4 |
 
-### Library — `src/lib/` (the folder being split)
+### Library — `lib/` (the folder being split)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
@@ -199,14 +200,14 @@ Widest blast radius when moved.
 | `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 70 |  | 88.6% | 5 | 0 | `shared/validation/sentryScrub.ts` · slice 3 |
 | `lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 122 |  | 0% | 1 | 0 | `backend/lib/urlValidation.ts` · slice 4 |
 
-### Config — `src/config/` (static data)
+### Config — `config/` (static data)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `config/categoryColors.ts` | Per-category hex/Tailwind class map | 70 | bundled | 0% | 1 | 0 | `shared/config/categoryColors.ts` · slice 3 |
+| `config/categoryColors.ts` | Per-category hex/Tailwind class map | 64 | bundled | 0% | 1 | 0 | `shared/config/categoryColors.ts` · slice 3 |
 | `config/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 | bundled | 0% | 2 | 0 | `shared/config/imageDomains.ts` · slice 3 — CR-06: must import nothing |
 | `config/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 0% | 5 | 2 | `shared/config/topicImages.ts` · slice 3 |
-| `config/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 178 | bundled | 0% | 8 | 0 | `shared/config/translations.ts` · slice 3 — shared, not a feature |
+| `config/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 130 | bundled | 0% | 8 | 0 | `shared/config/translations.ts` · slice 3 — shared, not a feature |
 
 ### Context and types
 
