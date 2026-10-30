@@ -9,7 +9,7 @@ import { Article } from "@/types";
 import { Bookmark, Trash2, ArrowLeft, Layers } from "lucide-react";
 import { getBookmarks, clearAllBookmarks } from "@/lib/bookmarks";
 import { useTheme } from "@/context/ThemeContext";
-import { assignDedupedTopicImages } from "@/lib/topicImages";
+import { assignDedupedTopicImages } from "@/config/topicImages";
 
 export default function SavedArticlesPage() {
   const { theme } = useTheme();

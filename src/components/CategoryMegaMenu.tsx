@@ -5,12 +5,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { Article } from "@/types";
 import { ChevronRight, Sparkles } from "lucide-react";
-import { Language, TRANSLATIONS, translateHeadline } from "@/lib/translations";
+import { Language, TRANSLATIONS, translateHeadline } from "@/config/translations";
 import { useTheme } from "@/context/ThemeContext";
 
 import { useLanguage } from "@/context/LanguageContext";
 
-import { assignDedupedTopicImages } from "@/lib/topicImages";
+import { assignDedupedTopicImages } from "@/config/topicImages";
 
 interface CategoryMegaMenuProps {
   category: string;

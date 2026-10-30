@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `ab8661b` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-30 03:40 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `a626542` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 04:03 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -91,7 +91,7 @@ Widest blast radius when moved.
 | 10 | `src/lib/supabase.ts` |
 | 8 | `src/components/Footer.tsx` |
 | 8 | `src/components/Header.tsx` |
-| 8 | `src/context/LanguageContext.tsx` |
+| 8 | `src/config/translations.ts` |
 
 ## Legend
 
@@ -177,19 +177,24 @@ Widest blast radius when moved.
 | `lib/bookmarks.ts` | localStorage saved articles + change event | 56 | directive | 96.4% | 4 | 1 | `features/news/bookmarks.ts` · slice 6 — stores Article objects, so not lib/ |
 | `lib/cache.ts` | Upstash Redis with in-process Map fallback | 73 |  | 0% | 2 | 0 | stays |
 | `lib/categoryClassifier.ts` | Haiku flags category tags an article does not fit (fail-open) | 133 |  | 0% | 1 | 1 | `features/news/server/categoryClassifier.ts` · slice 6 |
-| `lib/categoryColors.ts` | Per-category hex/Tailwind class map | 78 | bundled | 0% | 1 | 0 | `config/categoryColors.ts` · slice 2 |
 | `lib/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 571 |  | 0% | 5 | 4 | `features/news/server/db.ts` · slice 6 — news editorial policy is baked in, hence features/news |
 | `lib/fetchNews.ts` | Server-side initial NewsData.io fetch for SSR | 127 |  | 0% | 1 | 2 | `features/news/server/fetchNews.ts` · slice 6 |
 | `lib/googleTranslate.ts` | Unofficial translate.googleapis.com client, bounded concurrency | 86 |  | 0% | 1 | 0 | `server/googleTranslate.ts` · slice 3 |
-| `lib/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 | bundled | 0% | 2 | 0 | `config/imageDomains.ts` · slice 2 — CR-06: must import nothing |
 | `lib/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 94.8% | 7 | 1 | `features/news/newsConfig.ts` · slice 6 |
 | `lib/newsdata.ts` | Shared NewsData.io URL builder + row mapper; throws on failure | 114 |  | 0% | 1 | 2 | `features/news/server/newsdata.ts` · slice 6 |
 | `lib/rateLimit.ts` | Fixed-window in-memory limiter; client IP extraction | 26 |  | 96.2% | 2 | 0 | stays |
 | `lib/sentryScrub.ts` | Redacts secret env values from Sentry events | 52 |  | 0% | 4 | 0 | stays |
 | `lib/supabase.ts` | Supabase client; prefers service-role key when present | 20 |  | 0% | 10 | 0 | `server/supabase.ts` · slice 3 |
-| `lib/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 0% | 5 | 2 | `config/topicImages.ts` · slice 2 |
-| `lib/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 199 | bundled | 0% | 8 | 0 | `config/translations.ts` · slice 2 — shared, not a feature |
 | `lib/urlValidation.ts` | SSRF guard: protocol allowlist + DNS resolution against blocked ranges | 122 |  | 0% | 1 | 0 | stays |
+
+### Config — `src/config/` (static data)
+
+| Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
+|---|---|--:|:-:|--:|--:|--:|---|
+| `config/categoryColors.ts` | Per-category hex/Tailwind class map | 78 | bundled | 0% | 1 | 0 | stays |
+| `config/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 | bundled | 0% | 2 | 0 | stays — CR-06: must import nothing |
+| `config/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 0% | 5 | 2 | stays |
+| `config/translations.ts` | EN/HI static strings; translateHeadline is a no-op stub | 199 | bundled | 0% | 8 | 0 | stays — shared, not a feature |
 
 ### Context and types
 
@@ -228,7 +233,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/admin/page.tsx`
 
-- **Imports:** `components/admin/ActivityLog.tsx`, `components/admin/ArticlesTable.tsx`, `components/admin/BreakingNewsManager.tsx`, `components/admin/CategoryStatsCard.tsx`, `components/admin/SyncDashboard.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/MarqueeTicker.tsx`, `context/ThemeContext.tsx`, `lib/translations.ts`
+- **Imports:** `components/admin/ActivityLog.tsx`, `components/admin/ArticlesTable.tsx`, `components/admin/BreakingNewsManager.tsx`, `components/admin/CategoryStatsCard.tsx`, `components/admin/SyncDashboard.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/MarqueeTicker.tsx`, `config/translations.ts`, `context/ThemeContext.tsx`
 - **Used by:** —
 
 #### `app/api/admin/articles/bulk/route.ts`
@@ -343,7 +348,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/saved/page.tsx`
 
-- **Imports:** `components/ArticleCard.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `context/ThemeContext.tsx`, `lib/bookmarks.ts`, `lib/topicImages.ts`, `types/index.ts`
+- **Imports:** `components/ArticleCard.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `config/topicImages.ts`, `context/ThemeContext.tsx`, `lib/bookmarks.ts`, `types/index.ts`
 - **Used by:** —
 
 #### `app/terms/page.tsx`
@@ -353,12 +358,12 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `components/ArticleCard.tsx`
 
-- **Imports:** `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `lib/bookmarks.ts`, `lib/categoryColors.ts`, `lib/newsConfig.ts`, `lib/topicImages.ts`, `lib/translations.ts`, `types/index.ts`
+- **Imports:** `config/categoryColors.ts`, `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `lib/bookmarks.ts`, `lib/newsConfig.ts`, `types/index.ts`
 - **Used by:** `app/saved/page.tsx`, `components/ArticleDetailView.tsx`, `components/HomeClient.tsx`
 
 #### `components/ArticleDetailView.tsx`
 
-- **Imports:** `components/ArticleCard.tsx`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `lib/topicImages.ts`, `lib/translations.ts`, `types/index.ts`
+- **Imports:** `components/ArticleCard.tsx`, `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
 - **Used by:** `app/article/[slug]/page.tsx`
 
 #### `components/BreakingNewsBanner.tsx`
@@ -368,22 +373,22 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `components/CategoryMegaMenu.tsx`
 
-- **Imports:** `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `lib/topicImages.ts`, `lib/translations.ts`, `types/index.ts`
+- **Imports:** `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
 - **Used by:** `components/Header.tsx`
 
 #### `components/Footer.tsx`
 
-- **Imports:** `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `lib/translations.ts`
+- **Imports:** `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`
 - **Used by:** `app/about/page.tsx`, `app/admin/page.tsx`, `app/article/[slug]/page.tsx`, `app/contact/page.tsx`, `app/privacy/page.tsx`, `app/saved/page.tsx`, `app/terms/page.tsx`, `components/HomeClient.tsx`
 
 #### `components/Header.tsx`
 
-- **Imports:** `components/CategoryMegaMenu.tsx`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `lib/bookmarks.ts`, `lib/translations.ts`, `types/index.ts`
+- **Imports:** `components/CategoryMegaMenu.tsx`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `lib/bookmarks.ts`, `types/index.ts`
 - **Used by:** `app/about/page.tsx`, `app/admin/page.tsx`, `app/article/[slug]/page.tsx`, `app/contact/page.tsx`, `app/privacy/page.tsx`, `app/saved/page.tsx`, `app/terms/page.tsx`, `components/HomeClient.tsx`
 
 #### `components/HomeClient.tsx`
 
-- **Imports:** `components/ArticleCard.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/MarqueeTicker.tsx`, `components/ThemeSpinner.tsx`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `lib/topicImages.ts`, `lib/translations.ts`, `types/index.ts`
+- **Imports:** `components/ArticleCard.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/MarqueeTicker.tsx`, `components/ThemeSpinner.tsx`, `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
 - **Used by:** `app/page.tsx`
 
 #### `components/MarqueeTicker.tsx`
@@ -431,9 +436,29 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `types/index.ts` _(type)_
 - **Used by:** `components/admin/ActivityLog.tsx`
 
+#### `config/categoryColors.ts`
+
+- **Imports:** —
+- **Used by:** `components/ArticleCard.tsx`
+
+#### `config/imageDomains.ts`
+
+- **Imports:** —
+- **Used by:** `next.config.ts`, `config/topicImages.ts`
+
+#### `config/topicImages.ts`
+
+- **Imports:** `config/imageDomains.ts`, `types/index.ts`
+- **Used by:** `app/saved/page.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/HomeClient.tsx`
+
+#### `config/translations.ts`
+
+- **Imports:** —
+- **Used by:** `app/admin/page.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `context/LanguageContext.tsx`
+
 #### `context/LanguageContext.tsx`
 
-- **Imports:** `lib/translations.ts`
+- **Imports:** `config/translations.ts`
 - **Used by:** `app/layout.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`
 
 #### `context/ThemeContext.tsx`
@@ -491,11 +516,6 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `lib/supabase.ts`
 - **Used by:** `lib/db.ts`
 
-#### `lib/categoryColors.ts`
-
-- **Imports:** —
-- **Used by:** `components/ArticleCard.tsx`
-
 #### `lib/db.ts`
 
 - **Imports:** `lib/categoryClassifier.ts`, `lib/newsConfig.ts`, `lib/supabase.ts`, `types/index.ts`
@@ -510,11 +530,6 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 - **Imports:** —
 - **Used by:** `app/api/translate/route.ts`
-
-#### `lib/imageDomains.ts`
-
-- **Imports:** —
-- **Used by:** `next.config.ts`, `lib/topicImages.ts`
 
 #### `lib/newsConfig.ts`
 
@@ -541,16 +556,6 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** —
 - **Used by:** `app/api/admin/articles/bulk/route.ts`, `app/api/admin/articles/route.ts`, `app/api/admin/breaking-news/route.ts`, `app/api/admin/logs/route.ts`, `app/api/admin/publish-article/route.ts`, `app/api/admin/stats/route.ts`, `app/api/news/scrape-article/route.ts` _(dynamic)_, `lib/adminLogger.ts`, `lib/categoryClassifier.ts`, `lib/db.ts`
 
-#### `lib/topicImages.ts`
-
-- **Imports:** `lib/imageDomains.ts`, `types/index.ts`
-- **Used by:** `app/saved/page.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/HomeClient.tsx`
-
-#### `lib/translations.ts`
-
-- **Imports:** —
-- **Used by:** `app/admin/page.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `context/LanguageContext.tsx`
-
 #### `lib/urlValidation.ts`
 
 - **Imports:** —
@@ -574,4 +579,4 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `types/index.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `components/admin/actionLabels.ts` _(type)_, `components/admin/ActivityLog.tsx` _(type)_, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `features/chat/components/Chatbot.tsx`, `lib/adminLogger.ts` _(type)_, `lib/bookmarks.test.ts` _(test)_, `lib/bookmarks.ts`, `lib/db.ts`, `lib/fetchNews.ts`, `lib/newsConfig.test.ts` _(test)_, `lib/newsConfig.ts`, `lib/newsdata.ts`, `lib/topicImages.ts`
+- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `components/admin/actionLabels.ts` _(type)_, `components/admin/ActivityLog.tsx` _(type)_, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `config/topicImages.ts`, `features/chat/components/Chatbot.tsx`, `lib/adminLogger.ts` _(type)_, `lib/bookmarks.test.ts` _(test)_, `lib/bookmarks.ts`, `lib/db.ts`, `lib/fetchNews.ts`, `lib/newsConfig.test.ts` _(test)_, `lib/newsConfig.ts`, `lib/newsdata.ts`

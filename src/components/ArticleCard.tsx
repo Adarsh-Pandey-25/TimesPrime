@@ -6,13 +6,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Article } from "@/types";
 import { Clock, ExternalLink, Bookmark, Layers } from "lucide-react";
-import { Language, TRANSLATIONS, translateHeadline } from "@/lib/translations";
+import { Language, TRANSLATIONS, translateHeadline } from "@/config/translations";
 import { useTheme } from "@/context/ThemeContext";
 import { isBookmarked, toggleBookmark } from "@/lib/bookmarks";
 import { useLanguage } from "@/context/LanguageContext";
 
-import { getTopicImageUrl } from "@/lib/topicImages";
-import { getCategoryColor, getCategoryBadgeBgClass, getCategoryBorderClass } from "@/lib/categoryColors";
+import { getTopicImageUrl } from "@/config/topicImages";
+import { getCategoryColor, getCategoryBadgeBgClass, getCategoryBorderClass } from "@/config/categoryColors";
 import { mapCategory } from "@/lib/newsConfig";
 
 // NewsData.io returns this literal string as the description (and

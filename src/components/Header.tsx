@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Globe, Menu, X, Sun, Moon, Search, ChevronDown, Bookmark } from "lucide-react";
-import { Language, TRANSLATIONS } from "@/lib/translations";
+import { Language, TRANSLATIONS } from "@/config/translations";
 import CategoryMegaMenu from "@/components/CategoryMegaMenu";
 import { Article } from "@/types";
 import { useTheme } from "@/context/ThemeContext";

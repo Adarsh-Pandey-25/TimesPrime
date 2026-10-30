@@ -6,7 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import MarqueeTicker from "@/components/MarqueeTicker";
 import { CheckCircle2, Database, ShieldCheck, RefreshCw, AlertTriangle, LogOut } from "lucide-react";
-import { Language } from "@/lib/translations";
+import { Language } from "@/config/translations";
 import { useTheme } from "@/context/ThemeContext";
 import ArticlesTable from "@/components/admin/ArticlesTable";
 import CategoryStatsCard from "@/components/admin/CategoryStatsCard";

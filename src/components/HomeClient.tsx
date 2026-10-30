@@ -9,10 +9,10 @@ import MarqueeTicker from "@/components/MarqueeTicker";
 import ThemeSpinner from "@/components/ThemeSpinner";
 import { Article } from "@/types";
 import { Flame, Layers, RefreshCw, X, ChevronDown } from "lucide-react";
-import { Language, TRANSLATIONS } from "@/lib/translations";
+import { Language, TRANSLATIONS } from "@/config/translations";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { assignDedupedTopicImages } from "@/lib/topicImages";
+import { assignDedupedTopicImages } from "@/config/topicImages";
 
 interface HomeClientProps {
   initialArticles: Article[];

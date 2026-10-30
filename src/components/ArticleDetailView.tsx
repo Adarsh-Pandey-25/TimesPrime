@@ -24,8 +24,8 @@ import ArticleCard from "@/components/ArticleCard";
 
 import { useLanguage } from "@/context/LanguageContext";
 import { useTheme } from "@/context/ThemeContext";
-import { TRANSLATIONS } from "@/lib/translations";
-import { assignDedupedTopicImages } from "@/lib/topicImages";
+import { TRANSLATIONS } from "@/config/translations";
+import { assignDedupedTopicImages } from "@/config/topicImages";
 
 // Generic placeholder sentences the scraper/route layer substitutes in when
 // it can't extract real paragraphs from the publisher page (see

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowUp } from "lucide-react";
-import { Language, TRANSLATIONS } from "@/lib/translations";
+import { Language, TRANSLATIONS } from "@/config/translations";
 import { useTheme } from "@/context/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 
