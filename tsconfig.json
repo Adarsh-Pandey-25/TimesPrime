@@ -22,11 +22,6 @@
       "@/frontend/*": ["./frontend/*"],
       "@/backend/*": ["./backend/*"],
       "@/shared/*": ["./shared/*"],
-      "@/features/*": ["./features/*"],
-      "@/server/*": ["./server/*"],
-      "@/lib/*": ["./lib/*"],
-      "@/config/*": ["./config/*"],
-      "@/ui/*": ["./components/ui/*"],
       "@/*": ["./*"]
     }
   },

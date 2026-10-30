@@ -44,7 +44,6 @@ const config: Config = {
     "^@/frontend/(.*)$": "<rootDir>/frontend/$1",
     "^@/backend/(.*)$": "<rootDir>/backend/$1",
     "^@/shared/(.*)$": "<rootDir>/shared/$1",
-    "^@/ui/(.*)$": "<rootDir>/components/ui/$1",
     "^@/(.*)$": "<rootDir>/$1",
   },
 };
