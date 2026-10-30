@@ -19,7 +19,7 @@
     "@sentry/nextjs": "^10.70.0",
     "@supabase/supabase-js": "^2.109.0",
     "@upstash/redis": "^1.38.2",
-    "axios": "^1.19.0",
+    "axios": "^1.21.0",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
     "framer-motion": "^13.1.0",
