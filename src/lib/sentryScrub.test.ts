@@ -93,17 +93,27 @@ describe("SECRET_ENV_KEYS", () => {
 
   // The guard that keeps N-01 fixed: any env var the code reads whose name
   // says it is secret must be on the scrub list, or be declared public above.
+  // It scans every TypeScript source in the repository, not named folders,
+  // so moving code (restructure 2 empties src/) cannot make it miss a file.
   test("covers every secret-named env var the code reads", () => {
-    const root = path.resolve(__dirname, "..", "..");
-    const files: string[] = [path.join(root, "next.config.ts")];
+    // The repo root is the nearest folder above this file with the lockfile.
+    let root = __dirname;
+    while (!fs.existsSync(path.join(root, "package-lock.json"))) {
+      const up = path.dirname(root);
+      if (up === root) throw new Error(`no package-lock.json above ${__dirname}`);
+      root = up;
+    }
+    const files: string[] = [];
     const walk = (dir: string) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) walk(full);
-        else if (/\.(ts|tsx)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) files.push(full);
+        // Dot folders (.git, .next) and these hold generated or vendored code.
+        if (entry.isDirectory()) {
+          if (!entry.name.startsWith(".") && entry.name !== "node_modules" && entry.name !== "coverage") walk(full);
+        } else if (/\.(ts|tsx)$/.test(entry.name) && !/\.(test|d)\.tsx?$/.test(entry.name)) files.push(full);
       }
     };
-    walk(path.join(root, "src"));
+    walk(root);
 
     const read = new Set<string>();
     for (const file of files) {
