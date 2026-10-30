@@ -333,8 +333,8 @@ leaves both fetches alone.
 ## BL-017 — Data nothing reads, left after the S1 cleanup
 
 **Found:** restructure 2, S1 (`dc07a40`, `a81d3c4`) · **Status:** **Resolved** in `dbc4821` (the 16
-keys) and `6327110` (the two fields), owner-approved after a dynamic-access check; one key is still
-open, below
+keys), `6327110` (the two fields) and `c2ab97a` (the last key, `refresh`), owner-approved after a
+dynamic-access check
 
 - **Sixteen translation keys** in `src/config/translations.ts` have no reader, in the interface
   and in both languages: `liveFeed`, `edition`, `globalNewsHub`, `aiAssistant`,
@@ -356,9 +356,9 @@ lookups, destructuring, spreads, casts and calls. The only dynamic lookups are b
 category name (`CATEGORY_COLORS[...]`, read only as `.hex` and `.badgeBg`). `6327110` removed 16
 CSS rules; the other two of the 18 lived on in this entry's own text until `6a1382d` (BL-018).
 
-**Still open: `refresh`.** The same check proves the top-level `refresh` key unreachable too; the
-text scan had counted `router.refresh()` as a reader. It was not on the approved list, so it stays
-until the owner decides.
+**`refresh`, resolved in `c2ab97a`.** The same check proved the top-level `refresh` key
+unreachable too; the text scan had counted `router.refresh()` as a reader. It was not on the first
+approved list, so it waited for the owner, who approved its removal at the S2 review.
 
 ## BL-018 — Tailwind scans `docs/` and `scripts/`, so editing a document can change the CSS
 
