@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what moves where", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `b4192f0` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-10-30 04:47 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `8864691` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-10-30 04:53 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -17,9 +17,9 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 
 | | |
 |---|---|
-| Modules (excl. tests) | **72** |
+| Modules (excl. tests) | **73** |
 | Modules with a `"use client"` directive | **24** |
-| Modules in the client bundle (directive + pulled in) | **31** |
+| Modules in the client bundle (directive + pulled in) | **32** |
 | Server-only modules in the client bundle (violations) | **0** |
 | Orphans (nothing imports them) | **0** |
 | Dynamic `import()` edges | **3** |
@@ -113,7 +113,7 @@ Widest blast radius when moved.
 |---|---|--:|:-:|--:|--:|--:|---|
 | `app/about/page.tsx` | Page: /about | 98 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
 | `app/admin/login/page.tsx` | Page: /admin/login | 103 | directive | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
-| `app/admin/page.tsx` | Page: /admin | 512 | directive | 0% | 0 | 10 | stays -- the path is the URL (CR-01) |
+| `app/admin/page.tsx` | Page: /admin | 508 | directive | 0% | 0 | 6 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/articles/bulk/route.ts` | API: /api/admin/articles/bulk | 79 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/articles/route.ts` | API: /api/admin/articles | 247 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/breaking-news/route.ts` | API: /api/admin/breaking-news | 212 |  | 0% | 0 | 2 | stays -- the path is the URL (CR-01) |
@@ -143,6 +143,14 @@ Widest blast radius when moved.
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
+| `features/admin/components/ActivityLog.tsx` | Paginated admin_logs viewer | 235 | directive | 0% | 1 | 3 | stays |
+| `features/admin/components/ArticlesTable.tsx` | Admin article list: filters, edit, delete, bulk | 751 | directive | 0% | 1 | 1 | stays — split in F |
+| `features/admin/components/BreakingNewsBanner.tsx` | Public banner polling /api/admin/breaking-news (CR-08) | 79 | directive | 0% | 1 | 1 | stays |
+| `features/admin/components/BreakingNewsManager.tsx` | Create/expire breaking news items | 289 | directive | 0% | 1 | 1 | stays |
+| `features/admin/components/CategoryStatsCard.tsx` | Category/language/country breakdown | 362 | directive | 0% | 1 | 1 | stays |
+| `features/admin/components/SyncDashboard.tsx` | Last/next sync, counts, manual sync | 198 | directive | 0% | 1 | 1 | stays |
+| `features/admin/components/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 0% | 1 | 1 | stays — only consumer is ActivityLog (SC-1) |
+| `features/admin/index.ts` | Public surface of admin. No server.ts: admin has no server code | 8 | bundled | 0% | 2 | 6 | stays |
 | `features/chat/components/Chatbot.tsx` | Chat drawer; streams /api/chat. Honest error handling | 192 | directive | 0% | 1 | 1 | stays |
 | `features/chat/components/FloatingAiAssistant.tsx` | Floating button wrapping Chatbot | 37 | directive | 0% | 1 | 1 | stays |
 | `features/chat/index.ts` | Public surface of chat. No server.ts: chat has no server code | 3 |  | 0% | 1 | 1 | stays |
@@ -153,18 +161,11 @@ Widest blast radius when moved.
 |---|---|--:|:-:|--:|--:|--:|---|
 | `components/ArticleCard.tsx` | Feed card, featured and grid variants | 393 | directive | 0% | 3 | 8 | `features/news/components/ArticleCard.tsx` · slice 6 |
 | `components/ArticleDetailView.tsx` | Article page body: text, translation, AI panel, share, related | 963 | directive | 0% | 1 | 6 | `features/news/components/ArticleDetailView.tsx` · slice 6 — split in F |
-| `components/BreakingNewsBanner.tsx` | Public banner polling /api/admin/breaking-news (CR-08) | 79 | directive | 0% | 1 | 1 | `features/admin/components/BreakingNewsBanner.tsx` · slice 5 |
 | `components/CategoryMegaMenu.tsx` | Hover mega-menu of category previews | 225 | directive | 0% | 1 | 5 | `features/news/components/CategoryMegaMenu.tsx` · slice 6 |
 | `components/Footer.tsx` | Footer nav, category links, copyright bar | 214 | directive | 0% | 8 | 3 | `features/news/components/Footer.tsx` · slice 6 |
 | `components/Header.tsx` | Nav, search, theme + language toggles, bookmarks count, clock | 568 | directive | 0% | 8 | 6 | `features/news/components/Header.tsx` · slice 6 — news masthead, not UI; split in F |
 | `components/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 532 | directive | 0% | 1 | 10 | `features/news/components/HomeClient.tsx` · slice 6 — split in F |
 | `components/MarqueeTicker.tsx` | Scrolling India/World headline ticker | 176 | directive | 0% | 2 | 3 | `features/news/components/MarqueeTicker.tsx` · slice 6 |
-| `components/admin/ActivityLog.tsx` | Paginated admin_logs viewer | 235 | directive | 0% | 1 | 3 | `features/admin/components/ActivityLog.tsx` · slice 5 |
-| `components/admin/ArticlesTable.tsx` | Admin article list: filters, edit, delete, bulk | 751 | directive | 0% | 1 | 1 | `features/admin/components/ArticlesTable.tsx` · slice 5 — split in F |
-| `components/admin/BreakingNewsManager.tsx` | Create/expire breaking news items | 289 | directive | 0% | 1 | 1 | `features/admin/components/BreakingNewsManager.tsx` · slice 5 |
-| `components/admin/CategoryStatsCard.tsx` | Category/language/country breakdown | 362 | directive | 0% | 1 | 1 | `features/admin/components/CategoryStatsCard.tsx` · slice 5 |
-| `components/admin/SyncDashboard.tsx` | Last/next sync, counts, manual sync | 198 | directive | 0% | 1 | 1 | `features/admin/components/SyncDashboard.tsx` · slice 5 |
-| `components/admin/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 0% | 1 | 1 | `features/admin/components/actionLabels.ts` · slice 5 — only consumer is ActivityLog (SC-1) |
 | `components/ui/NewsSkeletonGrid.tsx` | Suspense fallback matching real card dimensions | 90 |  | 0% | 1 | 0 | stays |
 | `components/ui/ThemeSpinner.tsx` | Theme-aware loading spinner | 88 | directive | 0% | 2 | 1 | stays |
 
@@ -238,7 +239,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/admin/page.tsx`
 
-- **Imports:** `components/admin/ActivityLog.tsx`, `components/admin/ArticlesTable.tsx`, `components/admin/BreakingNewsManager.tsx`, `components/admin/CategoryStatsCard.tsx`, `components/admin/SyncDashboard.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/MarqueeTicker.tsx`, `config/translations.ts`, `context/ThemeContext.tsx`
+- **Imports:** `components/Footer.tsx`, `components/Header.tsx`, `components/MarqueeTicker.tsx`, `config/translations.ts`, `context/ThemeContext.tsx`, `features/admin/index.ts`
 - **Used by:** —
 
 #### `app/api/admin/articles/bulk/route.ts`
@@ -333,7 +334,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `app/layout.tsx`
 
-- **Imports:** `components/BreakingNewsBanner.tsx`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `features/chat/index.ts`
+- **Imports:** `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `features/admin/index.ts`, `features/chat/index.ts`
 - **Used by:** —
 
 #### `app/loading.tsx`
@@ -371,11 +372,6 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `components/ArticleCard.tsx`, `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
 - **Used by:** `app/article/[slug]/page.tsx`
 
-#### `components/BreakingNewsBanner.tsx`
-
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `app/layout.tsx`
-
 #### `components/CategoryMegaMenu.tsx`
 
 - **Imports:** `config/topicImages.ts`, `config/translations.ts`, `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
@@ -400,36 +396,6 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 - **Imports:** `context/LanguageContext.tsx`, `context/ThemeContext.tsx`, `types/index.ts`
 - **Used by:** `app/admin/page.tsx`, `components/HomeClient.tsx`
-
-#### `components/admin/ActivityLog.tsx`
-
-- **Imports:** `components/admin/actionLabels.ts`, `context/ThemeContext.tsx`, `types/index.ts` _(type)_
-- **Used by:** `app/admin/page.tsx`
-
-#### `components/admin/ArticlesTable.tsx`
-
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `app/admin/page.tsx`
-
-#### `components/admin/BreakingNewsManager.tsx`
-
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `app/admin/page.tsx`
-
-#### `components/admin/CategoryStatsCard.tsx`
-
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `app/admin/page.tsx`
-
-#### `components/admin/SyncDashboard.tsx`
-
-- **Imports:** `context/ThemeContext.tsx`
-- **Used by:** `app/admin/page.tsx`
-
-#### `components/admin/actionLabels.ts`
-
-- **Imports:** `types/index.ts` _(type)_
-- **Used by:** `components/admin/ActivityLog.tsx`
 
 #### `components/ui/NewsSkeletonGrid.tsx`
 
@@ -469,7 +435,47 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `context/ThemeContext.tsx`
 
 - **Imports:** —
-- **Used by:** `app/admin/login/page.tsx`, `app/admin/page.tsx`, `app/layout.tsx`, `app/saved/page.tsx`, `components/admin/ActivityLog.tsx`, `components/admin/ArticlesTable.tsx`, `components/admin/BreakingNewsManager.tsx`, `components/admin/CategoryStatsCard.tsx`, `components/admin/SyncDashboard.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/BreakingNewsBanner.tsx`, `components/CategoryMegaMenu.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `components/ui/ThemeSpinner.tsx`
+- **Used by:** `app/admin/login/page.tsx`, `app/admin/page.tsx`, `app/layout.tsx`, `app/saved/page.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Footer.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `components/ui/ThemeSpinner.tsx`, `features/admin/components/ActivityLog.tsx`, `features/admin/components/ArticlesTable.tsx`, `features/admin/components/BreakingNewsBanner.tsx`, `features/admin/components/BreakingNewsManager.tsx`, `features/admin/components/CategoryStatsCard.tsx`, `features/admin/components/SyncDashboard.tsx`
+
+#### `features/admin/components/ActivityLog.tsx`
+
+- **Imports:** `context/ThemeContext.tsx`, `features/admin/components/actionLabels.ts`, `types/index.ts` _(type)_
+- **Used by:** `features/admin/index.ts` _(reexport)_
+
+#### `features/admin/components/ArticlesTable.tsx`
+
+- **Imports:** `context/ThemeContext.tsx`
+- **Used by:** `features/admin/index.ts` _(reexport)_
+
+#### `features/admin/components/BreakingNewsBanner.tsx`
+
+- **Imports:** `context/ThemeContext.tsx`
+- **Used by:** `features/admin/index.ts` _(reexport)_
+
+#### `features/admin/components/BreakingNewsManager.tsx`
+
+- **Imports:** `context/ThemeContext.tsx`
+- **Used by:** `features/admin/index.ts` _(reexport)_
+
+#### `features/admin/components/CategoryStatsCard.tsx`
+
+- **Imports:** `context/ThemeContext.tsx`
+- **Used by:** `features/admin/index.ts` _(reexport)_
+
+#### `features/admin/components/SyncDashboard.tsx`
+
+- **Imports:** `context/ThemeContext.tsx`
+- **Used by:** `features/admin/index.ts` _(reexport)_
+
+#### `features/admin/components/actionLabels.ts`
+
+- **Imports:** `types/index.ts` _(type)_
+- **Used by:** `features/admin/components/ActivityLog.tsx`
+
+#### `features/admin/index.ts`
+
+- **Imports:** `features/admin/components/ActivityLog.tsx` _(reexport)_, `features/admin/components/ArticlesTable.tsx` _(reexport)_, `features/admin/components/BreakingNewsBanner.tsx` _(reexport)_, `features/admin/components/BreakingNewsManager.tsx` _(reexport)_, `features/admin/components/CategoryStatsCard.tsx` _(reexport)_, `features/admin/components/SyncDashboard.tsx` _(reexport)_
+- **Used by:** `app/admin/page.tsx`, `app/layout.tsx`
 
 #### `features/chat/components/Chatbot.tsx`
 
@@ -584,4 +590,4 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `types/index.ts`
 
 - **Imports:** —
-- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `components/admin/actionLabels.ts` _(type)_, `components/admin/ActivityLog.tsx` _(type)_, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `config/topicImages.ts`, `features/chat/components/Chatbot.tsx`, `lib/bookmarks.test.ts` _(test)_, `lib/bookmarks.ts`, `lib/db.ts`, `lib/fetchNews.ts`, `lib/newsConfig.test.ts` _(test)_, `lib/newsConfig.ts`, `lib/newsdata.ts`, `server/auditLog.ts` _(type)_
+- **Used by:** `app/api/admin/logs/route.ts` _(type)_, `app/api/admin/seed-supabase/route.ts` _(type)_, `app/api/news/top-headlines/route.ts`, `app/article/[slug]/page.tsx`, `app/saved/page.tsx`, `components/ArticleCard.tsx`, `components/ArticleDetailView.tsx`, `components/CategoryMegaMenu.tsx`, `components/Header.tsx`, `components/HomeClient.tsx`, `components/MarqueeTicker.tsx`, `config/topicImages.ts`, `features/admin/components/actionLabels.ts` _(type)_, `features/admin/components/ActivityLog.tsx` _(type)_, `features/chat/components/Chatbot.tsx`, `lib/bookmarks.test.ts` _(test)_, `lib/bookmarks.ts`, `lib/db.ts`, `lib/fetchNews.ts`, `lib/newsConfig.test.ts` _(test)_, `lib/newsConfig.ts`, `lib/newsdata.ts`, `server/auditLog.ts` _(type)_

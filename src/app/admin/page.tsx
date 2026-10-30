@@ -8,11 +8,7 @@ import MarqueeTicker from "@/components/MarqueeTicker";
 import { CheckCircle2, Database, ShieldCheck, RefreshCw, AlertTriangle, LogOut } from "lucide-react";
 import { Language } from "@/config/translations";
 import { useTheme } from "@/context/ThemeContext";
-import ArticlesTable from "@/components/admin/ArticlesTable";
-import CategoryStatsCard from "@/components/admin/CategoryStatsCard";
-import BreakingNewsManager from "@/components/admin/BreakingNewsManager";
-import SyncDashboard from "@/components/admin/SyncDashboard";
-import ActivityLog from "@/components/admin/ActivityLog";
+import { ArticlesTable, CategoryStatsCard, BreakingNewsManager, SyncDashboard, ActivityLog } from "@/features/admin";
 
 interface DbStats {
   configured: boolean;

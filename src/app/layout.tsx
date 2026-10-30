@@ -4,7 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { FloatingAiAssistant } from "@/features/chat";
-import BreakingNewsBanner from "@/components/BreakingNewsBanner";
+import { BreakingNewsBanner } from "@/features/admin";
 
 const ptSerif = PT_Serif({
   weight: ["400", "700"],
