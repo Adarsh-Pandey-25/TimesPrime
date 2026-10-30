@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { PT_Serif } from "next/font/google";
-import "./globals.css";
+import "@/frontend/styles/globals.css";
 import { ThemeProvider } from "@/frontend/context/ThemeContext";
 import { LanguageProvider } from "@/frontend/context/LanguageContext";
 import { FloatingAiAssistant } from "@/frontend/features/chat";
