@@ -3,6 +3,8 @@
 # Phase 4 diff target. Any difference after the migration is a bug.
 # Updated 2026-10-29: /api/cron/refresh-rss removed by owner decision (RSS
 # deleted). That removal is intentional and is not a migration regression.
+# Updated 2026-10-30: /api/health and /api/admin/health added (audit F-002,
+# owner decision D4). Additions only; no existing URL changed (CR-01).
 
 ## A. Routable files on disk (src/app/**)
 src/app/about/page.tsx
@@ -12,6 +14,7 @@ src/app/api/admin/articles/bulk/route.ts
 src/app/api/admin/articles/route.ts
 src/app/api/admin/breaking-news/route.ts
 src/app/api/admin/db-stats/route.ts
+src/app/api/admin/health/route.ts
 src/app/api/admin/login/route.ts
 src/app/api/admin/logout/route.ts
 src/app/api/admin/logs/route.ts
@@ -20,6 +23,7 @@ src/app/api/admin/seed-supabase/route.ts
 src/app/api/admin/stats/route.ts
 src/app/api/chat/route.ts
 src/app/api/cron/refresh-news/route.ts
+src/app/api/health/route.ts
 src/app/api/news/check-new/route.ts
 src/app/api/news/scrape-article/route.ts
 src/app/api/news/top-headlines/route.ts
@@ -41,6 +45,7 @@ f  /api/admin/articles
 f  /api/admin/articles/bulk
 f  /api/admin/breaking-news
 f  /api/admin/db-stats
+f  /api/admin/health
 f  /api/admin/login
 f  /api/admin/logout
 f  /api/admin/logs
@@ -49,6 +54,7 @@ f  /api/admin/seed-supabase
 f  /api/admin/stats
 f  /api/chat
 f  /api/cron/refresh-news
+f  /api/health
 f  /api/news/check-new
 f  /api/news/scrape-article
 f  /api/news/top-headlines

@@ -67,6 +67,17 @@ export const cache = {
     }
     memorySet(key, data, ttlSeconds);
   },
+
+  /** Health probe: "not-configured" without Upstash, otherwise whether Redis answered a PING. */
+  async ping(): Promise<"ok" | "error" | "not-configured"> {
+    if (!redis) return "not-configured";
+    try {
+      await redis.ping();
+      return "ok";
+    } catch {
+      return "error";
+    }
+  },
 };
 
 export const CACHE_TTL_NEWS_SECONDS = 15 * 60; // 15 minutes — top-headlines route

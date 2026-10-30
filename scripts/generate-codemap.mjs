@@ -162,7 +162,7 @@ const hasUseClient = (f) => parsed.get(f).directives.includes("use client");
 const SERVER_ONLY = new Set([
   "src/features/news/server/db.ts", "src/server/supabase.ts", "src/server/auth/adminSession.ts", "src/server/auditLog.ts",
   "src/features/news/server/categoryClassifier.ts", "src/features/news/server/fetchNews.ts", "src/features/news/server/newsdata.ts",
-  "src/server/googleTranslate.ts", "src/lib/urlValidation.ts",
+  "src/server/googleTranslate.ts", "src/lib/urlValidation.ts", "src/server/health.ts",
 ]);
 // The list is keyed by path, so a move that forgets to update it would quietly
 // drop that module from the client-bundle check and still report 0 violations.
@@ -231,6 +231,7 @@ const PURPOSE = {
   "src/config/categoryColors.ts": ["Per-category hex/Tailwind class map", ""],
   "src/config/translations.ts": ["EN/HI static strings; translateHeadline is a no-op stub", "shared, not a feature"],
   "src/server/googleTranslate.ts": ["Unofficial translate.googleapis.com client, bounded concurrency", ""],
+  "src/server/health.ts": ["Dependency health for /api/health (status only) and /api/admin/health (detail); D4", ""],
   "src/features/news/bookmarks.ts": ["localStorage saved articles + change event", "stores Article objects, so not lib/"],
   "src/features/admin/components/actionLabels.ts": ["Display labels and icons for admin activity-log entries", "only consumer is ActivityLog (SC-1)"],
   "src/context/ThemeContext.tsx": ["Light/dark provider, localStorage-backed", "app-wide state provider, not a UI primitive"],
