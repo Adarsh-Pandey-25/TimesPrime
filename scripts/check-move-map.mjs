@@ -175,8 +175,10 @@ for (const e of edges) {
   else if (la.startsWith("fe-feature:") && lb.startsWith("fe-feature:") && la !== lb) rule = "X1 no cross-feature imports (frontend)";
   else if (la.startsWith("be-service:") && lb.startsWith("be-service:") && la !== lb) rule = "X1 no cross-service imports (backend)";
   else if (["fe-ui", "fe-context"].includes(la) && (lb.startsWith("fe-feature:") || lb === "fe-views")) rule = `R3 ${la} never imports features or views`;
-  else if (!test && la === "fe-ui" && !(lb === "fe-ui" || sb === "shared" || b === "frontend/context/ThemeContext.tsx"))
-    rule = "R5 ui imports only ui/, shared/ and ThemeContext";
+  // Theme is appearance, so a primitive may read it; language, UI strings and
+  // category data are app state or product knowledge, so it may not.
+  else if (!test && la === "fe-ui" && !(["fe-ui", "sh-types", "sh-validation"].includes(lb) || b === "frontend/context/ThemeContext.tsx"))
+    rule = "R5 ui imports only ui/, shared/types, shared/validation and ThemeContext";
   else if (!test && la === "fe-context" && !["fe-context", "sh-config", "sh-types"].includes(lb)) rule = "R9 context imports only shared config/types";
   else if (!test && la === "sh-config" && !["sh-config", "sh-types"].includes(lb)) rule = "R7 config imports only config/types";
   else if (!test && la === "sh-types" && lb !== "sh-types") rule = "R7 types import only types";
