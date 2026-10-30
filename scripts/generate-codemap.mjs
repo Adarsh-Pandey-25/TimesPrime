@@ -394,11 +394,18 @@ L.push(
 
 const GROUPS = [
   ["Routing — `src/app/` (locations are the URL contract)", (f) => f.startsWith("src/app/")],
+  ["Features — `src/features/`", (f) => f.startsWith("src/features/")],
   ["Components — `src/components/`", (f) => f.startsWith("src/components/")],
+  ["Server — `src/server/` (backend-only)", (f) => f.startsWith("src/server/")],
   ["Library — `src/lib/` (the folder being split)", (f) => f.startsWith("src/lib/")],
+  ["Config — `src/config/` (static data)", (f) => f.startsWith("src/config/")],
   ["Context and types", (f) => f.startsWith("src/context/") || f.startsWith("src/types/")],
   ["Framework-pinned (never move)", (f) => PINNED.test(f)],
 ];
+// A module in no group would vanish from the tables while still counting in
+// the summary, so refuse to write a CODEMAP that silently drops one.
+const ungrouped = rows.filter((f) => !GROUPS.some(([, pred]) => pred(f)));
+if (ungrouped.length) throw new Error(`no CODEMAP group for: ${ungrouped.join(", ")}`);
 for (const [title, pred] of GROUPS) {
   const sel = rows.filter(pred);
   if (!sel.length) continue;
