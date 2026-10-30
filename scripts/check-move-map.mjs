@@ -2,7 +2,7 @@
 // before, during and after the moves of restructure 2.
 //
 //   node scripts/check-move-map.mjs          # check the map, list violations
-//   node scripts/check-move-map.mjs --plan   # print the per-slice move list (Markdown)
+//   node scripts/check-move-map.mjs --plan   # print each slice's moves and checklist (Markdown)
 //
 // The check builds the real import graph with the TypeScript compiler API,
 // relocates every file to its final path, and tests every edge against the
@@ -25,7 +25,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import ts from "typescript";
 
-import { MOVES, KNOWN, SLICE_NAMES } from "./move-map.mjs";
+import { MOVES, KNOWN, SLICE_NAMES, SLICE_CHECKLIST } from "./move-map.mjs";
 
 const all = execSync("git ls-files", { encoding: "utf8" }).split("\n").map((s) => s.trim()).filter(Boolean);
 const tracked = new Set(all);
@@ -234,8 +234,11 @@ if (process.argv.includes("--plan")) {
   for (const n of Object.keys(SLICE_NAMES)) {
     const rows = MOVES.filter(([, , s]) => String(s) === n);
     console.log(`\n**Slice ${n} — \`${SLICE_NAMES[n]}\`** (${rows.length} files)\n`);
-    console.log("| Current | Target |\n|---|---|");
-    for (const [from, to] of rows) console.log(`| \`${from}\` | \`${to}\` |`);
+    if (rows.length) {
+      console.log("| Current | Target |\n|---|---|");
+      for (const [from, to] of rows) console.log(`| \`${from}\` | \`${to}\` |`);
+    }
+    if (SLICE_CHECKLIST[n]) console.log(`\nChecklist:\n${SLICE_CHECKLIST[n].map((item) => `- [ ] ${item}`).join("\n")}`);
   }
   process.exit(0);
 }

@@ -2,8 +2,9 @@
 // separation) — the single source of truth for where every file goes.
 //
 // Read by scripts/check-move-map.mjs (validates it against the import rules
-// F1–X1 before, during and after the moves) and scripts/generate-codemap.mjs
-// (renders CODEMAP's Target column). Edit it here and nowhere else. Restructure
+// F1–X1 before, during and after the moves, and prints the plan with each
+// slice's checklist) and scripts/generate-codemap.mjs (renders CODEMAP's Target
+// column). Edit it here and nowhere else. Restructure
 // 1's map (Phase D, all 34 moves done) is in git history: `git show
 // f260d3e:scripts/move-map.mjs`.
 //
@@ -30,6 +31,62 @@ export const SLICE_NAMES = {
   8: "frontend/components/ui + frontend/context",
   9: "frontend/features (+ the two page-level views they contain)",
   10: "frontend/views + frontend/styles",
+  11: "remove the old aliases (no file moves)",
+};
+
+// What each slice must do besides its moves: the tooling and path references
+// the slice invalidates (S0's tooling list, owner-approved, plus BL-018).
+// `check-move-map.mjs --plan` prints it under each slice, so the plan is the
+// runbook. Every slice also runs the full gate: verify, route diff, and client
+// JS and CSS against the S2 baseline. Docs (README, CONTRIBUTING, HANDOFF, PRD,
+// AUDIT-FINDINGS, CODEMAP) follow in S5.
+export const SLICE_CHECKLIST = {
+  1: [
+    "tsconfig.json paths: the six ./src/* targets become ./*; jest.config.ts moduleNameMapper <rootDir>/src/ becomes <rootDir>/",
+    "next.config.ts: ./src/config/imageDomains becomes ./config/imageDomains, in the import and its comment; then the picomatch probe and the remotePatterns comparison (CR-06)",
+    "app/globals.css: every @source not path goes from ../../ to ../ (BL-018: paths resolve from the stylesheet); compare the CSS with the S2 baseline",
+    "comments naming src/<path> lose the src/ prefix: the 10 route files that name src/proxy.ts, NewsSkeletonGrid.tsx:1, imageDomains.ts:9, ActivityLog.tsx:48, ArticleDetailView.tsx:32, MarqueeTicker.tsx:119, db.ts:179, proxy.ts:6 and :15. imageDomains.ts:16-17 stays verbatim: it is a git command over history",
+    "clear .next/types before verify: route files move (BL-007)",
+    "eslint.boundaries.mjs zones and eslint.config.mjs:14 name ./src/... and go stale here; check:boundaries enforces the v2 rules until S4 rewrites them",
+    "smoke test, then STOP for the owner",
+  ],
+  2: [
+    "db/schema.sql becomes database/schema.sql in categoryClassifier.ts:36 and :45 (a user-facing console.warn) and db.ts:32 and :335",
+    "seed_supabase.mjs: its own usage string names scripts/seed_supabase.mjs",
+    "globals.css: drop @source not \"../db\" (db/ is gone); the CSS must not change, which proves the database/ entry",
+  ],
+  3: [
+    "next.config.ts: ./config/imageDomains becomes ./shared/config/imageDomains, in the import and its comment; the picomatch probe and the remotePatterns comparison again (CR-06)",
+    "imports of the moved files go through @/shared/...",
+  ],
+  4: ["imageDomains.ts:9 names lib/urlValidation.ts: becomes backend/lib/urlValidation.ts", "imports of the moved files go through @/backend/..."],
+  5: ["ActivityLog.tsx:48 names server/auditLog.ts: becomes backend/repositories/auditLog.ts"],
+  6: ["backend/services/news/index.ts keeps import \"server-only\" as its first statement"],
+  7: [
+    "one commit per URL group: admin, news, chat, translate, health, cron",
+    "each app/**/route.ts left behind holds only re-exports and literal segment config (A2); none has segment config today",
+    "ArticleDetailView.tsx:32 and db.ts:179 name the scrape-article route as the scraper: point them at backend/api/news/scrape-article.ts",
+    "clear .next/types before verify (BL-007)",
+    "smoke test",
+  ],
+  8: ["imports of ui and context go through @/frontend/..."],
+  9: [
+    "the 5 planned X1 rewrites: HomeClient and ArticleDetailView import the news entry, frontend/features/news/index.ts",
+    "the banner's re-export moves from the admin barrel to the news barrel; delete its KNOWN entry",
+    "MarqueeTicker.tsx:119 and proxy.ts:15 name the banner: becomes frontend/features/news/BreakingNewsBanner.tsx",
+    "then a separate change commit: {\"sideEffects\": false} for each frontend feature, with a bundle measurement",
+  ],
+  10: [
+    "frontend/styles/globals.css: every @source not path goes from ../ to ../../ (BL-018); compare the CSS with the S2 baseline",
+    "app/layout.tsx: its globals.css import follows the file",
+    "each app/<route>/page.tsx becomes a re-export of its view (default, plus metadata where the page has it)",
+    "clear .next/types before verify (BL-007)",
+    "smoke test",
+  ],
+  11: [
+    "remove the old aliases (@/features, @/server, @/lib, @/config, @/ui) from tsconfig.json and jest.config.ts once nothing imports them",
+    "final smoke test; push at the end of S3 or at S5, whichever comes first (owner: no pushes during S3)",
+  ],
 };
 
 export const MOVES = [
@@ -50,7 +107,7 @@ export const MOVES = [
   // 2 — database/
   ["db/schema.sql", "database/schema.sql", 2],
   ["db/policies.sql", "database/policies.sql", 2],
-  // Unreferenced CLI script (owner decision in S0: keep and move, or delete).
+  // Unreferenced CLI script, kept and moved (owner decision at the S0 approval).
   ["scripts/seed_supabase.mjs", "database/seed/seed_supabase.mjs", 2],
 
   // 3 — shared/: imported by both sides, or by neither side's code alone
@@ -171,6 +228,7 @@ export const MOVES = [
   ["src/app/saved/page.tsx", "frontend/views/saved/SavedView.tsx", 10],
   ["src/app/admin/page.tsx", "frontend/views/admin/AdminView.tsx", 10],
   ["src/app/admin/login/page.tsx", "frontend/views/admin/AdminLoginView.tsx", 10],
+  // Its @source not paths resolve from the stylesheet: see SLICE_CHECKLIST 1 and 10 (BL-018).
   ["src/app/globals.css", "frontend/styles/globals.css", 10],
 ];
 
@@ -179,5 +237,5 @@ export const MOVES = [
 export const KNOWN = {
   "X1 frontend/features/admin/index.ts -> frontend/features/news/BreakingNewsBanner.tsx":
     "The admin barrel re-exports the banner today. Slice 9 moves that re-export to the news barrel with the file " +
-    "(S0 judgement call 2). If the owner keeps the banner in admin, its target changes and this entry is removed.",
+    "(S0 judgement call 2, approved by the owner).",
 };
