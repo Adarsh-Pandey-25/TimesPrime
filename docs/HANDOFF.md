@@ -1,9 +1,9 @@
 # TimesPrime — Session Handoff
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
-**State as of:** 2026-10-30, after **Phase D** (all six slices, `a626542`..`73e207f`) and its
-close-out, branch `main`. **Phase E (enforcement) is next.** Run `git log --oneline -20` for the
-exact head.
+**State as of:** 2026-10-30, after **Phase D** (all six slices, `a626542`..`73e207f`) and **Phase
+E** (lint enforcement, `d892cf2`), branch `main`. Phase F is optional and not started. Run
+`git log --oneline -20` for the exact head.
 
 Read §1 and §3 before touching anything. §3 in particular will save you from false conclusions
 that have already been reached and discarded once.
@@ -32,7 +32,9 @@ each with `npm run verify` and `check-move-map` green. The built route table is 
 `_baseline-routes.txt` (26 URLs); `lib/` holds only `cache`, `rateLimit`, `sentryScrub`,
 `urlValidation`, none importing a project module; every `server/` module and
 `features/news/server.ts` begins with `import "server-only"`, seen to fail a client import.
-**Phase E (lint enforcement, path aliases) is next** — see §11.
+**Phase E is done** (`d892cf2`): `npm run lint` enforces the import rules (architecture.md §5,
+"How each rule is enforced"), each proven by a deliberate violation; path aliases are in place; and
+`check:boundaries` is part of `verify` and CI. Phase F is optional — see §11.
 The security items (Next.js bump, DEF-02, DEF-06) and the Supabase connection are reserved by the
 owner for a separate session. Do not start either here.
 
@@ -74,7 +76,7 @@ There is also a published audit artifact (28 findings, severity-filterable):
 
 ```bash
 npm run dev        # dev server (Turbopack)
-npm run verify     # THE GATE: typecheck -> lint -> test -> build. All four must pass
+npm run verify     # THE GATE: typecheck -> lint -> check:boundaries -> test -> build. All five
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
 npm test           # jest
@@ -275,8 +277,10 @@ Oldest to newest. `0e7f1f7` was the pre-existing HEAD.
 | `8864691` | `build: mark each feature folder side-effect-free except server.ts` | **Found by measurement**: without it slice 5 put the admin dashboard on every page (+46 KB on `/`). See §3.12 |
 | `8b44939` | `refactor(slice 5): move the admin UI into features/admin` | Bundle 0.00% vs pre-slice; proxy matcher untouched (CR-05) |
 | `73e207f` | `refactor(slice 6): move news into features/news` | All 34 moves done. `server.ts` guard seen to fail; bundle +0.04%, max route +0.14% |
+| `4603876` | `docs: Phase D close-out` | Route table identical (26/26); `lib/` check true; PRD paths; this file |
+| `d892cf2` | `build: enforce the import rules with ESLint (Phase E)` | 15 probe violations → 15 errors, each with its rule's message; aliases; `check:boundaries` in the gate and CI |
 
-Followed by the Phase D close-out docs commit (CODEMAP, PRD paths, this file).
+Followed by the Phase E docs commit (architecture.md enforcement table, CONTRIBUTING, README, this file).
 
 **Retired:** `docs/TimesPrime-PRD-and-Architecture.pdf` was committed in `ddbcc9f`, then untracked
 and git-ignored at the owner's direction. `docs/PRD.md` is the only canonical spec — do not consult
@@ -360,7 +364,7 @@ which happened in `ActivityLog.tsx` until `b01d528`.
 | **A** | Knowledge base + PRD; review changes and owner decisions | ✅ **Done** |
 | **C** | Structure design — tree, move map, ADR 0001 | ✅ **Done, approved** |
 | **D** | Migration — 6 slices, pure moves only (slice 7 skipped) | ✅ **Done** — `a626542`..`73e207f` |
-| **E** | Enforcement — boundary lint rule, path aliases | **Next** |
+| **E** | Enforcement — boundary lint rule, path aliases | ✅ **Done** — `d892cf2` |
 | **F** | Decomposition — split the 7 oversized files; route-handler extraction | Optional, last |
 
 **Phase C changed the design.** `scripts/check-move-map.mjs` tested the Phase A draft against the
@@ -456,9 +460,10 @@ collection that no longer happens. Legal copy — for the owner or legal review,
 
 ## 10. Conventions to follow
 
-- **`npm run verify` must pass before any commit.** All four, not a subset. `tsc` catches imports
-  that no longer resolve; `eslint` catches the ones left behind; `jest` covers the thin tested
-  slice; `build` catches route resolution and server/client boundary violations.
+- **`npm run verify` must pass before any commit.** All five, not a subset. `tsc` catches imports
+  that no longer resolve; `eslint` catches the ones left behind and every boundary-rule break;
+  `check:boundaries` catches a client module reaching `server/` transitively; `jest` covers the thin
+  tested slice; `build` catches route resolution and server/client boundary violations.
 - **A commit is either a move or a change, never both.** Use `git mv`. A move commit may also fix
   the import and path references the move invalidated — that is part of the move.
 - **A red slice is reverted, not patched.**
@@ -475,12 +480,32 @@ collection that no longer happens. Legal copy — for the owner or legal review,
 
 **In this line of work** — the restructure:
 
-1. **Phase E** — ESLint boundary rules for architecture.md §5, path aliases, `check-move-map` folded
-   into the gate, CI confirmed; prove each rule by a deliberate violation.
+1. **Phase F is optional and not started.** It needs an owner decision; the candidates and what
+   each needs first are listed below.
 2. BL-007 stays deferred: no Phase D slice moved a route file, so it never fired.
 3. Owner or legal rewrites the privacy policy (BL-008).
-4. Phase F (optional, not started): decomposition of the seven files in §5, each behind a
-   characterization test.
+4. Set `ANTHROPIC_API_KEY` locally to see the chat route stream end to end; on this machine it
+   answers 503 by design.
+
+### Phase F candidates — which need a characterization test first
+
+All seven are at 0% coverage. Decomposing any of them edits a module body, so by the hard rules
+each needs a characterization test first. The only part that splits by pure move is noted.
+
+| File | Lines | Shape | Test first? |
+|---|--:|---|---|
+| `features/news/components/ArticleDetailView.tsx` | 963 | One ~885-line component: 10 `useState`, 3 effects, 3 `fetch`es (scrape, translate, chat) | **Yes** — render with mocked `fetch`: scrape success, scrape fallback, translate. DEF-03/04/10 live here, so coordinate with the security session |
+| `features/admin/components/ArticlesTable.tsx` | 751 | Table plus two modals already at module scope (`EditArticleModal`, `PreviewArticleModal`) | **Yes** for the table logic. The two modals can move to their own files as a pure move, like Phase D |
+| `features/news/server/db.ts` | 571 | Pure helpers (filters, language script, paywall) + Supabase-backed functions | **Yes**. The pure helpers are cheap to test with no database; the rest needs a Supabase mock. BL-001, DEF-05, DEF-08 sit here; the connection itself (DEF-01) is reserved |
+| `features/news/components/Header.tsx` | 568 | One ~528-line component: 9 `useState`, 5 effects | **Yes** |
+| `app/api/news/scrape-article/route.ts` | 556 | Many pure extraction helpers + the handler (SC-2) | **Yes** — HTML fixtures through the pure helpers. Also rule 8: the logic belongs in `features/news/server/`. DEF-02/10 here; coordinate with the security session |
+| `features/news/components/HomeClient.tsx` | 532 | 3 small pure helpers + a ~457-line component with 2-minute polling | **Yes** — fake timers for the poll |
+| `app/admin/page.tsx` | 506 | One component: 20 `useState`, 5 `fetch`es | **Yes**. Also rule 8: its data logic belongs in `features/admin` |
+
+**Cheapest first:** the pure helpers in `scrape-article` and `db.ts` need no rendering and no
+database, so they buy the most safety per hour. The components need React Testing Library with a
+mocked `fetch`.
+
 
 **Reserved by the owner for a separate session** — do not start them here:
 

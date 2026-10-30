@@ -127,7 +127,8 @@ The separation above is stronger than folder distance, because §5 makes a viola
 
 ## 5. Import rules
 
-These are the rules a reviewer may cite in a pull request. Phase E enforces them mechanically.
+These are the rules a reviewer may cite in a pull request. Since Phase E, `npm run lint` enforces
+every one that an import can break — see *How each rule is enforced* below.
 
 1. **At most two public surfaces per feature.** `features/<name>/index.ts` is safe for client and
    server; `features/<name>/server.ts` is server-only and **never** imported by client code. Nothing
@@ -185,6 +186,39 @@ These are the rules a reviewer may cite in a pull request. Phase E enforces them
 Rule 4 is the one that matters most. Sideways imports are how a feature-first structure collapses
 back into the thing it replaced — usually within a quarter, always one reasonable-looking import at
 a time. Documentation does not prevent this; a linter does.
+
+### How each rule is enforced (Phase E)
+
+`npm run lint` fails on every rule below that an import can break. The rules live in
+[`eslint.boundaries.mjs`](../eslint.boundaries.mjs), each block naming the rule it implements, and
+every one was proven by a deliberate violation that failed lint with its message, then removed.
+Path rules use `import/no-restricted-paths`, which judges the **resolved** path, so a relative
+import (`../news/components/Header`) is caught exactly like the alias (`@/features/news/...`).
+
+| Rule | Mechanism | Fails on |
+|---|---|---|
+| 1 — two public surfaces | `import/no-restricted-paths`, `except` `index.ts` / `server.ts` | `app/` importing `@/features/news/components/Header` |
+| 2 — no sideways imports | `import/no-restricted-paths`, one zone per feature pair | `features/chat` importing `features/news`, by alias or relative path |
+| 3 — downward only | `import/no-restricted-paths` | `server/`, `ui`, `context/`, `config/`, `types/` importing a feature |
+| 4 — shared things move down | — | The remedy for rule 2, not a check |
+| 5 — `ui` is domain-free | `import/no-restricted-paths`, `except` `ThemeContext.tsx` | `ui` importing `LanguageContext`, `config/`, `app/` |
+| 6 — server code never in client | local rule `boundaries/no-server-in-client` · `ui` → `server/` zone · local rule `boundaries/server-only-first` | a `"use client"` file importing `server/` or a feature's `server.ts` (alias or relative); a `server/` module or `server.ts` whose first statement is not `import "server-only"` |
+| 7 — `config/` is static data | `import/no-restricted-paths` + core `no-restricted-imports` | `config/` importing `react`, `server-only`, or `app`/`components`/`context`/`server`/`lib`; **CR-06**: any import at all in `imageDomains.ts` |
+| 8 — `app/` holds no logic | — | **Not expressible in lint**: it is about what code does, not what it imports. Review enforces it |
+| `lib/` is domain-free | `import/no-restricted-paths` | `lib/` importing any project module |
+| `context/` (R9) | `import/no-restricted-paths` | `context/` importing `app`/`components`/`server`/`lib` |
+
+**What lint cannot see, and what covers it.** Lint checks each import as written. Rule 6 is also
+*transitive* — a client module importing a plain module that imports `server/` — and that is
+caught twice more: `import "server-only"` fails `next build`, and `npm run check:boundaries`
+(`scripts/check-move-map.mjs`, part of `npm run verify` and of CI) walks the client-bundle closure
+before the build runs. It is not redundant with lint for that reason, so it stayed.
+
+**Path aliases** (`tsconfig.json`): `@/features/*`, `@/server/*`, `@/lib/*`, `@/config/*`,
+`@/ui/*` → `src/components/ui/*`, and the catch-all `@/*`. Jest mirrors `@/ui/*` in
+`moduleNameMapper` (the others map 1:1 through `@/*`); both graph scripts read the aliases from
+`tsconfig.json`, longest prefix first.
+
 
 ## 6. Module responsibilities
 

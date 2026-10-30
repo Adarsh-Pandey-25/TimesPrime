@@ -260,7 +260,7 @@ node scripts/check-move-map.mjs   # before: expect "0 violation(s)"
 git mv <old> <new>                # never cp + rm — rename detection must survive
 # fix imports (prefer the @/ alias); add the feature's index.ts / server.ts
 rm -rf .next/types                # ONLY if the slice moves or deletes a route file (BL-007)
-npm run verify                    # typecheck · lint · test · build — ALL FOUR
+npm run verify                    # typecheck · lint · check:boundaries · test · build (four steps until Phase E)
 node scripts/check-move-map.mjs   # after: still "0 unexpected"
 npm run test:ci && node scripts/generate-codemap.mjs   # regenerate CODEMAP
 git commit                        # one slice, named in the subject

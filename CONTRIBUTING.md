@@ -5,16 +5,17 @@
 Every commit must leave the tree green:
 
 ```bash
-npm run verify     # typecheck -> lint -> test -> build
+npm run verify     # typecheck -> lint -> check:boundaries -> test -> build
 ```
 
-All four, not a subset. They catch different classes of problem, and during the
+All five, not a subset. They catch different classes of problem, and during the
 ongoing restructure each one is load-bearing:
 
 | Command | What it alone catches |
 |---|---|
 | `tsc --noEmit` | Unresolved imports after a file move; type regressions |
-| `eslint` | Imports left **behind** after a move — unused, still referenced, now dead |
+| `eslint` | Imports left **behind** after a move — unused, still referenced, now dead — and every import that breaks a boundary rule (`eslint.boundaries.mjs`, `docs/architecture.md` §5) |
+| `check:boundaries` | A client module reaching `server/` **transitively**, through modules that look harmless — which lint, checking one import at a time, cannot see |
 | `jest` | Behaviour changes in the thin slice that has coverage |
 | `next build` | Route resolution, config evaluation, server/client boundary violations |
 

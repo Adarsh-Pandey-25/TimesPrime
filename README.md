@@ -97,7 +97,7 @@ node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
 | `npm test` | Jest |
 | `npm run test:watch` | Jest in watch mode |
 | `npm run test:ci` | Jest with coverage, CI reporter |
-| `npm run verify` | typecheck → lint → test → build. **The gate every commit must pass** |
+| `npm run verify` | typecheck → lint → check:boundaries → test → build. **The gate every commit must pass** |
 
 ## Architecture in one paragraph
 
