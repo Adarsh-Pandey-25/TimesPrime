@@ -213,10 +213,11 @@ feature:
 - ~~**Footer "RSS Feeds" link**~~ — **resolved**: the link and its separator were
   removed from `src/components/Footer.tsx` at the owner's direction (Phase C
   review). It had pointed at `href="#"` and advertised a deleted feature.
-- **Dead translation keys** (`src/lib/translations.ts`) — `rssFeeds`,
-  `newsletterTitle`, `newsletterDesc`, `newsletterStripTagline`,
-  `subscribedSuccess`, `newsletterEmailPlaceholder`, in the interface and both
-  languages. Read by nothing.
+- ~~**Dead translation keys**~~ — **resolved** in `a81d3c4` (restructure 2, S1, owner item
+  B8): the six listed here (`rssFeeds`, `newsletterTitle`, `newsletterDesc`,
+  `newsletterStripTagline`, `subscribedSuccess`, `newsletterEmailPlaceholder`)
+  plus `subscribe`, which this list missed, removed from the interface and both
+  languages. Sixteen more unread keys are BL-017.
 - **`"use client"` on `src/app/contact/page.tsx`** — no longer needed now the
   form's state is gone. Removing it changes the page's rendering mode, which is
   a behaviour change, not a cleanup.
@@ -294,3 +295,71 @@ that is thousands of events an hour and a Sentry quota problem. Options: route t
 same rate limiting as `reportFallback`, or demote them to breadcrumbs and let D5's report be the
 event. Owner decision; it changes how errors are reported, not behaviour. The double purge in the
 same trace is F-015, Phase 3.
+
+## BL-015 — `urlValidation` goes to `backend/lib/` now, to `shared/validation/` with F-005
+
+**Found:** restructure 2, S0 judgement call 3 (owner, at the S0 approval) · **Status:** Open —
+**pick up with F-005** (audit Phase 2)
+
+Move map v2 puts `src/lib/urlValidation.ts` in `backend/lib/` because its only importer today is
+the scraper route, `src/app/api/news/scrape-article/route.ts`. The F-005 fix needs URL validation
+on the frontend link sinks (`ArticleDetailView.tsx`'s `href={targetUrl}`); the module moves to
+`shared/validation/` then (owner decision).
+
+One constraint for that move: `validateExternalUrl()` imports Node's `dns/promises` and `net` — it
+resolves the hostname so it can reject private addresses (the SSRF guard) — and neither runs in the
+browser. The checks that need no DNS (URL parsing, the http(s) allowlist, `localhost`) can move to
+`shared/`; the resolution step stays server-side. So F-005 splits the module rather than moving it
+whole.
+
+## BL-016 — The article page fetches its own API over HTTP
+
+**Found:** restructure 2, S0 (the F1 list) · **Status:** Open — possible improvement; **not changed
+in restructure 2** (owner)
+
+`src/app/article/[slug]/page.tsx` is a server component, yet it reaches the scraper and the feed
+over HTTP to its own deployment: `getArticleContent()` fetches `/api/news/scrape-article`
+(`:37–41`, `revalidate: 3600`) and `getSuggestedArticles()` fetches `/api/news/top-headlines`
+(`:57–61`, `revalidate: 900`), both at `NEXT_PUBLIC_BASE_URL`, falling back to
+`http://localhost:3000`. Every uncached render costs two extra round trips. If the variable is
+wrong or unset in an environment, both fetches fail and the page silently shows its placeholder
+text and no suggestions.
+
+Calling the backend code directly would remove the hop, but it also changes which caching and error
+handling apply — and, once F-011 gives the scraper a limiter, which rate limit applies. That makes
+it a behaviour change, not a move, so restructure 2 keeps the page as composition in `app/` and
+leaves both fetches alone.
+
+## BL-017 — Data nothing reads, left after the S1 cleanup
+
+**Found:** restructure 2, S1 (`dc07a40`, `a81d3c4`) · **Status:** Open — needs owner approval; one
+change commit each
+
+- **Sixteen translation keys** in `src/config/translations.ts` have no reader, in the interface
+  and in both languages: `liveFeed`, `edition`, `globalNewsHub`, `aiAssistant`,
+  `storiesAvailable`, `trendingHighlights`; `footer.verifiedSources`, `footer.realtimeCaching`,
+  `footer.newsCategories`, `footer.emailPlaceholder`; `articleView.backToHeadlines`,
+  `originalSource`, `specialReport`, `verifiedDigest`, `visitPublisher`, `suggestedNews`. Same
+  test as `a81d3c4`: no `.key` or `["key"]` access anywhere in `src/`, and the only dynamic
+  indexing is `t.categories[...]`. Removing them shrinks the client JS of every page that loads
+  the dictionary, as `a81d3c4` did (−962 bytes for seven keys).
+- **The `bg` and `text` fields of `CATEGORY_COLORS`** (`src/config/categoryColors.ts`): unread
+  since `dc07a40` deleted their two getters. 18 of their 22 class strings (`bg-orange-600`,
+  `text-cyan-600`, …) appear in no other file, so Tailwind still emits CSS for classes no element
+  carries. Removing the fields drops those rules; measure the CSS before and after.
+
+## BL-018 — Tailwind scans `docs/` and `scripts/`, so editing a document can change the CSS
+
+**Found:** restructure 2, S1 (`26adbbd`) · **Status:** Open — owner decision
+
+Tailwind v4 detects class names automatically in every file that is not git-ignored, Markdown
+included. Deleting `docs/MOVE-MAP.md` removed one utility rule from the production CSS (−219
+bytes): an ordinary English word in one of its sentences was the only place that utility's name
+appeared. `26adbbd`'s message names it; this entry does not, because writing the word here
+would put the rule back. Any documentation edit can add or drop a utility the same way, so a
+docs-only commit can move the CSS, and a per-commit CSS comparison has to tell that apart from a
+code change.
+
+Fix: exclude the non-code folders in `globals.css` with `@source not "<path>"` (supported by the
+installed Tailwind 4.3.3; the path resolves from the stylesheet), or use `source(none)` and list
+the code folders. Either is a CSS configuration change, so it waits for the owner.
