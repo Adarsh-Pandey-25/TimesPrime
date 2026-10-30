@@ -237,7 +237,7 @@ const PURPOSE = {
   "src/features/admin/components/actionLabels.ts": ["Display labels and icons for admin activity-log entries", "only consumer is ActivityLog (SC-1)"],
   "src/context/ThemeContext.tsx": ["Light/dark provider, localStorage-backed", "app-wide state provider, not a UI primitive"],
   "src/context/LanguageContext.tsx": ["EN/HI provider, localStorage-backed", "app-wide state provider, not a UI primitive"],
-  "src/types/index.ts": ["Article, NewsResponse, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog", ""],
+  "src/types/index.ts": ["Article, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog", ""],
   "src/proxy.ts": ["AUTH GATE. Next 16 Proxy (was middleware). Matches /admin/*, /api/admin/*", ""],
   "src/instrumentation.ts": ["Sentry server/edge init hook", ""],
   "src/instrumentation-client.ts": ["Sentry browser init", ""],

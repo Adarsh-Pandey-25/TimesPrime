@@ -50,14 +50,6 @@ export function getCategoryColor(category: string): string {
   return resolve(category).hex;
 }
 
-export function getCategoryBgClass(category: string): string {
-  return resolve(category).bg;
-}
-
-export function getCategoryTextClass(category: string): string {
-  return resolve(category).text;
-}
-
 // Every card (featured and grid) uses this single brand-accent left-border
 // color regardless of category — the colorful category badge
 // (getCategoryBadgeBgClass) already communicates the category, so a second,

@@ -23,13 +23,6 @@ export interface Article {
   duplicate?: boolean;
 }
 
-export interface NewsResponse {
-  status: string;
-  totalResults: number;
-  results: Article[];
-  nextPage?: string;
-}
-
 export interface ScrapeResponse {
   url: string;
   title?: string;
