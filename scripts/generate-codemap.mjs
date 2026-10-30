@@ -350,9 +350,9 @@ function listEdges(edges, key) {
 
 const L = [];
 L.push(
-  "# CODEMAP — every module, what it does, where it goes", "",
+  "# CODEMAP — every module, what it does, what touches it", "",
   "**Read this instead of re-analysing the codebase.** If the question is \"where does X live\",",
-  "\"what imports Y\" or \"what moves where\", it is answered here. Do not grep the tree to re-derive it.", "",
+  "\"what imports Y\" or \"what would a change to Z touch\", it is answered here. Do not grep the tree to re-derive it.", "",
   `Generated at commit \`${head}\` by \`node scripts/generate-codemap.mjs\`. Coverage read from`,
   `\`${COVERAGE_FILE}\` (written ${coverageStamp}) — run \`npm run test:ci\` first for current numbers.`, "",
   "Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with",
@@ -373,8 +373,9 @@ L.push(
   "",
   "### Boundary violations", "",
   "A server-only module that ends up in the client bundle, with the shortest import chain that pulls",
-  "it in. **Treat this as an estimate** until the Phase E lint rule exists — see *How the boundary is",
-  "detected* below.", "",
+  "it in. This is a cross-check computed from the import graph. The enforced checks are rule F1 in lint",
+  "and `npm run check:boundaries`, and `import \"server-only\"` in every backend module fails the build",
+  "([`architecture.md`](architecture.md) §5). See *How the boundary is detected* below.", "",
   "```", ...(violations.length ? violations.map((v) => v.chain.join("  ->  ")) : ["none"]), "```", ""
 );
 if (violations.some((v) => v.chain.some((x) => x.includes("ActivityLog")))) {
@@ -399,11 +400,12 @@ L.push(
   "  such as `supabase.ts` contain no code that would fail in a browser.",
   "- **Violation:** a server-only module inside the client bundle.",
   "- **Limits:** the generator reads syntax, not types. An import written without `type` that only",
-  "  brings in interfaces (`import { Article } from \"@/types\"`) is erased by the compiler but counted",
-  "  here as a value edge — which is why `types/index.ts` shows as `bundled` though it compiles to",
+  "  brings in interfaces (`import { Article } from \"@/shared/types\"`) is erased by the compiler but counted",
+  "  here as a value edge — which is why `shared/types/index.ts` shows as `bundled` though it compiles to",
   "  nothing. This can only over-include modules, never miss one, so the estimate errs high. A dynamic",
   "  `import()` with a non-literal specifier cannot be followed and is listed separately; `require()` is",
-  "  not followed (none in `src/`). The Phase E lint rule replaces this estimate with an enforced check.", "",
+  "  not followed (none in the source tree). Lint (F1) and `check:boundaries` enforce the boundary; this",
+  "  section is the cross-check.", "",
   "### Cross-check: Node built-ins", "",
   "A browser bundle cannot resolve Node built-ins, so a passing `next build` implies no bundled module",
   "imports one. Modules importing built-ins, and whether any is in the client bundle:", "",
@@ -475,7 +477,7 @@ for (const [title, pred] of GROUPS) {
 L.push(
   "", "## Dependency index", "",
   "One entry per module. **Imports** = project-internal modules this file imports. **Used by** = files",
-  "that import it, including tests and files outside `src/`. Edge kinds other than a plain value import",
+  "that import it, including tests and the root tooling files. Edge kinds other than a plain value import",
   "are labelled. A _(type)_ edge is erased at compile time and never reaches a bundle, but it still",
   "breaks if its target moves — so it counts here, where the question is what a move would touch.", ""
 );
