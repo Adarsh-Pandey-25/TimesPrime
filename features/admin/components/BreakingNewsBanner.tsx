@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useTheme } from "@/context/ThemeContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
 
 interface BreakingNewsItem {
   id: string;

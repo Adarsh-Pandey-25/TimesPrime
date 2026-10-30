@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Header, Footer, ArticleCard, getBookmarks, clearAllBookmarks } from "@/features/news";
 import { Article } from "@/shared/types";
 import { Bookmark, Trash2, ArrowLeft, Layers } from "lucide-react";
-import { useTheme } from "@/context/ThemeContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
 import { assignDedupedTopicImages } from "@/shared/config/topicImages";
 
 export default function SavedArticlesPage() {

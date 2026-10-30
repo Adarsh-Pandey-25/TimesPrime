@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Clock3, CalendarClock, Database, TimerReset } from "lucide-react";
-import { useTheme } from "@/context/ThemeContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
 
 interface StatsResponse {
   totalArticles: number;

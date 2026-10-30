@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Article } from "@/shared/types";
 import { Zap } from "lucide-react";
-import { useTheme } from "@/context/ThemeContext";
-import { useLanguage } from "@/context/LanguageContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
+import { useLanguage } from "@/frontend/context/LanguageContext";
 
 interface MarqueeTickerProps {
   articles: Article[];

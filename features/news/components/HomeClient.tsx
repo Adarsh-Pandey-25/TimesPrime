@@ -6,12 +6,12 @@ import Header from "./Header";
 import Footer from "./Footer";
 import ArticleCard from "./ArticleCard";
 import MarqueeTicker from "./MarqueeTicker";
-import ThemeSpinner from "@/components/ui/ThemeSpinner";
+import ThemeSpinner from "@/frontend/components/ui/ThemeSpinner";
 import { Article } from "@/shared/types";
 import { Flame, Layers, RefreshCw, X, ChevronDown } from "lucide-react";
 import { Language, TRANSLATIONS } from "@/shared/config/translations";
-import { useTheme } from "@/context/ThemeContext";
-import { useLanguage } from "@/context/LanguageContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
+import { useLanguage } from "@/frontend/context/LanguageContext";
 import { assignDedupedTopicImages } from "@/shared/config/topicImages";
 
 interface HomeClientProps {

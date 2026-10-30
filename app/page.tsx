@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { fetchInitialNews } from "@/backend/services/news";
 import { HomeClient } from "@/features/news";
-import NewsSkeletonGrid from "@/components/ui/NewsSkeletonGrid";
+import NewsSkeletonGrid from "@/frontend/components/ui/NewsSkeletonGrid";
 
 interface HomePageProps {
   searchParams: Promise<{ category?: string; search?: string }>;

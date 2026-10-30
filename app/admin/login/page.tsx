@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, AlertTriangle } from "lucide-react";
-import { useTheme } from "@/context/ThemeContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
 
 export default function AdminLoginPage() {
   const router = useRouter();

@@ -1,7 +1,7 @@
 "use client";
 
 import { Sparkles, Newspaper } from "lucide-react";
-import { useTheme } from "@/context/ThemeContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
 
 interface ThemeSpinnerProps {
   message?: string;

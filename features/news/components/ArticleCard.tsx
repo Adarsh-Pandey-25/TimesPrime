@@ -7,9 +7,9 @@ import { useRouter } from "next/navigation";
 import { Article } from "@/shared/types";
 import { Clock, ExternalLink, Bookmark, Layers } from "lucide-react";
 import { Language, TRANSLATIONS, translateHeadline } from "@/shared/config/translations";
-import { useTheme } from "@/context/ThemeContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
 import { isBookmarked, toggleBookmark } from "../bookmarks";
-import { useLanguage } from "@/context/LanguageContext";
+import { useLanguage } from "@/frontend/context/LanguageContext";
 
 import { getTopicImageUrl } from "@/shared/config/topicImages";
 import { getCategoryColor, getCategoryBadgeBgClass, getCategoryBorderClass } from "@/shared/config/categoryColors";

@@ -6,9 +6,9 @@ import Link from "next/link";
 import { Article } from "@/shared/types";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { Language, TRANSLATIONS, translateHeadline } from "@/shared/config/translations";
-import { useTheme } from "@/context/ThemeContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
 
-import { useLanguage } from "@/context/LanguageContext";
+import { useLanguage } from "@/frontend/context/LanguageContext";
 
 import { assignDedupedTopicImages } from "@/shared/config/topicImages";
 

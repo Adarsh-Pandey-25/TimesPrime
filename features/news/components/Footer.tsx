@@ -4,8 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowUp } from "lucide-react";
 import { Language, TRANSLATIONS } from "@/shared/config/translations";
-import { useTheme } from "@/context/ThemeContext";
-import { useLanguage } from "@/context/LanguageContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
+import { useLanguage } from "@/frontend/context/LanguageContext";
 
 interface FooterProps {
   language?: Language;

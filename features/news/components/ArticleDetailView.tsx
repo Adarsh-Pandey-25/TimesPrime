@@ -22,8 +22,8 @@ import {
 } from "lucide-react";
 import ArticleCard from "./ArticleCard";
 
-import { useLanguage } from "@/context/LanguageContext";
-import { useTheme } from "@/context/ThemeContext";
+import { useLanguage } from "@/frontend/context/LanguageContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
 import { TRANSLATIONS } from "@/shared/config/translations";
 import { assignDedupedTopicImages } from "@/shared/config/topicImages";
 

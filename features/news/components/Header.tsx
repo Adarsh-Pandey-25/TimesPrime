@@ -9,9 +9,9 @@ import { Globe, Menu, X, Sun, Moon, Search, ChevronDown, Bookmark } from "lucide
 import { Language, TRANSLATIONS } from "@/shared/config/translations";
 import CategoryMegaMenu from "./CategoryMegaMenu";
 import { Article } from "@/shared/types";
-import { useTheme } from "@/context/ThemeContext";
+import { useTheme } from "@/frontend/context/ThemeContext";
 import { getBookmarks } from "../bookmarks";
-import { useLanguage } from "@/context/LanguageContext";
+import { useLanguage } from "@/frontend/context/LanguageContext";
 
 interface HeaderProps {
   activeCategory?: string;

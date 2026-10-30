@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { PT_Serif } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/context/ThemeContext";
-import { LanguageProvider } from "@/context/LanguageContext";
+import { ThemeProvider } from "@/frontend/context/ThemeContext";
+import { LanguageProvider } from "@/frontend/context/LanguageContext";
 import { FloatingAiAssistant } from "@/features/chat";
 import { BreakingNewsBanner } from "@/features/admin";
 
