@@ -35,16 +35,14 @@ const config: Config = {
   testEnvironment: "jsdom",
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   moduleNameMapper: {
-    // Mirrors tsconfig "paths", as the Next jest guide recommends. In practice
+    // Mirrors tsconfig "paths", as the Next jest guide recommends: one alias per
+    // layer and no catch-all, so every import names its layer. In practice
     // next/jest's SWC transform already rewrites those aliases in transformed
-    // files (measured: the @/ui probe passed with this line removed), so this
-    // is the fallback for anything that bypasses the transform. Order matters:
-    // Jest takes the first match, so every alias that does not map 1:1 onto
-    // the repo root comes before the catch-all.
+    // files (measured in restructure 1: a probe passed with its mapper line
+    // removed), so this is the fallback for anything that bypasses the transform.
     "^@/frontend/(.*)$": "<rootDir>/frontend/$1",
     "^@/backend/(.*)$": "<rootDir>/backend/$1",
     "^@/shared/(.*)$": "<rootDir>/shared/$1",
-    "^@/(.*)$": "<rootDir>/$1",
   },
 };
 
