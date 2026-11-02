@@ -8,7 +8,7 @@
 
 jest.mock("@/backend/lib/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
 
-import { loadStaffRecord, StaffLookupError } from "./staff";
+import { loadStaffRecord, markSignedIn, StaffLookupError } from "./staff";
 
 const { supabase, isSupabaseConfigured } = jest.requireMock("@/backend/lib/supabase") as {
   supabase: { from: jest.Mock };
@@ -146,4 +146,15 @@ test("malformed or unknown data is dropped, never widened", async () => {
 test("a missing requires_aal2 is treated as true (the stricter reading)", async () => {
   results.role_assignments = { data: [row({ roles: { role_permissions: [] } })], error: null };
   expect((await loadStaffRecord("u-1", NOW))?.assignments[0].requiresAal2).toBe(true);
+});
+
+test("markSignedIn notes the sign-in time on the profile, and never throws", async () => {
+  results.staff_profiles = { data: null, error: null };
+  await markSignedIn("u-1");
+  const update = calls.find(([t, m]) => t === "staff_profiles" && m === "update");
+  expect(update?.[2][0]).toEqual({ last_sign_in_at: expect.any(String) });
+  expect(calls.filter(([t, m]) => t === "staff_profiles" && m === "eq").map(([, , a]) => a)).toEqual([["user_id", "u-1"]]);
+  results.staff_profiles = { data: null, error: { message: "boom" } };
+  jest.spyOn(console, "error").mockImplementation(() => {});
+  await expect(markSignedIn("u-1")).resolves.toBeUndefined();
 });

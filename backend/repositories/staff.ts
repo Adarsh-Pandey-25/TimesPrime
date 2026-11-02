@@ -57,6 +57,20 @@ function toAssignment(raw: unknown): Assignment | null {
   };
 }
 
+/**
+ * Notes the time of a staff sign-in on the profile (staff_profiles.last_sign_in_at). Written at
+ * sign-in only, not per request. Best-effort: a missed timestamp must not refuse a sign-in.
+ */
+export async function markSignedIn(userId: string): Promise<void> {
+  try {
+    if (!isSupabaseConfigured()) return;
+    const { error } = await supabase.from("staff_profiles").update({ last_sign_in_at: new Date().toISOString() }).eq("user_id", userId);
+    if (error) console.error("last_sign_in_at update failed:", error.message);
+  } catch (err) {
+    console.error("last_sign_in_at update failed:", err);
+  }
+}
+
 /** The staff record, or null when the user has no staff profile. Throws StaffLookupError on any failure. */
 export async function loadStaffRecord(userId: string, now: Date = new Date()): Promise<StaffRecord | null> {
   if (!isSupabaseConfigured()) throw new StaffLookupError("Supabase is not configured");
