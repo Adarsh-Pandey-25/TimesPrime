@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { saveArticlesToDB, purgeOldArticles } from "@/backend/services/news";
 import { fetchNewsDataArticles } from "@/backend/services/news";
-import { logAdminAction } from "@/backend/repositories/auditLog";
+import { recordSystemAudit } from "@/backend/repositories/auditLog";
 
 /**
  * Background refresh: pulls every category from NewsData.io into Supabase.
@@ -111,11 +111,17 @@ export async function GET(request: NextRequest) {
 
   const articlesSaved = details.reduce((sum, d) => sum + d.saved, 0);
 
-  await logAdminAction("news_synced", `Cron synced news`, {
-    articles_count: articlesSaved,
-    refreshed,
-    failed,
-    purged,
+  // The cron is not a person and holds no staff account: it writes the audit log as system:cron
+  // (owner decision D11). A failed write is reported, never thrown, so it cannot stop a run.
+  await recordSystemAudit({
+    actor_type: "system",
+    actor_id: null,
+    actor_label: "system:cron",
+    action: "cron.refresh_news",
+    outcome: "succeeded",
+    entity_type: "articles",
+    entity_id: "feed",
+    after: { articles_saved: articlesSaved, refreshed, failed, purged },
   });
 
   return NextResponse.json({
