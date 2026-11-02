@@ -6,16 +6,26 @@
  * before Panel 0 teaches it the staff session. It was at 0% coverage.
  */
 
+jest.mock("@supabase/ssr", () => ({ createServerClient: jest.fn() }));
+
 import { NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 import { config, proxy } from "./proxy";
 import { ADMIN_SESSION_COOKIE, createSessionToken } from "@/backend/auth/adminSession";
 
 const env = { ...process.env };
+const getClaims = jest.fn();
 
 beforeEach(() => {
   process.env.ADMIN_SESSION_SECRET = "session-secret-for-tests";
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
   delete process.env.ADMIN_LEGACY_LOGIN;
   jest.useFakeTimers({ now: Date.parse("2026-11-10T12:00:00Z"), doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
+  getClaims.mockReset();
+  getClaims.mockResolvedValue({ data: null, error: null });
+  (createServerClient as jest.Mock).mockReset();
+  (createServerClient as jest.Mock).mockImplementation(() => ({ auth: { getClaims } }));
 });
 
 afterEach(() => {
@@ -69,5 +79,65 @@ describe("everything else needs a session", () => {
   test("a valid shared-password cookie passes, for pages and API calls", async () => {
     expect(passes(await proxy(req("/admin", "GET", legacy())))).toBe(true);
     expect(passes(await proxy(req("/api/admin/articles", "DELETE", legacy())))).toBe(true);
+  });
+});
+
+// Panel 0: the proxy also accepts a Supabase staff session. It stays optimistic (no database call):
+// getClaims() verifies the JWT and refreshes it when due; requirePermission decides in each route.
+describe("the staff session (Panel 0)", () => {
+  const staffClaims = () => getClaims.mockResolvedValue({ data: { claims: { sub: "u-1", aal: "aal1", session_id: "s-1" } }, error: null });
+
+  test("a verified staff JWT passes, for pages and API calls", async () => {
+    staffClaims();
+    expect(passes(await proxy(req("/admin", "GET", "sb-ref-auth-token=x")))).toBe(true);
+    expect(passes(await proxy(req("/api/admin/articles", "PATCH", "sb-ref-auth-token=x")))).toBe(true);
+  });
+
+  test("an invalid staff JWT and no legacy cookie: 401", async () => {
+    getClaims.mockResolvedValue({ data: null, error: { message: "invalid JWT" } });
+    expect((await proxy(req("/api/admin/articles", "GET", "sb-ref-auth-token=x"))).status).toBe(401);
+  });
+
+  test("a thrown error while checking (network): treated as no staff session", async () => {
+    getClaims.mockRejectedValue(new Error("fetch failed"));
+    expect((await proxy(req("/api/admin/articles"))).status).toBe(401);
+  });
+
+  test("no lockout: the shared-password cookie still passes alongside, and without Supabase configured", async () => {
+    getClaims.mockResolvedValue({ data: null, error: null });
+    expect(passes(await proxy(req("/api/admin/articles", "GET", legacy())))).toBe(true);
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    expect(passes(await proxy(req("/api/admin/articles", "GET", legacy())))).toBe(true);
+  });
+
+  test("a refreshed token is written to the response, HttpOnly, and passed on to the route", async () => {
+    (createServerClient as jest.Mock).mockImplementation((_url: string, _key: string, opts: { cookies: { setAll: (l: unknown[], h: Record<string, string>) => void } }) => ({
+      auth: {
+        getClaims: async () => {
+          opts.cookies.setAll([{ name: "sb-ref-auth-token", value: "fresh", options: { httpOnly: false, sameSite: "none", path: "/" } }], { "Cache-Control": "private, no-store" });
+          return { data: { claims: { sub: "u-1" } }, error: null };
+        },
+      },
+    }));
+    const res = await proxy(req("/api/admin/articles", "GET", "sb-ref-auth-token=stale"));
+    expect(passes(res)).toBe(true);
+    const cookie = res.headers.get("set-cookie") ?? "";
+    expect(cookie).toMatch(/sb-ref-auth-token=fresh/);
+    expect(cookie).toMatch(/HttpOnly/i);
+    expect(cookie).toMatch(/SameSite=lax/i);
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    // The route handler sees the refreshed cookie, so it does not refresh (and spend the token) again.
+    expect(res.headers.get("x-middleware-request-cookie") ?? res.headers.get("x-middleware-override-headers") ?? "").not.toBe("");
+  });
+
+  test("the shared password's end date applies here too: after it, its cookie is refused", async () => {
+    const cookie = legacy();
+    jest.setSystemTime(Date.parse("2026-12-31T18:30:00Z"));
+    expect((await proxy(req("/api/admin/articles", "GET", cookie))).status).toBe(401);
+  });
+
+  test("the public list is the shared one: GET /api/admin/logout is not public, POST is", async () => {
+    expect((await proxy(req("/api/admin/logout", "GET"))).status).toBe(401);
+    expect(passes(await proxy(req("/api/admin/logout", "POST")))).toBe(true);
   });
 });

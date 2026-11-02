@@ -32,6 +32,14 @@ export const PUBLIC_ADMIN_ROUTES: ReadonlyArray<{ path: string; method: Method }
   { path: "/api/admin/breaking-news", method: "GET" },
 ];
 
+/** The admin pages reachable with no session: the sign-in page only. */
+export const PUBLIC_ADMIN_PAGES: readonly string[] = ["/admin/login"];
+
+/** True for a request the proxy lets through with no session. */
+export function isPublicAdminRequest(pathname: string, method: string): boolean {
+  return PUBLIC_ADMIN_PAGES.includes(pathname) || PUBLIC_ADMIN_ROUTES.some((r) => r.path === pathname && r.method === method);
+}
+
 export const ADMIN_ROUTE_RULES = {
   "/api/admin/articles": {
     GET: { permissions: ["article.view_admin"], mode: "read", target: "none" },

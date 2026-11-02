@@ -1,44 +1,56 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ADMIN_SESSION_COOKIE, verifySessionToken } from "@/backend/auth/adminSession";
+import { isPublicAdminRequest } from "@/backend/auth/adminRoutePolicy";
+import { createProxyClient } from "@/backend/auth/supabaseServer";
 
 // Next.js 16 renamed Middleware to Proxy — this file replaces what would
 // previously have been middleware.ts. Same runtime, new file name.
+//
+// The optimistic check (Panel 0). Next's guidance: Proxy runs on every matched request, prefetches
+// included, so it reads only the session from the cookie and makes no database call; it "should not
+// be your only line of defense". The real decision is requirePermission in every admin route body
+// (backend/auth/requirePermission.ts), which reads the staff record live. This file only answers
+// "is there a session at all?", and sends everyone else to the sign-in page (or a 401 for the API).
+//
+// Two sessions are accepted, so no one is locked out during the cut-over (owner's condition):
+//   - the shared password's HMAC cookie, until it is retired (adminSession.ts, Q3);
+//   - a Supabase staff session: getClaims() verifies its JWT and refreshes it when due, and the
+//     refreshed cookies go to the browser and on to the route (backend/auth/supabaseServer.ts).
+//
+// What may pass with no session is one list, shared with the route-walk test: the sign-in page,
+// POST login, POST logout, and GET breaking-news for the homepage banner (owner decision D10,
+// PUBLIC_ADMIN_ROUTES in backend/auth/adminRoutePolicy.ts).
 
-// Routes the admin surface itself needs to reach before a session exists
-// (or after it's just been cleared): the login page, the endpoint that
-// creates the session cookie, and the endpoint that clears it. Everything
-// else under /admin/* and /api/admin/* requires a valid session.
-const PUBLIC_ADMIN_PATHS = new Set(["/admin/login", "/api/admin/login", "/api/admin/logout"]);
-
-// Breaking news is read by the public-facing homepage banner
-// (frontend/features/news/BreakingNewsBanner.tsx), which has no admin session —
-// so only GET on this one path is public. POST/DELETE (admin management,
-// same route file) still require a session like every other /api/admin/*
-// endpoint; the check below is method-aware specifically for this reason.
-const PUBLIC_GET_ADMIN_PATHS = new Set(["/api/admin/breaking-news"]);
-
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (PUBLIC_ADMIN_PATHS.has(pathname)) {
-    return NextResponse.next();
-  }
-  if (request.method === "GET" && PUBLIC_GET_ADMIN_PATHS.has(pathname)) {
+  if (isPublicAdminRequest(pathname, request.method)) {
     return NextResponse.next();
   }
 
-  const isApiAdmin = pathname.startsWith("/api/admin/");
-  const sessionToken = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
+  if (verifySessionToken(request.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
+    return NextResponse.next();
+  }
 
-  if (!verifySessionToken(sessionToken)) {
-    if (isApiAdmin) {
-      return NextResponse.json({ error: "Unauthorized: please log in." }, { status: 401 });
+  const supabase = createProxyClient(request);
+  if (supabase) {
+    let signedIn = false;
+    try {
+      const { data } = await supabase.client.auth.getClaims();
+      signedIn = typeof data?.claims?.sub === "string";
+    } catch {
+      signedIn = false;
     }
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+    if (signedIn) return supabase.response();
   }
 
-  return NextResponse.next();
+  const denied = pathname.startsWith("/api/admin/")
+    ? NextResponse.json({ error: "Unauthorized: please log in." }, { status: 401 })
+    : NextResponse.redirect(new URL("/admin/login", request.url));
+  // A failed refresh clears the staff cookies; carry that onto the response actually sent.
+  for (const cookie of supabase?.response().cookies.getAll() ?? []) denied.cookies.set(cookie);
+  return denied;
 }
 
 export const config = {
