@@ -182,7 +182,12 @@ const hasUseClient = (f) => parsed.get(f).directives.includes("use client");
 const SERVER_ONLY = new Set([
   "src/features/news/server/db.ts", "src/server/supabase.ts", "src/server/auth/adminSession.ts", "src/server/auditLog.ts",
   "src/features/news/server/categoryClassifier.ts", "src/features/news/server/fetchNews.ts", "src/features/news/server/newsdata.ts",
-  "src/server/googleTranslate.ts", "src/lib/urlValidation.ts", "src/server/health.ts",
+  "src/server/googleTranslate.ts", "src/server/health.ts",
+  // Added after S3, so keyed by their own paths. urlValidation left this list in
+  // 2cd04c9: it moved to shared/validation as browser-safe shape checks, with the
+  // DNS step injected by its server-side caller (backend/services/scrape/fetchPage.ts).
+  "backend/services/scrape/fetchPage.ts", "backend/services/news/knownArticle.ts",
+  "backend/lib/likePattern.ts", "backend/lib/readJsonBody.ts",
 ]);
 // Keyed by each module's path before S3; keyOf() finds the module wherever it
 // has moved. A key that matches no file means a module was deleted or renamed
@@ -241,9 +246,16 @@ const PURPOSE = {
   "src/server/supabase.ts": ["Supabase client; prefers service-role key when present", ""],
   "src/server/auth/adminSession.ts": ["HMAC session token issue/verify; timing-safe password compare", ""],
   "src/server/auditLog.ts": ["Writes admin_logs rows (logAdminAction)", ""],
-  "src/lib/urlValidation.ts": ["SSRF guard: protocol allowlist + DNS resolution against blocked ranges", ""],
+  "src/lib/urlValidation.ts": ["SSRF guard: URL shape and blocked address ranges, browser-safe; DNS via an injected resolver; safePublisherHref", ""],
+  "src/app/api/news/scrape-article/route.ts": ["Article scraper: cache, SSRF-guarded fetch, paywall detection, extraction; 200 or a failure status", ""],
+  "backend/api/news/scrape-article.ts": ["API: /api/news/scrape-article — stored articles only, per-IP limit, then the scraper", ""],
+  "backend/services/scrape/fetchPage.ts": ["Guarded fetch: each redirect hop revalidated, connections pinned to validated addresses, size cap", ""],
+  "backend/services/news/knownArticle.ts": ["Is this URL a stored (or mock) article? Exact link match; the F-005 trust anchor", ""],
+  "backend/lib/likePattern.ts": ["LIKE-escapes a search term into a contains pattern (F-006)", ""],
+  "backend/lib/readJsonBody.ts": ["Reads a JSON request body with a byte cap (F-010)", ""],
+  "shared/config/theme.ts": ["Theme storage key, backgrounds, and the pre-paint theme script (F-028)", ""],
   "src/lib/cache.ts": ["Upstash Redis with in-process Map fallback", ""],
-  "src/lib/rateLimit.ts": ["Fixed-window in-memory limiter; client IP extraction", ""],
+  "src/lib/rateLimit.ts": ["In-memory limiter with eviction; Redis fixed window for login and scrape; client IP", ""],
   "src/lib/sentryScrub.ts": ["Redacts secret env values from Sentry events", ""],
   "src/features/news/newsConfig.ts": ["Editorial policy: category map, script filters, spam/filler source lists, dedupe", ""],
   "src/features/news/server/categoryClassifier.ts": ["Haiku flags category tags an article does not fit (fail-open)", ""],
@@ -252,7 +264,7 @@ const PURPOSE = {
   "src/config/topicImages.ts": ["Keyword to Unsplash topic-image table + per-topic round robin", ""],
   "src/config/imageDomains.ts": ["next/image hostname allowlist. Imported by next.config.ts at LOAD TIME", "CR-06: must import nothing"],
   "src/config/categoryColors.ts": ["Per-category hex/Tailwind class map", ""],
-  "src/config/translations.ts": ["EN/HI static strings; translateHeadline is a no-op stub", "shared, not a feature"],
+  "src/config/translations.ts": ["EN/HI static strings", "shared, not a feature"],
   "src/server/googleTranslate.ts": ["Unofficial translate.googleapis.com client, bounded concurrency", ""],
   "src/server/health.ts": ["Dependency health for /api/health (status only) and /api/admin/health (detail); D4", ""],
   "src/lib/reportFallback.ts": ["Rate-limited Sentry report of a fallback (D5); bounded by a fixed set of kinds", ""],
@@ -300,7 +312,10 @@ function describe(file) {
   const basis = keyOf(file);
   let purpose;
   let note = "";
-  if (shim) purpose = `Re-exports \`${entry.to}\``;
+  // A shim is labelled with what it re-exports today, read from the graph: its
+  // move-map target is history, and a body can move on after S3 (the scraper
+  // did, in 1d68b97, leaving a thin route behind).
+  if (shim) purpose = `Re-exports \`${out.get(file).find((e) => e.kind === "reexport")?.to ?? entry.to}\``;
   else if (PURPOSE[basis]) [purpose, note] = PURPOSE[basis];
   else if (basis.endsWith("/route.ts")) purpose = "API: " + appPath(basis).replace("/route.ts", "");
   else if (basis.endsWith("/page.tsx")) purpose = "Page: " + (appPath(basis).replace("/page.tsx", "") || "/");
