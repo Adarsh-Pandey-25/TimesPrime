@@ -115,3 +115,70 @@ describe("askTimesPrime: a successful answer (characterization, F-013)", () => {
     expect(chatCalls()).toHaveLength(0);
   });
 });
+
+// The panel answered every failure with a made-up "Key Takeaway" about the
+// article, presented as the AI's answer. It now says the request failed and
+// why, as the chatbot does, and shows no answer.
+describe("askTimesPrime: a failure is reported, never answered (F-013)", () => {
+  const FABRICATED = /Key Takeaway|key insight|Stay tuned to TimesPrime/;
+
+  function chatAnswers(answer: () => Promise<unknown>) {
+    (global.fetch as jest.Mock).mockImplementation(async (url: string) =>
+      url === "/api/chat" ? answer() : new Response("{}", { status: 200 })
+    );
+  }
+
+  beforeEach(() => jest.spyOn(console, "error").mockImplementation(() => {}));
+  afterEach(() => jest.restoreAllMocks());
+
+  test.each([
+    ["an HTTP error, with the server's message", async () => streamed([], { ok: false, status: 503, json: { error: "AI service unavailable." } }), "Sorry, that request failed: AI service unavailable."],
+    ["an HTTP error without a message", async () => streamed([], { ok: false, status: 500 }), "Sorry, that request failed: AI query failed with status 500"],
+    ["a network error", async () => { throw new TypeError("Failed to fetch"); }, "Sorry, that request failed: Failed to fetch"],
+  ])("%s", async (_label, answer, message) => {
+    chatAnswers(answer);
+    renderPanel();
+    await ask("What passed?");
+    expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(screen.queryByText("AI Answer:")).toBeNull();
+    expect(document.body.textContent).not.toMatch(FABRICATED);
+  });
+
+  test("an empty answer says so, instead of a canned insight", async () => {
+    chatAnswers(async () => streamed([]));
+    renderPanel();
+    await ask("What passed?");
+    expect(screen.getByRole("alert")).toHaveTextContent("I'm having trouble processing that request right now.");
+    expect(screen.queryByText("AI Answer:")).toBeNull();
+    expect(document.body.textContent).not.toMatch(FABRICATED);
+  });
+
+  test("a stream that breaks midway replaces the partial answer with the error", async () => {
+    const res = streamed(["The budget "]);
+    const reader = res.body.getReader();
+    let first = true;
+    res.body.getReader = () => ({
+      read: async () => {
+        if (first) { first = false; return reader.read(); }
+        throw new Error("network error");
+      },
+    });
+    chatAnswers(async () => res);
+    renderPanel();
+    await ask("What passed?");
+    expect(screen.getByRole("alert")).toHaveTextContent("Sorry, that request failed: network error");
+    expect(screen.queryByText("AI Answer:")).toBeNull();
+    expect(document.body.textContent).not.toContain("The budget ");
+  });
+
+  test("a new question clears the previous error", async () => {
+    chatAnswers(async () => { throw new TypeError("Failed to fetch"); });
+    renderPanel();
+    await ask("What passed?");
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    chatAnswers(async () => streamed(["It passed."]));
+    await ask("And then?");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText(/It passed\./)).toBeInTheDocument();
+  });
+});

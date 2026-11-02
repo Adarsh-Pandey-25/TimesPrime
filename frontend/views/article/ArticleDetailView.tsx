@@ -92,6 +92,7 @@ export default function ArticleDetailView({
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const [translatedTitle, setTranslatedTitle] = useState<string | null>(null);
   const [translatedDescription, setTranslatedDescription] = useState<string | null>(null);
@@ -300,6 +301,7 @@ export default function ArticleDetailView({
 
     setAiLoading(true);
     setAiResponse(null);
+    setAiError(null);
 
     try {
       const res = await fetch("/api/chat", {
@@ -333,16 +335,21 @@ export default function ArticleDetailView({
         setAiResponse(fullText);
       }
 
+      // F-013: a failure is reported as one, as the chatbot does. It used to
+      // be answered with a made-up "Key Takeaway" shown as the AI's answer.
       if (!fullText.trim()) {
-        setAiResponse("Here is the key insight for your query.");
+        setAiResponse(null);
+        setAiError(
+          language === "hi"
+            ? "अभी इस अनुरोध को संसाधित करने में समस्या हो रही है।"
+            : "I'm having trouble processing that request right now."
+        );
       }
     } catch (err) {
-      console.error("askTimesPrime failed:", err instanceof Error ? err.message : err);
-      setAiResponse(
-        language === "hi"
-          ? `मुख्य निष्कर्ष: "${displayTitle}" प्रमुख वैश्विक अपडेट का हिस्सा है। लाइव फॉलो-अप के लिए टाइम्सप्राइम पर बने रहें।`
-          : `Key Takeaway: "${displayTitle}" is part of ongoing major global updates. Stay tuned to TimesPrime for live follow-ups.`
-      );
+      const reason = err instanceof Error ? err.message : "unknown network error";
+      console.error("askTimesPrime failed:", reason);
+      setAiResponse(null);
+      setAiError(language === "hi" ? `क्षमा करें, अनुरोध विफल रहा: ${reason}` : `Sorry, that request failed: ${reason}`);
     } finally {
       setAiLoading(false);
     }
@@ -775,6 +782,15 @@ export default function ArticleDetailView({
                   {language === "hi" ? "एआई उत्तर:" : "AI Answer:"}
                 </span>
                 {aiResponse}
+              </div>
+            )}
+            {aiError && (
+              <div role="alert" className={`rounded-lg border p-3 text-[11px] leading-relaxed animate-in fade-in ${
+                isDark
+                  ? "border-red-900/50 bg-[#1a1c1e] text-red-300"
+                  : "border-red-200 bg-red-50 text-red-700"
+              }`}>
+                {aiError}
               </div>
             )}
           </div>
