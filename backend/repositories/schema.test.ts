@@ -66,3 +66,28 @@ describe("database/policies.sql (F-008)", () => {
     expect(policies).toContain("REVOKE ALL ON public.admin_logs FROM anon, authenticated;");
   });
 });
+
+describe("database/migrations/2026-11-02-indexes.sql (F-018)", () => {
+  const migration = read("migrations/2026-11-02-indexes.sql");
+
+  test.each([
+    ["the feed's category containment", /CREATE INDEX IF NOT EXISTS \w+ ON public\.articles USING GIN \(category\);/],
+    ["the country containment", /CREATE INDEX IF NOT EXISTS \w+ ON public\.articles USING GIN \(country\);/],
+    ["trigram search on title", /CREATE INDEX IF NOT EXISTS \w+ ON public\.articles USING GIN \(title gin_trgm_ops\);/],
+    ["trigram search on description", /CREATE INDEX IF NOT EXISTS \w+ ON public\.articles USING GIN \(description gin_trgm_ops\);/],
+    ["the F-005 and public-scrape lookup on link", /CREATE INDEX IF NOT EXISTS \w+ ON public\.articles \(link\);/],
+  ])("indexes %s", (_label, pattern) => {
+    expect(migration).toMatch(pattern);
+  });
+
+  test("enables pg_trgm before the trigram indexes, and is idempotent throughout", () => {
+    expect(migration.indexOf("CREATE EXTENSION IF NOT EXISTS pg_trgm;")).toBeLessThan(migration.indexOf("gin_trgm_ops"));
+    const statements = migration.split("\n").filter((l) => /^CREATE /.test(l));
+    expect(statements.length).toBe(6);
+    for (const s of statements) expect(s).toMatch(/IF NOT EXISTS/);
+  });
+
+  test("the link index is not UNIQUE: stored rows can share the '#' placeholder link", () => {
+    expect(migration).not.toMatch(/CREATE UNIQUE INDEX[^;]*\(link\)/);
+  });
+});
