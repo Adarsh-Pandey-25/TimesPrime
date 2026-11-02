@@ -8,7 +8,9 @@
 
 jest.mock("@sentry/nextjs", () => ({ captureMessage: jest.fn(), captureException: jest.fn() }));
 jest.mock("@/backend/lib/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
-jest.mock("@/backend/repositories/auditLog", () => ({ logAdminAction: jest.fn() }));
+// The gate is tested in access.test.ts; here it lets every request through, so these tests keep
+// describing the list itself.
+jest.mock("@/backend/auth/requirePermission", () => ({ requirePermission: jest.fn(async () => ({ ok: true, actor: {} })) }));
 
 import { NextRequest } from "next/server";
 import { GET } from "./articles";

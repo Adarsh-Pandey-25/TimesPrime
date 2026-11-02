@@ -4,10 +4,19 @@ import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 import { containsPattern } from "@/backend/lib/likePattern";
-import { logAdminAction } from "@/backend/repositories/auditLog";
+import { ADMIN_ROUTE_RULES } from "@/backend/auth/adminRoutePolicy";
+import { ANY_SCOPE } from "@/backend/auth/decide";
+import { articleScope } from "@/backend/auth/scope";
+import { auditUnavailable, beginAudit, finishAudit, requirePermission, requireTarget } from "@/backend/auth/requirePermission";
 
-// Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),
-// so by the time a request reaches this handler it has already been validated.
+// Each handler passes requirePermission first: the only gate on this path, because the Supabase
+// client here is service_role and bypasses RLS (Panel 0). The proxy's check is optimistic. A change
+// checks the article's own scope (language, category[0]; ADR 0003) once the article is loaded, and
+// is audited as attempted, then its outcome; if the attempt cannot be recorded, nothing changes.
+const RULES = ADMIN_ROUTE_RULES["/api/admin/articles"];
+
+/** The columns a change reads first: its scope, and the before-values for the audit row. */
+const CURRENT_COLUMNS = "article_id, title, description, image_url, source_name, category, language";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
@@ -46,8 +55,12 @@ const COUNTRY_CODE_TO_STORED_NAME: Record<string, string> = {
  * (TEXT[] contains-match — 2-letter code like "in", translated to the
  * stored country name via COUNTRY_CODE_TO_STORED_NAME), search (title
  * ilike). Returns { articles, total, page, totalPages }.
+ * Needs article.view_admin in any scope; articles are public data, and the desk filter is Panel 2.
  */
 export async function GET(request: NextRequest) {
+  const gate = await requirePermission(request, RULES.GET);
+  if (!gate.ok) return gate.response;
+
   try {
     if (!isSupabaseConfigured()) {
       return NextResponse.json(
@@ -114,11 +127,30 @@ export async function GET(request: NextRequest) {
   }
 }
 
+type CurrentArticle = Pick<AdminArticleRow, "article_id" | "title" | "description" | "image_url" | "source_name" | "category" | "language">;
+
+/** The article a change targets, or a response that ends the request (404, or 500 on a read error). */
+async function loadCurrent(articleId: string): Promise<{ row: CurrentArticle } | { response: NextResponse }> {
+  const { data, error } = await supabase.from("articles").select(CURRENT_COLUMNS).eq("article_id", articleId).maybeSingle();
+  if (error) {
+    console.error("Admin article read error:", error.message);
+    return { response: NextResponse.json({ error: error.message }, { status: 500 }) };
+  }
+  if (!data) return { response: NextResponse.json({ error: "Article not found." }, { status: 404 }) };
+  return { row: data as CurrentArticle };
+}
+
 /**
  * Deletes a single article by article_id (not the row's UUID). Body:
  * { article_id: string }. Returns { success: true, deleted: article_id }.
+ * Needs article.unpublish in the article's scope. An unknown article_id is 404: there is no scope
+ * to check it against (before Panel 0 it answered success and deleted nothing).
  */
 export async function DELETE(request: NextRequest) {
+  const gate = await requirePermission(request, RULES.DELETE, ANY_SCOPE);
+  if (!gate.ok) return gate.response;
+  const actor = gate.actor;
+
   try {
     if (!isSupabaseConfigured()) {
       return NextResponse.json(
@@ -139,6 +171,22 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "article_id is required." }, { status: 400 });
     }
 
+    const current = await loadCurrent(articleId);
+    if ("response" in current) return current.response;
+    const target = articleScope(current.row);
+    const scoped = await requireTarget(actor, RULES.DELETE, target);
+    if (!scoped.ok) return scoped.response;
+
+    const entry = {
+      action: "article.unpublish",
+      entityType: "article",
+      entityId: articleId,
+      target,
+      before: { title: current.row.title, language: current.row.language, category: current.row.category },
+    };
+    const attempt = await beginAudit(actor, entry);
+    if (!attempt) return auditUnavailable();
+
     const { error } = await supabase.from("articles").delete().eq("article_id", articleId);
 
     if (error) {
@@ -147,10 +195,11 @@ export async function DELETE(request: NextRequest) {
         tags: { source: "supabase" },
         extra: { operation: "deleteArticle", articleId },
       });
+      await finishAudit(actor, attempt, "failed", { ...entry, reason: error.message });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    await logAdminAction("article_deleted", `Deleted article: ${articleId}`, { article_id: articleId });
+    await finishAudit(actor, attempt, "succeeded", entry);
 
     return NextResponse.json({ success: true, deleted: articleId });
   } catch (err) {
@@ -182,8 +231,15 @@ type ArticleUpdateFields = Partial<
  * { article_id, title?, description?, image_url?, source_name?, category?, language? } —
  * only the fields present in the body are written. Returns
  * { success: true, article }.
+ * Needs article.edit in the article's scope; an edit that moves the article to another language or
+ * first category needs it in the new scope as well (ADR 0003), so no one moves an article in or
+ * out of a desk they do not hold.
  */
 export async function PATCH(request: NextRequest) {
+  const gate = await requirePermission(request, RULES.PATCH, ANY_SCOPE);
+  if (!gate.ok) return gate.response;
+  const actor = gate.actor;
+
   try {
     if (!isSupabaseConfigured()) {
       return NextResponse.json(
@@ -218,6 +274,29 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "No valid fields to update." }, { status: 400 });
     }
 
+    const current = await loadCurrent(articleId);
+    if ("response" in current) return current.response;
+    const target = articleScope(current.row);
+    const scoped = await requireTarget(actor, RULES.PATCH, target);
+    if (!scoped.ok) return scoped.response;
+    const moved = articleScope({ language: updates.language ?? current.row.language, category: updates.category ?? current.row.category });
+    if (moved.language !== target.language || moved.section !== target.section) {
+      const into = await requireTarget(actor, RULES.PATCH, moved);
+      if (!into.ok) return into.response;
+    }
+
+    const fields = Object.keys(updates) as Array<keyof ArticleUpdateFields>;
+    const entry = {
+      action: "article.edit",
+      entityType: "article",
+      entityId: articleId,
+      target,
+      before: Object.fromEntries(fields.map((f) => [f, current.row[f]])),
+      after: { ...updates },
+    };
+    const attempt = await beginAudit(actor, entry);
+    if (!attempt) return auditUnavailable();
+
     const { data, error } = await supabase
       .from("articles")
       .update(updates)
@@ -231,13 +310,11 @@ export async function PATCH(request: NextRequest) {
         tags: { source: "supabase" },
         extra: { operation: "updateArticle", articleId },
       });
+      await finishAudit(actor, attempt, "failed", { ...entry, reason: error.message });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    await logAdminAction("article_edited", `Edited article: ${articleId}`, {
-      article_id: articleId,
-      fields: Object.keys(updates),
-    });
+    await finishAudit(actor, attempt, "succeeded", entry);
 
     return NextResponse.json({ success: true, article: data as AdminArticleRow });
   } catch (err) {
