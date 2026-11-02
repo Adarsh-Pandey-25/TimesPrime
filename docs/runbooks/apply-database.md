@@ -230,6 +230,18 @@ DROP EXTENSION IF EXISTS pg_trgm;  -- refuses (and changes nothing) if anything 
 - `GET /api/health` answers 200 with `{"status":"ok"}`. A 503 (`degraded`) means a dependency is
   down; the result is cached for 60 seconds, so wait a minute before checking again.
 
+## 5. The Panel 0 access files
+
+Three more files, for staff accounts, roles and the audit log:
+`database/migrations/2026-11-02-access-1-foundation.sql`, `2026-11-02-access-2-catalog.sql` and
+`2026-11-02-access-3-freeze-admin-logs.sql`, plus `database/bootstrap/super-admin.sql`. They have
+an order relative to the code deploy (migrations before it, the freeze after it), so they are not
+listed here. Follow [`staff-access.md`](staff-access.md), which gives each step's check and undo.
+Each file also carries its own verification queries and rollback.
+
+From the Panel 0 deploy, the activity log reads `audit_log` (`admin_logs` is history), and an admin
+change that cannot write its audit row is refused with 503.
+
 If the activity log is empty or fails right after an admin action, the app may be on the anon
 fallback; see
 [Which key the app uses](#which-key-the-app-uses-and-what-rls-does-to-it). Roll back step 1 for
