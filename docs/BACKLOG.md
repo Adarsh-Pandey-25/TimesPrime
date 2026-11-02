@@ -468,3 +468,19 @@ before dropping the write.
 
 Options: keep it, drop it, or move it behind the cron. Not changed in Phase 2: it is not part of any
 audit finding.
+
+## BL-023 — Signed article links, if the article page must survive a Supabase outage
+
+**Found:** audit Phase 2, F-005 (`8d0b775`) · **Status:** Open — upgrade path, only if needed (owner)
+
+F-005 trusts the article page's `?url=` only when it names a stored article (or a built-in mock
+one). That is a database read per article page, so while Supabase is down, and for articles past
+the 7-day purge, the page shows no publisher link and no scraped text: safe, but degraded.
+
+If outage resilience is ever needed: the server attaches an HMAC of each article link to the feed
+data it already sends (a new secret, for example `ARTICLE_LINK_SECRET`). Every place that builds an
+`/article/...?url=` link adds `&sig=`, and the page verifies the signature instead of querying the
+database. Costs: a new environment variable; an additive change to the feed responses; edits to
+the six link builders (`ArticleCard` ×2, `CategoryMegaMenu`, `MarqueeTicker`, and the
+related/trending lists in `ArticleDetailView`); and links shared before the change lose their
+publisher link. The stored-article lookup was chosen instead (owner, Phase 2).
