@@ -643,3 +643,17 @@ table keeps a light record of every published item (title, link, source, publish
 times, actor) for at least 60 days, and the purge floor applies to the records, not to the feed.
 Not built now: the table, its writer and the floor belong to Panel 4 (Ingestion) or Panel 7
 (Compliance), whichever comes first.
+
+## BL-034 — Export the audit chain's head hash outside the database
+
+**Found:** owner, Panel 0 design approval (2026-11-02) · **Status:** Open — after Panel 0
+
+`audit_log` chains each row to the one before it (`prev_hash`, `row_hash`; design
+[`panel-0-access-foundation.md`](design/panel-0-access-foundation.md) §1), and
+`audit_verify_chain()` finds an edited or deleted row. It cannot find a **full rewrite**: someone
+with owner access to the database could recompute every hash from the first row on, and the chain
+would verify. The defence is a copy of the head that lives somewhere else. On a schedule (for
+example daily, from the cron), record the latest `seq` and `row_hash` outside the database: a
+log line to an external sink, a Sentry event, or a file in separate storage. A rewrite then shows as
+a head that no longer matches the exported one. Needs a choice of destination that a database owner
+cannot also edit.
