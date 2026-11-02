@@ -5,14 +5,16 @@
  * `fetch` answers each admin route as the test sets it.
  */
 
-jest.mock("next/navigation", () => ({ useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }) }));
+const mockPush = jest.fn();
+jest.mock("next/navigation", () => ({ useRouter: () => ({ push: mockPush, refresh: jest.fn() }) }));
 jest.mock("@/frontend/features/news", () => ({ Header: () => null, Footer: () => null, MarqueeTicker: () => null }));
+// Each widget renders its name, so a test can see which ones the dashboard shows.
 jest.mock("@/frontend/features/admin", () => ({
-  ArticlesTable: () => null,
-  CategoryStatsCard: () => null,
-  BreakingNewsManager: () => null,
-  SyncDashboard: () => null,
-  ActivityLog: () => null,
+  ArticlesTable: () => "[ArticlesTable]",
+  CategoryStatsCard: () => "[CategoryStatsCard]",
+  BreakingNewsManager: () => "[BreakingNewsManager]",
+  SyncDashboard: () => "[SyncDashboard]",
+  ActivityLog: () => "[ActivityLog]",
 }));
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -24,8 +26,36 @@ let answers: Record<string, Answer>;
 
 const STATS = { configured: true, totalStoredArticles: 120, retentionDays: 7, databaseType: "Supabase" };
 
+// Panel 0: the dashboard asks /api/admin/me what the user holds and hides the rest. The F-014 tests
+// below need both buttons, so their user holds sync.run and content.purge. (No real role holds
+// content.purge yet: it is A for everyone until Panel 4, so in practice the purge button is hidden.)
+const staffMe = (permissions: Record<string, "act" | "read">, over: object = {}) => ({
+  kind: "staff",
+  displayName: "Asha",
+  aal: "aal2",
+  roles: [{ role: "super_admin", language: null, section: null, expiresAt: "2099-01-01T00:00:00Z" }],
+  permissions,
+  mfa: { required: true, enrolled: true },
+  ...over,
+});
+const EVERYTHING = staffMe({
+  "sync.view": "act",
+  "sync.run": "act",
+  "content.purge": "act",
+  "stats.view": "act",
+  "breaking_banner.manage": "act",
+  "article.publish_direct": "act",
+  "article.create": "act",
+  "article.view_admin": "act",
+  "audit.read": "read",
+});
+
 beforeEach(() => {
-  answers = { "GET /api/admin/db-stats": { status: 200, body: { status: "success", stats: STATS } } };
+  mockPush.mockReset();
+  answers = {
+    "GET /api/admin/me": { status: 200, body: EVERYTHING },
+    "GET /api/admin/db-stats": { status: 200, body: { status: "success", stats: STATS } },
+  };
   global.fetch = jest.fn(async (url: string, init: RequestInit = {}) => {
     const answer = answers[`${init.method ?? "GET"} ${url}`] ?? { status: 404, body: {} };
     if (answer instanceof Error) throw answer;
@@ -130,5 +160,75 @@ describe("the sync and purge buttons on failure (F-014)", () => {
     await click(PURGE);
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByText("Purged 3 articles.")).toBeInTheDocument();
+  });
+});
+
+// Panel 0: the dashboard shows only what /api/admin/me says the user holds. UX only: every route
+// checks again on the server, which access.test.ts proves.
+describe("what the dashboard shows depends on /api/admin/me (Panel 0)", () => {
+  const shown = () => document.body.textContent ?? "";
+
+  test("everything held: every widget and both controls, and who is signed in", async () => {
+    await renderDashboard();
+    for (const w of ["[SyncDashboard]", "[BreakingNewsManager]", "[CategoryStatsCard]", "[ArticlesTable]", "[ActivityLog]"]) expect(shown()).toContain(w);
+    expect(screen.getByRole("button", { name: SYNC })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: PURGE })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Publish Article/ })).toBeInTheDocument();
+    expect(shown()).toMatch(/Signed in as Asha/);
+  });
+
+  test("only stats.view: the stats, and nothing that changes anything", async () => {
+    answers["GET /api/admin/me"] = { status: 200, body: staffMe({ "stats.view": "act" }) };
+    await renderDashboard();
+    expect(shown()).toContain("[CategoryStatsCard]");
+    expect(screen.getByText("120")).toBeInTheDocument();
+    for (const w of ["[SyncDashboard]", "[BreakingNewsManager]", "[ArticlesTable]", "[ActivityLog]"]) expect(shown()).not.toContain(w);
+    expect(screen.queryByRole("button", { name: SYNC })).toBeNull();
+    expect(screen.queryByRole("button", { name: PURGE })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Publish Article/ })).toBeNull();
+  });
+
+  test("without content.purge (every real role, until Panel 4) the purge button is hidden", async () => {
+    const rest = Object.fromEntries(Object.entries(EVERYTHING.permissions).filter(([key]) => key !== "content.purge"));
+    answers["GET /api/admin/me"] = { status: 200, body: staffMe(rest) };
+    await renderDashboard();
+    expect(screen.getByRole("button", { name: SYNC })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: PURGE })).toBeNull();
+  });
+
+  test("the shared password: a notice with the date it retires, and no activity log", async () => {
+    answers["GET /api/admin/me"] = {
+      status: 200,
+      body: {
+        kind: "legacy",
+        displayName: "Shared admin password",
+        retiresAt: "2026-12-31T18:30:00.000Z",
+        permissions: { "article.view_admin": "act", "sync.run": "act", "sync.view": "act", "stats.view": "act", "breaking_banner.manage": "act", "article.publish_direct": "act", "article.create": "act" },
+      },
+    };
+    await renderDashboard();
+    expect(shown()).toMatch(/shared admin password/i);
+    expect(shown()).toMatch(/1 January 2027/);
+    expect(shown()).toContain("[ArticlesTable]");
+    expect(shown()).not.toContain("[ActivityLog]");
+  });
+
+  test("no session (401): sent to the sign-in page", async () => {
+    answers["GET /api/admin/me"] = { status: 401, body: { error: "Unauthorized: please log in." } };
+    await renderDashboard();
+    expect(mockPush).toHaveBeenCalledWith("/admin/login");
+  });
+
+  test("an aal1 session that still needs its code: told to finish signing in, nothing shown", async () => {
+    answers["GET /api/admin/me"] = { status: 200, body: staffMe({}, { aal: "aal1" }) };
+    await renderDashboard();
+    expect(screen.getByRole("link", { name: /finish signing in/i })).toHaveAttribute("href", "/admin/login");
+    expect(shown()).not.toContain("[CategoryStatsCard]");
+  });
+
+  test("a refusal from /me (not staff, suspended) is shown as is", async () => {
+    answers["GET /api/admin/me"] = { status: 403, body: { error: "This staff account is suspended.", code: "suspended" } };
+    await renderDashboard();
+    expect(screen.getByRole("alert")).toHaveTextContent("This staff account is suspended.");
   });
 });

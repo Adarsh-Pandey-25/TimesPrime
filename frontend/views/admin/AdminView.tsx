@@ -7,6 +7,16 @@ import { CheckCircle2, Database, ShieldCheck, RefreshCw, AlertTriangle, LogOut }
 import { Language } from "@/shared/config/translations";
 import { useTheme } from "@/frontend/context/ThemeContext";
 import { ArticlesTable, CategoryStatsCard, BreakingNewsManager, SyncDashboard, ActivityLog } from "@/frontend/features/admin";
+import type { AdminMe } from "@/shared/types";
+
+// Panel 0: what this page shows depends on GET /api/admin/me, which says what the signed-in user
+// holds. Hiding is UX only, never the check: every admin route decides again on the server
+// (backend/auth/requirePermission.ts). Each widget is shown for the permission its routes need.
+
+/** "1 January 2027": the day the shared password stops working, in IST. */
+function retireDay(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric" });
+}
 
 interface DbStats {
   configured: boolean;
@@ -44,6 +54,39 @@ export default function AdminDashboardPage() {
   const [seeding, setSeeding] = useState(false);
   const [purgeMsg, setPurgeMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Who is signed in, and what they hold (Panel 0).
+  const [me, setMe] = useState<AdminMe | null>(null);
+  const [meError, setMeError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/me", { credentials: "include" });
+        if (cancelled) return;
+        if (res.status === 401) {
+          router.push("/admin/login");
+          return;
+        }
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (!res.ok) setMeError(data?.error || `Could not load your access (status ${res.status}).`);
+        else setMe(data as AdminMe);
+      } catch {
+        if (!cancelled) setMeError("Network error while loading your access.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  /** Held now, in some scope: "act" for a change, any value for a read. */
+  const can = (permission: string, mode: "act" | "read" = "read") =>
+    Boolean(me && (mode === "read" ? me.permissions[permission] : me.permissions[permission] === "act"));
+  const needsCode = me?.kind === "staff" && me.aal === "aal1" && me.mfa.required;
+  const canStats = can("stats.view") && !needsCode;
+
   const fetchDbStats = async () => {
     try {
       const res = await fetch("/api/admin/db-stats", { credentials: "include" });
@@ -57,11 +100,13 @@ export default function AdminDashboardPage() {
   };
 
   // Necessary setState-in-effect: DB stats can only come from an async
-  // fetch, which can't run synchronously during render.
+  // fetch, which can't run synchronously during render. Only once /me says
+  // the user may read them (stats.view).
   useEffect(() => {
+    if (!canStats) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDbStats();
-  }, []);
+  }, [canStats]);
 
   // F-014: success only on res.ok. An error status shows the server's
   // message (the admin routes send `message`, proxy.ts sends `error`), and a
@@ -211,6 +256,13 @@ export default function AdminDashboardPage() {
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
               Manage live publishing, 7-day retention engine, and database auto-cleanup rules.
             </p>
+            {me && (
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 font-semibold">
+                {me.kind === "staff"
+                  ? `Signed in as ${me.displayName}${me.roles.length ? ` · ${me.roles.map((r) => [r.role.replace(/_/g, " "), r.language, r.section].filter(Boolean).join(" ")).join(", ")}` : ""}`
+                  : "Signed in with the shared admin password"}
+              </p>
+            )}
           </div>
           <button
             onClick={handleLogout}
@@ -221,13 +273,36 @@ export default function AdminDashboardPage() {
           </button>
         </div>
 
-        <SyncDashboard />
+        {me?.kind === "legacy" && (
+          <div role="note" className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40 p-3 text-xs font-semibold text-amber-800 dark:text-amber-200">
+            You are using the shared admin password. It stops working on {retireDay(me.retiresAt)}. Ask a Super Admin for a staff account.
+          </div>
+        )}
 
-        <BreakingNewsManager />
+        {meError && (
+          <div role="alert" className="rounded-xl border border-red-300 bg-red-50 dark:border-red-900/50 dark:bg-red-950/40 p-3 text-xs font-semibold text-red-700 dark:text-red-300">
+            {meError}
+          </div>
+        )}
 
-        <CategoryStatsCard />
+        {needsCode && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40 p-3 text-xs font-semibold text-amber-800 dark:text-amber-200">
+            Your account needs a second factor. <a href="/admin/login" className="underline">Finish signing in</a> with your authenticator code.
+          </div>
+        )}
+
+        {!me && !meError && <p className="text-xs text-slate-500 dark:text-slate-400">Checking your access…</p>}
+
+        {me && !needsCode && (
+        <>
+        {can("sync.view") && <SyncDashboard />}
+
+        {can("breaking_banner.manage", "act") && <BreakingNewsManager />}
+
+        {canStats && <CategoryStatsCard />}
 
         {/* 7-DAY DATABASE CONTROL PANEL CARD */}
+        {(canStats || can("sync.run", "act") || can("content.purge", "act")) && (
         <div className="rounded-2xl border border-red-200 dark:border-[#383d45] bg-gradient-to-br from-slate-900 to-slate-950 text-white p-6 shadow-md space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div className="flex items-center space-x-3">
@@ -249,6 +324,7 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Database Metrics Grid */}
+          {canStats && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2 text-xs">
             <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5 space-y-1">
               <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
@@ -278,9 +354,12 @@ export default function AdminDashboardPage() {
               </p>
             </div>
           </div>
+          )}
 
-          {/* Manual Controls */}
+          {/* Manual Controls: sync needs sync.run; the purge needs content.purge, which no role
+              holds outright until its approval flow exists (Panel 4), so it is normally hidden. */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            {can("sync.run", "act") && (
             <button
               onClick={handleSeedSupabase}
               disabled={seeding}
@@ -289,6 +368,8 @@ export default function AdminDashboardPage() {
               <RefreshCw className={`h-3.5 w-3.5 ${seeding ? "animate-spin" : ""}`} />
               {seeding ? "Syncing All Categories..." : "Sync All Categories Now"}
             </button>
+            )}
+            {can("content.purge", "act") && (
             <button
               onClick={handleManualPurge}
               disabled={purging}
@@ -297,6 +378,7 @@ export default function AdminDashboardPage() {
               <RefreshCw className={`h-3.5 w-3.5 ${purging ? "animate-spin" : ""}`} />
               {purging ? "Purging..." : "Run 7-Day Purge Now"}
             </button>
+            )}
           </div>
 
           {purgeMsg?.ok && (
@@ -310,7 +392,10 @@ export default function AdminDashboardPage() {
             </div>
           )}
         </div>
+        )}
 
+        {can("article.publish_direct", "act") && can("article.create", "act") && (
+        <>
         {/* Success Alert */}
         {submitted && (
           <div className="flex items-center space-x-3 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 p-4 text-emerald-800 dark:text-emerald-200 shadow-sm">
@@ -509,10 +594,14 @@ export default function AdminDashboardPage() {
             </div>
           </form>
         </div>
+        </>
+        )}
 
-        <ArticlesTable />
+        {can("article.view_admin") && <ArticlesTable />}
 
-        <ActivityLog />
+        {can("audit.read") && <ActivityLog />}
+        </>
+        )}
       </main>
 
       <Footer language={language} />
