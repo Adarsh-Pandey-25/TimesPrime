@@ -1,6 +1,5 @@
 import "server-only";
 
-import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
@@ -8,7 +7,6 @@ import * as Sentry from "@sentry/nextjs";
 import { validateExternalUrl } from "@/shared/validation/urlValidation";
 import { fetchPage, resolveHostname, UnsafeTargetError } from "@/backend/services/scrape/fetchPage";
 import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/backend/lib/cache";
-import { checkRateLimit, getClientIp } from "@/backend/lib/rateLimit";
 import { urlToHostname } from "@/shared/validation/sentryScrub";
 
 interface ScrapeCacheEntry {
@@ -21,13 +19,6 @@ interface ScrapeCacheEntry {
 }
 
 const MAX_CONTENT_CHARS = 5000;
-
-// F-011, owner decision D1: per client IP, counting only scrapes that reach
-// a publisher (a cached answer costs nothing). A reader opening an article
-// a second is far inside 30 a minute. Caveat, logged in BACKLOG: the one
-// caller today is the article page's server-side fetch of this route
-// (BL-016), so every reader's uncached article shares the server's bucket.
-const SCRAPE_RATE_LIMIT = { name: "scrape", limit: 30, windowSeconds: 60 };
 
 // DOM-level removal — runs BEFORE paragraph extraction, so anything inside
 // these containers can never reach $("p").each() as a paragraph at all.
@@ -380,24 +371,37 @@ function truncateContent(paragraphs: string[], maxChars: number): string[] {
   return truncated;
 }
 
-export async function GET(request: NextRequest) {
+/** What a scrape answers: an HTTP status and a JSON body, the same pair the public route sends. */
+export interface ScrapeResult {
+  status: number;
+  body: Record<string, unknown>;
+  headers?: Record<string, string>;
+}
+
+export interface ScrapeOptions {
+  /**
+   * Runs after a cache miss, before anything is fetched; a result it returns
+   * is answered as is. The public route passes its per-IP rate limit here
+   * (F-011), so a cached answer is never counted or refused.
+   */
+  beforeFetch?: () => Promise<ScrapeResult | null>;
+  /** The `url` the failure placeholder reports. The public route passes its own request URL, as it always has. */
+  fallbackUrl?: string;
+}
+
+/**
+ * Scrapes a publisher article: the cache first, then a guarded fetch
+ * (fetchPage, F-003), then extraction. Called by the public route
+ * (backend/api/news/scrape-article.ts) and, since BL-016, directly by the
+ * article page, which used to fetch that route over HTTP: every reader then
+ * shared the server's rate-limit bucket (BL-021). Callers check that the URL
+ * is a stored article first (F-005).
+ */
+export async function scrapeArticle(targetUrl: string, options: ScrapeOptions = {}): Promise<ScrapeResult> {
   try {
-    const { searchParams } = new URL(request.url);
-    const targetUrl = searchParams.get("url");
-
-    if (!targetUrl) {
-      return NextResponse.json(
-        { error: "Missing required query parameter: url" },
-        { status: 400 }
-      );
-    }
-
     const urlCheck = await validateExternalUrl(targetUrl, resolveHostname);
     if (!urlCheck.ok) {
-      return NextResponse.json(
-        { error: `Invalid target URL: ${urlCheck.reason}` },
-        { status: 400 }
-      );
+      return { status: 400, body: { error: `Invalid target URL: ${urlCheck.reason}` } };
     }
 
     const cacheKey = `scrape:${targetUrl}`;
@@ -405,7 +409,7 @@ export async function GET(request: NextRequest) {
     // 1. Instant cache lookup
     const cached = await cache.get<ScrapeCacheEntry>(cacheKey);
     if (cached) {
-      return NextResponse.json({
+      return { status: 200, body: {
         url: targetUrl,
         title: cached.title,
         content: cached.content,
@@ -414,16 +418,11 @@ export async function GET(request: NextRequest) {
         description: cached.description,
         image: cached.image,
         cached: true,
-      });
+      } };
     }
 
-    const rate = await checkRateLimit(getClientIp(request), SCRAPE_RATE_LIMIT);
-    if (rate.limited) {
-      return NextResponse.json(
-        { error: `Too many scrape requests. Try again in ${rate.retryAfterSeconds} seconds.` },
-        { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
-      );
-    }
+    const vetoed = await options.beforeFetch?.();
+    if (vetoed) return vetoed;
 
     // 2. Fast fetch with a 2.5 second aggressive timeout for the whole
     // redirect chain; every hop goes back through the SSRF guard (F-003).
@@ -467,7 +466,7 @@ export async function GET(request: NextRequest) {
         CACHE_TTL_SCRAPE_SECONDS
       );
 
-      return NextResponse.json({
+      return { status: 200, body: {
         url: targetUrl,
         title: paywallTitle,
         content: [],
@@ -475,7 +474,7 @@ export async function GET(request: NextRequest) {
         isPaywalled: true,
         description: paywallDescription,
         image: paywallImage,
-      });
+      } };
     }
 
     // Extract title
@@ -546,36 +545,36 @@ export async function GET(request: NextRequest) {
       // Ignore background save error
     }
 
-    return NextResponse.json({
+    return { status: 200, body: {
       url: targetUrl,
       title: pageTitle,
       content: resultContent,
       text: fullText || "Full article coverage.",
       isPaywalled: false,
-    });
+    } };
   } catch (error: unknown) {
     // A redirect the guard refused is a bad target, like a refused first URL.
     if (error instanceof UnsafeTargetError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return { status: 400, body: { error: error.message } };
     }
 
     console.warn("Fast scrape fallback for:", error instanceof Error ? error.message : String(error));
 
     // Domain only — never send the full target URL (which may carry query
     // params / tracking IDs) to Sentry.
-    const failedTargetUrl = new URL(request.url).searchParams.get("url");
+    const failedTargetUrl = targetUrl;
     const isTimeout = axios.isAxiosError(error) && error.code === "ECONNABORTED";
     Sentry.captureException(error, {
       tags: { source: "scraper", failureType: isTimeout ? "timeout" : "parse_or_fetch" },
       extra: { targetDomain: failedTargetUrl ? urlToHostname(failedTargetUrl) : "unknown" },
     });
 
-    return NextResponse.json({
-      url: request.url,
+    return { status: 200, body: {
+      url: options.fallbackUrl ?? targetUrl,
       title: "Full Story Coverage",
       content: ["Full article coverage details for this report are available directly on the official publisher website below."],
       text: "Full story details.",
       isPaywalled: false,
-    });
+    } };
   }
 }

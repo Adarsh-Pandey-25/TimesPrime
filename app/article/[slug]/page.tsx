@@ -3,6 +3,7 @@ import { Header, Footer } from "@/frontend/features/news";
 import ArticleDetailView from "@/frontend/views/article/ArticleDetailView";
 import { Article } from "@/shared/types";
 import { findKnownArticle } from "@/backend/services/news";
+import { scrapeArticle } from "@/backend/services/scrape/scrapeArticle";
 import { safePublisherHref } from "@/shared/validation/urlValidation";
 
 interface PageProps {
@@ -50,15 +51,14 @@ async function getArticleContent(targetUrl?: string) {
     };
   }
 
+  // The backend directly, not this app's own HTTP route (BL-016): over HTTP
+  // every reader reached the route from the server's address, and so shared
+  // one rate-limit bucket (BL-021). targetUrl is already a known article
+  // (F-005); the scrape cache is still checked first.
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    const res = await fetch(`${baseUrl}/api/news/scrape-article?url=${encodeURIComponent(targetUrl)}`, {
-      headers: { "ngrok-skip-browser-warning": "true" },
-      next: { revalidate: 3600 },
-    });
-
-    if (!res.ok) throw new Error("Scrape request failed");
-    return await res.json();
+    const result = await scrapeArticle(targetUrl);
+    if (result.status !== 200) throw new Error("Scrape request failed");
+    return result.body;
   } catch {
     return {
       title: "Full Story Coverage",

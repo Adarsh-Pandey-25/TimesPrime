@@ -5,18 +5,21 @@
  * page used to trust it: it linked to it under the TimesPrime brand, put it
  * in og:url, and had the scraper fetch it. Now only a URL that names a known
  * article is used; anything else is treated as absent. The view is stubbed to
- * capture its props, and `fetch` records every request the page makes.
+ * capture its props, `fetch` records every HTTP request the page makes, and
+ * the scraper (called directly since BL-016) is mocked.
  */
 
 jest.mock("@/backend/services/news", () => ({ findKnownArticle: jest.fn() }));
 jest.mock("@/frontend/features/news", () => ({ Header: () => null, Footer: () => null }));
 jest.mock("@/frontend/views/article/ArticleDetailView", () => ({ __esModule: true, default: jest.fn(() => null) }));
+jest.mock("@/backend/services/scrape/scrapeArticle", () => ({ scrapeArticle: jest.fn() }));
 
 import { renderToStaticMarkup } from "react-dom/server";
 import ArticlePage, { generateMetadata } from "./page";
 
 const { findKnownArticle } = jest.requireMock("@/backend/services/news") as { findKnownArticle: jest.Mock };
 const View = (jest.requireMock("@/frontend/views/article/ArticleDetailView") as { default: jest.Mock }).default;
+const { scrapeArticle } = jest.requireMock("@/backend/services/scrape/scrapeArticle") as { scrapeArticle: jest.Mock };
 
 const PROBE = "https://evil.example.com/phish";
 const KNOWN = "https://publisher.example/2026/11/budget-passes";
@@ -25,6 +28,8 @@ let requests: string[];
 beforeEach(() => {
   requests = [];
   View.mockClear();
+  scrapeArticle.mockReset();
+  scrapeArticle.mockResolvedValue({ status: 200, body: { title: "Scraped", content: ["text"] } });
   findKnownArticle.mockReset();
   findKnownArticle.mockImplementation(async (link: string) => (link === KNOWN ? { title: "Budget passes", link: KNOWN } : null));
   global.fetch = jest.fn(async (input: RequestInfo | URL) => {
@@ -50,6 +55,7 @@ describe("the probe URL is treated as absent (F-005)", () => {
 
   test("the scraper is never asked for it: no outbound request carries it", async () => {
     await render({ url: PROBE });
+    expect(scrapeArticle).not.toHaveBeenCalled();
     expect(requests.some((r) => r.includes("scrape-article"))).toBe(false);
     expect(requests.some((r) => r.includes(encodeURIComponent(PROBE)) || r.includes(PROBE))).toBe(false);
   });
@@ -72,7 +78,9 @@ describe("the probe URL is treated as absent (F-005)", () => {
 describe("a known article still works", () => {
   test("its link reaches the view and the scraper", async () => {
     expect((await render({ url: KNOWN })).targetUrl).toBe(KNOWN);
-    expect(requests.some((r) => r.includes(`scrape-article?url=${encodeURIComponent(KNOWN)}`))).toBe(true);
+    expect(scrapeArticle).toHaveBeenCalledWith(KNOWN);
+    // BL-016: directly, not over this app's own HTTP route.
+    expect(requests.some((r) => r.includes("scrape-article"))).toBe(false);
   });
 });
 
@@ -96,8 +104,9 @@ describe("the app's own links reach the lookup exactly as stored", () => {
 });
 
 // BL-016 characterization: what the view receives for each scraper outcome.
-// Written while the page reached the scraper over HTTP; these expectations
-// must hold unchanged once it calls the backend directly.
+// Written while the page reached the scraper over HTTP (3d8b5ed); the
+// expectations are unchanged now that it calls the backend directly. Only the
+// way an outcome is staged moved, from fetch to the scrapeArticle mock.
 describe("the page's scrape behaviour (characterization, BL-016)", () => {
   const FALLBACK = {
     title: "Full Story Coverage",
@@ -105,14 +114,8 @@ describe("the page's scrape behaviour (characterization, BL-016)", () => {
   };
 
   function scraperAnswers(outcome: { status: number; body: object } | Error) {
-    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
-      requests.push(String(input));
-      if (String(input).includes("scrape-article")) {
-        if (outcome instanceof Error) throw outcome;
-        return new Response(JSON.stringify(outcome.body), { status: outcome.status });
-      }
-      return new Response(JSON.stringify({ results: [] }), { status: 200 });
-    }) as typeof fetch;
+    if (outcome instanceof Error) scrapeArticle.mockRejectedValue(outcome);
+    else scrapeArticle.mockResolvedValue(outcome);
   }
 
   test("a successful scrape reaches the view exactly as the scraper returned it", async () => {
@@ -143,6 +146,6 @@ describe("the page's scrape behaviour (characterization, BL-016)", () => {
       title: "Story Overview",
       content: ["Full coverage details for this article are presented below. Click the external publisher link to read directly on the source website."],
     });
-    expect(requests.some((r) => r.includes("scrape-article"))).toBe(false);
+    expect(scrapeArticle).not.toHaveBeenCalled();
   });
 });
