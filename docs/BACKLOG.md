@@ -548,7 +548,8 @@ translated titles stored at ingest. Either costs translate-API quota on every ne
 
 ## BL-027 — The first search result is never shown
 
-**Found:** audit Phase 4, writing the F-021 characterization (`675ce1d`) · **Status:** Open
+**Found:** audit Phase 4, writing the F-021 characterization (`675ce1d`) · **Status:** **Resolved** in `96f192d`
+(owner: fix now; while searching the grids start at index 0)
 
 In `frontend/views/home/HomeClient.tsx` the featured slot shows `articles[0]` only when no search is
 active (`featuredArticle && !searchQuery`, `:424`), while Top Stories and Latest start at
@@ -569,10 +570,28 @@ file by file. Check the CSS budget, since most of the colours are already in the
 
 ## BL-029 — The seed route falls back to a public-prefixed NewsData key
 
-**Found:** audit F-009 (ledger note) · **Status:** Open — owner decision
+**Found:** audit F-009 (ledger note) · **Status:** **Resolved** in `45223f0` (owner: remove; the Sentry
+scrub list keeps the name, for an environment that still sets it)
 
 `backend/api/admin/seed-supabase.ts:15` reads `NEWSDATA_API_KEY || NEXT_PUBLIC_NEWSDATA_API_KEY`.
 It runs on the server, so nothing leaks today. But the fallback invites putting a secret under a
 `NEXT_PUBLIC_` name, and Next inlines such a name into any client bundle that reads it. F-009 lists
 it in `.env.local.example` as "do not set it". Removing the fallback is a one-line change; it breaks
 the seed route only for an environment that sets the public name alone.
+
+## BL-030 — The chatbot ships on every route
+
+**Found:** audit Phase 4, F-027 (`7ead49b`) · **Status:** Open — proposal, not started (owner)
+
+`app/layout.tsx` renders `FloatingAiAssistant` (`frontend/features/chat`), which imports
+`Chatbot` statically. So the chatbot's code is in a chunk every route loads, even though it is closed
+until the reader clicks its button: `/admin/login` and `/_not-found` too. F-027 showed it. 418 bytes
+of dark-mode class strings grew all 10 page bundles by the same amount: +1.40% on `/_not-found` and
++1.25% on `/admin/login`.
+
+Proposal: keep the floating button in the layout, and load `Chatbot` only on the first open, with
+`next/dynamic` (`ssr: false`) or a `React.lazy` import inside `FloatingAiAssistant`. The closed
+state renders `null` already (`if (!isOpen) return null`), so nothing visible changes. The cost is a
+short fetch on the first click, and the bundle check should show the chunk leaving every route. Check
+the Next 16 `lazy-loading` guide in `node_modules/next/dist/docs/` first. Leaving `/admin` out of the
+button (its own decision) is not part of this.
