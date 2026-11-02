@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw, History, Trash2, Inbox, ChevronLeft, ChevronRight } from "lucide-react";
+import { RefreshCw, History, Inbox, ChevronLeft, ChevronRight } from "lucide-react";
 import { useTheme } from "@/frontend/context/ThemeContext";
 import type { AdminAction, AdminLog } from "@/shared/types";
 import { ACTION_LABELS, ACTION_ICONS } from "./actionLabels";
@@ -45,10 +45,10 @@ const ACTION_COLOR_CLASSES: Record<AdminAction, string> = {
 };
 
 /**
- * Timeline view of every logged admin action (backend/repositories/auditLog.ts),
- * paginated 10-per-page with a 30s auto-refresh and a destructive
- * "Clear All Logs" action. Self-contained — owns its own fetch/pagination
- * state and renders its own card + heading.
+ * Timeline view of the audit log (GET /api/admin/logs, audit.read), paginated
+ * 10-per-page with a 30s auto-refresh. Read-only: the log is append-only, so
+ * there is no clear action (Panel 0, owner decision Q6). Self-contained — owns
+ * its own fetch/pagination state and renders its own card + heading.
  */
 export default function ActivityLog() {
   const { theme } = useTheme();
@@ -60,7 +60,6 @@ export default function ActivityLog() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [clearing, setClearing] = useState(false);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -100,27 +99,6 @@ export default function ActivityLog() {
     return () => clearInterval(interval);
   }, [fetchLogs]);
 
-  const handleClearAll = async () => {
-    if (!window.confirm("Clear the entire activity log? This cannot be undone.")) return;
-
-    setClearing(true);
-    setError("");
-    try {
-      const res = await fetch("/api/admin/logs", { method: "DELETE", credentials: "include" });
-      if (res.ok) {
-        setPage(1);
-        fetchLogs();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || "Failed to clear activity log.");
-      }
-    } catch {
-      setError("Network error while clearing activity log.");
-    } finally {
-      setClearing(false);
-    }
-  };
-
   return (
     <div
       className={`rounded-2xl border p-6 sm:p-8 shadow-sm transition-colors space-y-5 ${
@@ -142,14 +120,6 @@ export default function ActivityLog() {
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             Refresh
-          </button>
-          <button
-            onClick={handleClearAll}
-            disabled={clearing || total === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {clearing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-            {clearing ? "Clearing..." : "Clear All Logs"}
           </button>
         </div>
       </div>
