@@ -188,6 +188,9 @@ const SERVER_ONLY = new Set([
   // DNS step injected by its server-side caller (backend/services/scrape/fetchPage.ts).
   "backend/services/scrape/fetchPage.ts", "backend/services/news/knownArticle.ts",
   "backend/lib/likePattern.ts", "backend/lib/readJsonBody.ts",
+  // Panel 0, the access foundation.
+  "backend/auth/decide.ts", "backend/auth/scope.ts", "backend/auth/requirePermission.ts", "backend/auth/adminRoutePolicy.ts",
+  "backend/auth/staffSession.ts", "backend/auth/supabaseServer.ts", "backend/auth/mfa.ts", "backend/repositories/staff.ts",
 ]);
 // Keyed by each module's path before S3; keyOf() finds the module wherever it
 // has moved. A key that matches no file means a module was deleted or renamed
@@ -244,8 +247,19 @@ const bundledBuiltinUsers = builtinUsers.filter((f) => clientBundle.has(f));
 const PURPOSE = {
   "src/features/news/server/db.ts": ["Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats", ""],
   "src/server/supabase.ts": ["Supabase client; prefers service-role key when present", ""],
-  "src/server/auth/adminSession.ts": ["HMAC session token issue/verify; timing-safe password compare", ""],
-  "src/server/auditLog.ts": ["Writes admin_logs rows (logAdminAction)", ""],
+  "src/server/auth/adminSession.ts": ["The shared password: HMAC session token, timing-safe compare, hard end date (Q3)", "retired at Panel 0's cut-over"],
+  "src/server/auditLog.ts": ["Writes audit_log rows: recordAudit throws (fail closed, Q2), recordSystemAudit for the cron", ""],
+  "backend/auth/decide.ts": ["THE PERMISSION RULE, pure: live assignment, cell code, scope, MFA; the legacy list", "Panel 0"],
+  "backend/auth/scope.ts": ["Article to scope target: english/hindi to en/hi (D5), section = category[0] (D6, ADR 0003)", "Panel 0"],
+  "backend/auth/requirePermission.ts": ["THE GATE every admin route body passes (service_role bypasses RLS); audit attempt/outcome", "Panel 0"],
+  "backend/auth/adminRoutePolicy.ts": ["Every admin route and method's permissions; the public and session-only lists", "Panel 0"],
+  "backend/auth/staffSession.ts": ["Who is asking: Supabase staff session (getClaims + getUser) or the legacy cookie", "Panel 0"],
+  "backend/auth/supabaseServer.ts": ["@supabase/ssr clients for route bodies and the proxy; HttpOnly session cookies", "Panel 0"],
+  "backend/auth/mfa.ts": ["TOTP factor state, enrolment and verification through Supabase MFA", "Panel 0"],
+  "backend/repositories/staff.ts": ["Staff profile and live assignments, read on every request (no cache); last sign-in", "Panel 0"],
+  "backend/api/admin/me.ts": ["API: /api/admin/me — who is signed in and what they hold (session-only)", "Panel 0"],
+  "backend/api/admin/mfa.ts": ["API: /api/admin/mfa — enrol and verify the second factor (session-only)", "Panel 0"],
+  "shared/config/permissions.ts": ["The 15 role and 39 permission keys as typed constants (matrix in PANEL_PLAN.md)", "Panel 0"],
   "src/lib/urlValidation.ts": ["SSRF guard: URL shape and blocked address ranges, browser-safe; DNS via an injected resolver; safePublisherHref", ""],
   "src/app/api/news/scrape-article/route.ts": ["Article scraper: cache, SSRF-guarded fetch, paywall detection, extraction; 200 or a failure status", ""],
   "backend/api/news/scrape-article.ts": ["API: /api/news/scrape-article — stored articles only, per-IP limit, then the scraper", ""],
@@ -272,8 +286,8 @@ const PURPOSE = {
   "src/features/admin/components/actionLabels.ts": ["Display labels and icons for admin activity-log entries", "only consumer is ActivityLog (SC-1)"],
   "src/context/ThemeContext.tsx": ["Light/dark provider, localStorage-backed", "app-wide state provider, not a UI primitive"],
   "src/context/LanguageContext.tsx": ["EN/HI provider, localStorage-backed", "app-wide state provider, not a UI primitive"],
-  "src/types/index.ts": ["Article, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog", ""],
-  "src/proxy.ts": ["AUTH GATE. Next 16 Proxy (was middleware). Matches /admin/*, /api/admin/*", ""],
+  "src/types/index.ts": ["Article, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog, AdminMe", ""],
+  "src/proxy.ts": ["Optimistic session check (staff JWT or legacy cookie) on /admin/*, /api/admin/*; routes decide", ""],
   "src/instrumentation.ts": ["Sentry server/edge init hook", ""],
   "src/instrumentation-client.ts": ["Sentry browser init", ""],
   "src/sentry.server.config.ts": ["Sentry Node config", ""],
@@ -298,7 +312,7 @@ const PURPOSE = {
   "src/features/admin/components/CategoryStatsCard.tsx": ["Category/language/country breakdown", ""],
   "src/features/admin/components/BreakingNewsManager.tsx": ["Create/expire breaking news items", ""],
   "src/features/admin/components/SyncDashboard.tsx": ["Last/next sync, counts, manual sync", ""],
-  "src/features/admin/components/ActivityLog.tsx": ["Paginated admin_logs viewer", ""],
+  "src/features/admin/components/ActivityLog.tsx": ["Paginated audit-log viewer, read-only (Q6)", ""],
 };
 
 const PINNED_FILE = /^(src\/)?(proxy|instrumentation|sentry)/;

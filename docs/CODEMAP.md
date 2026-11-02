@@ -3,8 +3,8 @@
 **Read this instead of re-analysing the codebase.** If the question is "where does X live",
 "what imports Y" or "what would a change to Z touch", it is answered here. Do not grep the tree to re-derive it.
 
-Generated at commit `e536f45` by `node scripts/generate-codemap.mjs`. Coverage read from
-`coverage/coverage-final.json` (written 2026-11-02 08:24 UTC) — run `npm run test:ci` first for current numbers.
+Generated at commit `06da24b` by `node scripts/generate-codemap.mjs`. Coverage read from
+`coverage/coverage-final.json` (written 2026-11-02 12:08 UTC) — run `npm run test:ci` first for current numbers.
 
 Every column except **Purpose** and **Target** is derived. Imports come from parsing each file with
 the TypeScript compiler API, so comments and strings cannot create false edges, `import type` is
@@ -17,13 +17,13 @@ recognised, dynamic `import()` and `export … from` are captured, and aliases a
 
 | | |
 |---|---|
-| Modules (excl. tests) | **110** |
+| Modules (excl. tests) | **123** |
 | Modules with a `"use client"` directive | **24** |
 | Modules in the client bundle (directive + pulled in) | **35** |
 | Server-only modules in the client bundle (violations) | **0** |
 | Orphans (nothing imports them) | **0** |
 | Dynamic `import()` edges | **4** |
-| Type-only edges (erased at compile time) | **8** |
+| Type-only edges (erased at compile time) | **22** |
 | Unresolved project imports | **0** — self-check passes |
 
 ### Boundary violations
@@ -89,12 +89,12 @@ Widest blast radius when moved.
 
 | Importers | Module |
 |--:|---|
-| 26 | `shared/types/index.ts` |
-| 21 | `frontend/context/ThemeContext.tsx` |
-| 11 | `backend/lib/supabase.ts` |
-| 10 | `frontend/features/news/index.ts` |
-| 9 | `frontend/context/LanguageContext.tsx` |
-| 8 | `backend/services/news/index.ts` |
+| 28 | `shared/types/index.ts` |
+| 23 | `frontend/context/ThemeContext.tsx` |
+| 14 | `backend/auth/requirePermission.ts` |
+| 12 | `backend/auth/adminRoutePolicy.ts` |
+| 12 | `backend/auth/decide.ts` |
+| 12 | `backend/lib/supabase.ts` |
 
 ## Legend
 
@@ -126,6 +126,8 @@ Widest blast radius when moved.
 | `app/api/admin/login/route.ts` | Re-exports `backend/api/admin/login.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/logout/route.ts` | Re-exports `backend/api/admin/logout.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/logs/route.ts` | Re-exports `backend/api/admin/logs.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/me/route.ts` | API: /api/admin/me | 1 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
+| `app/api/admin/mfa/route.ts` | API: /api/admin/mfa | 1 |  | 0% | 0 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/publish-article/route.ts` | Re-exports `backend/api/admin/publish-article.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/seed-supabase/route.ts` | Re-exports `backend/api/admin/seed-supabase.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
 | `app/api/admin/stats/route.ts` | Re-exports `backend/api/admin/stats.ts` | 1 |  | excl. | 0 | 1 | stays -- the path is the URL (CR-01) |
@@ -150,8 +152,8 @@ Widest blast radius when moved.
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
 | `frontend/views/about/AboutView.tsx` | Page: /about | 97 |  | 0% | 1 | 1 | here · slice 10 done |
-| `frontend/views/admin/AdminLoginView.tsx` | Page: /admin/login | 103 | directive | 0% | 1 | 1 | here · slice 10 done |
-| `frontend/views/admin/AdminView.tsx` | Page: /admin | 521 | directive | 87.1% | 2 | 4 | here · slice 10 done |
+| `frontend/views/admin/AdminLoginView.tsx` | Page: /admin/login | 249 | directive | 96.0% | 2 | 2 | here · slice 10 done |
+| `frontend/views/admin/AdminView.tsx` | Page: /admin | 610 | directive | 88.7% | 2 | 5 | here · slice 10 done |
 | `frontend/views/article/ArticleDetailView.tsx` | Article page body: text, translation, AI panel, share, related | 970 | directive | 81.3% | 2 | 7 | here · slice 9 done — split in F |
 | `frontend/views/contact/ContactView.tsx` | Page: /contact | 86 | directive | 0% | 1 | 1 | here · slice 10 done |
 | `frontend/views/home/HomeClient.tsx` | Feed state, new-story polling, grid, load-more | 561 | directive | 88.6% | 2 | 7 | here · slice 9 done — split in F |
@@ -163,12 +165,12 @@ Widest blast radius when moved.
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `frontend/features/admin/ActivityLog.tsx` | Paginated admin_logs viewer | 235 | directive | 0% | 1 | 3 | here · slice 9 done |
+| `frontend/features/admin/ActivityLog.tsx` | Paginated audit-log viewer, read-only (Q6) | 205 | directive | 91.7% | 2 | 3 | here · slice 9 done |
 | `frontend/features/admin/ArticlesTable.tsx` | Admin article list: filters, edit, delete, bulk | 751 | directive | 0% | 1 | 1 | here · slice 9 done — split in F |
 | `frontend/features/admin/BreakingNewsManager.tsx` | Create/expire breaking news items | 289 | directive | 0% | 1 | 1 | here · slice 9 done |
 | `frontend/features/admin/CategoryStatsCard.tsx` | Category/language/country breakdown | 362 | directive | 0% | 1 | 1 | here · slice 9 done |
 | `frontend/features/admin/SyncDashboard.tsx` | Last/next sync, counts, manual sync | 198 | directive | 0% | 1 | 1 | here · slice 9 done |
-| `frontend/features/admin/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 0% | 1 | 1 | here · slice 9 done — only consumer is ActivityLog (SC-1) |
+| `frontend/features/admin/actionLabels.ts` | Display labels and icons for admin activity-log entries | 29 | bundled | 100% | 1 | 1 | here · slice 9 done — only consumer is ActivityLog (SC-1) |
 | `frontend/features/admin/index.ts` | Public surface of admin. No server.ts: admin has no server code | 7 | bundled | 0% | 1 | 5 | here · slice 9 done |
 | `frontend/features/chat/Chatbot.tsx` | Chat drawer; streams /api/chat. Honest error handling | 192 | directive | 77.1% | 2 | 1 | here · slice 9 done |
 | `frontend/features/chat/FloatingAiAssistant.tsx` | Floating button wrapping Chatbot | 37 | directive | 0% | 1 | 1 | here · slice 9 done |
@@ -189,25 +191,27 @@ Widest blast radius when moved.
 | `frontend/components/ui/NewsSkeletonGrid.tsx` | Suspense fallback matching real card dimensions | 90 |  | 0% | 1 | 0 | here · slice 8 done |
 | `frontend/components/ui/ThemeSpinner.tsx` | Theme-aware loading spinner | 88 | directive | 86.4% | 2 | 1 | here · slice 8 done |
 | `frontend/context/LanguageContext.tsx` | EN/HI provider, localStorage-backed | 57 | directive | 68.4% | 9 | 1 | here · slice 8 done — app-wide state provider, not a UI primitive |
-| `frontend/context/ThemeContext.tsx` | Light/dark provider, localStorage-backed | 64 | directive | 85.9% | 21 | 1 | here · slice 8 done — app-wide state provider, not a UI primitive |
+| `frontend/context/ThemeContext.tsx` | Light/dark provider, localStorage-backed | 64 | directive | 85.9% | 23 | 1 | here · slice 8 done — app-wide state provider, not a UI primitive |
 
 ### Backend API — `backend/api/` (route bodies)
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `backend/api/admin/articles-bulk.ts` | API: /api/admin/articles/bulk | 81 |  | 0% | 1 | 2 | here · slice 7 done |
-| `backend/api/admin/articles.ts` | API: /api/admin/articles | 251 |  | 54.2% | 2 | 3 | here · slice 7 done |
-| `backend/api/admin/breaking-news.ts` | API: /api/admin/breaking-news | 193 |  | 0% | 1 | 2 | here · slice 7 done |
-| `backend/api/admin/db-stats.ts` | API: /api/admin/db-stats | 44 |  | 0% | 1 | 2 | here · slice 7 done |
-| `backend/api/admin/health.ts` | API: /api/admin/health | 16 |  | 100% | 2 | 1 | here · slice 7 done |
-| `backend/api/admin/login.ts` | API: /api/admin/login | 47 |  | 91.5% | 2 | 2 | here · slice 7 done |
-| `backend/api/admin/logout.ts` | API: /api/admin/logout | 14 |  | 0% | 1 | 1 | here · slice 7 done |
-| `backend/api/admin/logs.ts` | API: /api/admin/logs | 107 |  | 0% | 1 | 2 | here · slice 7 done |
-| `backend/api/admin/publish-article.ts` | API: /api/admin/publish-article | 108 |  | 0% | 1 | 2 | here · slice 7 done |
-| `backend/api/admin/seed-supabase.ts` | API: /api/admin/seed-supabase | 73 |  | 72.6% | 2 | 3 | here · slice 7 done |
-| `backend/api/admin/stats.ts` | API: /api/admin/stats | 165 |  | 0% | 1 | 1 | here · slice 7 done |
+| `backend/api/admin/articles-bulk.ts` | API: /api/admin/articles/bulk | 113 |  | 74.3% | 2 | 5 | here · slice 7 done |
+| `backend/api/admin/articles.ts` | API: /api/admin/articles | 328 |  | 81.7% | 3 | 6 | here · slice 7 done |
+| `backend/api/admin/breaking-news.ts` | API: /api/admin/breaking-news | 214 |  | 64.0% | 2 | 4 | here · slice 7 done |
+| `backend/api/admin/db-stats.ts` | API: /api/admin/db-stats | 65 |  | 53.8% | 2 | 4 | here · slice 7 done |
+| `backend/api/admin/health.ts` | API: /api/admin/health | 23 |  | 100% | 3 | 3 | here · slice 7 done |
+| `backend/api/admin/login.ts` | API: /api/admin/login | 142 |  | 96.5% | 2 | 6 | here · slice 7 done |
+| `backend/api/admin/logout.ts` | API: /api/admin/logout | 43 |  | 100% | 2 | 5 | here · slice 7 done |
+| `backend/api/admin/logs.ts` | API: /api/admin/logs | 143 |  | 91.6% | 2 | 4 | here · slice 7 done |
+| `backend/api/admin/me.ts` | API: /api/admin/me — who is signed in and what they hold (session-only) | 57 |  | 100% | 2 | 7 | stays — Panel 0 |
+| `backend/api/admin/mfa.ts` | API: /api/admin/mfa — enrol and verify the second factor (session-only) | 77 |  | 100% | 2 | 5 | stays — Panel 0 |
+| `backend/api/admin/publish-article.ts` | API: /api/admin/publish-article | 130 |  | 80.8% | 2 | 5 | here · slice 7 done |
+| `backend/api/admin/seed-supabase.ts` | API: /api/admin/seed-supabase | 81 |  | 91.4% | 3 | 5 | here · slice 7 done |
+| `backend/api/admin/stats.ts` | API: /api/admin/stats | 171 |  | 72.5% | 2 | 3 | here · slice 7 done |
 | `backend/api/chat.ts` | API: /api/chat | 183 |  | 84.2% | 2 | 2 | here · slice 7 done |
-| `backend/api/cron/refresh-news.ts` | API: /api/cron/refresh-news | 128 |  | 82.8% | 2 | 2 | here · slice 7 done |
+| `backend/api/cron/refresh-news.ts` | API: /api/cron/refresh-news | 134 |  | 83.6% | 2 | 2 | here · slice 7 done |
 | `backend/api/health.ts` | API: /api/health | 17 |  | 100% | 2 | 1 | here · slice 7 done |
 | `backend/api/news/check-new.ts` | API: /api/news/check-new | 53 |  | 0% | 1 | 1 | here · slice 7 done |
 | `backend/api/news/scrape-article.ts` | API: /api/news/scrape-article — stored articles only, per-IP limit, then the scraper | 47 |  | 100% | 2 | 3 | stays |
@@ -232,20 +236,28 @@ Widest blast radius when moved.
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `backend/repositories/auditLog.ts` | Writes admin_logs rows (logAdminAction) | 40 |  | 0% | 7 | 2 | here · slice 5 done |
+| `backend/repositories/auditLog.ts` | Writes audit_log rows: recordAudit throws (fail closed, Q2), recordSystemAudit for the cron | 74 |  | 100% | 8 | 1 | here · slice 5 done |
 | `backend/repositories/db.ts` | Supabase reads/writes: filters, freshness, 7-day purge, upsert, stats | 678 |  | 71.8% | 3 | 6 | here · slice 5 done |
+| `backend/repositories/staff.ts` | Staff profile and live assignments, read on every request (no cache); last sign-in | 105 |  | 98.1% | 8 | 3 | stays — Panel 0 |
 
 ### Backend auth and library — `backend/auth/`, `backend/lib/`
 
 | Module | Purpose | LOC | Client | Cov | Importers | Imports | Target |
 |---|---|--:|:-:|--:|--:|--:|---|
-| `backend/auth/adminSession.ts` | HMAC session token issue/verify; timing-safe password compare | 73 |  | 100% | 4 | 0 | here · slice 4 done |
+| `backend/auth/adminRoutePolicy.ts` | Every admin route and method's permissions; the public and session-only lists | 87 |  | 100% | 12 | 2 | stays — Panel 0 |
+| `backend/auth/adminSession.ts` | The shared password: HMAC session token, timing-safe compare, hard end date (Q3) | 88 |  | 100% | 9 | 0 | here · slice 4 done — retired at Panel 0's cut-over |
+| `backend/auth/decide.ts` | THE PERMISSION RULE, pure: live assignment, cell code, scope, MFA; the legacy list | 130 |  | 100% | 12 | 2 | stays — Panel 0 |
+| `backend/auth/mfa.ts` | TOTP factor state, enrolment and verification through Supabase MFA | 56 |  | 100% | 3 | 0 | stays — Panel 0 |
+| `backend/auth/requirePermission.ts` | THE GATE every admin route body passes (service_role bypasses RLS); audit attempt/outcome | 287 |  | 97.6% | 14 | 8 | stays — Panel 0 |
+| `backend/auth/scope.ts` | Article to scope target: english/hindi to en/hi (D5), section = category[0] (D6, ADR 0003) | 49 |  | 100% | 10 | 1 | stays — Panel 0 |
+| `backend/auth/staffSession.ts` | Who is asking: Supabase staff session (getClaims + getUser) or the legacy cookie | 44 |  | 100% | 8 | 3 | stays — Panel 0 |
+| `backend/auth/supabaseServer.ts` | @supabase/ssr clients for route bodies and the proxy; HttpOnly session cookies | 72 |  | 97.2% | 11 | 0 | stays — Panel 0 |
 | `backend/lib/cache.ts` | Upstash Redis with in-process Map fallback | 113 |  | 82.3% | 4 | 0 | here · slice 4 done |
 | `backend/lib/likePattern.ts` | LIKE-escapes a search term into a contains pattern (F-006) | 13 |  | 100% | 2 | 0 | stays |
-| `backend/lib/rateLimit.ts` | In-memory limiter with eviction; Redis fixed window for login and scrape; client IP | 140 |  | 100% | 6 | 0 | here · slice 4 done |
-| `backend/lib/readJsonBody.ts` | Reads a JSON request body with a byte cap (F-010) | 47 |  | 100% | 3 | 0 | stays |
+| `backend/lib/rateLimit.ts` | In-memory limiter with eviction; Redis fixed window for login and scrape; client IP | 140 |  | 100% | 9 | 0 | here · slice 4 done |
+| `backend/lib/readJsonBody.ts` | Reads a JSON request body with a byte cap (F-010) | 47 |  | 100% | 4 | 0 | stays |
 | `backend/lib/reportFallback.ts` | Rate-limited Sentry report of a fallback (D5); bounded by a fixed set of kinds | 52 |  | 100% | 4 | 0 | here · slice 4 done |
-| `backend/lib/supabase.ts` | Supabase client; prefers service-role key when present | 22 |  | 0% | 11 | 0 | here · slice 4 done |
+| `backend/lib/supabase.ts` | Supabase client; prefers service-role key when present | 22 |  | 77.3% | 12 | 0 | here · slice 4 done |
 
 ### Shared — `shared/` (imported by both sides)
 
@@ -254,10 +266,11 @@ Widest blast radius when moved.
 | `shared/config/categoryColors.ts` | Per-category hex/Tailwind class map | 64 | bundled | 85.9% | 1 | 0 | here · slice 3 done |
 | `shared/config/imageDomains.ts` | next/image hostname allowlist. Imported by next.config.ts at LOAD TIME | 105 | bundled | 90.5% | 2 | 0 | here · slice 3 done — CR-06: must import nothing |
 | `shared/config/newsConfig.ts` | Editorial policy: category map, script filters, spam/filler source lists, dedupe | 233 | bundled | 100% | 8 | 1 | here · slice 3 done |
+| `shared/config/permissions.ts` | The 15 role and 39 permission keys as typed constants (matrix in PANEL_PLAN.md) | 88 |  | 100% | 9 | 0 | stays — Panel 0 |
 | `shared/config/theme.ts` | Theme storage key, backgrounds, and the pre-paint theme script (F-028) | 21 | bundled | 100% | 4 | 0 | stays |
 | `shared/config/topicImages.ts` | Keyword to Unsplash topic-image table + per-topic round robin | 414 | bundled | 86.0% | 5 | 2 | here · slice 3 done |
 | `shared/config/translations.ts` | EN/HI static strings | 122 | bundled | 100% | 8 | 0 | here · slice 3 done — shared, not a feature |
-| `shared/types/index.ts` | Article, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog | 105 | bundled | excl. | 26 | 0 | here · slice 3 done |
+| `shared/types/index.ts` | Article, ScrapeResponse, ChatMessage, NewsDataRawArticle, AdminAction, AdminLog, AdminMe | 128 | bundled | excl. | 28 | 0 | here · slice 3 done |
 | `shared/validation/sentryScrub.ts` | Redacts secret env values from Sentry events | 70 |  | 94.3% | 5 | 0 | here · slice 3 done |
 | `shared/validation/urlValidation.ts` | SSRF guard: URL shape and blocked address ranges, browser-safe; DNS via an injected resolver; safePublisherHref | 222 | bundled | 99.1% | 5 | 0 | here · slice 4 done |
 
@@ -267,7 +280,7 @@ Widest blast radius when moved.
 |---|---|--:|:-:|--:|--:|--:|---|
 | `instrumentation-client.ts` | Sentry browser init | 13 |  | excl. | 0 | 1 | here · slice 1 done |
 | `instrumentation.ts` | Sentry server/edge init hook | 12 |  | excl. | 0 | 2 | here · slice 1 done |
-| `proxy.ts` | AUTH GATE. Next 16 Proxy (was middleware). Matches /admin/*, /api/admin/* | 46 |  | 0% | 0 | 1 | here · slice 1 done |
+| `proxy.ts` | Optimistic session check (staff JWT or legacy cookie) on /admin/*, /api/admin/*; routes decide | 58 |  | 100% | 1 | 3 | here · slice 1 done |
 | `sentry.edge.config.ts` | Sentry edge config | 8 |  | excl. | 1 | 1 | here · slice 1 done |
 | `sentry.server.config.ts` | Sentry Node config | 8 |  | excl. | 1 | 1 | here · slice 1 done |
 
@@ -331,6 +344,16 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `app/api/admin/logs/route.ts`
 
 - **Imports:** `backend/api/admin/logs.ts` _(reexport)_
+- **Used by:** —
+
+#### `app/api/admin/me/route.ts`
+
+- **Imports:** `backend/api/admin/me.ts` _(reexport)_
+- **Used by:** —
+
+#### `app/api/admin/mfa/route.ts`
+
+- **Imports:** `backend/api/admin/mfa.ts` _(reexport)_
 - **Used by:** —
 
 #### `app/api/admin/publish-article/route.ts`
@@ -425,58 +448,68 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `backend/api/admin/articles-bulk.ts`
 
-- **Imports:** `backend/lib/supabase.ts`, `backend/repositories/auditLog.ts`
-- **Used by:** `app/api/admin/articles/bulk/route.ts` _(reexport)_
+- **Imports:** `backend/auth/adminRoutePolicy.ts`, `backend/auth/decide.ts`, `backend/auth/requirePermission.ts`, `backend/auth/scope.ts`, `backend/lib/supabase.ts`
+- **Used by:** `app/api/admin/articles/bulk/route.ts` _(reexport)_, `backend/api/admin/access.test.ts` _(test)_
 
 #### `backend/api/admin/articles.ts`
 
-- **Imports:** `backend/lib/likePattern.ts`, `backend/lib/supabase.ts`, `backend/repositories/auditLog.ts`
-- **Used by:** `app/api/admin/articles/route.ts` _(reexport)_, `backend/api/admin/articles.test.ts` _(test)_
+- **Imports:** `backend/auth/adminRoutePolicy.ts`, `backend/auth/decide.ts`, `backend/auth/requirePermission.ts`, `backend/auth/scope.ts`, `backend/lib/likePattern.ts`, `backend/lib/supabase.ts`
+- **Used by:** `app/api/admin/articles/route.ts` _(reexport)_, `backend/api/admin/access.test.ts` _(test)_, `backend/api/admin/articles.test.ts` _(test)_
 
 #### `backend/api/admin/breaking-news.ts`
 
-- **Imports:** `backend/lib/supabase.ts`, `backend/repositories/auditLog.ts`
-- **Used by:** `app/api/admin/breaking-news/route.ts` _(reexport)_
+- **Imports:** `backend/auth/adminRoutePolicy.ts`, `backend/auth/requirePermission.ts`, `backend/auth/scope.ts`, `backend/lib/supabase.ts`
+- **Used by:** `app/api/admin/breaking-news/route.ts` _(reexport)_, `backend/api/admin/access.test.ts` _(test)_
 
 #### `backend/api/admin/db-stats.ts`
 
-- **Imports:** `backend/repositories/auditLog.ts`, `backend/services/news/index.ts`
-- **Used by:** `app/api/admin/db-stats/route.ts` _(reexport)_
+- **Imports:** `backend/auth/adminRoutePolicy.ts`, `backend/auth/requirePermission.ts`, `backend/auth/scope.ts`, `backend/services/news/index.ts`
+- **Used by:** `app/api/admin/db-stats/route.ts` _(reexport)_, `backend/api/admin/access.test.ts` _(test)_
 
 #### `backend/api/admin/health.ts`
 
-- **Imports:** `backend/services/health/health.ts`
-- **Used by:** `app/api/admin/health/route.ts` _(reexport)_, `backend/api/admin/health.test.ts` _(test)_
+- **Imports:** `backend/auth/adminRoutePolicy.ts`, `backend/auth/requirePermission.ts`, `backend/services/health/health.ts`
+- **Used by:** `app/api/admin/health/route.ts` _(reexport)_, `backend/api/admin/access.test.ts` _(test)_, `backend/api/admin/health.test.ts` _(test)_
 
 #### `backend/api/admin/login.ts`
 
-- **Imports:** `backend/auth/adminSession.ts`, `backend/lib/rateLimit.ts`
+- **Imports:** `backend/auth/adminSession.ts`, `backend/auth/mfa.ts`, `backend/auth/requirePermission.ts`, `backend/auth/supabaseServer.ts`, `backend/lib/rateLimit.ts`, `backend/repositories/staff.ts`
 - **Used by:** `app/api/admin/login/route.ts` _(reexport)_, `backend/api/admin/login.test.ts` _(test)_
 
 #### `backend/api/admin/logout.ts`
 
-- **Imports:** `backend/auth/adminSession.ts`
-- **Used by:** `app/api/admin/logout/route.ts` _(reexport)_
+- **Imports:** `backend/auth/adminSession.ts`, `backend/auth/requirePermission.ts`, `backend/auth/staffSession.ts`, `backend/auth/supabaseServer.ts`, `backend/lib/rateLimit.ts`
+- **Used by:** `app/api/admin/logout/route.ts` _(reexport)_, `backend/api/admin/logout.test.ts` _(test)_
 
 #### `backend/api/admin/logs.ts`
 
-- **Imports:** `backend/lib/supabase.ts`, `shared/types/index.ts` _(type)_
-- **Used by:** `app/api/admin/logs/route.ts` _(reexport)_
+- **Imports:** `backend/auth/adminRoutePolicy.ts`, `backend/auth/requirePermission.ts`, `backend/lib/supabase.ts`, `shared/types/index.ts` _(type)_
+- **Used by:** `app/api/admin/logs/route.ts` _(reexport)_, `backend/api/admin/access.test.ts` _(test)_
+
+#### `backend/api/admin/me.ts`
+
+- **Imports:** `backend/auth/adminSession.ts`, `backend/auth/decide.ts`, `backend/auth/mfa.ts`, `backend/auth/requirePermission.ts`, `backend/auth/supabaseServer.ts`, `shared/config/permissions.ts`, `shared/types/index.ts` _(type)_
+- **Used by:** `app/api/admin/me/route.ts` _(reexport)_, `backend/api/admin/me.test.ts` _(test)_
+
+#### `backend/api/admin/mfa.ts`
+
+- **Imports:** `backend/auth/mfa.ts`, `backend/auth/requirePermission.ts`, `backend/auth/supabaseServer.ts`, `backend/lib/rateLimit.ts`, `backend/lib/readJsonBody.ts`
+- **Used by:** `app/api/admin/mfa/route.ts` _(reexport)_, `backend/api/admin/mfa.test.ts` _(test)_
 
 #### `backend/api/admin/publish-article.ts`
 
-- **Imports:** `backend/lib/supabase.ts`, `backend/repositories/auditLog.ts`
-- **Used by:** `app/api/admin/publish-article/route.ts` _(reexport)_
+- **Imports:** `backend/auth/adminRoutePolicy.ts`, `backend/auth/decide.ts`, `backend/auth/requirePermission.ts`, `backend/auth/scope.ts`, `backend/lib/supabase.ts`
+- **Used by:** `app/api/admin/publish-article/route.ts` _(reexport)_, `backend/api/admin/access.test.ts` _(test)_
 
 #### `backend/api/admin/seed-supabase.ts`
 
-- **Imports:** `backend/repositories/auditLog.ts`, `backend/services/news/index.ts`, `shared/types/index.ts` _(type)_
-- **Used by:** `app/api/admin/seed-supabase/route.ts` _(reexport)_, `backend/api/admin/seed-supabase.test.ts` _(test)_
+- **Imports:** `backend/auth/adminRoutePolicy.ts`, `backend/auth/requirePermission.ts`, `backend/auth/scope.ts`, `backend/services/news/index.ts`, `shared/types/index.ts` _(type)_
+- **Used by:** `app/api/admin/seed-supabase/route.ts` _(reexport)_, `backend/api/admin/access.test.ts` _(test)_, `backend/api/admin/seed-supabase.test.ts` _(test)_
 
 #### `backend/api/admin/stats.ts`
 
-- **Imports:** `backend/lib/supabase.ts`
-- **Used by:** `app/api/admin/stats/route.ts` _(reexport)_
+- **Imports:** `backend/auth/adminRoutePolicy.ts`, `backend/auth/requirePermission.ts`, `backend/lib/supabase.ts`
+- **Used by:** `app/api/admin/stats/route.ts` _(reexport)_, `backend/api/admin/access.test.ts` _(test)_
 
 #### `backend/api/chat.ts`
 
@@ -513,10 +546,45 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `backend/lib/rateLimit.ts`, `backend/lib/readJsonBody.ts`, `backend/services/translate/googleTranslate.ts`
 - **Used by:** `app/api/translate/route.ts` _(reexport)_, `backend/api/translate.test.ts` _(test)_
 
+#### `backend/auth/adminRoutePolicy.ts`
+
+- **Imports:** `backend/auth/decide.ts` _(type)_, `shared/config/permissions.ts` _(type)_
+- **Used by:** `backend/api/admin/access.test.ts` _(test)_, `backend/api/admin/articles-bulk.ts`, `backend/api/admin/articles.ts`, `backend/api/admin/breaking-news.ts`, `backend/api/admin/db-stats.ts`, `backend/api/admin/health.ts`, `backend/api/admin/logs.ts`, `backend/api/admin/publish-article.ts`, `backend/api/admin/seed-supabase.ts`, `backend/api/admin/stats.ts`, `backend/auth/requirePermission.ts` _(type)_, `proxy.ts`
+
 #### `backend/auth/adminSession.ts`
 
 - **Imports:** —
-- **Used by:** `backend/api/admin/login.ts`, `backend/api/admin/logout.ts`, `backend/auth/adminSession.test.ts` _(test)_, `proxy.ts`
+- **Used by:** `backend/api/admin/login.ts`, `backend/api/admin/logout.ts`, `backend/api/admin/me.test.ts` _(test)_, `backend/api/admin/me.ts`, `backend/auth/adminSession.test.ts` _(test)_, `backend/auth/staffSession.test.ts` _(test)_, `backend/auth/staffSession.ts`, `proxy.test.ts` _(test)_, `proxy.ts`
+
+#### `backend/auth/decide.ts`
+
+- **Imports:** `backend/auth/scope.ts`, `shared/config/permissions.ts` _(type)_
+- **Used by:** `backend/api/admin/access.test.ts` _(test)_, `backend/api/admin/articles-bulk.ts`, `backend/api/admin/articles.ts`, `backend/api/admin/me.test.ts` _(test)_, `backend/api/admin/me.ts`, `backend/api/admin/publish-article.ts`, `backend/auth/adminRoutePolicy.ts` _(type)_, `backend/auth/decide.test.ts` _(test)_, `backend/auth/requirePermission.test.ts` _(type)_ _(test)_, `backend/auth/requirePermission.ts`, `backend/auth/staffSession.ts` _(type)_, `backend/repositories/staff.ts` _(type)_
+
+#### `backend/auth/mfa.ts`
+
+- **Imports:** —
+- **Used by:** `backend/api/admin/login.ts`, `backend/api/admin/me.ts`, `backend/api/admin/mfa.ts`
+
+#### `backend/auth/requirePermission.ts`
+
+- **Imports:** `backend/auth/adminRoutePolicy.ts` _(type)_, `backend/auth/decide.ts`, `backend/auth/scope.ts` _(type)_, `backend/auth/staffSession.ts`, `backend/lib/rateLimit.ts`, `backend/repositories/auditLog.ts`, `backend/repositories/staff.ts`, `shared/config/permissions.ts` _(type)_
+- **Used by:** `backend/api/admin/articles-bulk.ts`, `backend/api/admin/articles.ts`, `backend/api/admin/breaking-news.ts`, `backend/api/admin/db-stats.ts`, `backend/api/admin/health.ts`, `backend/api/admin/login.ts`, `backend/api/admin/logout.ts`, `backend/api/admin/logs.ts`, `backend/api/admin/me.ts`, `backend/api/admin/mfa.ts`, `backend/api/admin/publish-article.ts`, `backend/api/admin/seed-supabase.ts`, `backend/api/admin/stats.ts`, `backend/auth/requirePermission.test.ts` _(test)_
+
+#### `backend/auth/scope.ts`
+
+- **Imports:** `shared/config/permissions.ts` _(type)_
+- **Used by:** `backend/api/admin/articles-bulk.ts`, `backend/api/admin/articles.ts`, `backend/api/admin/breaking-news.ts`, `backend/api/admin/db-stats.ts`, `backend/api/admin/publish-article.ts`, `backend/api/admin/seed-supabase.ts`, `backend/auth/decide.test.ts` _(type)_ _(test)_, `backend/auth/decide.ts`, `backend/auth/requirePermission.ts` _(type)_, `backend/auth/scope.test.ts` _(test)_
+
+#### `backend/auth/staffSession.ts`
+
+- **Imports:** `backend/auth/adminSession.ts`, `backend/auth/decide.ts` _(type)_, `backend/auth/supabaseServer.ts`
+- **Used by:** `backend/api/admin/access.test.ts` _(test)_, `backend/api/admin/logout.test.ts` _(test)_, `backend/api/admin/logout.ts`, `backend/api/admin/me.test.ts` _(test)_, `backend/api/admin/mfa.test.ts` _(test)_, `backend/auth/requirePermission.test.ts` _(test)_, `backend/auth/requirePermission.ts`, `backend/auth/staffSession.test.ts` _(test)_
+
+#### `backend/auth/supabaseServer.ts`
+
+- **Imports:** —
+- **Used by:** `backend/api/admin/login.test.ts` _(test)_, `backend/api/admin/login.ts`, `backend/api/admin/logout.test.ts` _(test)_, `backend/api/admin/logout.ts`, `backend/api/admin/me.test.ts` _(test)_, `backend/api/admin/me.ts`, `backend/api/admin/mfa.test.ts` _(test)_, `backend/api/admin/mfa.ts`, `backend/auth/staffSession.test.ts` _(test)_, `backend/auth/staffSession.ts`, `proxy.ts`
 
 #### `backend/lib/cache.ts`
 
@@ -531,12 +599,12 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `backend/lib/rateLimit.ts`
 
 - **Imports:** —
-- **Used by:** `backend/api/admin/login.ts`, `backend/api/chat.ts`, `backend/api/news/scrape-article.ts`, `backend/api/translate.ts`, `backend/lib/rateLimit.redis.test.ts` _(dynamic)_ _(test)_, `backend/lib/rateLimit.test.ts` _(test)_
+- **Used by:** `backend/api/admin/login.ts`, `backend/api/admin/logout.ts`, `backend/api/admin/mfa.ts`, `backend/api/chat.ts`, `backend/api/news/scrape-article.ts`, `backend/api/translate.ts`, `backend/auth/requirePermission.ts`, `backend/lib/rateLimit.redis.test.ts` _(dynamic)_ _(test)_, `backend/lib/rateLimit.test.ts` _(test)_
 
 #### `backend/lib/readJsonBody.ts`
 
 - **Imports:** —
-- **Used by:** `backend/api/chat.ts`, `backend/api/translate.ts`, `backend/lib/readJsonBody.test.ts` _(test)_
+- **Used by:** `backend/api/admin/mfa.ts`, `backend/api/chat.ts`, `backend/api/translate.ts`, `backend/lib/readJsonBody.test.ts` _(test)_
 
 #### `backend/lib/reportFallback.ts`
 
@@ -546,17 +614,22 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `backend/lib/supabase.ts`
 
 - **Imports:** —
-- **Used by:** `backend/api/admin/articles-bulk.ts`, `backend/api/admin/articles.ts`, `backend/api/admin/breaking-news.ts`, `backend/api/admin/logs.ts`, `backend/api/admin/publish-article.ts`, `backend/api/admin/stats.ts`, `backend/repositories/auditLog.ts`, `backend/repositories/db.ts`, `backend/services/classify/categoryClassifier.ts`, `backend/services/health/health.ts`, `backend/services/scrape/scrapeArticle.ts` _(dynamic)_
+- **Used by:** `backend/api/admin/articles-bulk.ts`, `backend/api/admin/articles.ts`, `backend/api/admin/breaking-news.ts`, `backend/api/admin/logs.ts`, `backend/api/admin/publish-article.ts`, `backend/api/admin/stats.ts`, `backend/repositories/auditLog.ts`, `backend/repositories/db.ts`, `backend/repositories/staff.ts`, `backend/services/classify/categoryClassifier.ts`, `backend/services/health/health.ts`, `backend/services/scrape/scrapeArticle.ts` _(dynamic)_
 
 #### `backend/repositories/auditLog.ts`
 
-- **Imports:** `backend/lib/supabase.ts`, `shared/types/index.ts` _(type)_
-- **Used by:** `backend/api/admin/articles-bulk.ts`, `backend/api/admin/articles.ts`, `backend/api/admin/breaking-news.ts`, `backend/api/admin/db-stats.ts`, `backend/api/admin/publish-article.ts`, `backend/api/admin/seed-supabase.ts`, `backend/api/cron/refresh-news.ts`
+- **Imports:** `backend/lib/supabase.ts`
+- **Used by:** `backend/api/admin/access.test.ts` _(test)_, `backend/api/admin/login.test.ts` _(test)_, `backend/api/admin/logout.test.ts` _(test)_, `backend/api/admin/mfa.test.ts` _(test)_, `backend/api/cron/refresh-news.ts`, `backend/auth/requirePermission.test.ts` _(test)_, `backend/auth/requirePermission.ts`, `backend/repositories/auditLog.test.ts` _(test)_
 
 #### `backend/repositories/db.ts`
 
 - **Imports:** `backend/lib/likePattern.ts`, `backend/lib/reportFallback.ts`, `backend/lib/supabase.ts`, `backend/services/classify/categoryClassifier.ts`, `shared/config/newsConfig.ts`, `shared/types/index.ts`
 - **Used by:** `backend/repositories/db.test.ts` _(test)_, `backend/services/news/index.ts` _(reexport)_, `backend/services/news/knownArticle.ts`
+
+#### `backend/repositories/staff.ts`
+
+- **Imports:** `backend/auth/decide.ts` _(type)_, `backend/lib/supabase.ts`, `shared/config/permissions.ts`
+- **Used by:** `backend/api/admin/access.test.ts` _(test)_, `backend/api/admin/login.test.ts` _(test)_, `backend/api/admin/login.ts`, `backend/api/admin/me.test.ts` _(test)_, `backend/api/admin/mfa.test.ts` _(test)_, `backend/auth/requirePermission.test.ts` _(test)_, `backend/auth/requirePermission.ts`, `backend/repositories/staff.test.ts` _(test)_
 
 #### `backend/services/classify/categoryClassifier.ts`
 
@@ -621,12 +694,12 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `frontend/context/ThemeContext.tsx`
 
 - **Imports:** `shared/config/theme.ts`
-- **Used by:** `app/layout.tsx`, `frontend/components/ui/ThemeSpinner.tsx`, `frontend/features/admin/ActivityLog.tsx`, `frontend/features/admin/ArticlesTable.tsx`, `frontend/features/admin/BreakingNewsManager.tsx`, `frontend/features/admin/CategoryStatsCard.tsx`, `frontend/features/admin/SyncDashboard.tsx`, `frontend/features/news/ArticleCard.tsx`, `frontend/features/news/BreakingNewsBanner.tsx`, `frontend/features/news/CategoryMegaMenu.tsx`, `frontend/features/news/Footer.tsx`, `frontend/features/news/Header.tsx`, `frontend/features/news/MarqueeTicker.tsx`, `frontend/views/admin/AdminLoginView.tsx`, `frontend/views/admin/AdminView.test.tsx` _(test)_, `frontend/views/admin/AdminView.tsx`, `frontend/views/article/ArticleDetailView.test.tsx` _(test)_, `frontend/views/article/ArticleDetailView.tsx`, `frontend/views/home/HomeClient.test.tsx` _(test)_, `frontend/views/home/HomeClient.tsx`, `frontend/views/saved/SavedView.tsx`
+- **Used by:** `app/layout.tsx`, `frontend/components/ui/ThemeSpinner.tsx`, `frontend/features/admin/ActivityLog.test.tsx` _(test)_, `frontend/features/admin/ActivityLog.tsx`, `frontend/features/admin/ArticlesTable.tsx`, `frontend/features/admin/BreakingNewsManager.tsx`, `frontend/features/admin/CategoryStatsCard.tsx`, `frontend/features/admin/SyncDashboard.tsx`, `frontend/features/news/ArticleCard.tsx`, `frontend/features/news/BreakingNewsBanner.tsx`, `frontend/features/news/CategoryMegaMenu.tsx`, `frontend/features/news/Footer.tsx`, `frontend/features/news/Header.tsx`, `frontend/features/news/MarqueeTicker.tsx`, `frontend/views/admin/AdminLoginView.test.tsx` _(test)_, `frontend/views/admin/AdminLoginView.tsx`, `frontend/views/admin/AdminView.test.tsx` _(test)_, `frontend/views/admin/AdminView.tsx`, `frontend/views/article/ArticleDetailView.test.tsx` _(test)_, `frontend/views/article/ArticleDetailView.tsx`, `frontend/views/home/HomeClient.test.tsx` _(test)_, `frontend/views/home/HomeClient.tsx`, `frontend/views/saved/SavedView.tsx`
 
 #### `frontend/features/admin/ActivityLog.tsx`
 
 - **Imports:** `frontend/context/ThemeContext.tsx`, `frontend/features/admin/actionLabels.ts`, `shared/types/index.ts` _(type)_
-- **Used by:** `frontend/features/admin/index.ts` _(reexport)_
+- **Used by:** `frontend/features/admin/ActivityLog.test.tsx` _(test)_, `frontend/features/admin/index.ts` _(reexport)_
 
 #### `frontend/features/admin/ArticlesTable.tsx`
 
@@ -720,12 +793,12 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `frontend/views/admin/AdminLoginView.tsx`
 
-- **Imports:** `frontend/context/ThemeContext.tsx`
-- **Used by:** `app/admin/login/page.tsx` _(reexport)_
+- **Imports:** `frontend/context/ThemeContext.tsx`, `shared/types/index.ts` _(type)_
+- **Used by:** `app/admin/login/page.tsx` _(reexport)_, `frontend/views/admin/AdminLoginView.test.tsx` _(test)_
 
 #### `frontend/views/admin/AdminView.tsx`
 
-- **Imports:** `frontend/context/ThemeContext.tsx`, `frontend/features/admin/index.ts`, `frontend/features/news/index.ts`, `shared/config/translations.ts`
+- **Imports:** `frontend/context/ThemeContext.tsx`, `frontend/features/admin/index.ts`, `frontend/features/news/index.ts`, `shared/config/translations.ts`, `shared/types/index.ts` _(type)_
 - **Used by:** `app/admin/page.tsx` _(reexport)_, `frontend/views/admin/AdminView.test.tsx` _(test)_
 
 #### `frontend/views/article/ArticleDetailView.tsx`
@@ -770,8 +843,8 @@ breaks if its target moves — so it counts here, where the question is what a m
 
 #### `proxy.ts`
 
-- **Imports:** `backend/auth/adminSession.ts`
-- **Used by:** —
+- **Imports:** `backend/auth/adminRoutePolicy.ts`, `backend/auth/adminSession.ts`, `backend/auth/supabaseServer.ts`
+- **Used by:** `proxy.test.ts` _(test)_
 
 #### `sentry.edge.config.ts`
 
@@ -798,6 +871,11 @@ breaks if its target moves — so it counts here, where the question is what a m
 - **Imports:** `shared/types/index.ts`
 - **Used by:** `backend/repositories/db.ts`, `backend/services/news/fetchNews.ts`, `backend/services/news/index.ts` _(reexport)_, `backend/services/news/knownArticle.test.ts` _(test)_, `backend/services/news/knownArticle.ts`, `backend/services/news/newsdata.ts`, `frontend/features/news/ArticleCard.tsx`, `shared/config/newsConfig.test.ts` _(test)_
 
+#### `shared/config/permissions.ts`
+
+- **Imports:** —
+- **Used by:** `backend/api/admin/access.test.ts` _(type)_ _(test)_, `backend/api/admin/me.ts`, `backend/auth/adminRoutePolicy.ts` _(type)_, `backend/auth/decide.test.ts` _(test)_, `backend/auth/decide.ts` _(type)_, `backend/auth/requirePermission.ts` _(type)_, `backend/auth/scope.ts` _(type)_, `backend/repositories/staff.ts`, `shared/config/permissions.test.ts` _(test)_
+
 #### `shared/config/theme.ts`
 
 - **Imports:** —
@@ -816,7 +894,7 @@ breaks if its target moves — so it counts here, where the question is what a m
 #### `shared/types/index.ts`
 
 - **Imports:** —
-- **Used by:** `app/article/[slug]/page.tsx`, `backend/api/admin/logs.ts` _(type)_, `backend/api/admin/seed-supabase.ts` _(type)_, `backend/api/news/top-headlines.ts`, `backend/repositories/auditLog.ts` _(type)_, `backend/repositories/db.test.ts` _(type)_ _(test)_, `backend/repositories/db.ts`, `backend/services/news/fetchNews.ts`, `backend/services/news/newsdata.ts`, `backend/services/scrape/scrapeArticle.ts` _(type)_, `frontend/features/admin/actionLabels.ts` _(type)_, `frontend/features/admin/ActivityLog.tsx` _(type)_, `frontend/features/chat/Chatbot.tsx`, `frontend/features/news/ArticleCard.tsx`, `frontend/features/news/bookmarks.test.ts` _(test)_, `frontend/features/news/bookmarks.ts`, `frontend/features/news/CategoryMegaMenu.tsx`, `frontend/features/news/Header.tsx`, `frontend/features/news/MarqueeTicker.tsx`, `frontend/views/article/ArticleDetailView.tsx`, `frontend/views/home/HomeClient.test.tsx` _(type)_ _(test)_, `frontend/views/home/HomeClient.tsx`, `frontend/views/saved/SavedView.tsx`, `shared/config/newsConfig.test.ts` _(test)_, `shared/config/newsConfig.ts`, `shared/config/topicImages.ts`
+- **Used by:** `app/article/[slug]/page.tsx`, `backend/api/admin/logs.ts` _(type)_, `backend/api/admin/me.ts` _(type)_, `backend/api/admin/seed-supabase.ts` _(type)_, `backend/api/news/top-headlines.ts`, `backend/repositories/db.test.ts` _(type)_ _(test)_, `backend/repositories/db.ts`, `backend/services/news/fetchNews.ts`, `backend/services/news/newsdata.ts`, `backend/services/scrape/scrapeArticle.ts` _(type)_, `frontend/features/admin/actionLabels.ts` _(type)_, `frontend/features/admin/ActivityLog.tsx` _(type)_, `frontend/features/chat/Chatbot.tsx`, `frontend/features/news/ArticleCard.tsx`, `frontend/features/news/bookmarks.test.ts` _(test)_, `frontend/features/news/bookmarks.ts`, `frontend/features/news/CategoryMegaMenu.tsx`, `frontend/features/news/Header.tsx`, `frontend/features/news/MarqueeTicker.tsx`, `frontend/views/admin/AdminLoginView.tsx` _(type)_, `frontend/views/admin/AdminView.tsx` _(type)_, `frontend/views/article/ArticleDetailView.tsx`, `frontend/views/home/HomeClient.test.tsx` _(type)_ _(test)_, `frontend/views/home/HomeClient.tsx`, `frontend/views/saved/SavedView.tsx`, `shared/config/newsConfig.test.ts` _(test)_, `shared/config/newsConfig.ts`, `shared/config/topicImages.ts`
 
 #### `shared/validation/sentryScrub.ts`
 
