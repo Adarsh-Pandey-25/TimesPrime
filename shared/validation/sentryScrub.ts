@@ -10,9 +10,9 @@
  * Every env var the code reads that holds a secret. sentryScrub.test.ts scans
  * every TypeScript source in the repo for process.env names containing KEY, SECRET, TOKEN
  * or PASSWORD and fails if one is missing here, so a new secret cannot be
- * added without being scrubbed. NEXT_PUBLIC_NEWSDATA_API_KEY is on the list
- * despite its prefix: the seed route reads it as a fallback for the NewsData
- * key, so when set it holds that secret.
+ * added without being scrubbed. NEXT_PUBLIC_NEWSDATA_API_KEY stays on the list
+ * though no code reads it since BL-029 (it was the seed route's fallback for
+ * the NewsData key): an environment that still sets it holds that secret.
  */
 export const SECRET_ENV_KEYS = [
   "ANTHROPIC_API_KEY",

@@ -8,8 +8,8 @@ const EXPECTED_SECRET_KEYS = [
   "ANTHROPIC_API_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "NEWSDATA_API_KEY",
-  // Read by app/api/admin/seed-supabase as a fallback for NEWSDATA_API_KEY,
-  // so when set it holds the same secret despite the public prefix.
+  // No longer read (BL-029 removed the seed route's fallback), but an
+  // environment that still sets it holds the NewsData secret, so it is scrubbed.
   "NEXT_PUBLIC_NEWSDATA_API_KEY",
   "ADMIN_PASSWORD",
   "ADMIN_SESSION_SECRET",

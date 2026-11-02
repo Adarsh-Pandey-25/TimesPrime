@@ -12,7 +12,8 @@ const CATEGORIES = ["top", "technology", "business", "sports", "entertainment", 
 
 export async function POST() {
   try {
-    const apiKey = process.env.NEWSDATA_API_KEY || process.env.NEXT_PUBLIC_NEWSDATA_API_KEY;
+    // Server-side name only (BL-029): a NEXT_PUBLIC_ name is inlined into any client bundle that reads it.
+    const apiKey = process.env.NEWSDATA_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(

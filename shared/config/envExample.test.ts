@@ -38,7 +38,8 @@ test("every variable .env.local.example sets is read by the code", () => {
   expect(assigned.filter((name) => !read.has(name))).toEqual([]);
 });
 
-test.each(["ADMIN_SECRET_TOKEN", "MEDIASTACK_API_KEY"])("%s, which no code reads, is gone", (name) => {
+// NEXT_PUBLIC_NEWSDATA_API_KEY: the seed route's fallback, removed in BL-029.
+test.each(["ADMIN_SECRET_TOKEN", "MEDIASTACK_API_KEY", "NEXT_PUBLIC_NEWSDATA_API_KEY"])("%s, which no code reads, is gone", (name) => {
   expect(read.has(name)).toBe(false);
   expect(example).not.toContain(name);
 });
