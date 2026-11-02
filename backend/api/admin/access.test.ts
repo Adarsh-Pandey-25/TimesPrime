@@ -27,6 +27,18 @@ jest.mock("@/backend/repositories/auditLog", () => {
   return { recordAudit: jest.fn(async () => "audit-id"), recordSystemAudit: jest.fn(), logAdminAction: jest.fn(), AuditWriteError };
 });
 jest.mock("@/backend/lib/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
+// The news service writes through its own client; here its writes are recorded like the tables'.
+jest.mock("@/backend/services/news", () => ({
+  saveArticlesToDB: jest.fn(async () => {
+    calls.push(["articles", "upsert", []]);
+    return [{}];
+  }),
+  getDBStats: jest.fn(async () => ({ configured: true, totalStoredArticles: 0 })),
+  purgeOldArticles: jest.fn(async () => {
+    calls.push(["articles", "delete", []]);
+    return 0;
+  }),
+}));
 
 import fs from "fs";
 import path from "path";
@@ -41,6 +53,7 @@ import * as articles from "./articles";
 import * as bulk from "./articles-bulk";
 import * as breakingNews from "./breaking-news";
 import * as publish from "./publish-article";
+import * as seed from "./seed-supabase";
 
 const { supabase } = jest.requireMock("@/backend/lib/supabase") as { supabase: { from: jest.Mock } };
 
@@ -239,6 +252,15 @@ const CASES: Case[] = [
     data: { articles: { data: { article_id: "admin-local-results-1" }, error: null } },
     changes: true,
   },
+  // A full sync is site-wide: an Ingestion Ops grant limited to one language does not cover it.
+  {
+    path: "/api/admin/seed-supabase",
+    method: "POST",
+    handler: seed.POST,
+    allowed: { role: "ingestion_ops", language: null },
+    wrongScope: { role: "ingestion_ops", language: "hi" },
+    changes: true,
+  },
 ];
 
 function request(c: Case): NextRequest {
@@ -252,6 +274,8 @@ function request(c: Case): NextRequest {
 
 const rule = (c: Case): RouteRule => (ADMIN_ROUTE_RULES[c.path] as Partial<Record<Method, RouteRule>>)[c.method] as RouteRule;
 
+const env = { ...process.env };
+
 beforeEach(() => {
   jest.clearAllMocks();
   calls = [];
@@ -259,9 +283,15 @@ beforeEach(() => {
   supabase.from.mockImplementation((name: string) => table(name));
   (recordAudit as jest.Mock).mockResolvedValue("audit-id");
   jest.spyOn(console, "error").mockImplementation(() => {});
+  // The sync route calls NewsData.io; a stand-in answers with one article per category.
+  process.env.NEWSDATA_API_KEY = "test-key";
+  global.fetch = jest.fn(async () => new Response(JSON.stringify({ results: [{ article_id: "n-1", title: "t", link: "https://example.com/n" }] }), { status: 200 })) as typeof fetch;
 });
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.restoreAllMocks();
+  process.env = { ...env };
+});
 
 describe("route-specific rules", () => {
   const caseFor = (method: Method, path: string) => CASES.find((c) => c.method === method && c.path === path) as Case;

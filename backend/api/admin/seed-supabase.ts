@@ -1,16 +1,23 @@
 import "server-only";
 
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { saveArticlesToDB } from "@/backend/services/news";
-import { logAdminAction } from "@/backend/repositories/auditLog";
+import { ADMIN_ROUTE_RULES } from "@/backend/auth/adminRoutePolicy";
+import { SITE_WIDE } from "@/backend/auth/scope";
+import { auditUnavailable, beginAudit, finishAudit, requirePermission } from "@/backend/auth/requirePermission";
 import type { NewsDataRawArticle } from "@/shared/types";
 
-// Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),
-// so by the time a request reaches this handler it has already been validated.
+// Gated by requirePermission, the only gate on this path (service_role bypasses RLS; Panel 0):
+// sync.run for the whole site. The sync is audited as attempted, then its outcome.
+const RULE = ADMIN_ROUTE_RULES["/api/admin/seed-supabase"].POST;
 
 const CATEGORIES = ["top", "technology", "business", "sports", "entertainment", "health", "science"];
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const gate = await requirePermission(request, RULE, SITE_WIDE);
+  if (!gate.ok) return gate.response;
+  const actor = gate.actor;
+
   try {
     // Server-side name only (BL-029): a NEXT_PUBLIC_ name is inlined into any client bundle that reads it.
     const apiKey = process.env.NEWSDATA_API_KEY;
@@ -21,6 +28,10 @@ export async function POST() {
         { status: 500 }
       );
     }
+
+    const entry = { action: "sync.run", entityType: "sync", entityId: "all-categories", after: { categories: CATEGORIES } };
+    const attempt = await beginAudit(actor, entry);
+    if (!attempt) return auditUnavailable();
 
     let totalSaved = 0;
 
@@ -53,10 +64,7 @@ export async function POST() {
       }
     }
 
-    await logAdminAction("categories_seeded", `Seeded all categories`, {
-      categories_count: CATEGORIES.length,
-      total_articles: totalSaved,
-    });
+    await finishAudit(actor, attempt, "succeeded", { ...entry, after: { categories: CATEGORIES, total_articles: totalSaved } });
 
     return NextResponse.json({
       status: "success",

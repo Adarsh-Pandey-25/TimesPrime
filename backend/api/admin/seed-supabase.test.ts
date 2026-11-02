@@ -8,9 +8,18 @@
  */
 
 jest.mock("@/backend/services/news", () => ({ saveArticlesToDB: jest.fn(async () => []) }));
-jest.mock("@/backend/repositories/auditLog", () => ({ logAdminAction: jest.fn() }));
+// The gate is tested in access.test.ts; here it lets the request through.
+jest.mock("@/backend/auth/requirePermission", () => ({
+  requirePermission: jest.fn(async () => ({ ok: true, actor: {} })),
+  beginAudit: jest.fn(async () => "attempt-1"),
+  finishAudit: jest.fn(),
+  auditUnavailable: jest.fn(),
+}));
 
-import { POST } from "./seed-supabase";
+import { NextRequest } from "next/server";
+import { POST as handler } from "./seed-supabase";
+
+const POST = () => handler(new NextRequest("http://localhost:3000/api/admin/seed-supabase", { method: "POST" }));
 
 const saved = { key: process.env.NEWSDATA_API_KEY, publicKey: process.env.NEXT_PUBLIC_NEWSDATA_API_KEY };
 
