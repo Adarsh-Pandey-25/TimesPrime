@@ -627,3 +627,19 @@ in `app/`, which is the routing shell. Proposal: apply A2 to every `app/**/page.
 composition pages allowlisted by name (`app/page.tsx` and `app/article/[slug]/page.tsx`, which
 combine backend data with a view, ADR 0002). `check:boundaries` and the jest coverage exclusion read
 the same list, so change all three together, and prove the rule with a probe page.
+
+## BL-033 — The 7-day purge deletes what Rule 19 says to keep for 60 days
+
+**Found:** panel work, Step 1 report (2026-11-02), point 7 · **Status:** Open — decided in Panel 4/7
+
+The reader feed keeps a 7-day rolling window. `purgeOldArticles` (`backend/repositories/db.ts`)
+deletes every article whose `created_at` is older than 7 days, once per cron run
+(`backend/api/cron/refresh-news.ts`) and when the admin presses purge (`backend/api/admin/db-stats.ts`).
+`docs/PANEL_PLAN.md` reads IT Rules Rule 19 as requiring content records for at least 60 days, and asks
+for a 60-day purge floor. Today nothing of a purged article survives, so the two conflict.
+
+Proposed direction (owner, 2026-11-02): the feed keeps its 7-day window. A separate `content_records`
+table keeps a light record of every published item (title, link, source, published and unpublished
+times, actor) for at least 60 days, and the purge floor applies to the records, not to the feed.
+Not built now: the table, its writer and the floor belong to Panel 4 (Ingestion) or Panel 7
+(Compliance), whichever comes first.
