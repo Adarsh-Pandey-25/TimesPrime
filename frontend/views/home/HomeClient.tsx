@@ -100,6 +100,12 @@ export default function HomeClient({
 
   const t = TRANSLATIONS[language];
 
+  // F-021: one feed request at a time. Each call aborts the one before it,
+  // and a response is applied only if no newer call has started since, so a
+  // slow older answer can never replace a newer feed (the abort alone does
+  // not guarantee that: a response can already be in hand when it fires).
+  const feedRequestRef = useRef<{ seq: number; controller: AbortController | null }>({ seq: 0, controller: null });
+
   // Stable across renders (no external deps — every caller passes `lang`
   // explicitly) so it's safe to reference from effects below.
   const fetchNews = useCallback(async (
@@ -108,6 +114,13 @@ export default function HomeClient({
     lang: Language,
     bypassCache: boolean = false
   ) => {
+    const request = feedRequestRef.current;
+    request.controller?.abort();
+    const controller = new AbortController();
+    request.controller = controller;
+    const seq = ++request.seq;
+    const isCurrent = () => seq === request.seq;
+
     setLoading(true);
     try {
       let url = `/api/news/top-headlines?category=${cat}&language=${lang}`;
@@ -122,8 +135,10 @@ export default function HomeClient({
       }
       const res = await fetch(url, {
         headers: { "ngrok-skip-browser-warning": "true" },
+        signal: controller.signal,
       });
       const data = await res.json();
+      if (!isCurrent()) return;
 
       let fetchedResults: Article[] = data.results || [];
       if (query.trim()) {
@@ -148,10 +163,21 @@ export default function HomeClient({
       setBannerDismissed(false);
       dismissedAtCountRef.current = 0;
     } catch (err) {
+      // Aborted or superseded: the newer request reports its own outcome.
+      if (!isCurrent()) return;
       console.error("Failed to fetch news:", err);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
+  }, []);
+
+  // Leaving the page cancels the request in flight, and nothing it returns is applied.
+  useEffect(() => {
+    const request = feedRequestRef.current;
+    return () => {
+      request.seq++;
+      request.controller?.abort();
+    };
   }, []);
 
   // Sync URL params on client navigation. Necessary setState-in-effect: the
@@ -164,28 +190,29 @@ export default function HomeClient({
   // searchQuery/language change for other reasons — those are handled by
   // the effect below and by direct handlers (handleSearch, category
   // clicks). Adding them here would cause redundant/duplicate fetches.
+  //
+  // One request even when both change (F-021): it used to send one each.
   useEffect(() => {
     const urlCat = searchParams.get("category");
     const urlSearch = searchParams.get("search");
-    if (urlCat && urlCat !== category) {
+    const nextCat = urlCat && urlCat !== category ? urlCat : null;
+    const nextSearch = urlSearch !== null && urlSearch !== searchQuery ? urlSearch : null;
+    if (nextCat === null && nextSearch === null) return;
+    if (nextCat !== null) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCategory(urlCat);
-      fetchNews(urlCat, urlSearch || "", language);
+      setCategory(nextCat);
     }
-    if (urlSearch !== null && urlSearch !== searchQuery) {
-      setSearchQuery(urlSearch);
-      fetchNews(urlCat || category, urlSearch, language);
-    }
+    if (nextSearch !== null) setSearchQuery(nextSearch);
+    fetchNews(nextCat ?? category, nextSearch ?? (nextCat !== null ? urlSearch || "" : searchQuery), language);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const isFirstRender = useRef(true);
 
-  // Re-fetch when category or language changes on client side.
-  // `searchQuery` is intentionally excluded from deps: handleSearch already
-  // triggers its own fetch when the search query changes, so including it
-  // here would fire a second, duplicate request on every keystroke-driven
-  // search.
+  // Re-fetch when the language changes. Category and search are excluded
+  // from deps: every place that changes them (the category menu, the URL
+  // sync above, handleSearch, Reset Category) fetches for itself, so
+  // reacting to them here sent each of those requests twice (F-021).
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -193,7 +220,7 @@ export default function HomeClient({
     }
     fetchNews(category, searchQuery, language);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, language, fetchNews]);
+  }, [language, fetchNews]);
 
   // Silently poll Supabase for stories newer than what's on screen.
   //
