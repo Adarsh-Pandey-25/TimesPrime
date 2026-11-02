@@ -1,7 +1,7 @@
 # TimesPrime — Session Handoff
 
-> **⚠ Nothing is deployed until the whole project is complete (owner decision, 2026-11-02).** Ignore
-> any earlier Vercel deployment; the target is AWS (`ap-south-1`), at the end.
+> **⚠ Superseded (owner, 2026-11-02, later):** the owner's senior asked for a deployment now. The
+> release is prepared on `release/v1` (hosting chosen in its R0); panel work is paused until then.
 >
 > **The real database (owner decision, 2026-11-02).** `.env.local` holds the real database's
 > credentials, and the app uses them. The local database was dropped. **Never read, print or edit

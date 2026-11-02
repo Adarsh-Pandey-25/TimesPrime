@@ -14,7 +14,8 @@
   4. `npm run verify` and CI are green; routes, JS and CSS reported.
   5. SQL is in migration files with a rollback, listed as an owner action.
   6. `docs/PANEL_DOCS.md`, `docs/HANDOFF.md` and `docs/CODEMAP.md` are updated.
-  7. Real-database tests run against the local Supabase, not only mocks.
+  7. Database tests against the real database are read-only. The database's own rules (triggers,
+     audit hash chain, bootstrap) are verified by the owner via the runbook.
   8. End-to-end browser tests cover the critical flows, including a refused-access flow.
   9. Every screen has loading, error and empty states.
   10. Accessibility is checked (keyboard, labels).
@@ -29,11 +30,13 @@
 - **Never push to `main` directly.** A branch reaches `main` only after the owner approves: then merge
   it into `main` and push `main`.
 
-## Deployment: none until the project is complete
+## Deployment and the database
 
-- **Nothing is deployed** until the whole project is done (owner decision, 2026-11-02). Ignore any
-  earlier Vercel deployment. All verification is local.
-- **The target is AWS**, region `ap-south-1` (CERT-In: logs kept in India), when the project is
-  complete. The 30-minute cron in `vercel.json` will need an AWS scheduler then.
-- **Never run a migration, bootstrap or smoke test against the database `.env.local` points at**: it
-  may be production. Local runs use a local database ([`docs/HANDOFF.md`](docs/HANDOFF.md) §2).
+- **A deployment now** (owner, 2026-11-02): the owner's senior has asked for one. The earlier "no
+  deployment until the project is complete; AWS" decision is superseded. The hosting is chosen in R0
+  of `release/v1`.
+- **Panel work is paused** and resumes after the release.
+- **The real database:** `.env.local` holds its credentials and the app uses them. Never read, print
+  or edit `.env.local`. Never write to the database yourself: no SQL, migrations, bootstrap, test
+  users or destructive tests. Schema changes are owner actions in a runbook. The app's normal
+  behaviour (reading, ingesting, caching scraped content) is fine. End-to-end tests are read-only.
