@@ -9,15 +9,26 @@ import "server-only";
  * actual attack surface: non-http(s) protocols, and any hostname that resolves
  * (directly or via DNS) to a private/loopback/link-local/reserved address,
  * which is what lets SSRF reach internal services or cloud metadata endpoints.
+ *
+ * On success it returns the addresses it checked, so the caller can connect
+ * to exactly those (F-003): resolving again at connect time would let a
+ * second DNS answer differ from the one validated (DNS rebinding).
  */
 
 import dns from "dns/promises";
 import net from "net";
 
+export interface ValidatedAddress {
+  address: string;
+  family: 4 | 6;
+}
+
 export interface UrlValidationResult {
   ok: boolean;
   reason?: string;
   resolvedAddress?: string;
+  /** On success: every address the hostname resolved to, all of them public. */
+  addresses?: ValidatedAddress[];
 }
 
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
@@ -31,9 +42,13 @@ const BLOCKED_IPV4_RANGES: Array<[string, number]> = [
   ["169.254.0.0", 16], // link-local (includes cloud metadata endpoints)
   ["172.16.0.0", 12], // private
   ["192.0.0.0", 24], // IETF protocol assignments
+  ["192.0.2.0", 24], // documentation (TEST-NET-1)
   ["192.168.0.0", 16], // private
   ["198.18.0.0", 15], // benchmarking
+  ["198.51.100.0", 24], // documentation (TEST-NET-2)
+  ["203.0.113.0", 24], // documentation (TEST-NET-3)
   ["224.0.0.0", 4], // multicast
+  ["240.0.0.0", 4], // reserved, including the 255.255.255.255 broadcast
 ];
 
 function ipv4ToInt(ip: string): number {
@@ -49,17 +64,50 @@ function isBlockedIPv4(ip: string): boolean {
   });
 }
 
+/** The 16 bytes of a valid IPv6 address, in any textual form (`::`, embedded dotted IPv4). */
+function ipv6ToBytes(ip: string): number[] {
+  let text = ip.toLowerCase();
+  const tail: number[] = [];
+  const dotted = text.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    tail.push(...dotted[1].split(".").map(Number));
+    text = text.slice(0, -dotted[1].length) + "0:0";
+  }
+  const [head, rest] = text.split("::");
+  const groups = (part: string | undefined) => (part ? part.split(":").filter(Boolean) : []);
+  const left = groups(head);
+  const right = rest === undefined ? [] : groups(rest);
+  const missing = 8 - left.length - right.length;
+  const all = [...left, ...Array(rest === undefined ? 0 : missing).fill("0"), ...right];
+  const bytes = all.flatMap((group) => {
+    const value = parseInt(group, 16);
+    return [value >> 8, value & 0xff];
+  });
+  if (tail.length) bytes.splice(12, 4, ...tail);
+  return bytes;
+}
+
+const embeddedIPv4 = (bytes: number[], at: number) => bytes.slice(at, at + 4).join(".");
+const startsWith = (bytes: number[], prefix: number[]) => prefix.every((b, i) => bytes[i] === b);
+
 function isBlockedIPv6(ip: string): boolean {
-  const lower = ip.toLowerCase();
-  return (
-    lower === "::1" || // loopback
-    lower === "::" || // unspecified
-    lower.startsWith("fe80:") || // link-local
-    lower.startsWith("fc") || // unique local fc00::/7
-    lower.startsWith("fd") || // unique local fc00::/7
-    lower.startsWith("::ffff:127.") || // IPv4-mapped loopback
-    lower.startsWith("::ffff:169.254.") // IPv4-mapped link-local
-  );
+  const b = ipv6ToBytes(ip);
+  const zeros = (from: number, to: number) => b.slice(from, to).every((x) => x === 0);
+
+  if (zeros(0, 15) && (b[15] === 0 || b[15] === 1)) return true; // :: unspecified, ::1 loopback
+  if (zeros(0, 10) && b[10] === 0xff && b[11] === 0xff) return isBlockedIPv4(embeddedIPv4(b, 12)); // ::ffff:0:0/96 IPv4-mapped
+  if (zeros(0, 12)) return isBlockedIPv4(embeddedIPv4(b, 12)); // ::/96 IPv4-compatible (deprecated)
+  if (startsWith(b, [0x00, 0x64, 0xff, 0x9b]) && zeros(4, 12)) return isBlockedIPv4(embeddedIPv4(b, 12)); // 64:ff9b::/96 NAT64
+  if (startsWith(b, [0x00, 0x64, 0xff, 0x9b, 0x00, 0x01])) return true; // 64:ff9b:1::/48 local-use NAT64
+  if (startsWith(b, [0x20, 0x02])) return isBlockedIPv4(embeddedIPv4(b, 2)); // 2002::/16 6to4
+  if (startsWith(b, [0x20, 0x01, 0x00, 0x00])) return true; // 2001::/32 Teredo: the embedded address is obfuscated
+  if (startsWith(b, [0x20, 0x01, 0x0d, 0xb8])) return true; // 2001:db8::/32 documentation
+  if (startsWith(b, [0x01, 0x00]) && zeros(2, 8)) return true; // 100::/64 discard-only
+  if ((b[0] & 0xfe) === 0xfc) return true; // fc00::/7 unique local
+  if (b[0] === 0xfe && (b[1] & 0xc0) === 0x80) return true; // fe80::/10 link-local
+  if (b[0] === 0xfe && (b[1] & 0xc0) === 0xc0) return true; // fec0::/10 site-local (deprecated)
+  if (b[0] === 0xff) return true; // ff00::/8 multicast
+  return false;
 }
 
 function isBlockedIp(ip: string): boolean {
@@ -69,9 +117,9 @@ function isBlockedIp(ip: string): boolean {
 }
 
 /**
- * Validates a URL is safe to fetch server-side: http(s) only, and its
- * hostname must not resolve to a private/internal address. Resolves DNS
- * itself (rather than trusting the literal hostname) to defend against
+ * Validates a URL is safe to fetch server-side: http(s) only, no credentials,
+ * and its hostname must not resolve to a private/internal address. Resolves
+ * DNS itself (rather than trusting the literal hostname) to defend against
  * DNS-rebinding, where a public-looking domain resolves to an internal IP.
  */
 export async function validateExternalUrl(rawUrl: string): Promise<UrlValidationResult> {
@@ -86,27 +134,35 @@ export async function validateExternalUrl(rawUrl: string): Promise<UrlValidation
     return { ok: false, reason: `Protocol "${parsed.protocol}" is not allowed.` };
   }
 
-  const hostname = parsed.hostname;
+  // A publisher link never needs credentials, and userinfo is where URL
+  // parsers have disagreed about which part is the host.
+  if (parsed.username || parsed.password) {
+    return { ok: false, reason: "URLs with credentials are not allowed." };
+  }
+
+  // `new URL()` keeps the brackets around an IPv6 literal.
+  const hostname = parsed.hostname.replace(/^\[(.*)\]$/, "$1");
 
   if (hostname === "localhost" || hostname.endsWith(".localhost")) {
     return { ok: false, reason: "Localhost is not allowed." };
   }
 
   // If the hostname is already a literal IP, check it directly.
-  if (net.isIP(hostname)) {
+  const literalFamily = net.isIP(hostname);
+  if (literalFamily) {
     if (isBlockedIp(hostname)) {
       return { ok: false, reason: "Target resolves to a private/internal address.", resolvedAddress: hostname };
     }
-    return { ok: true };
+    return { ok: true, addresses: [{ address: hostname, family: literalFamily as 4 | 6 }] };
   }
 
   // Otherwise resolve DNS and check every returned address — a hostname can
   // have multiple A/AAAA records, and an attacker only needs one to point
   // internally.
-  let addresses: string[];
+  let addresses: ValidatedAddress[];
   try {
     const results = await dns.lookup(hostname, { all: true, verbatim: true });
-    addresses = results.map((r) => r.address);
+    addresses = results.map((r) => ({ address: r.address, family: r.family === 6 ? 6 : 4 }));
   } catch {
     return { ok: false, reason: "Could not resolve hostname." };
   }
@@ -115,10 +171,10 @@ export async function validateExternalUrl(rawUrl: string): Promise<UrlValidation
     return { ok: false, reason: "Hostname did not resolve to any address." };
   }
 
-  const blocked = addresses.find(isBlockedIp);
+  const blocked = addresses.find((a) => isBlockedIp(a.address));
   if (blocked) {
-    return { ok: false, reason: "Target resolves to a private/internal address.", resolvedAddress: blocked };
+    return { ok: false, reason: "Target resolves to a private/internal address.", resolvedAddress: blocked.address };
   }
 
-  return { ok: true };
+  return { ok: true, addresses };
 }

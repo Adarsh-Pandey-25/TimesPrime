@@ -4,12 +4,12 @@
  * The SSRF guard in front of the scraper (audit Phase 2, step 2.1). DNS is
  * mocked: each hostname resolves to exactly what the real resolver returned
  * on the development machine (including for bracketed IPv6 literals, which
- * reach the DNS branch because `new URL()` keeps the brackets), and anything
- * unlisted fails the way an unknown name does.
+ * reached the DNS branch before F-003 because `new URL()` keeps the
+ * brackets; an unlisted one resolves to itself, as the real resolver does),
+ * and any other unlisted name fails the way an unknown name does.
  *
- * `test.failing` marks a gap this guard has today: the test states the safe
- * behaviour, and passes only while the guard gets it wrong. The fix that
- * closes a gap turns its test into a plain one.
+ * The "gaps closed by F-003" block began as `test.failing` (487eb47): each
+ * test stated the safe behaviour and passed only while the guard got it wrong.
  */
 
 jest.mock("dns/promises", () => {
@@ -51,7 +51,9 @@ beforeEach(() => {
   };
   lookup.mockReset();
   lookup.mockImplementation(async (host: string) => {
-    const addresses = records[host];
+    // The real resolver answers an unlisted bracketed literal with the literal itself.
+    const literal = /^\[(.+)\]$/.exec(host)?.[1];
+    const addresses = records[host] ?? (literal ? [literal] : undefined);
     if (!addresses) throw Object.assign(new Error(`getaddrinfo ENOTFOUND ${host}`), { code: "ENOTFOUND" });
     return addresses.map((address) => ({ address, family: address.includes(":") ? 6 : 4 }));
   });
@@ -129,21 +131,63 @@ describe("validateExternalUrl — rejected", () => {
   });
 });
 
-describe("validateExternalUrl — gaps today (safe behaviour stated; passing only while the guard gets it wrong)", () => {
-  test.failing.each(["http://[::ffff:a00:1]/", "http://[::ffff:c0a8:101]/"])(
+describe("validateExternalUrl — gaps closed by F-003", () => {
+  test.each(["http://[::ffff:a00:1]/", "http://[::ffff:c0a8:101]/"])(
     "IPv4-mapped IPv6 of a private range is rejected: %s",
     rejected
   );
 
-  test.failing("a name resolving to IPv4-mapped IPv6 in hex form is rejected", () => rejected("http://v6-mapped-hex.attacker.example/"));
+  test("a name resolving to IPv4-mapped IPv6 in hex form is rejected", () => rejected("http://v6-mapped-hex.attacker.example/"));
 
-  test.failing("a name resolving to IPv4-mapped IPv6 of a private range is rejected", () =>
+  test("a name resolving to IPv4-mapped IPv6 of a private range is rejected", () =>
     rejected("http://v6-mapped-private.attacker.example/")
   );
 
-  test.failing("a name resolving to NAT64-mapped loopback is rejected", () => rejected("http://nat64.attacker.example/"));
+  test("a name resolving to NAT64-mapped loopback is rejected", () => rejected("http://nat64.attacker.example/"));
 
-  test.failing.each(["http://240.0.0.1/", "http://255.255.255.255/"])("reserved and broadcast IPv4 are rejected: %s", rejected);
+  test.each(["http://240.0.0.1/", "http://255.255.255.255/"])("reserved and broadcast IPv4 are rejected: %s", rejected);
 
-  test.failing("a URL carrying credentials is rejected", () => rejected("http://user:secret@example.com/"));
+  test("a URL carrying credentials is rejected", () => rejected("http://user:secret@example.com/"));
+
+  test.each([
+    "http://[::127.0.0.1]/",
+    "http://[2002:7f00:1::1]/",
+    "http://[64:ff9b:1::1]/",
+    "http://[2001:db8::1]/",
+    "http://[2001::1]/",
+    "http://[ff02::1]/",
+    "http://[fec0::1]/",
+    "http://[100::1]/",
+    "http://192.0.2.1/",
+    "http://198.51.100.1/",
+    "http://203.0.113.1/",
+  ])("IPv4-compatible, 6to4, local NAT64, documentation, Teredo, multicast, site-local, discard and TEST-NET: %s", rejected);
+
+  test("an IPv6 literal is judged directly, without a DNS lookup", async () => {
+    await rejected("http://[::ffff:a00:1]/");
+    await allowed("http://[2606:4700::1111]/");
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  test("NAT64 of a public address stays allowed", () => allowed("http://[64:ff9b::808:808]/"));
+});
+
+describe("validateExternalUrl — the addresses it validated, for pinning the connection", () => {
+  test("a name: every address it resolved to", async () => {
+    await expect(validateExternalUrl("https://www.bbc.com/news")).resolves.toEqual({
+      ok: true,
+      addresses: [
+        { address: "151.101.0.81", family: 4 },
+        { address: "2a04:4e42::81", family: 6 },
+      ],
+    });
+  });
+
+  test("a literal: the literal itself, without brackets", async () => {
+    await expect(validateExternalUrl("http://8.8.8.8/")).resolves.toEqual({ ok: true, addresses: [{ address: "8.8.8.8", family: 4 }] });
+    await expect(validateExternalUrl("http://[2606:4700::1111]/")).resolves.toEqual({
+      ok: true,
+      addresses: [{ address: "2606:4700::1111", family: 6 }],
+    });
+  });
 });
