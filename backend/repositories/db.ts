@@ -205,7 +205,9 @@ function isFromHardPaywallSource(link: string | undefined): boolean {
 
 
 /**
- * Automatically purges any article older than 7 days from Supabase.
+ * Purges every article older than 7 days from Supabase. A DELETE, so it runs
+ * only where a purge is the point: once per cron run, and the admin's purge
+ * action. It used to run on every feed read and upsert as well (F-015).
  */
 export async function purgeOldArticles(): Promise<number> {
   if (!isSupabaseConfigured()) {
@@ -243,14 +245,10 @@ export async function purgeOldArticles(): Promise<number> {
 }
 
 /**
- * Upserts new articles into Supabase table "articles" in Realtime
- * and triggers 7-day auto-purge.
+ * Upserts new articles into Supabase table "articles" in Realtime.
  */
 export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBArticle[]> {
   if (!incomingArticles || incomingArticles.length === 0) return [];
-
-  // Run 7-day auto-purge first
-  await purgeOldArticles();
 
   if (!isSupabaseConfigured()) {
     return incomingArticles;
@@ -376,8 +374,6 @@ export async function getDBArticles(
   if (!isSupabaseConfigured()) {
     return [];
   }
-
-  await purgeOldArticles();
 
   try {
     const queryBuilder = applyArticleFilters(

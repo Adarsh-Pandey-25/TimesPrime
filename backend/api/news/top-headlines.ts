@@ -204,7 +204,7 @@ export async function GET(request: NextRequest) {
         !isFromNonNewsListingSource(art.source_id)
     );
 
-    // 1. Save and Auto-Purge Supabase Database (Keep only 7 days of news)
+    // 1. Save to Supabase. The 7-day purge runs in the cron route, not here (F-015).
     await saveArticlesToDB(fetchedArticles);
 
     // 2. Query accumulated valid articles from Supabase DB. Use the mapped

@@ -81,11 +81,12 @@ describe("db.ts during a Supabase outage (BL-014)", () => {
     await feedRequest();
     await feedRequest();
 
-    // Four distinct operations fail: freshness check, purge (twice per
-    // request), upsert, select. Unthrottled this was 15 events.
-    expect(events()).toBeLessThanOrEqual(4);
+    // Three distinct operations fail: freshness check, upsert, select.
+    // Unthrottled this was 15 events, when each request also purged twice
+    // (F-015 took the purge off this path).
+    expect(events()).toBeLessThanOrEqual(3);
     const operations = sentry.captureMessage.mock.calls.map(([, options]) => options.extra.operation).sort();
-    expect(operations).toEqual(["getDBArticles", "getLatestArticleTimestamp", "purgeOldArticles", "saveArticlesToDB"]);
+    expect(operations).toEqual(["getDBArticles", "getLatestArticleTimestamp", "saveArticlesToDB"]);
   });
 
   test("reports again after the window, carrying how many were suppressed", async () => {
@@ -97,10 +98,10 @@ describe("db.ts during a Supabase outage (BL-014)", () => {
     jest.setSystemTime(clock + FALLBACK_REPORT_WINDOW_MS);
     await feedRequest();
 
-    const purge = sentry.captureMessage.mock.calls.find(([, options]) => options.extra.operation === "purgeOldArticles");
-    // Six purges ran in the first window (two per request); one was reported.
-    expect(purge?.[1].extra.suppressedSinceLastReport).toBe(5);
-    expect(events()).toBeLessThanOrEqual(4);
+    const select = sentry.captureMessage.mock.calls.find(([, options]) => options.extra.operation === "getDBArticles");
+    // Three selects ran in the first window (one per request); one was reported.
+    expect(select?.[1].extra.suppressedSinceLastReport).toBe(2);
+    expect(events()).toBeLessThanOrEqual(3);
   });
 
   test("thrown failures are throttled the same way", async () => {
@@ -108,8 +109,8 @@ describe("db.ts during a Supabase outage (BL-014)", () => {
       throw new TypeError("fetch failed");
     });
     for (let i = 0; i < 5; i++) await getDBArticles("top", "", "en");
-    // getDBArticles's purge and select both throw; one report each.
-    expect(sentry.captureException).toHaveBeenCalledTimes(2);
+    // getDBArticles's select throws; one report (it purged too before F-015).
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 
   test("what readers get is unchanged: empty results, not errors", async () => {
@@ -118,3 +119,42 @@ describe("db.ts during a Supabase outage (BL-014)", () => {
     await expect(saveArticlesToDB([article])).resolves.toEqual([article]);
   });
 });
+
+// F-015: the 7-day purge is a DELETE. It ran on every feed read and every
+// upsert, against a database that may be production. It now runs only in the
+// cron route (and the admin's explicit purge action).
+describe("no purge on the read and write paths (F-015)", () => {
+  // Records every query-builder method called, and resolves like a healthy database.
+  function recordingQuery(calls: string[]): object {
+    const proxy: object = new Proxy(
+      {},
+      {
+        get(_target, prop) {
+          if (prop === "then") return (resolve: (value: object) => void) => resolve({ data: [], count: 0, error: null });
+          return () => {
+            calls.push(String(prop));
+            return proxy;
+          };
+        },
+      }
+    );
+    return proxy;
+  }
+
+  test("a feed read issues no DELETE", async () => {
+    const calls: string[] = [];
+    supabase.from.mockImplementation(() => recordingQuery(calls));
+    await getDBArticles("top", "", "en");
+    expect(calls).toContain("select");
+    expect(calls).not.toContain("delete");
+  });
+
+  test("an upsert issues no DELETE", async () => {
+    const calls: string[] = [];
+    supabase.from.mockImplementation(() => recordingQuery(calls));
+    await saveArticlesToDB([article]);
+    expect(calls).toContain("upsert");
+    expect(calls).not.toContain("delete");
+  });
+});
+

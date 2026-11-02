@@ -2,7 +2,7 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { saveArticlesToDB } from "@/backend/services/news";
+import { saveArticlesToDB, purgeOldArticles } from "@/backend/services/news";
 import { fetchNewsDataArticles } from "@/backend/services/news";
 import { logAdminAction } from "@/backend/repositories/auditLog";
 
@@ -67,6 +67,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // The 7-day purge runs here, once per run, and nowhere on the read path
+  // (F-015). It never throws: a failure is logged and counts as 0.
+  const purged = await purgeOldArticles();
+
   const details: RefreshDetail[] = [];
   let refreshed = 0;
   let failed = 0;
@@ -111,11 +115,13 @@ export async function GET(request: NextRequest) {
     articles_count: articlesSaved,
     refreshed,
     failed,
+    purged,
   });
 
   return NextResponse.json({
     refreshed,
     failed,
+    purged,
     timestamp: new Date().toISOString(),
     details,
   });
