@@ -274,7 +274,8 @@ reserve for the owner.
 ## BL-013 — The in-memory cache never evicts keys that are not read again
 
 **Found:** Phase 1 of the audit fixes, checking how `cache.ts` behaves without Upstash (D1) ·
-**Status:** Open (audit-ledger observation N-03) — **deferred into audit Phase 2 with F-020** by the
+**Status:** **Resolved** in `e5754b5` (audit Phase 2, with F-020: a sweep every minute and at most
+1,000 entries). Was: Open (audit-ledger observation N-03) — **deferred into audit Phase 2 with F-020** by the
 owner
 
 When Upstash is not configured — as on this machine — `cache.ts` falls back to a `Map` and deletes
@@ -298,8 +299,9 @@ same trace is F-015, Phase 3.
 
 ## BL-015 — `urlValidation` goes to `backend/lib/` now, to `shared/validation/` with F-005
 
-**Found:** restructure 2, S0 judgement call 3 (owner, at the S0 approval) · **Status:** Open —
-**pick up with F-005** (audit Phase 2)
+**Found:** restructure 2, S0 judgement call 3 (owner, at the S0 approval) · **Status:** **Resolved** in
+`2cd04c9` (moved to `shared/validation/`, browser-safe; its DNS step is injected by
+`backend/services/scrape/fetchPage.ts`), with F-005 as planned
 
 Move map v2 put `urlValidation.ts` in `backend/lib/` because its only importer is the scraper,
 `backend/api/news/scrape-article.ts`. The F-005 fix needs URL validation
@@ -595,3 +597,33 @@ state renders `null` already (`if (!isOpen) return null`), so nothing visible ch
 short fetch on the first click, and the bundle check should show the chunk leaving every route. Check
 the Next 16 `lazy-loading` guide in `node_modules/next/dist/docs/` first. Leaving `/admin` out of the
 button (its own decision) is not part of this.
+
+## BL-031 — New moderate advisories in dev and build tooling (`glob`, `minimatch`)
+
+**Found:** audit Phase 5, final `npm audit` (2026-11-02) · **Status:** Open — owner decision
+
+`npm audit` went from 5 low to 37: 0 critical, 0 high, 34 moderate, 3 low. The moderates come from two
+advisories published after Phase 1:
+- `glob` 9.0.0–14.0.1 ([GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4)),
+  through `@sentry/nextjs`'s build-time bundler plugin.
+- `minimatch` <11.0.1 ([GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249)),
+  through `eslint` and `eslint-config-next`'s plugins.
+
+Neither ships in the app. npm's only fixes are major-version changes (`eslint` 4.0.0, `@sentry/nextjs`
+10.76.1), which the rules forbid without the owner. `npm audit fix --dry-run` without `--force` would
+change 14 dev packages and leave the count at 37, so it was not run. Options: accept, as for the jest
+lows; or wait for `@sentry/nextjs` and `eslint-config-next` releases that move to fixed versions, and
+recheck then. CI does not run `npm audit`, so it is unaffected either way.
+
+## BL-032 — A2 for new pages
+
+**Found:** audit master prompt, Phase 5 · **Status:** Open — proposal
+
+A2 (`eslint.boundaries.mjs`, `boundaries/shim-only`) holds two kinds of file to re-exports and
+literal segment config: every `app/**/route.ts`, and the pages whose bodies moved to
+`frontend/views/` in restructure 2. Those pages are `SHIMS` in `scripts/move-map.mjs`, derived from
+the move map. A `page.tsx` added later is in no move map, so A2 never sees it. Its logic can then grow
+in `app/`, which is the routing shell. Proposal: apply A2 to every `app/**/page.tsx`, with the two
+composition pages allowlisted by name (`app/page.tsx` and `app/article/[slug]/page.tsx`, which
+combine backend data with a view, ADR 0002). `check:boundaries` and the jest coverage exclusion read
+the same list, so change all three together, and prove the rule with a probe page.
