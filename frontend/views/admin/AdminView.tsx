@@ -42,7 +42,7 @@ export default function AdminDashboardPage() {
   const [dbStats, setDbStats] = useState<DbStats | null>(null);
   const [purging, setPurging] = useState(false);
   const [seeding, setSeeding] = useState(false);
-  const [purgeMsg, setPurgeMsg] = useState("");
+  const [purgeMsg, setPurgeMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const fetchDbStats = async () => {
     try {
@@ -63,18 +63,26 @@ export default function AdminDashboardPage() {
     fetchDbStats();
   }, []);
 
+  // F-014: success only on res.ok. An error status shows the server's
+  // message (the admin routes send `message`, proxy.ts sends `error`), and a
+  // thrown request shows why. Both used to read as success, or as nothing.
+  const failureText = (action: string, res: Response, data: { message?: string; error?: string } | null) =>
+    data?.message || data?.error || `${action} failed (status ${res.status}).`;
+
   const handleSeedSupabase = async () => {
     setSeeding(true);
-    setPurgeMsg("");
+    setPurgeMsg(null);
     try {
       const res = await fetch("/api/admin/seed-supabase", { method: "POST", credentials: "include" });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (res.ok) {
-        setPurgeMsg(data.message || "All news categories synchronized to Supabase!");
+        setPurgeMsg({ ok: true, text: data?.message || "All news categories synchronized to Supabase!" });
         fetchDbStats();
+      } else {
+        setPurgeMsg({ ok: false, text: failureText("Sync", res, data) });
       }
-    } catch {
-      setPurgeMsg("News synchronization request sent.");
+    } catch (err) {
+      setPurgeMsg({ ok: false, text: `Sync failed: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
       setSeeding(false);
     }
@@ -82,16 +90,18 @@ export default function AdminDashboardPage() {
 
   const handleManualPurge = async () => {
     setPurging(true);
-    setPurgeMsg("");
+    setPurgeMsg(null);
     try {
       const res = await fetch("/api/admin/db-stats", { method: "POST", credentials: "include" });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (res.ok) {
-        setPurgeMsg(data.message || "7-Day Purge completed!");
-        setDbStats(data.stats);
+        setPurgeMsg({ ok: true, text: data?.message || "7-Day Purge completed!" });
+        setDbStats(data?.stats ?? null);
+      } else {
+        setPurgeMsg({ ok: false, text: failureText("Purge", res, data) });
       }
-    } catch {
-      setPurgeMsg("Purge operation complete.");
+    } catch (err) {
+      setPurgeMsg({ ok: false, text: `Purge failed: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
       setPurging(false);
     }
@@ -289,9 +299,14 @@ export default function AdminDashboardPage() {
             </button>
           </div>
 
-          {purgeMsg && (
+          {purgeMsg?.ok && (
             <div className="rounded-xl bg-emerald-950/80 border border-emerald-800 p-3 text-xs font-bold text-emerald-300">
-              {purgeMsg}
+              {purgeMsg.text}
+            </div>
+          )}
+          {purgeMsg && !purgeMsg.ok && (
+            <div role="alert" className="rounded-xl bg-red-950/40 border border-red-900/50 p-3 text-xs font-bold text-red-300">
+              {purgeMsg.text}
             </div>
           )}
         </div>

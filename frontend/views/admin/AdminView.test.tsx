@@ -15,7 +15,7 @@ jest.mock("@/frontend/features/admin", () => ({
   ActivityLog: () => null,
 }));
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import AdminDashboardPage from "./AdminView";
 import { ThemeProvider } from "@/frontend/context/ThemeContext";
 
@@ -91,5 +91,44 @@ describe("the sync and purge buttons on success (characterization, F-014)", () =
     await renderDashboard();
     await click(PURGE);
     expect(screen.getByText("7-Day Purge completed!")).toBeInTheDocument();
+  });
+});
+
+// The sync and purge buttons said they had succeeded when the request threw
+// ("News synchronization request sent.", "Purge operation complete.") and
+// said nothing at all on an error status. Success now needs res.ok; any other
+// outcome shows the real error.
+describe("the sync and purge buttons on failure (F-014)", () => {
+  const SUCCESS = /synchroniz|Purge (operation )?complete|Purge completed|request sent/i;
+
+  test.each([
+    [SYNC, "POST /api/admin/seed-supabase", "sync"],
+    [PURGE, "POST /api/admin/db-stats", "purge"],
+  ])("%s", async (button, route, name) => {
+    const cases: Array<[Answer, string]> = [
+      [{ status: 500, body: { status: "error", message: "NEWSDATA_API_KEY is not configured on the server." } }, "NEWSDATA_API_KEY is not configured on the server."],
+      [{ status: 401, body: { error: "Unauthorized" } }, "Unauthorized"],
+      [{ status: 504, body: "<html>Gateway Timeout</html>" }, `${name === "sync" ? "Sync" : "Purge"} failed (status 504).`],
+      [new TypeError("Failed to fetch"), `${name === "sync" ? "Sync" : "Purge"} failed: Failed to fetch`],
+    ];
+    for (const [answer, message] of cases) {
+      answers[route] = answer;
+      await renderDashboard();
+      await click(button);
+      expect(screen.getByRole("alert")).toHaveTextContent(message);
+      expect(document.body.textContent).not.toMatch(SUCCESS);
+      cleanup();
+    }
+  });
+
+  test("a success after a failure replaces the error", async () => {
+    answers["POST /api/admin/db-stats"] = new TypeError("Failed to fetch");
+    await renderDashboard();
+    await click(PURGE);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    answers["POST /api/admin/db-stats"] = { status: 200, body: { status: "success", message: "Purged 3 articles.", stats: STATS } };
+    await click(PURGE);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("Purged 3 articles.")).toBeInTheDocument();
   });
 });
