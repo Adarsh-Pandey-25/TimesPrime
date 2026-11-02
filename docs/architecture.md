@@ -36,18 +36,36 @@ SERVE ─ per reader request
   to Sentry, rate-limited, and /api/health reports whether Supabase answers.
   code: backend/api/news/top-headlines.ts → backend/lib/cache, backend/services/news
 
-AUTHORISE ─ every admin request
-  proxy.ts   matcher: /admin/*, /api/admin/*
-    public:          /admin/login, /api/admin/login, /api/admin/logout
-    public GET only: /api/admin/breaking-news   (homepage banner, no session)
-    otherwise:       HMAC-SHA256 cookie, 12 h, httpOnly, SameSite=Lax
-  No route handler performs its own auth check.
-  code: proxy.ts → backend/auth/adminSession.ts
+AUTHORISE ─ every admin request (Panel 0)
+  1. proxy.ts   matcher: /admin/*, /api/admin/*            OPTIMISTIC: is there a session?
+       public (D10): page /admin/login · POST login · POST logout · GET breaking-news (banner)
+       a session:    a Supabase staff JWT (getClaims verifies it, refreshes it when due)
+                     or the shared password's HMAC cookie, until 2027-01-01 00:00 IST (Q3)
+       neither:      401 for /api/admin/*, redirect to /admin/login for pages. No database call.
+  2. the route body → requirePermission(rule, target)       DECIDES
+       session (getClaims + getUser) → staff record, read live (no cache) → decide()
+       live assignment · cell code (F S R M; Own and A refused) · scope (language, category[0])
+       · aal2 where the role or the profile requires it
+       401 · 403 { error, code, required } (audited as denied) · 503 if the record cannot be read
+  3. a change: audit_log 'attempted' (refused with 503 if it cannot be written) → the change →
+     'succeeded' or 'failed'. audit_log is append-only and hash-chained, in the database.
+  code: proxy.ts → backend/auth/{adminRoutePolicy, adminSession, supabaseServer}
+        backend/api/admin/* → backend/auth/requirePermission → staffSession, decide, scope
+                            → backend/repositories/{staff, auditLog}
 ```
 
-**Authorisation is a single choke point.** That is a good design — one place to audit, one place to
-change — but it means any route added outside the proxy matcher is silently public, and the matcher
-has no test. Keep this property visible; do not scatter it.
+**The backend check is the only gate on the data.** The app reads Supabase as `service_role`,
+which bypasses RLS, so `requirePermission` in each route body is all that stands between a request
+and the data. The proxy only filters out requests with no session, as Next's docs advise (it "should
+not be your only line of defense"). RLS protects only direct access with a user's own token (none of
+the access tables grant `anon` or `authenticated` anything). Two tests keep this honest:
+- `backend/api/admin/access.test.ts` walks every admin route file on disk and fails on a route or
+  method that is not public, session-only or guarded by a rule;
+- the same file runs every guarded method through the real gate as allowed, no session, no grants,
+  expired, wrong scope, no MFA, and the shared password.
+
+The full design is [`design/panel-0-access-foundation.md`](design/panel-0-access-foundation.md); what
+the panel does is in [`PANEL_DOCS.md`](PANEL_DOCS.md).
 
 ## 2. Framework constraints
 
@@ -109,8 +127,10 @@ frontend/                  the UI; never imports backend/
 backend/                   server-only: every module opens with import "server-only"
   api/                     route bodies, one per route: parse, delegate, serialise
   services/<service>/      domain logic: news (behind its index.ts), classify, health, translate
-  repositories/            data access: db.ts (articles), auditLog.ts (admin_logs)
-  auth/                    adminSession.ts: issue and verify the admin session cookie
+  repositories/            data access: db.ts (articles), auditLog.ts (audit_log), staff.ts (staff record)
+  auth/                    the access foundation (Panel 0): requirePermission (the gate), decide (the
+                           rule), scope, adminRoutePolicy, staffSession, supabaseServer, mfa;
+                           adminSession.ts (the shared password, until it is retired)
   lib/                     domain-free infrastructure: cache, rateLimit, reportFallback, supabase,
                            urlValidation
 shared/                    imported by both sides; imports neither
@@ -118,8 +138,9 @@ shared/                    imported by both sides; imports neither
                            categoryColors, topicImages, translations, newsConfig
   types/                   types both sides use (Article, …)
   validation/              sentryScrub: strips secrets from Sentry events, in every runtime
-database/                  schema.sql, policies.sql, seed/: applied by hand, imported by nothing
-proxy.ts                   admin authorisation, the single choke point (§1)
+database/                  schema.sql, policies.sql, migrations/, bootstrap/, seed/: applied by hand,
+                           imported by nothing
+proxy.ts                   the optimistic session check on admin paths (§1); the routes decide
 instrumentation.ts · instrumentation-client.ts · sentry.*.config.ts    Sentry wiring, pinned at the root
 docs/  scripts/  public/
 ```
@@ -198,8 +219,10 @@ F1, B1, S1, P1, CR-06, X1, V1, R3, R5, R9, R7, LIB.
   If anything else imported `app/`, it would reach both sides through it. The root files Next pins
   in place keep to the side of the runtime they load in. A route file, and a page whose body moved,
   holds only re-exports and literal segment config, so no logic hides in the URL contract.
-- **P1: one choke point.** Authorisation lives in `proxy.ts` (§1). What it needs lives in
-  `backend/auth`, and it needs nothing else.
+- **P1: the proxy stays thin.** `proxy.ts` runs on every admin request, prefetches included, so it
+  only checks that a session exists (§1). What it needs lives in `backend/auth`, and it needs
+  nothing else: no repository, no database call. The decision is `requirePermission`'s, in each
+  route body. `proxy.test.ts` shares P1, and may import only its subject, `proxy.ts`.
 - **D1: the database folder is for people.** `database/` holds the SQL and the seed script, which
   the owner applies by hand. No code depends on them.
 - **X1: features and services stay independent.** Nothing imports sideways. If two features (or two
@@ -271,13 +294,13 @@ so every import names its layer (the `@/*` catch-all was removed in `d6bd8b5`). 
 | `frontend/context/` | App-wide providers: theme (light/dark) and language (EN/HI), each persisted to `localStorage` | Import anything but `shared/config` and `shared/types` (R9); hold feature state |
 | `backend/api/` | One route body per route: parse, delegate, serialise | Be imported by frontend code (F1) |
 | `backend/services/` | Domain logic: news ingestion and the feed (`news`, behind `index.ts`), category classification, health, translation | Import another service (X1) |
-| `backend/repositories/` | Supabase queries: articles (`db.ts`) and the audit log (`auditLog.ts`) | Be imported by frontend code (F1) |
-| `backend/auth/` | Issuing and verifying the admin session cookie | Be imported by frontend code (F1) |
+| `backend/repositories/` | Supabase queries: articles (`db.ts`), the audit log (`auditLog.ts`), the staff record (`staff.ts`) | Be imported by frontend code (F1); cache the staff record (revocation applies to the next request) |
+| `backend/auth/` | Who is asking and what they may do: the session, the permission rule, the gate every admin route passes, the route policy, MFA, the shared password until it is retired | Be imported by frontend code (F1); trust an identity from a header, body or query |
 | `backend/lib/` | Domain-free infrastructure | Import any project module (LIB) |
 | `shared/config/` | Static data: allowlists, colour maps, topic images, UI strings, the editorial filters | Import anything but config and types, or React, or `server-only` (R7); `imageDomains.ts` imports nothing (CR-06) |
 | `shared/types/` | Types both sides use | Import anything but types (R7) |
 | `shared/validation/` | Checks every runtime runs: `sentryScrub` | Import `frontend/`, `backend/` or `app/` (S1) |
-| `database/` | The schema, the RLS policies and the seed script, applied by hand | Be imported by code (D1) |
+| `database/` | The schema, the RLS policies, the migrations, the bootstrap script and the seed script, applied by hand | Be imported by code (D1) |
 
 ### What `backend/lib/` means
 
@@ -310,6 +333,8 @@ Structural decisions, and the alternatives rejected, live in [`adr/`](adr/):
 
 - [`0002-frontend-backend-separation.md`](adr/0002-frontend-backend-separation.md), **Accepted**:
   this layout, the rules in §5, and the measurements from the move.
+- [`0003-primary-section-scope.md`](adr/0003-primary-section-scope.md), **Accepted**: for
+  permission scope, an article's section is `category[0]` (Panel 0).
 - [`0001-feature-first-structure.md`](adr/0001-feature-first-structure.md), **Superseded by
   0002**: the feature-first `src/` layout of restructure 1. Its text is kept, including the
   measurements that shaped it and the alternatives it rejected.

@@ -238,7 +238,9 @@ unauthenticated-RCE advisories in `next` 16.3.0. Phase 1 cleared them: `next` 16
 0 critical and 0 high: 34 moderate (`glob` and `minimatch`, published since, in dev and build tooling;
 the only fixes are major-version changes) and 3 low (the accepted jest set). The AVIF and SVG RCE
 paths were refuted (`formats` defaults to webp-only, `dangerouslyAllowSVG` is false). Sentry's
-`tunnelRoute` is not set and must never be enabled: all authorization lives in `proxy.ts`.
+`tunnelRoute` is not set and must never be enabled (owner decision D12): it would add a route the
+proxy does not see. Since Panel 0, authorization is decided in each admin route body
+(`requirePermission`), behind the proxy's session check ([`architecture.md`](architecture.md) §1).
 
 ## 12. Owner decisions (2026-10-29)
 

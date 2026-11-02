@@ -21,7 +21,10 @@ Three things no check catches:
 
 - **Admin routes go under `/api/admin/`, admin pages under `/admin/`.** `proxy.ts` gates exactly
   those paths, and anything outside them is public ([`docs/architecture.md`](docs/architecture.md)
-  §1).
+  §1). Each admin route body calls `requirePermission` first, with its rule from
+  `backend/auth/adminRoutePolicy.ts` (the only gate on the data: the app reads Supabase as
+  service_role). A new route or method that is not in that file fails the route walk in
+  `backend/api/admin/access.test.ts`, and needs its row in that test's access matrix.
 - **Code that one side uses stays on that side.** `shared/` is for what both sides import. A
   backend-only constant lives in its service.
 - **A2 does not check a new page's file.** A2 covers every `route.ts` and the pages that moved in
