@@ -3,6 +3,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
+import { containsPattern } from "@/backend/lib/likePattern";
 import { logAdminAction } from "@/backend/repositories/auditLog";
 
 // Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),
@@ -77,7 +78,8 @@ export async function GET(request: NextRequest) {
       query = query.contains("country", [COUNTRY_CODE_TO_STORED_NAME[country] || country]);
     }
     if (search) {
-      query = query.ilike("title", `%${search}%`);
+      // Escaped like the feed search (F-006): % _ \ in the term are literal, * is dropped.
+      query = query.ilike("title", containsPattern(search));
     }
 
     const from = (page - 1) * limit;

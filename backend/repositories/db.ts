@@ -12,6 +12,7 @@ import {
 } from "@/shared/config/newsConfig";
 import { classifyCategoryRelevance } from "@/backend/services/classify/categoryClassifier";
 import { throttleReport } from "@/backend/lib/reportFallback";
+import { containsPattern } from "@/backend/lib/likePattern";
 
 /**
  * Sends a failed Supabase operation to Sentry at most once per operation per
@@ -133,14 +134,12 @@ function applyArticleFilters<T extends ArticleQueryFilters<T>>(
  * The or=(...) filter for a feed search: title or description contains the
  * term. F-006: the term used to go in raw, so a comma, dot or parenthesis in
  * it could add PostgREST filter clauses of its own ("x,id.gt.0"). Now:
- * - LIKE-escaped: \ % _ become literal, so only the outer % are wildcards;
- * - PostgREST's own wildcard * is dropped (it turns * into % in ILIKE);
+ * - LIKE-escaped, with * dropped (containsPattern);
  * - the value is double-quoted, with \ and " backslash-escaped, so
  *   , . ( ) : and anything else stay inside the one value.
  */
 function searchFilter(term: string): string {
-  const like = term.replace(/\*/g, "").replace(/[\\%_]/g, (c) => `\\${c}`);
-  const value = `"${`%${like}%`.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
+  const value = `"${containsPattern(term).replace(/[\\"]/g, (c) => `\\${c}`)}"`;
   return `title.ilike.${value},description.ilike.${value}`;
 }
 

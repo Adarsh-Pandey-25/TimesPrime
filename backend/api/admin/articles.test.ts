@@ -107,3 +107,20 @@ describe("GET /api/admin/articles (characterization)", () => {
     expect((await list()).status).toBe(503);
   });
 });
+
+// The term went in raw, so % and _ in it were wildcards, and PostgREST turns
+// * into % too: "a_b" matched "axb", and "*" or "%" matched every title. Same
+// escape as the feed search (F-006). .ilike() sends the value as one query
+// parameter, so it needs no quoting: , ( ) cannot add filter clauses here.
+describe("GET /api/admin/articles — the search term is LIKE-escaped (F-006)", () => {
+  test.each([
+    ["% and _ are literal", "50%_off", "%50\\%\\_off%"],
+    ["a backslash is literal", "C:\\temp", "%C:\\\\temp%"],
+    ["PostgREST's * wildcard is dropped", "bud*get", "%budget%"],
+    ["a term of wildcards alone matches only itself", "%", "%\\%%"],
+    ["commas and parentheses stay in the value", "a,b(c)", "%a,b(c)%"],
+  ])("%s", async (_label, term, pattern) => {
+    await list(`?search=${encodeURIComponent(term)}`);
+    expect(call("ilike")).toEqual([["title", pattern]]);
+  });
+});
