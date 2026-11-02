@@ -30,7 +30,7 @@ import { safePublisherHref } from "@/shared/validation/urlValidation";
 
 // Generic placeholder sentences the scraper/route layer substitutes in when
 // it can't extract real paragraphs from the publisher page (see
-// backend/api/news/scrape-article.ts and app/article/[slug]/page.tsx).
+// backend/services/scrape/scrapeArticle.ts and app/article/[slug]/page.tsx).
 // Rendered verbatim they look like a broken app, not a deliberate message —
 // detect them here so the UI can swap in a styled "read at source" CTA instead.
 const SCRAPE_FALLBACK_MESSAGES = [

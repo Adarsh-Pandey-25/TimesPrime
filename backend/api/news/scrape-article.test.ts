@@ -29,7 +29,7 @@ jest.mock("axios", () => {
 });
 
 import { NextRequest } from "next/server";
-import { GET } from "./scrape-article";
+import { GET } from "@/backend/services/scrape/scrapeArticle";
 
 const axios = (jest.requireMock("axios") as { default: { get: jest.Mock } }).default;
 const { lookup } = jest.requireMock("dns/promises") as { lookup: jest.Mock };

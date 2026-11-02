@@ -172,7 +172,9 @@ export const MOVES = [
   ["src/app/api/admin/stats/route.ts", "backend/api/admin/stats.ts", 7],
   // news
   ["src/app/api/news/check-new/route.ts", "backend/api/news/check-new.ts", 7],
-  ["src/app/api/news/scrape-article/route.ts", "backend/api/news/scrape-article.ts", 7],
+  // Slice 7 moved the body to backend/api/news/; BL-016 (audit Phase 2) moved the scrape logic on to
+  // backend/services/scrape/, where the article page calls it directly.
+  ["src/app/api/news/scrape-article/route.ts", "backend/services/scrape/scrapeArticle.ts", 7],
   ["src/app/api/news/top-headlines/route.ts", "backend/api/news/top-headlines.ts", 7],
   // chat, translate, health
   ["src/app/api/chat/route.ts", "backend/api/chat.ts", 7],

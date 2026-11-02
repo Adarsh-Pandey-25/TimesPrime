@@ -1,1 +1,1 @@
-export { GET } from "@/backend/api/news/scrape-article";
+export { GET } from "@/backend/services/scrape/scrapeArticle";
