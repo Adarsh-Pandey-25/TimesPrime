@@ -60,6 +60,7 @@ import * as seed from "./seed-supabase";
 import * as dbStats from "./db-stats";
 import * as stats from "./stats";
 import * as health from "./health";
+import * as logs from "./logs";
 
 const { supabase } = jest.requireMock("@/backend/lib/supabase") as { supabase: { from: jest.Mock } };
 
@@ -290,6 +291,15 @@ const CASES: Case[] = [
     allowed: { role: "ingestion_ops", language: null },
     changes: false,
   },
+  // The activity log: audit.read. The shared password holds no audit permission (Q3).
+  {
+    path: "/api/admin/logs",
+    method: "GET",
+    handler: logs.GET,
+    allowed: { role: "security_lead", language: null },
+    data: { audit_log: { data: [], error: null, count: 0 } },
+    changes: false,
+  },
 ];
 
 /**
@@ -393,6 +403,48 @@ describe("route-specific rules", () => {
     expect(res.status).toBe(403);
     expect((await res.json()).required).toBe("article.publish_direct");
     expect(wrote()).toEqual([]);
+  });
+
+  describe("GET /api/admin/logs", () => {
+    const c = () => caseFor("GET", "/api/admin/logs");
+    const row = { id: "r-1", seq: 7, at: "2026-11-10T10:00:00Z", actor_type: "staff", actor_label: "Asha", action: "article.edit", outcome: "succeeded", attempt_id: "r-0", entity_type: "article", entity_id: "a-1", language: "hi", section: "sports", reason: null };
+
+    test("reads audit_log, newest first, in the activity log's shape", async () => {
+      tables = { audit_log: { data: [row], error: null, count: 1 } };
+      signIn("allowed", c());
+      const res = await c().handler(request(c()));
+      const json = await res.json();
+      expect(calls.filter(([t, m]) => t === "audit_log" && m === "order").map(([, , a]) => a)).toEqual([["seq", { ascending: false }]]);
+      expect(json).toMatchObject({ source: "audit", total: 1, page: 1 });
+      expect(json.logs[0]).toMatchObject({ id: "r-1", action: "article.edit", created_at: "2026-11-10T10:00:00Z", metadata: { actor_label: "Asha", outcome: "succeeded", attempt_id: "r-0" } });
+    });
+
+    test("an unscoped holder sees every row: no filter", async () => {
+      tables = { audit_log: { data: [], error: null, count: 0 } };
+      signIn("allowed", c());
+      await c().handler(request(c()));
+      expect(calls.filter(([t, m]) => t === "audit_log" && m === "or")).toEqual([]);
+    });
+
+    test("a scoped holder (Managing Editor, 'own desk') sees only rows in their scope", async () => {
+      tables = { audit_log: { data: [], error: null, count: 0 } };
+      signIn("allowed", { ...c(), allowed: { role: "managing_editor", language: "hi", section: "sports" } });
+      expect((await c().handler(request(c()))).status).toBe(200);
+      expect(calls.filter(([t, m]) => t === "audit_log" && m === "or").map(([, , a]) => a)).toEqual([["and(language.eq.hi,section.eq.sports)"]]);
+    });
+
+    test("?source=legacy reads the frozen admin_logs, under the same permission (Q7)", async () => {
+      tables = { admin_logs: { data: [], error: null, count: 0 } };
+      signIn("allowed", c());
+      const res = await c().handler(request({ ...c(), query: "?source=legacy" }));
+      expect((await res.json()).source).toBe("legacy");
+      expect(calls.some(([t]) => t === "admin_logs")).toBe(true);
+      expect(calls.some(([t]) => t === "audit_log")).toBe(false);
+    });
+
+    test("there is no DELETE: an append-only log cannot be cleared (Q6)", () => {
+      expect("DELETE" in logs).toBe(false);
+    });
   });
 
   test("GET /api/admin/breaking-news stays public: no session, 200 (CR-08, D10)", async () => {

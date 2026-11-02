@@ -1,1 +1,1 @@
-export { GET, DELETE } from "@/backend/api/admin/logs";
+export { GET } from "@/backend/api/admin/logs";
