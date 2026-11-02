@@ -123,11 +123,25 @@ function applyArticleFilters<T extends ArticleQueryFilters<T>>(
   }
 
   if (query.trim()) {
-    const q = query.trim();
-    b = b.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
+    b = b.or(searchFilter(query.trim()));
   }
 
   return b;
+}
+
+/**
+ * The or=(...) filter for a feed search: title or description contains the
+ * term. F-006: the term used to go in raw, so a comma, dot or parenthesis in
+ * it could add PostgREST filter clauses of its own ("x,id.gt.0"). Now:
+ * - LIKE-escaped: \ % _ become literal, so only the outer % are wildcards;
+ * - PostgREST's own wildcard * is dropped (it turns * into % in ILIKE);
+ * - the value is double-quoted, with \ and " backslash-escaped, so
+ *   , . ( ) : and anything else stay inside the one value.
+ */
+function searchFilter(term: string): string {
+  const like = term.replace(/\*/g, "").replace(/[\\%_]/g, (c) => `\\${c}`);
+  const value = `"${`%${like}%`.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
+  return `title.ilike.${value},description.ilike.${value}`;
 }
 
 /** Minimal row shape read by the freshness / new-count queries below. */

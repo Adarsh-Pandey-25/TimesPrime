@@ -192,3 +192,75 @@ describe("findArticleByLink (F-005)", () => {
     await expect(findArticleByLink("https://publisher.example/none")).resolves.toBeNull();
   });
 });
+
+// F-006: the search term went into a PostgREST or=(...) filter unescaped,
+// so a comma, dot or parenthesis in it could add filter clauses of its own.
+describe("the feed search filter (F-006)", () => {
+  /** Splits an or=(...) value into clauses the way PostgREST does: commas outside quotes and brackets. */
+  function clauses(filter: string): string[] {
+    const out: string[] = [];
+    let current = "";
+    let depth = 0;
+    let quoted = false;
+    for (let i = 0; i < filter.length; i++) {
+      const c = filter[i];
+      if (quoted && c === "\\") { current += c + filter[++i]; continue; }
+      if (c === '"') quoted = !quoted;
+      else if (!quoted && (c === "(" || c === "{")) depth++;
+      else if (!quoted && (c === ")" || c === "}")) depth--;
+      if (c === "," && !quoted && depth === 0) { out.push(current); current = ""; continue; }
+      current += c;
+    }
+    out.push(current);
+    return out;
+  }
+  /** The value PostgREST hands to ILIKE: the quoted string, unescaped. */
+  const unquote = (value: string) => value.slice(1, -1).replace(/\\(.)/g, "$1");
+
+  async function searchFilter(query: string): Promise<string> {
+    const calls: Array<[string, unknown[]]> = [];
+    const proxy: object = new Proxy({}, {
+      get(_t, prop) {
+        if (prop === "then") return (resolve: (v: object) => void) => resolve({ data: [], error: null });
+        return (...args: unknown[]) => { calls.push([String(prop), args]); return proxy; };
+      },
+    });
+    supabase.from.mockImplementation(() => proxy);
+    await getDBArticles("tech", query, "en");
+    const or = calls.filter(([m]) => m === "or").map(([, [f]]) => f as string);
+    expect(or).toHaveLength(1);
+    return or[0];
+  }
+
+  test("an ordinary search: two ILIKE clauses, title and description", async () => {
+    const parts = clauses(await searchFilter("budget"));
+    expect(parts).toEqual(['title.ilike."%budget%"', 'description.ilike."%budget%"']);
+  });
+
+  test.each([
+    "x,id.gt.0",
+    "x%,title.not.is.null",
+    "a),or(title.ilike.*",
+    'quote"),category.cs.{top}',
+    "x\\\",id.eq.1",
+    "a.b:c(d)e",
+  ])("%j cannot add a clause, and is matched literally", async (query) => {
+    const parts = clauses(await searchFilter(query));
+    expect(parts).toHaveLength(2);
+    expect(parts[0].startsWith('title.ilike."')).toBe(true);
+    expect(parts[1].startsWith('description.ilike."')).toBe(true);
+    for (const part of parts) {
+      const value = unquote(part.slice(part.indexOf('"')));
+      // LIKE-escaped: every % and _ the user typed is literal; only the outer two are wildcards.
+      const literal = value.slice(1, -1).replace(/\\([\\%_])/g, "$1");
+      expect(value.startsWith("%") && value.endsWith("%")).toBe(true);
+      expect(literal).toBe(query.replace(/\*/g, ""));
+    }
+  });
+
+  test("LIKE wildcards in the term are literal, and PostgREST's * wildcard is dropped", async () => {
+    const value = unquote(clauses(await searchFilter("50%_off*\\"))[0].replace(/^title\.ilike\./, ""));
+    // %50\%\_off\\% : literal %, literal _, literal backslash, between the two wildcards.
+    expect(value).toBe("%50\\%\\_off\\\\%");
+  });
+});
