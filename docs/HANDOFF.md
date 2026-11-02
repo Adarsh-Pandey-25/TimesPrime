@@ -1,14 +1,15 @@
 # TimesPrime — Session Handoff
 
-> **⚠ `main` is not deployable until the Panel 0 migrations are applied; see the runbook.**
-> Since `78e58b6` every admin route writes the audit log before it changes anything, and refuses
-> (503) when it cannot. Until the owner applies `database/migrations/2026-11-02-access-1-foundation.sql`
-> and `2026-11-02-access-2-catalog.sql`, the `audit_log` table does not exist, so every admin change
-> answers 503. Reads and the shared-password login still work. The order is in
-> [`runbooks/staff-access.md`](runbooks/staff-access.md): migrations, then deploy, then bootstrap
-> the Super Admins, then a staff sign-in, then the `admin_logs` freeze, and only then the shared
-> password off. Panel 0's second half is on the branch `panel-0-access`, and merges only when the
-> owner approves.
+> **⚠ Nothing is deployed until the whole project is complete (owner decision, 2026-11-02).** Ignore
+> any earlier Vercel deployment; the target is AWS (`ap-south-1`), at the end. All verification is
+> local, and **never against the database `.env.local` points at**, which may be production: Panel 0's
+> migrations, bootstrap and smoke tests wait for a local database (§2). Since `78e58b6` every admin
+> change writes `audit_log` first and refuses with 503 without it, so the app needs Panel 0's
+> migrations wherever it runs.
+>
+> **Branch rule:** each panel is built on its own branch (`panel-N-<name>`), and only that branch is
+> pushed. It is merged into `main`, and `main` pushed, only when the panel is complete and the owner
+> approves.
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
 **State as of:** 2026-11-02. **Panel 0 (Access foundation) is complete on the branch
@@ -24,9 +25,12 @@ and all five audit phases were done:
   came before it.
 
 **Next:**
-1. The owner reviews Panel 0 and merges `panel-0-access`.
-2. The owner switches it on in the runbook's order (§11).
-3. Then Panel 1 (Administration: granting roles in the app, the access review, retiring the shared
+1. A local database (§2: proposal to the owner, not set up yet). Until it exists, no Panel 0
+   migration, bootstrap or staff sign-in is run anywhere.
+2. On it, rehearse Panel 0's switch-on order ([`runbooks/staff-access.md`](runbooks/staff-access.md),
+   steps 1–5) and check the staff flow end to end.
+3. The owner approves Panel 0; `panel-0-access` is merged into `main`, and `main` pushed.
+4. Then Panel 1, on `panel-1-administration` (Administration: granting roles in the app, the access review, retiring the shared
    password).
 
 The plan is [`PANEL_PLAN.md`](PANEL_PLAN.md); the panels, one at a time, are in
@@ -81,7 +85,7 @@ Check `/api/health` before assuming the database is either up or down.
 | `docs/AUDIT-FINDINGS.md` | The 28 audit findings, each with its status and fixing commit, and the `npm audit` history |
 | `docs/PRD.md` | Full PRD: FR-001..024 with code citations, NFR, CR, data model, defect register |
 | `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..BL-034) |
-| `docs/runbooks/apply-database.md` | **For the deployment phase.** Apply the SQL files in order, verify each, roll back each |
+| `docs/runbooks/apply-database.md` | Apply the SQL files in order, verify each, roll back each: on a local database now, on production at the AWS deployment |
 | `docs/PANEL_PLAN.md` | **For the back office.** The owner's reference plan: panels, roles, permission matrix, four-eyes and MFA rules, data model. Not edited |
 | `docs/PANEL_DOCS.md` | Back-office progress (panels 0–9) and each finished panel's record, from one template. **Panel 0 is written up there** |
 | `docs/design/panel-0-access-foundation.md` | Panel 0's design as approved, with the owner's decisions (D1–D12, Q1–Q8) and the amendments |
@@ -104,6 +108,8 @@ There is also a published audit artifact (28 findings, severity-filterable):
 | Node / npm | v24.19.0 / 11.17.0. **Node 24 everywhere** since `974b255`: `.node-version`, `engines` `24.x`, CI |
 | Dependencies | Installed via `npm ci` |
 | Dev server | **Stopped** during both restructures (its Turbopack watcher can lock files during `git mv`). `npm run dev` to start |
+| Local database | **None yet.** `.env.local` may point at production, so nothing that writes (Panel 0's SQL, the bootstrap, a smoke test that signs in or changes data) may run with it. A local Supabase is proposed to the owner (Docker stack, or a separate dev project), with a guard that refuses any run whose Supabase URL is not the local one |
+| Deployment | **None until the project is complete.** Then AWS, `ap-south-1` (§11) |
 | Line endings | **CRLF** in the working tree (`core.autocrlf=true`; the index is LF) |
 | Git identity | Set locally for this repo: `Vivek Singh <vivektech.dev25@gmail.com>`. Not global |
 
@@ -476,7 +482,7 @@ are resolved:
 | DEF-07 | `breaking_news` and `admin_logs` DDL in `database/schema.sql`; the owner applies it | Pending verification (F-008) |
 | DEF-12 | Search escaping fixed; the injection probe against the live database | Pending verification (F-006) |
 | DEF-18 | The index migration; the owner applies it | Pending verification (F-018) |
-| DEF-23 | The Vercel project's Node version | Pending verification (F-026) |
+| DEF-23 | The production runtime's Node version (AWS, at deployment) | Pending verification (F-026) |
 | DEF-25 | `dark:` classes right before paint; 75 `isDark` ternaries still switch after hydration | Partial (F-028, BL-028) |
 
 **`npm audit`:** 0 critical, 0 high. 34 moderate in dev and build tooling, published after Phase 1 (BL-031), and the 3 accepted jest lows.
@@ -536,6 +542,12 @@ out of UI primitives. Each decision is in ADR 0002 and in the commit that applie
 - **Refuted, never "fixed":** the `javascript:` XSS, `preload` on `next/image`, AVIF/SVG. Sentry's
   `tunnelRoute` must never be enabled (D12): it would add a route the proxy does not see.
 
+**Process and hosting (2026-11-02):**
+- **Branches:** each panel is built on its own branch (`panel-N-<name>`), and only that branch is
+  pushed. It reaches `main` only when the panel is complete and the owner approves.
+- **Deployment:** none until the whole project is complete. Ignore the earlier Vercel deployment.
+  The target is AWS, `ap-south-1`. All verification is local, against a local database.
+
 **Panel 0 (2026-11-02).** All recorded in the design's "Approval" section and in
 [`PANEL_DOCS.md`](PANEL_DOCS.md):
 - **The matrix is canonical (D2).**
@@ -583,15 +595,31 @@ contact-form collection that no longer happens. Legal copy, for the owner or leg
 
 ---
 
-## 11. Immediate next actions — the deployment phase
+## 11. Before the AWS deployment
 
-Nothing below can be done from this machine without touching production. It is the owner's list.
+Nothing is deployed until the whole project is complete (owner decision, 2026-11-02). This list is
+for that day. Until then every check is made locally, against a local database (§2).
 
-**Panel 0 first** ([`runbooks/staff-access.md`](runbooks/staff-access.md), in this order):
+**AWS.**
+- **Region:** `ap-south-1` (Mumbai), for the app and for its logs. CERT-In's directions keep logs for
+  180 days within India; the plan also asks for the Supabase project in an Indian region, or logs
+  exported to Indian storage.
+- **The cron:** `vercel.json` registers `/api/cron/refresh-news` every 30 minutes, and only Vercel
+  reads that file. On AWS a scheduler must call the same path with `Authorization: Bearer
+  <CRON_SECRET>` (for example EventBridge Scheduler). The path stays (CR-02); without the scheduler,
+  ingestion stops silently.
+- **Runtime:** Node 24 (F-026). The proxy runs on Next's Node runtime. Audit rows take their
+  `request_id` from `x-vercel-id`, and fall back to a random UUID where that header is absent, as it
+  will be on AWS.
+- **Configuration:** every variable in `.env.local.example`, set in the AWS environment, never in
+  the repository.
+
+**Panel 0** ([`runbooks/staff-access.md`](runbooks/staff-access.md)). It is rehearsed first on the local
+database, then done once more against the production database at deployment, in this order:
 1. Supabase dashboard: sign-ups off, TOTP on. Apply `2026-11-02-access-1-foundation.sql`, then
    `2026-11-02-access-2-catalog.sql`, and run their checks.
-2. Merge `panel-0-access` and deploy. The shared password still works, and an admin change writes
-   `audit_log` rows.
+2. Run the merged code. The shared password still works, and an admin change writes `audit_log`
+   rows.
 3. Invite two Super Admins, and run `database/bootstrap/super-admin.sql` for each, with its four
    checks.
 4. Each signs in with email, password and a second factor; check the audit rows.
@@ -599,10 +627,8 @@ Nothing below can be done from this machine without touching production. It is t
 6. Only after Panel 1: consider `ADMIN_LEGACY_LOGIN=off`. The code ends the shared password on
    1 January 2027 regardless.
 
-The items below are from the audit, and still stand.
-
-**Database** ([`runbooks/apply-database.md`](runbooks/apply-database.md)):
-1. Confirm `SUPABASE_SERVICE_ROLE_KEY` is set in the deployment (present, not copied). Without it the
+**The production database** ([`runbooks/apply-database.md`](runbooks/apply-database.md)), from the audit:
+1. Confirm `SUPABASE_SERVICE_ROLE_KEY` is set in the environment (present, not copied). Without it the
    app falls back to the anon key and RLS refuses every write (BL-025).
 2. Take the step 0 snapshot and confirm `service_role` has `rolbypassrls`.
 3. Apply `database/schema.sql`, then `database/policies.sql`, then
@@ -611,18 +637,19 @@ The items below are from the audit, and still stand.
 4. Before any `NOT NULL` migration, count the nulls in live data (BL-024).
 5. Re-run the F-006 injection probe, and an RLS check, against the live database.
 
-**Environment and platform:**
-- Confirm whether local and production use the same Supabase project (`.env.local` names
-  `yhjotyxrdaqtcgsxigok`). If they do, set up a separate dev project: a local run writes to it (§3.18).
-- Vercel: Node 24 (F-026), `NEXT_PUBLIC_SENTRY_DSN`, the Upstash variables, `CRON_SECRET`, and that
-  the cron runs. No production cron entry has ever been seen in the database.
+**Environment:**
+- `.env.local` names the Supabase project `yhjotyxrdaqtcgsxigok`, which may be production. Until the
+  local database exists, no local run may write (§2, §3.18).
+- On AWS: Node 24 (F-026), `NEXT_PUBLIC_SENTRY_DSN`, the Upstash variables, `CRON_SECRET`, and the
+  scheduler. No production cron entry has ever been seen in the database.
 - Owner's `.env.local`: `ADMIN_SECRET_TOKEN` and `MEDIASTACK_API_KEY` can go; nothing reads them.
   Never set `NEXT_PUBLIC_NEWSDATA_API_KEY`.
 
-**Production smoke test:**
+**Smoke test at deployment:**
 - `/api/health` answers 200, and Sentry receives a Supabase fallback event (F-002).
 - `X-Data-Source` shows `supabase` or `cache` for readers (NFR-01).
-- The cron runs and its `audit_log` row (`system:cron`, `cron.refresh_news`) carries the purge count (F-015).
+- The scheduler fires the cron, and its `audit_log` row (`system:cron`, `cron.refresh_news`) carries
+  the purge count (F-015).
 - The Redis limiter: the 11th login attempt in 15 minutes and the 31st uncached scrape in a minute
   answer 429 across instances (F-004, F-011).
 - BL-019 (publisher image timeouts) under real traffic.
