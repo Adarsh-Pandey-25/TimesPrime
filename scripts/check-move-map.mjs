@@ -135,7 +135,8 @@ function layer(p) {
   if (p.startsWith("shared/types/")) return "sh-types";
   if (p.startsWith("shared/validation/")) return "sh-validation";
   if (p.startsWith("database/")) return "database";
-  if (p === "proxy.ts") return "proxy";
+  // Its colocated test sits beside it at the root, like every other test beside its subject.
+  if (p === "proxy.ts" || p === "proxy.test.ts") return "proxy";
   if (/^(instrumentation(-client)?|sentry\.(server|edge)\.config)\.ts$/.test(p)) return "pinned";
   if (p === "next.config.ts") return "next-config";
   return "unmapped";
@@ -175,7 +176,8 @@ for (const e of edges) {
   else if (sa === "frontend" && sb === "backend") rule = "F1 frontend never imports backend";
   else if (sa === "backend" && sb === "frontend") rule = "B1 backend never imports frontend";
   else if (sa === "shared" && ["frontend", "backend", "app"].includes(sb)) rule = "S1 shared imports no frontend/backend/app";
-  else if (la === "proxy" && !(lb === "be-auth" || sb === "shared")) rule = "P1 proxy imports only backend/auth and shared/";
+  // proxy.test.ts shares the proxy's layer and its rule; like every test, it may import its subject.
+  else if (la === "proxy" && !(lb === "be-auth" || sb === "shared" || (test && b === "proxy.ts"))) rule = "P1 proxy imports only backend/auth and shared/";
   else if (la === "next-config" && lb !== "sh-config") rule = "CR-06 next.config.ts imports only shared/config";
   else if (la.startsWith("fe-feature:") && lb.startsWith("fe-feature:") && la !== lb) rule = "X1 no cross-feature imports (frontend)";
   else if (la.startsWith("be-service:") && lb.startsWith("be-service:") && la !== lb) rule = "X1 no cross-service imports (backend)";
