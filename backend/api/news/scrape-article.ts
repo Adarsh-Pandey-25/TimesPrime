@@ -6,7 +6,7 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import * as Sentry from "@sentry/nextjs";
 import { validateExternalUrl } from "@/shared/validation/urlValidation";
-import { fetchPage, UnsafeTargetError } from "@/backend/services/scrape/fetchPage";
+import { fetchPage, resolveHostname, UnsafeTargetError } from "@/backend/services/scrape/fetchPage";
 import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/backend/lib/cache";
 import { checkRateLimit, getClientIp } from "@/backend/lib/rateLimit";
 import { urlToHostname } from "@/shared/validation/sentryScrub";
@@ -392,7 +392,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const urlCheck = await validateExternalUrl(targetUrl);
+    const urlCheck = await validateExternalUrl(targetUrl, resolveHostname);
     if (!urlCheck.ok) {
       return NextResponse.json(
         { error: `Invalid target URL: ${urlCheck.reason}` },

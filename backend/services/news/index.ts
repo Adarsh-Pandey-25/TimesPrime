@@ -13,6 +13,7 @@ export {
   NEWS_FRESHNESS_WINDOW_MS,
 } from "@/backend/repositories/db";
 export { fetchInitialNews } from "./fetchNews";
+export { findKnownArticle } from "./knownArticle";
 export { fetchNewsDataArticles } from "./newsdata";
 export {
   mapCategory,

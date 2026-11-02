@@ -607,3 +607,36 @@ export async function getDBStats() {
     };
   }
 }
+
+/**
+ * The stored article whose link is exactly `link`, or null (F-005). The
+ * article page trusts its `?url=` only when it names an article we stored:
+ * the app's own links carry the stored value unchanged, so an exact match
+ * is enough, and anything else is treated as absent. Read-only. The query
+ * relies on an index on `link` (database/migrations, F-018) to stay cheap.
+ */
+export async function findArticleByLink(link: string): Promise<{ title: string; link: string } | null> {
+  if (!isSupabaseConfigured() || !link) return null;
+
+  try {
+    const { data, error } = await supabase.from("articles").select("title, link").eq("link", link).limit(1);
+    if (error) {
+      console.error("Supabase Article Lookup Error:", error.message);
+      reportSupabaseFailure("findArticleByLink", (suppressed) =>
+        Sentry.captureMessage(`Supabase article lookup error: ${error.message}`, {
+          tags: { source: "supabase" },
+          extra: { operation: "findArticleByLink", ...suppressed },
+        })
+      );
+      return null;
+    }
+    const row = data?.[0] as { title: string | null; link: string | null } | undefined;
+    return row?.link === link ? { title: row.title ?? "", link: row.link } : null;
+  } catch (err) {
+    console.error("Failed to look up an article by link:", err);
+    reportSupabaseFailure("findArticleByLink", (suppressed) =>
+      Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "findArticleByLink", ...suppressed } })
+    );
+    return null;
+  }
+}

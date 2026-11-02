@@ -17,9 +17,12 @@ jest.mock("dns/promises", () => {
   return { __esModule: true, default: { lookup }, lookup };
 });
 
-import { validateExternalUrl } from "./urlValidation";
+import { validateExternalUrl as validate } from "./urlValidation";
 
 const { lookup } = jest.requireMock("dns/promises") as { lookup: jest.Mock };
+// The module imports no resolver (it is browser-safe); servers pass dns.lookup, as this does.
+const resolve = (host: string) => lookup(host, { all: true, verbatim: true });
+const validateExternalUrl = (url: string) => validate(url, resolve);
 
 let records: Record<string, string[]> = {};
 

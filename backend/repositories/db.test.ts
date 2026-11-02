@@ -10,7 +10,7 @@ jest.mock("@sentry/nextjs", () => ({ captureMessage: jest.fn(), captureException
 jest.mock("@/backend/services/classify/categoryClassifier", () => ({ classifyCategoryRelevance: jest.fn(() => Promise.resolve()) }));
 jest.mock("@/backend/lib/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
 
-import { getDBArticles, getLatestArticleTimestamp, saveArticlesToDB } from "./db";
+import { findArticleByLink, getDBArticles, getLatestArticleTimestamp, saveArticlesToDB } from "./db";
 import { FALLBACK_REPORT_WINDOW_MS } from "@/backend/lib/reportFallback";
 import type { Article } from "@/shared/types";
 
@@ -158,3 +158,37 @@ describe("no purge on the read and write paths (F-015)", () => {
   });
 });
 
+
+// F-005: the article page asks whether its ?url= names a stored article.
+describe("findArticleByLink (F-005)", () => {
+  function answering(rows: object[], calls: Array<[string, unknown[]]>): object {
+    const proxy: object = new Proxy(
+      {},
+      {
+        get(_target, prop) {
+          if (prop === "then") return (resolve: (value: object) => void) => resolve({ data: rows, error: null });
+          return (...args: unknown[]) => {
+            calls.push([String(prop), args]);
+            return proxy;
+          };
+        },
+      }
+    );
+    return proxy;
+  }
+
+  test("an exact match on link, read-only", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    supabase.from.mockImplementation(() => answering([{ title: "Budget", link: "https://publisher.example/a?b=1" }], calls));
+    await expect(findArticleByLink("https://publisher.example/a?b=1")).resolves.toEqual({ title: "Budget", link: "https://publisher.example/a?b=1" });
+    expect(calls).toContainEqual(["eq", ["link", "https://publisher.example/a?b=1"]]);
+    expect(calls.map(([m]) => m)).not.toEqual(expect.arrayContaining(["delete", "update", "upsert", "insert"]));
+  });
+
+  test("no row, or a database failure, is not a match", async () => {
+    supabase.from.mockImplementation(() => answering([], []));
+    await expect(findArticleByLink("https://publisher.example/none")).resolves.toBeNull();
+    supabase.from.mockImplementation(() => failingQuery(OUTAGE));
+    await expect(findArticleByLink("https://publisher.example/none")).resolves.toBeNull();
+  });
+});

@@ -2,15 +2,30 @@ import { Metadata } from "next";
 import { Header, Footer } from "@/frontend/features/news";
 import ArticleDetailView from "@/frontend/views/article/ArticleDetailView";
 import { Article } from "@/shared/types";
+import { findKnownArticle } from "@/backend/services/news";
+import { safePublisherHref } from "@/shared/validation/urlValidation";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ url?: string; image?: string }>;
 }
 
-export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
+const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://timesprimenews.com";
+
+/**
+ * The page's `?url=`, if it names an article this app serves; otherwise
+ * undefined, and the page behaves as if no URL was given (F-005). Anyone can
+ * put any URL in the query string: trusted, it became a branded link out, a
+ * scraper target and the page's title. Exact match against the stored
+ * articles (and the built-in mocks): the app's links carry the stored value.
+ */
+async function verifiedTargetUrl(url: string | undefined): Promise<string | undefined> {
+  const known = await findKnownArticle(url);
+  return known && safePublisherHref(known.link) ? known.link : undefined;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  const resolvedSearchParams = await searchParams;
   const title = decodeURIComponent(resolvedParams.slug || "Article View");
 
   return {
@@ -19,7 +34,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     openGraph: {
       title: `${title} | TimesPrime News`,
       description: `Read full story on TimesPrime News.`,
-      url: resolvedSearchParams.url || "https://timesprimenews.com",
+      // The page's own address: the query string's url is the caller's, not ours (F-005).
+      url: `${SITE_URL}/article/${encodeURIComponent(resolvedParams.slug || "")}`,
     },
   };
 }
@@ -73,7 +89,7 @@ export default async function ArticlePage({ params, searchParams }: PageProps) {
   const resolvedSearchParams = await searchParams;
 
   const rawSlug = decodeURIComponent(resolvedParams.slug || "Article View");
-  const targetUrl = resolvedSearchParams.url;
+  const targetUrl = await verifiedTargetUrl(resolvedSearchParams.url);
   const imageUrl = resolvedSearchParams.image;
 
   // Execute both data fetches in parallel (Parallel Fast Loading)

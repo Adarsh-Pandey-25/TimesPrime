@@ -1,7 +1,8 @@
 import "server-only";
 
+import dns from "dns/promises";
 import axios from "axios";
-import { validateExternalUrl, type ValidatedAddress } from "@/shared/validation/urlValidation";
+import { validateExternalUrl, type Resolver, type ValidatedAddress } from "@/shared/validation/urlValidation";
 
 /**
  * Fetches a publisher page through the SSRF guard, hop by hop (F-003).
@@ -19,6 +20,9 @@ import { validateExternalUrl, type ValidatedAddress } from "@/shared/validation/
  * pinned. `proxy: false` keeps an environment proxy from carrying the
  * request anywhere else.
  */
+
+/** The resolver the guard checks names with: the system resolver, every address. */
+export const resolveHostname: Resolver = (hostname) => dns.lookup(hostname, { all: true, verbatim: true });
 
 export const MAX_REDIRECTS = 5;
 
@@ -51,7 +55,7 @@ export async function fetchPage(url: string, { timeoutMs, headers }: FetchPageOp
   let current = url;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const check = await validateExternalUrl(current);
+    const check = await validateExternalUrl(current, resolveHostname);
     if (!check.ok || !check.addresses) {
       throw new UnsafeTargetError(`${hop === 0 ? "Invalid target URL" : "Invalid redirect target"}: ${check.reason}`);
     }

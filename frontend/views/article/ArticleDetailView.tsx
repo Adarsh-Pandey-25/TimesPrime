@@ -26,6 +26,7 @@ import { useLanguage } from "@/frontend/context/LanguageContext";
 import { useTheme } from "@/frontend/context/ThemeContext";
 import { TRANSLATIONS } from "@/shared/config/translations";
 import { assignDedupedTopicImages } from "@/shared/config/topicImages";
+import { safePublisherHref } from "@/shared/validation/urlValidation";
 
 // Generic placeholder sentences the scraper/route layer substitutes in when
 // it can't extract real paragraphs from the publisher page (see
@@ -108,7 +109,11 @@ export default function ArticleDetailView({
 
   const readMinutes = hasScrapedContent ? estimateReadMinutes(scrapedData.content!) : 2;
 
-  const sourceDomain = getSourceDomain(targetUrl);
+  // Every link out to the publisher goes through this (F-005): http(s), a
+  // named host, no credentials. The page passes only a verified article link,
+  // so this is the second check, not the first.
+  const publisherHref = safePublisherHref(targetUrl);
+  const sourceDomain = getSourceDomain(publisherHref ?? undefined);
 
   // Poll State
   const [pollVoted, setPollVoted] = useState<string | null>(null);
@@ -467,9 +472,9 @@ export default function ArticleDetailView({
           </h1>
 
           {/* Source Attribution Line */}
-          {targetUrl && sourceDomain && (
+          {publisherHref && sourceDomain && (
             <a
-              href={targetUrl}
+              href={publisherHref}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
@@ -580,7 +585,7 @@ export default function ArticleDetailView({
           {/* Original Source Banner — shown for every article, not just
               when the scraper falls back, so readers always know where
               to go for the full publisher story. */}
-          {targetUrl && sourceDomain && (
+          {publisherHref && sourceDomain && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border-l-4 border-red-600 bg-[#1E3A5F] dark:bg-[#0f1923] px-5 py-4">
               <p className="text-sm font-medium text-white/90 leading-relaxed">
                 {language === "hi"
@@ -588,7 +593,7 @@ export default function ArticleDetailView({
                   : `📰 This article is sourced from ${sourceDomain}. Click to read the original story.`}
               </p>
               <a
-                href={targetUrl}
+                href={publisherHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors"
@@ -637,9 +642,9 @@ export default function ArticleDetailView({
                     {displayDescription}
                   </p>
                 )}
-                {targetUrl && (
+                {publisherHref && sourceDomain && (
                   <a
-                    href={targetUrl}
+                    href={publisherHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 transition-colors shadow-xs"
@@ -659,9 +664,9 @@ export default function ArticleDetailView({
                     ? "यह लेख प्रकाशक के प्लेटफॉर्म पर उपलब्ध है। पूरी कवरेज पढ़ने के लिए नीचे क्लिक करें।"
                     : "This article is hosted on the publisher's platform. Click below to read the complete coverage, analysis, and updates."}
                 </p>
-                {targetUrl && (
+                {publisherHref && sourceDomain && (
                   <a
-                    href={targetUrl}
+                    href={publisherHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 transition-colors shadow-xs"

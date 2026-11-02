@@ -1,5 +1,3 @@
-import "server-only";
-
 /**
  * SSRF guard for server-side fetches of user/attacker-influenced URLs
  * (e.g. the article scraper, which fetches whatever link the news API returns).
@@ -13,10 +11,12 @@ import "server-only";
  * On success it returns the addresses it checked, so the caller can connect
  * to exactly those (F-003): resolving again at connect time would let a
  * second DNS answer differ from the one validated (DNS rebinding).
+ *
+ * Shared, and safe in the browser (F-005): it imports nothing. A server
+ * caller passes the DNS resolver in (backend/services/scrape/fetchPage.ts
+ * passes dns.lookup); without one, a hostname that needs resolving fails
+ * closed. The article page's publisher links use safePublisherHref.
  */
-
-import dns from "dns/promises";
-import net from "net";
 
 export interface ValidatedAddress {
   address: string;
@@ -30,6 +30,9 @@ export interface UrlValidationResult {
   /** On success: every address the hostname resolved to, all of them public. */
   addresses?: ValidatedAddress[];
 }
+
+/** Resolves a hostname to every address it has, like dns.lookup(name, { all: true }). */
+export type Resolver = (hostname: string) => Promise<Array<{ address: string; family: number }>>;
 
 const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 
@@ -110,22 +113,35 @@ function isBlockedIPv6(ip: string): boolean {
   return false;
 }
 
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+/** 4 or 6 for an IP literal, 0 otherwise. A pure stand-in for net.isIP, so this module runs in a browser. */
+function ipFamily(value: string): 0 | 4 | 6 {
+  if (IPV4.test(value)) return 4;
+  const ip = value.replace(/%.*$/, ""); // a zone id, as in fe80::1%eth0
+  if (!/^[0-9a-f:.]+$/i.test(ip) || !ip.includes(":") || (ip.match(/::/g) ?? []).length > 1) return 0;
+  const dotted = ip.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted && !IPV4.test(dotted[1])) return 0;
+  const groups = ip.replace(/(\d+\.\d+\.\d+\.\d+)$/, "0:0").split(":");
+  if (groups.some((g) => g.length > 4)) return 0;
+  const count = groups.filter(Boolean).length;
+  return (ip.includes("::") ? count < 8 : count === 8) ? 6 : 0;
+}
+
 function isBlockedIp(ip: string): boolean {
-  if (net.isIPv4(ip)) return isBlockedIPv4(ip);
-  if (net.isIPv6(ip)) return isBlockedIPv6(ip);
+  const family = ipFamily(ip);
+  if (family === 4) return isBlockedIPv4(ip);
+  if (family === 6) return isBlockedIPv6(ip.replace(/%.*$/, ""));
   return true; // unrecognized format — fail closed
 }
 
-/**
- * Validates a URL is safe to fetch server-side: http(s) only, no credentials,
- * and its hostname must not resolve to a private/internal address. Resolves
- * DNS itself (rather than trusting the literal hostname) to defend against
- * DNS-rebinding, where a public-looking domain resolves to an internal IP.
- */
-export async function validateExternalUrl(rawUrl: string): Promise<UrlValidationResult> {
+type Shape = { ok: true; url: URL; hostname: string } | { ok: false; reason: string };
+
+/** The checks that need no network: http(s), no credentials, not localhost. */
+function checkShape(rawUrl: string | undefined | null): Shape {
   let parsed: URL;
   try {
-    parsed = new URL(rawUrl);
+    parsed = new URL(rawUrl ?? "");
   } catch {
     return { ok: false, reason: "Not a valid URL." };
   }
@@ -146,9 +162,34 @@ export async function validateExternalUrl(rawUrl: string): Promise<UrlValidation
   if (hostname === "localhost" || hostname.endsWith(".localhost")) {
     return { ok: false, reason: "Localhost is not allowed." };
   }
+  return { ok: true, url: parsed, hostname };
+}
+
+/**
+ * The href for a link out to a publisher, or null (F-005): an http(s) URL
+ * with a dotted hostname, no credentials, and no IP literal or localhost.
+ * Shape only. Whether the URL is really a publisher's article is decided on
+ * the server, against the stored articles, before it reaches the page.
+ */
+export function safePublisherHref(rawUrl: string | undefined | null): string | null {
+  const shape = checkShape(rawUrl);
+  if (!shape.ok || ipFamily(shape.hostname) !== 0 || !shape.hostname.includes(".")) return null;
+  return shape.url.href;
+}
+
+/**
+ * Validates a URL is safe to fetch server-side: http(s) only, no credentials,
+ * and its hostname must not resolve to a private/internal address. Resolves
+ * DNS itself (rather than trusting the literal hostname) to defend against
+ * DNS-rebinding, where a public-looking domain resolves to an internal IP.
+ */
+export async function validateExternalUrl(rawUrl: string, resolve?: Resolver): Promise<UrlValidationResult> {
+  const shape = checkShape(rawUrl);
+  if (!shape.ok) return { ok: false, reason: shape.reason };
+  const { hostname } = shape;
 
   // If the hostname is already a literal IP, check it directly.
-  const literalFamily = net.isIP(hostname);
+  const literalFamily = ipFamily(hostname);
   if (literalFamily) {
     if (isBlockedIp(hostname)) {
       return { ok: false, reason: "Target resolves to a private/internal address.", resolvedAddress: hostname };
@@ -161,7 +202,8 @@ export async function validateExternalUrl(rawUrl: string): Promise<UrlValidation
   // internally.
   let addresses: ValidatedAddress[];
   try {
-    const results = await dns.lookup(hostname, { all: true, verbatim: true });
+    if (!resolve) throw new Error("no resolver");
+    const results = await resolve(hostname);
     addresses = results.map((r) => ({ address: r.address, family: r.family === 6 ? 6 : 4 }));
   } catch {
     return { ok: false, reason: "Could not resolve hostname." };
