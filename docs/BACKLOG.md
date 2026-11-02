@@ -317,7 +317,12 @@ whole.
 **Found:** restructure 2, S0 (the F1 list) · **Status:** **Resolved for the scrape** in `65d3337`
 (owner, Phase 2 follow-up, to fix BL-021): the page calls `scrapeArticle`
 (`backend/services/scrape/scrapeArticle.ts`) directly. **Still over HTTP:** the suggestions fetch
-of `/api/news/top-headlines`, which has no per-IP limit and was not part of the fix
+of `/api/news/top-headlines`, which has no per-IP limit and was not part of the fix. Re-checked
+after Phase 3 (owner): neither the handler nor `proxy.ts` (matcher: admin paths only) limits that
+route, so it has no shared bucket like BL-021's. **If a per-IP limit is ever added to
+`top-headlines`, move this fetch to a direct call first**, or every reader shares the server's
+bucket. The fetch also reads `NEXT_PUBLIC_BASE_URL`, not the `NEXT_PUBLIC_APP_URL` the rest of the
+page uses
 
 `app/article/[slug]/page.tsx` is a server component, yet it reaches the scraper and the feed
 over HTTP to its own deployment: `getArticleContent()` fetches `/api/news/scrape-article`
@@ -490,3 +495,37 @@ database. Costs: a new environment variable; an additive change to the feed resp
 the six link builders (`ArticleCard` ×2, `CategoryMegaMenu`, `MarqueeTicker`, and the
 related/trending lists in `ArticleDetailView`); and links shared before the change lose their
 publisher link. The stored-article lookup was chosen instead (owner, Phase 2).
+
+## BL-024 — Nullable columns the code treats as non-null (`breaking_news`, `admin_logs`)
+
+**Found:** audit Phase 3, F-008 (`db28a46`) · **Status:** Open — deployment phase (owner)
+
+`database/schema.sql` carries the DDL that lived in code comments unchanged, and it leaves these
+columns nullable while the TypeScript types say they are always set:
+
+- `breaking_news.is_active` and `breaking_news.created_at`
+- `admin_logs.details`, `admin_logs.metadata` and `admin_logs.created_at`
+
+The inserts always set them (or their defaults do), so the gap is about rows written some other
+way. A `NOT NULL` migration must first check the live data for nulls
+(`SELECT count(*) … WHERE <column> IS NULL` for each), which is deployment-phase work.
+
+`admin_logs.action` is free text, while the code uses the `AdminAction` union. **Recommendation: keep
+it free text.** A CHECK constraint would need a migration for every new action, and the column is
+written only by `logAdminAction`, whose parameter type already restricts it.
+
+## BL-025 — Without the service-role key, the app runs on the anon key and writes fail
+
+**Found:** audit Phase 3, owner check of RLS against the live app · **Status:** Open
+
+`backend/lib/supabase.ts` uses `SUPABASE_SERVICE_ROLE_KEY` when set and falls back to
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `isSupabaseConfigured()` is true with the anon key alone. With
+RLS on, the anon key can only read `articles` and `breaking_news`. The cron's ingest and purge,
+every admin write and the audit log all fail. Where anon still holds Supabase's default table
+grants, some of these fail silently (0 rows, no error) instead of as `permission denied`.
+The table of every access is in `docs/runbooks/apply-database.md`.
+
+No policy change fixes this, because the anon key is public by design. Options: fail loudly (a
+startup or health warning when only the anon key is set, or report the writes as unavailable), or
+keep it and rely on the runbook's pre-check that the key is set. Not changed: no audit finding
+covers it.
