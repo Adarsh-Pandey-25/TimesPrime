@@ -84,7 +84,7 @@ function actorColumns(actor: Actor): Pick<AuditRow, "actor_type" | "actor_id" | 
   };
 }
 
-async function auditDenial(actor: Actor, permission: PermissionKey, code: DenyCode, target: Target | typeof ANY_SCOPE | undefined): Promise<void> {
+async function auditDenial(actor: Actor, permission: PermissionKey | "auth.session", code: DenyCode, target: Target | typeof ANY_SCOPE | undefined): Promise<void> {
   try {
     await recordAudit({ ...actorColumns(actor), action: permission, outcome: "denied", reason: code, ...scopeOf(target) });
   } catch (err) {
@@ -156,6 +156,67 @@ export async function requirePermission(
     meta,
   };
   return check(actor, rule, target, now);
+}
+
+/**
+ * For the session-only routes (SESSION_ONLY_ADMIN_ROUTES: /me, /mfa): a session and, for staff, an
+ * active staff profile, but no permission. An aal1 session passes, because /mfa is how it becomes
+ * aal2. A signed-in user who is not staff, or is suspended, is refused and the refusal audited.
+ */
+export async function requireSession(request: NextRequest): Promise<GateResult> {
+  const now = new Date();
+  const session = await readSession(request);
+  if (!session) return { ok: false, response: unauthorized() };
+  const meta = {
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+    requestId: request.headers.get("x-vercel-id") || crypto.randomUUID(),
+  };
+  if (session.kind === "legacy") {
+    return { ok: true, actor: { kind: "legacy", userId: null, label: LEGACY_LABEL, aal: null, roles: [], via: [], record: null, meta } };
+  }
+  let record: StaffRecord | null;
+  try {
+    record = await loadStaffRecord(session.userId, now);
+  } catch (err) {
+    console.error("Staff record lookup failed:", err);
+    Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "loadStaffRecord" } });
+    return { ok: false, response: lookupFailed() };
+  }
+  const actor: Actor = {
+    kind: "staff",
+    userId: session.userId,
+    label: record?.displayName ?? session.userId,
+    aal: session.aal,
+    roles: liveRoles(record, now),
+    via: [],
+    record,
+    meta,
+  };
+  const code: DenyCode | null = !record ? "not_staff" : record.status !== "active" ? "suspended" : null;
+  if (code) {
+    await auditDenial(actor, "auth.session", code, undefined);
+    return { ok: false, response: NextResponse.json({ error: MESSAGES[code], code }, { status: 403 }) };
+  }
+  return { ok: true, actor };
+}
+
+/**
+ * A single event row (a sign-in, an MFA step), not a change: written best-effort, because refusing
+ * a sign-in over a log line would lock people out. Failures go to Sentry.
+ */
+export async function auditEvent(
+  actor: Actor,
+  action: string,
+  outcome: "succeeded" | "failed",
+  extra: { reason?: string | null; after?: Record<string, unknown> | null } = {}
+): Promise<void> {
+  try {
+    await recordAudit({ ...actorColumns(actor), action, outcome, entity_type: "staff", entity_id: actor.userId, reason: extra.reason ?? null, after: extra.after ?? null });
+  } catch (err) {
+    console.error("Audit event write failed:", err);
+    Sentry.captureMessage("Audit event write failed", { level: "warning", extra: { action, outcome } });
+  }
 }
 
 /** The second check, once the route has loaded its target. Uses the record already read. */

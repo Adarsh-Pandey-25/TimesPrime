@@ -5,6 +5,9 @@
 # deleted). That removal is intentional and is not a migration regression.
 # Updated 2026-10-30: /api/health and /api/admin/health added (audit F-002,
 # owner decision D4). Additions only; no existing URL changed (CR-01).
+# Updated 2026-11-02: /api/admin/me and /api/admin/mfa added (Panel 0, the access
+# foundation: who is signed in, and the second factor). Additions only (CR-01). Section A
+# is the Phase 0 file list under src/app and is not updated; section B is the diff target.
 
 ## A. Routable files on disk (src/app/**)
 src/app/about/page.tsx
@@ -49,6 +52,8 @@ f  /api/admin/health
 f  /api/admin/login
 f  /api/admin/logout
 f  /api/admin/logs
+f  /api/admin/me
+f  /api/admin/mfa
 f  /api/admin/publish-article
 f  /api/admin/seed-supabase
 f  /api/admin/stats

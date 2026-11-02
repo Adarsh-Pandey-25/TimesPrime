@@ -96,6 +96,29 @@ export type AdminAction =
   | "database_purged"
   | "categories_seeded";
 
+/**
+ * GET /api/admin/me (Panel 0): who is signed in and what they hold, so the admin UI can hide what
+ * they lack. UX only: every route checks again on the server. `permissions` maps each permission
+ * key held now, in some scope, to "act" or "read" (keys: shared/config/permissions.ts).
+ */
+export type AdminMe =
+  | {
+      kind: "staff";
+      displayName: string;
+      aal: "aal1" | "aal2";
+      roles: Array<{ role: string; language: string | null; section: string | null; expiresAt: string }>;
+      permissions: Record<string, "act" | "read">;
+      /** required: this account needs aal2; enrolled: a TOTP factor is set up. */
+      mfa: { required: boolean; enrolled: boolean };
+    }
+  | {
+      kind: "legacy";
+      displayName: string;
+      /** When the shared password stops working (ISO). */
+      retiresAt: string;
+      permissions: Record<string, "act" | "read">;
+    };
+
 export interface AdminLog {
   id: string;
   action: AdminAction;

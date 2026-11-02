@@ -49,7 +49,7 @@ import { NextRequest } from "next/server";
 import { readSession } from "@/backend/auth/staffSession";
 import { loadStaffRecord } from "@/backend/repositories/staff";
 import { recordAudit } from "@/backend/repositories/auditLog";
-import { ADMIN_ROUTE_RULES, PUBLIC_ADMIN_ROUTES, type RouteRule } from "@/backend/auth/adminRoutePolicy";
+import { ADMIN_ROUTE_RULES, PUBLIC_ADMIN_ROUTES, SESSION_ONLY_ADMIN_ROUTES, type RouteRule } from "@/backend/auth/adminRoutePolicy";
 import { LEGACY_PERMISSIONS, type Assignment, type Grant, type StaffRecord } from "@/backend/auth/decide";
 import type { AccessCode, PermissionKey, RoleKey, ScopeLanguage } from "@/shared/config/permissions";
 import * as articles from "./articles";
@@ -366,15 +366,21 @@ describe("the route walk: every admin route and method on disk is public by name
   })(ROOT);
 
   const isPublic = (r: { path: string; method: string }) => PUBLIC_ADMIN_ROUTES.some((p) => p.path === r.path && p.method === r.method);
+  const isSessionOnly = (r: { path: string; method: string }) => SESSION_ONLY_ADMIN_ROUTES.some((p) => p.path === r.path && p.method === r.method);
   const ruleFor = (r: { path: string; method: string }) =>
     (ADMIN_ROUTE_RULES as Record<string, Partial<Record<string, RouteRule>>>)[r.path]?.[r.method];
 
-  test("the walk found the admin routes (11 files)", () => {
-    expect(new Set(onDisk.map((r) => r.path)).size).toBe(11);
+  test("the walk found exactly the routes the three lists name", () => {
+    const named = new Set([...PUBLIC_ADMIN_ROUTES.map((r) => r.path), ...SESSION_ONLY_ADMIN_ROUTES.map((r) => r.path), ...Object.keys(ADMIN_ROUTE_RULES)]);
+    expect(new Set(onDisk.map((r) => r.path))).toEqual(named);
   });
 
-  test.each(onDisk.map((r) => [`${r.method} ${r.path}`, r] as const))("%s is either public or has a rule, not both", (_name, r) => {
-    expect(isPublic(r) !== (ruleFor(r) !== undefined)).toBe(true);
+  test.each(onDisk.map((r) => [`${r.method} ${r.path}`, r] as const))("%s is exactly one of: public, session-only, or guarded by a rule", (_name, r) => {
+    expect([isPublic(r), isSessionOnly(r), ruleFor(r) !== undefined].filter(Boolean)).toHaveLength(1);
+  });
+
+  test("the session-only list is exactly /me and /mfa", () => {
+    expect(SESSION_ONLY_ADMIN_ROUTES.map((r) => `${r.method} ${r.path}`).sort()).toEqual(["GET /api/admin/me", "POST /api/admin/mfa"]);
   });
 
   test("the public allowlist is exactly sign-in, sign-out and the banner's read (D10)", () => {

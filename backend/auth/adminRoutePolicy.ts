@@ -32,6 +32,17 @@ export const PUBLIC_ADMIN_ROUTES: ReadonlyArray<{ path: string; method: Method }
   { path: "/api/admin/breaking-news", method: "GET" },
 ];
 
+/**
+ * Routes that need a session but no permission: a staff member must reach them before they can do
+ * anything else. /me says who they are and what they hold (the admin UI hides what they lack);
+ * /mfa enrols and verifies their second factor, which an aal1 session must reach to become aal2.
+ * The proxy requires a session for them like any other admin route; requireSession checks it.
+ */
+export const SESSION_ONLY_ADMIN_ROUTES: ReadonlyArray<{ path: string; method: Method }> = [
+  { path: "/api/admin/me", method: "GET" },
+  { path: "/api/admin/mfa", method: "POST" },
+];
+
 /** The admin pages reachable with no session: the sign-in page only. */
 export const PUBLIC_ADMIN_PAGES: readonly string[] = ["/admin/login"];
 
