@@ -14,6 +14,8 @@ expensive mistake available.
 | 4 | [`architecture.md`](architecture.md) | How the system fits together; the import rules | 10 min |
 | 5 | [`BACKLOG.md`](BACKLOG.md) | Before "fixing" something that looks wrong — it may be deferred deliberately | 3 min |
 | 6 | [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md) | Working on a security or quality fix: status of every audit finding (F-001..F-028), with today's code locations | Reference |
+| 7 | [`PANEL_PLAN.md`](PANEL_PLAN.md) | Working on the back office: the owner's plan for the panels, the 15 roles, the permission matrix, the four-eyes and MFA rules and the data model. A plan, not a spec; not edited | 25 min |
+| 8 | [`PANEL_DOCS.md`](PANEL_DOCS.md) | Working on the back office: which panel is next, and what each finished panel does and who may use it | Reference |
 
 ## One source of truth
 
