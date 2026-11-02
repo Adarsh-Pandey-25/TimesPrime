@@ -461,7 +461,7 @@ contact-form collection that no longer happens. Legal copy, for the owner or leg
 **Next session: audit Phase 2 (security)**, from `docs/AUDIT-FINDINGS.md`, whose locations were
 re-verified after restructure 2:
 
-1. Tests first for `backend/lib/urlValidation.ts` and `backend/auth/adminSession.ts` (§12).
+1. Tests first for `shared/validation/urlValidation.ts` and `backend/auth/adminSession.ts` (§12).
 2. Then F-003 (scraper redirects), F-010 (input size caps), F-020 with BL-013 (eviction, owner:
    deferred into Phase 2), F-004 and F-011 (D1: a Redis-backed limiter for login and the scraper),
    F-005 (with BL-015's split of `urlValidation`), F-006.
@@ -528,6 +528,6 @@ Indexes: `created_at`, `article_id`. Queries also filter on `category`/`country`
 - `frontend/features/news/bookmarks.test.ts`;
 - `shared/config/newsConfig.test.ts`, `shared/validation/sentryScrub.test.ts`.
 
-**Untested and security-critical:** `backend/lib/urlValidation.ts` (124 lines) and
+**Untested and security-critical:** `shared/validation/urlValidation.ts` (124 lines) and
 `backend/auth/adminSession.ts` (69 lines). Both pure, no I/O, trivially testable. The highest
 value-per-hour work available, and audit Phase 2's first step.

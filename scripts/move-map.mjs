@@ -130,8 +130,9 @@ export const MOVES = [
   ["src/lib/rateLimit.ts", "backend/lib/rateLimit.ts", 4],
   ["src/lib/reportFallback.ts", "backend/lib/reportFallback.ts", 4],
   ["src/lib/reportFallback.test.ts", "backend/lib/reportFallback.test.ts", 4],
-  // Server-only: its one importer is the scraper route (and it imports dns/net).
-  ["src/lib/urlValidation.ts", "backend/lib/urlValidation.ts", 4],
+  // Slice 4 put it in backend/lib/; audit Phase 2 moved it on to shared/validation/,
+  // where the article page's link sinks can use it too (F-005, BL-015).
+  ["src/lib/urlValidation.ts", "shared/validation/urlValidation.ts", 4],
   // Imported by proxy.ts (P1) and the login/logout routes.
   ["src/server/auth/adminSession.ts", "backend/auth/adminSession.ts", 4],
 

@@ -1,7 +1,7 @@
 import "server-only";
 
 import axios from "axios";
-import { validateExternalUrl, type ValidatedAddress } from "@/backend/lib/urlValidation";
+import { validateExternalUrl, type ValidatedAddress } from "@/shared/validation/urlValidation";
 
 /**
  * Fetches a publisher page through the SSRF guard, hop by hop (F-003).

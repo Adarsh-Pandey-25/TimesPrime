@@ -106,7 +106,7 @@ page is cited at its body, which the one-line file in `app/` re-exports.
 | FR-013 | Extract readable full text from a publisher page | `backend/api/news/scrape-article.ts` | Implemented |
 | FR-014 | Detect paywalls and show publisher metadata instead of junk | same → `detectPaywall` | Implemented |
 | FR-015 | Strip author bios, nav and app-download boilerplate | same → `isJunkParagraph` | Implemented |
-| FR-016 | Refuse to fetch internal/private network addresses | `backend/lib/urlValidation.ts` | **Partial** — redirects bypass it, DEF-02 |
+| FR-016 | Refuse to fetch internal/private network addresses | `shared/validation/urlValidation.ts` | **Partial** — redirects bypass it, DEF-02 |
 | FR-017 | Always link out to the original publisher | `frontend/views/article/ArticleDetailView.tsx` | **Partial** — 2 of 4 links unvalidated, DEF-03 |
 
 ### Reader features

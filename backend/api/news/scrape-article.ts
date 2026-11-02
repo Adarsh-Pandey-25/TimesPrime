@@ -5,7 +5,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import * as Sentry from "@sentry/nextjs";
-import { validateExternalUrl } from "@/backend/lib/urlValidation";
+import { validateExternalUrl } from "@/shared/validation/urlValidation";
 import { fetchPage, UnsafeTargetError } from "@/backend/services/scrape/fetchPage";
 import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/backend/lib/cache";
 import { checkRateLimit, getClientIp } from "@/backend/lib/rateLimit";
