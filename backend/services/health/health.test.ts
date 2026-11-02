@@ -119,6 +119,14 @@ describe("getHealth", () => {
     expect(supabaseMock.supabase.from).toHaveBeenCalledTimes(2);
   });
 
+  test("the shared result lives 60 seconds (owner-approved; it was 15)", async () => {
+    expect(HEALTH_CACHE_MS).toBe(60_000);
+    await getHealth();
+    jest.setSystemTime(clock + 59_000);
+    await getHealth();
+    expect(supabaseMock.supabase.from).toHaveBeenCalledTimes(1);
+  });
+
   test("reports a Supabase fallback (D5) only when Supabase is down", async () => {
     reportFallback.mockClear();
     supabaseMock.__query.abortSignal.mockResolvedValue({ error: { message: "TypeError: fetch failed", code: "" } });

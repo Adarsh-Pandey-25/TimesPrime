@@ -45,7 +45,7 @@ export interface HealthReport {
 }
 
 export const SUPABASE_TIMEOUT_MS = 3000;
-export const HEALTH_CACHE_MS = 15_000;
+export const HEALTH_CACHE_MS = 60_000;
 
 let memo: { at: number; report: Promise<HealthReport> } | null = null;
 
