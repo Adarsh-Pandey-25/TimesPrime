@@ -24,7 +24,7 @@ jest.mock("@/backend/repositories/staff", () => {
 });
 jest.mock("@/backend/repositories/auditLog", () => {
   class AuditWriteError extends Error {}
-  return { recordAudit: jest.fn(async () => "audit-id"), recordSystemAudit: jest.fn(), logAdminAction: jest.fn(), AuditWriteError };
+  return { recordAudit: jest.fn(async () => "audit-id"), recordSystemAudit: jest.fn(), AuditWriteError };
 });
 jest.mock("@/backend/lib/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
 jest.mock("@/backend/services/health/health", () => ({

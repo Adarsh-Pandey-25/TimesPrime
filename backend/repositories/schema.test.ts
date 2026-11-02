@@ -29,7 +29,7 @@ describe("database/schema.sql (F-008)", () => {
   test.each([
     // backend/api/admin/breaking-news.ts: select, insert, update, the active/expiry filter
     ["breaking_news", ["id", "text", "is_active", "expires_at", "created_at"]],
-    // backend/repositories/auditLog.ts inserts; backend/api/admin/logs.ts selects and clears
+    // backend/api/admin/logs.ts reads it (?source=legacy); nothing writes it since Panel 0
     ["admin_logs", ["id", "action", "details", "metadata", "created_at"]],
     // backend/repositories/db.ts: the row mapping, the feed filters, the link lookup (F-005)
     ["articles", ["article_id", "title", "link", "description", "content", "pub_date", "image_url", "source_id", "source_name", "category", "country", "language", "created_at", "category_mismatches"]],
