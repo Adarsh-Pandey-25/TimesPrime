@@ -21,3 +21,7 @@ Candidates, based on failure modes already observed in this system:
   page.
 - **Restoring the database** — schema from `database/schema.sql`, then
   `database/policies.sql`.
+
+Written:
+
+- [`apply-database.md`](apply-database.md) — apply the SQL files in `database/` in order, and verify each. Restoring the schema follows the same steps.
