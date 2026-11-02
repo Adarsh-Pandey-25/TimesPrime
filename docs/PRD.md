@@ -150,9 +150,9 @@ the restructure as firmly as any functional requirement.
 | ID | Must not change | Why |
 |---|---|---|
 | CR-01 | Every public URL, byte for byte | Existing links, search indexing, any external embed |
-| CR-02 | `/api/cron/refresh-news` | Hard-coded in `vercel.json`; ingestion stops **silently** if moved |
+| CR-02 | `/api/cron/refresh-news` | Hard-coded in `vercel.json` today, and in the AWS scheduler at deployment; ingestion stops **silently** if moved |
 | CR-03 | The `articles` table shape | Live data exists; no migration tooling in place |
-| CR-04 | Every `process.env` name | Set in the Vercel dashboard, outside version control |
+| CR-04 | Every `process.env` name | Set in the hosting environment (AWS, at deployment), outside version control |
 | CR-05 | `proxy.ts` location and matcher semantics | Framework-pinned, and the sole authorisation boundary |
 | CR-06 | `shared/config/imageDomains.ts` importable from `next.config.ts` | Evaluated at config-load time — must never import React or `server-only` |
 | CR-07 | Sentry and instrumentation file locations | Framework conventions; silently inert if moved |
@@ -215,7 +215,7 @@ records what happened to it (statuses as in [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS
 | DEF-20 | The home feed starts overlapping fetches with no `AbortController` or sequence guard; a stale response can overwrite a fresh one (audit F-021) | Medium | Resolved `9ce42bc` |
 | DEF-21 | Article page title is doubled: `… \| TimesPrime News \| TimesPrime News` (audit F-022) | Low | Resolved `ef510f9` |
 | DEF-22 | `translateHeadline()` ignores its `lang` argument yet runs on every card title and description (audit F-024) | Low | Resolved `3de9a1e` |
-| DEF-23 | Node version drift: `.node-version` and CI use 20, the local runtime is 24, `package.json` has no `engines`, Vercel's version is unconfirmed (audit F-026) | Low | Pending verification — Vercel's Node setting (`974b255`) |
+| DEF-23 | Node version drift: `.node-version` and CI use 20, the local runtime is 24, `package.json` has no `engines`, the production runtime's version is unconfirmed (audit F-026) | Low | Pending verification — Node 24 on AWS at deployment (`974b255`) |
 | DEF-24 | The chat drawer has no dark mode (audit F-027) | Low | Resolved `7ead49b` |
 | DEF-25 | Theme flash on load: the theme is read from `localStorage` in an effect, after first paint (audit F-028) | Low | Partial `5ad891a` — `isDark` ternaries remain, BL-028 |
 
@@ -275,7 +275,7 @@ review as BL-008.
 
 ## 14. Appendix — environment variables
 
-Set in `.env.local` locally and in the Vercel dashboard in production. **Never commit real values.**
+Set in `.env.local` locally, and in the AWS environment at deployment (none until the project is complete). **Never commit real values.**
 
 | Variable | Required | Purpose |
 |---|---|---|

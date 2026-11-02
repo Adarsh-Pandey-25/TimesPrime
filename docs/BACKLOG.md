@@ -657,3 +657,15 @@ example daily, from the cron), record the latest `seq` and `row_hash` outside th
 log line to an external sink, a Sentry event, or a file in separate storage. A rewrite then shows as
 a head that no longer matches the exported one. Needs a choice of destination that a database owner
 cannot also edit.
+
+## BL-035 — The root README's setup note about the schema is stale
+
+**Found:** the Vercel-to-AWS docs pass (2026-11-02) · **Status:** Open — a docs fix
+
+`README.md`'s "Setup" section says `database/schema.sql` "currently defines the `articles` table only",
+and that `breaking_news` and `admin_logs` exist only as SQL in comments in two route files. That
+stopped being true at F-008 (`db28a46`), which put both tables in `schema.sql`. The section also
+predates the indexes migration and Panel 0's access migrations, and does not point at the runbooks.
+It should list the files in their order and link `docs/runbooks/apply-database.md` and
+`docs/runbooks/staff-access.md` instead. Left alone in that pass, which was limited to the Vercel
+wording.

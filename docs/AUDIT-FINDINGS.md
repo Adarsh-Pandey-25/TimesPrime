@@ -12,14 +12,14 @@ not by adding offsets, and every claim without a line number was re-checked. Loc
 that cannot run on this machine remains, and is named. *Partial* — part fixed, the rest named.
 *Open* — not started. This file is updated as each finding is fixed; one finding per commit, prefixed with
 its ID. Closed out in audit Phase 5 (2026-11-02): no finding is Open. What "Pending verification" needs is
-listed in [HANDOFF.md](HANDOFF.md) §11, the deployment list.
+listed in [HANDOFF.md](HANDOFF.md) §11, "Before the AWS deployment".
 
 ## Summary
 
 | Status | Count | Findings |
 |---|--:|---|
 | Resolved | 22 | F-001, F-003, F-004, F-005, F-007, F-009, F-010, F-011, F-012, F-013, F-014, F-015, F-016, F-017, F-019, F-020, F-021, F-022, F-023, F-024, F-025, F-027 |
-| Pending verification | 5 | F-002 (production check), F-006 (live probe), F-008 and F-018 (SQL not yet applied), F-026 (Vercel setting) |
+| Pending verification | 5 | F-002 (production check), F-006 (live probe), F-008 and F-018 (SQL not yet applied), F-026 (the production runtime's Node version) |
 | Partial | 1 | F-028 (`isDark` ternaries, BL-028) |
 | Deferred | 0 | — |
 | Open | 0 | — |
@@ -53,7 +53,7 @@ listed in [HANDOFF.md](HANDOFF.md) §11, the deployment list.
 | F-023 | Low | Supabase SDK in client bundle | **Resolved** | `b01d528`; `GoTrueClient` in browser chunks 1 → 0. CODEMAP: 0 server-only modules in the client bundle; `server-only` guards since `e3753b3`, and on every backend module since `19d255c` | — |
 | F-024 | Low | `translateHeadline()` ignores `lang` | **Resolved** | `3de9a1e` (owner decision D3): the `translateHeadline` no-op and its three call sites are gone; nothing renders differently. Headline translation is a feature: BL-026 | DEF-22 |
 | F-025 | Low | Dead RSS subsystem | **Resolved** | `bcd5393` (code + 503 route, routes 27 → 26), `d3ba8fa` (footer link). Leftover: a historical comment in `shared/config/imageDomains.ts:14`; the unused `rssFeeds` string was removed in `a81d3c4` | — |
-| F-026 | Low | `.node-version` 20 vs runtime 24 | **Pending verification** | `974b255` (D2): `.node-version` 24, `package.json` `engines` `24.x`, and CI follows `.node-version`; the local runtime is 24.19.0. CI on Node 24 has been green since (latest: run 41046741477 on `5f6b0cc`). **Needs:** the owner setting the Vercel project to 24. `@types/node` is `^24` since `0066f27` (BL-012, resolved) | DEF-23 |
+| F-026 | Low | `.node-version` 20 vs runtime 24 | **Pending verification** | `974b255` (D2): `.node-version` 24, `package.json` `engines` `24.x`, and CI follows `.node-version`; the local runtime is 24.19.0. CI on Node 24 has been green since (latest: run 41046741477 on `5f6b0cc`). **Needs:** Node 24 on the production runtime, at the AWS deployment (nothing is deployed until the project is complete). `@types/node` is `^24` since `0066f27` (BL-012, resolved) | DEF-23 |
 | F-027 | Low | Chatbot has no dark mode | **Resolved** | `7ead49b`: `Chatbot.tsx` has dark variants from the app's palette; a test checks every light surface has one. The growth (418 B of class strings on every route) was accepted; the chatbot shipping on every route is BL-030 | DEF-24 |
 | F-028 | Low | Theme flash on load | **Partial** | `5ad891a`: an inline script in `<head>` (`THEME_INIT_SCRIPT`, `shared/config/theme.ts`) sets the `dark` class and background before the first paint, so every `dark:` variant is right from the start; no CSP blocks it. **Remaining:** components that style with `isDark ?` ternaries (75 in 16 files) still switch after hydration, a visible flash for those elements: BL-028 (owner ruling) | DEF-25 |
 

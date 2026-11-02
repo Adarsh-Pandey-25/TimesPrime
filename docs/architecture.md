@@ -15,7 +15,7 @@ imports, is in [`CODEMAP.md`](CODEMAP.md). Where new code goes:
 Three independent flows, each with its own failure posture.
 
 ```
-INGEST ─ every 30 minutes, Vercel cron
+INGEST ─ every 30 minutes, a scheduler (vercel.json today; an AWS scheduler at deployment)
   /api/cron/refresh-news  [Bearer CRON_SECRET, fails closed if unset]
     → NewsData.io, one request per category, sequential (bursts get throttled)
     → reject: hard-paywall domains · horoscope/tarot filler · wire-spam
@@ -84,7 +84,9 @@ conclusions (see [`HANDOFF.md`](HANDOFF.md) §3).
   evaluates it at **config-load time**. That module imports nothing (CR-06).
 - `images.remotePatterns` hostnames are matched with **picomatch globs**, not string equality, and
   the array is capped at **50 entries**. 49 are used.
-- `vercel.json` pins the cron to `/api/cron/refresh-news`.
+- `vercel.json` pins the cron to `/api/cron/refresh-news`. Only Vercel reads it. Nothing is
+  deployed until the project is complete, and the target is AWS (`ap-south-1`), where a scheduler
+  must call the same path ([`HANDOFF.md`](HANDOFF.md) §11).
 
 > Next.js is explicitly **unopinionated** about project organisation. Its own documentation presents
 > three strategies and concludes: *"choose a strategy that works for you and your team and be

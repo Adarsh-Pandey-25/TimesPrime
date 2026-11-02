@@ -5,6 +5,12 @@ second factor ([design](../design/panel-0-access-foundation.md), [PANEL_DOCS](..
 Nothing in the app applies SQL or changes settings: every step below is yours. Each step says how to
 check it and how to undo it.
 
+**Where.** Nothing is deployed until the whole project is complete (owner decision, 2026-11-02). Until
+then these steps are rehearsed against a **local** database, never against the one `.env.local`
+points at, which may be production ([HANDOFF](../HANDOFF.md) §2). They are done once more against
+the production database at the AWS deployment ([HANDOFF](../HANDOFF.md) §11). "Run the code" below
+means the local app now, and the deployed app then.
+
 ## The order
 
 Do these in order, and do not start a step until the one before it checks out.
@@ -12,7 +18,7 @@ Do these in order, and do not start a step until the one before it checks out.
 | # | Step | Check | Undo |
 |--:|---|---|---|
 | 1 | **Apply the SQL migrations** (before any code) | The verification queries at the end of each file | The foundation file's rollback (only before go-live) |
-| 2 | **Deploy the code** | The shared password still works; an admin change writes an audit row | Promote the previous deployment |
+| 2 | **Run the code** | The shared password still works; an admin change writes an audit row | Run the previous version |
 | 3 | **Bootstrap two Super Admins** | `database/bootstrap/super-admin.sql`'s checks 1–4 | Revoke the assignment (in the file) |
 | 4 | **Sign in with a staff account and verify** | `/admin` says "Signed in as …"; the audit log shows the sign-in and the second factor | Nothing to undo; the shared password still works |
 | 5 | **Freeze `admin_logs`** | It is still readable and no longer writable | Grant writes back (in the file) |
@@ -55,10 +61,11 @@ The running app does not use these tables until step 2, so nothing changes for a
 Use it only before go-live: once `audit_log` holds real rows, it is never dropped (logs are kept at
 least one year).
 
-## 2. Deploy the code
+## 2. Run the code
 
-Deploy Panel 0 (the branch `panel-0-access`, once merged). No new environment variable is needed.
-`ADMIN_LEGACY_LOGIN` stays unset (the shared password stays on).
+Run Panel 0 (the branch `panel-0-access`, or `main` once merged): locally now, deployed at the end.
+No new environment variable is needed. `ADMIN_LEGACY_LOGIN` stays unset (the shared password stays
+on).
 
 **Check.**
 - `/admin/login` shows the staff form (email and password) and "Use the shared admin password".
@@ -74,12 +81,12 @@ Deploy Panel 0 (the branch `panel-0-access`, once merged). No new environment va
 - Within 30 minutes the cron writes a `system:cron` row, action `cron.refresh_news`.
 
 If every admin change answers 503 "The audit log could not be written", step 1 is missing, or
-`SUPABASE_SERVICE_ROLE_KEY` is not set in the deployment (see
+`SUPABASE_SERVICE_ROLE_KEY` is not set where the app runs (see
 [apply-database.md](apply-database.md#which-key-the-app-uses-and-what-rls-does-to-it)). Nothing was
 changed in either case: the app refuses a change it cannot record.
 
-**Undo.** Vercel → Deployments → the previous deployment → Promote to Production. The new tables
-stay; the previous code ignores them.
+**Undo.** Run the previous version: locally, check out the commit before Panel 0; at deployment, the
+host's previous release. The new tables stay; the previous code ignores them.
 
 ## 3. Bootstrap two Super Admins
 
@@ -150,17 +157,17 @@ Its history stays readable in the app at `GET /api/admin/logs?source=legacy` (`a
 ## 6. Only then: turning the shared password off
 
 Turn it off only when all three hold:
-- two Super Admins have signed in with their second factor, in production;
+- two Super Admins have signed in with their second factor, in production (after the AWS deployment);
 - Panel 1 is done, so editorial staff have their own accounts and roles;
 - you decide to.
 
-Set `ADMIN_LEGACY_LOGIN=off` in Vercel (Settings → Environment Variables), then redeploy, because
-environment changes apply at the next deployment.
+Set `ADMIN_LEGACY_LOGIN=off` in the app's environment (on AWS, where its variables are configured),
+then restart or redeploy it: the variable is read by the running server.
 
 **Check.** The shared password gets 403 "The shared admin password has been retired". An old
 shared-password cookie gets 401 from the proxy.
 
-**Undo.** Remove the variable and redeploy. This works only until 00:00 IST on 1 January 2027. After
+**Undo.** Remove the variable and restart. This works only until 00:00 IST on 1 January 2027. After
 that, the shared password is refused by the code itself and no setting brings it back. The last
 step is a code change that deletes it, with `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` (design §7).
 

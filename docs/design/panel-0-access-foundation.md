@@ -478,7 +478,7 @@ raise, a hash chain, and at least one year.
 | B | Owner | Invite two Super Admins (Dashboard → Authentication → Invite user). Each accepts and sets a password. Run `database/bootstrap/super-admin.sql` once per account. Each signs in and enrols MFA | The shared password; and the SQL editor |
 | C | Owner | Verify the step B checks; apply the `admin_logs` freeze | As above |
 | Run | Everyone | Editorial work continues on the shared password, now audited as `legacy:shared-password`. Super Admins work on their accounts | As above |
-| Removal | Me, then owner | When the conditions below hold, one deletion commit removes the legacy path; the owner deletes `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from Vercel | The SQL editor (below) |
+| Removal | Me, then owner | When the conditions below hold, one deletion commit removes the legacy path; the owner deletes `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from the hosting environment | The SQL editor (below) |
 
 **What a legacy session may do during the run** (amended by the approval, Q3). A fixed list, in
 code (`LEGACY_PERMISSIONS`), with every scope:
@@ -530,8 +530,8 @@ Admin, suspected stolen session (sign out all sessions from the dashboard).
 6. Apply `<date>-freeze-admin-logs.sql` once step 5 checks out.
 7. Run `select public.audit_verify_chain();` once a week, or on any doubt; it returns NULL when the
    chain is intact.
-8. At the end of the cut-over: delete `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from Vercel and
-   from `.env.local`. Also `ADMIN_SECRET_TOKEN`, which nothing reads (HANDOFF §3.9).
+8. At the end of the cut-over: delete `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from the hosting
+   environment and from `.env.local`. Also `ADMIN_SECRET_TOKEN`, which nothing reads (HANDOFF §3.9).
 
 No new secret is needed. `@supabase/ssr` uses `NEXT_PUBLIC_SUPABASE_URL` and
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, which are already set.

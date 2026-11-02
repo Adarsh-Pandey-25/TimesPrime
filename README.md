@@ -55,7 +55,7 @@ wrong. Every module, with its importers and imports, is in [`docs/CODEMAP.md`](d
 | Styling | Tailwind CSS v4 |
 | Monitoring | Sentry |
 | Tests | Jest + Testing Library |
-| Hosting | Vercel (cron defined in `vercel.json`) |
+| Hosting | **Not deployed** until the project is complete; then AWS, `ap-south-1`. The cron schedule is in `vercel.json` today and needs an AWS scheduler then |
 
 > **This is not stock Next.js.** Version 16 renamed Middleware to **Proxy**
 > (`proxy.ts`), deprecated the `priority` image prop in favour of `preload`,
@@ -65,7 +65,7 @@ wrong. Every module, with its importers and imports, is in [`docs/CODEMAP.md`](d
 
 ## Prerequisites
 
-- Node.js **24** (see `.node-version`; `package.json` `engines` is `24.x`, which Vercel also reads)
+- Node.js **24** (see `.node-version`; `package.json` `engines` is `24.x`)
 - npm 11+ (bundled with Node 24)
 - A Supabase project, a NewsData.io API key, and an Anthropic API key
 
@@ -101,7 +101,8 @@ Copy `.env.local.example` to `.env.local`. Never commit `.env.local`.
 | `ANTHROPIC_API_KEY` | yes | Powers `/api/chat` and category classification. Without it chat returns a clear "unavailable" message |
 | `ADMIN_PASSWORD` | yes | The admin panel password, compared in constant time |
 | `ADMIN_SESSION_SECRET` | yes | HMAC key signing the 12-hour admin session cookie |
-| `CRON_SECRET` | prod | Gates `/api/cron/refresh-news`. Vercel sends it as a bearer token. Unset means the endpoint fails closed |
+| `ADMIN_LEGACY_LOGIN` | optional | `off` retires the shared admin password early. It ends by itself at 00:00 IST on 1 January 2027 (Panel 0) |
+| `CRON_SECRET` | prod | Gates `/api/cron/refresh-news`; the scheduler sends it as a bearer token. Unset means the endpoint fails closed |
 | `UPSTASH_REDIS_REST_URL` | optional | Shared cache. Without it, an in-process cache is used (fine locally, not shared across serverless instances) |
 | `UPSTASH_REDIS_REST_TOKEN` | optional | Pairs with the URL above |
 | `NEXT_PUBLIC_SENTRY_DSN` | optional | Error reporting. Not a secret, but must be `NEXT_PUBLIC_` to reach the browser |
@@ -134,23 +135,28 @@ node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
 
 ## Architecture in one paragraph
 
-A Vercel cron hits `/api/cron/refresh-news` every 30 minutes, pulls each
+A scheduled job hits `/api/cron/refresh-news` every 30 minutes, pulls each
 category from NewsData.io, filters out paywalled, horoscope, wire-spam and
 non-news sources, and upserts into Supabase. Reads go through
 `/api/news/top-headlines`, which tries the Redis cache, then Supabase if its
 newest row is under 30 minutes old, then NewsData.io, and finally built-in mock
 articles. The `X-Data-Source` response header says which tier answered — useful
 when diagnosing whether a given response touched the database at all. Admin
-routes carry no auth checks of their own; `proxy.ts` gates every
-`/admin/*` and `/api/admin/*` path ahead of them.
+routes are gated twice: `proxy.ts` lets only a session through to `/admin/*` and
+`/api/admin/*`, and each route body checks the staff member's permissions
+(`requirePermission`, Panel 0).
 
 Fuller detail in [`docs/architecture.md`](docs/architecture.md).
 
 ## Deployment
 
-Hosted on Vercel. Set every variable from the table above in the project's
-environment settings. `vercel.json` registers the cron at `*/30 * * * *` against
-`/api/cron/refresh-news`; that path must not change without updating the file.
+**None until the project is complete** (owner decision, 2026-11-02); every check
+runs locally. The target is AWS, region `ap-south-1`. Set every variable from the
+table above in the AWS environment. `vercel.json` holds the 30-minute schedule
+(`*/30 * * * *` against `/api/cron/refresh-news`), but only Vercel reads it: on
+AWS a scheduler must call that path with the `CRON_SECRET` bearer token, and the
+path must not change. The list for that day is in
+[`docs/HANDOFF.md`](docs/HANDOFF.md) §11.
 
 ## Documentation
 
