@@ -431,3 +431,40 @@ gives that slot: its thumbnail renders empty.
 
 Fixed by replacing the URL with a working photo that shows cricket being played. It is on the
 same host, so `imageDomains` and `remotePatterns` are unchanged.
+
+## BL-021 — The scraper's rate limit puts every reader in one bucket
+
+**Found:** audit Phase 2, F-011 (`3b63a37`) · **Status:** Open — **owner decision needed**
+
+F-011 limits `/api/news/scrape-article` to 30 uncached scrapes a minute per client IP (owner
+decision D1). The route's only caller today is the article page's server-side fetch of it
+(`app/article/[slug]/page.tsx:38–42`, BL-016). That request carries no reader IP, so every
+reader's uncached article counts against one key: the server's own address in production, or
+`unknown` locally. Next's data cache (`revalidate: 3600` per URL) and the 1-hour scrape cache keep
+that traffic low, but a burst of distinct new articles could pass 30 a minute, and the page would
+then show its placeholder text.
+
+Options:
+- **Call the backend directly from the page** (BL-016). The self-fetch goes away, and the public
+  HTTP route keeps the limit for outside callers only. Recommended; it changes which caching applies,
+  so it is a behaviour change to test first.
+- Raise the limit, which weakens F-011 for direct callers.
+- Have the page forward the reader's IP in a header the route trusts only alongside a server-side
+  secret. More moving parts than the first option.
+
+## BL-022 — A public scrape writes to the database
+
+**Found:** audit Phase 2, F-003 tests · **Status:** Open — for the owner
+
+Every uncached scrape that extracts an article also runs
+`supabase.from("articles").update({ content }).eq("link", targetUrl)` in the background
+(`backend/api/news/scrape-article.ts:537`). So a public GET writes to the database, and the row it
+updates is chosen by the caller's `url` parameter. The value written is what the server scraped
+from that very URL, so a caller can only make a stored article's content match its own link. Still
+worth deciding: a local run writes to whatever project `.env.local` names, which may be production
+(HANDOFF §3.18), and a public endpoint that writes is one more thing to rate-limit and audit. The
+feed does return `content` with each row (`backend/repositories/db.ts:429`), so check its readers
+before dropping the write.
+
+Options: keep it, drop it, or move it behind the cron. Not changed in Phase 2: it is not part of any
+audit finding.
