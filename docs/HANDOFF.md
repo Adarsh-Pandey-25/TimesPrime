@@ -4,14 +4,17 @@
 > Since `78e58b6` every admin route writes the audit log before it changes anything, and refuses
 > (503) when it cannot. Until the owner applies `database/migrations/2026-11-02-access-1-foundation.sql`
 > and `2026-11-02-access-2-catalog.sql`, the `audit_log` table does not exist, so every admin change
-> answers 503. Reads and the shared-password login still work. Each SQL file carries its own
-> apply, verify and rollback notes; the runbook steps for them (`runbooks/apply-database.md`, and the
-> new `runbooks/staff-access.md` with the full order: migrations, then deploy, then bootstrap, then a
-> staff sign-in) arrive with the rest of Panel 0. That is built on the branch `panel-0-access` and
-> merges only when it is complete and approved.
+> answers 503. Reads and the shared-password login still work. The order is in
+> [`runbooks/staff-access.md`](runbooks/staff-access.md): migrations, then deploy, then bootstrap
+> the Super Admins, then a staff sign-in, then the `admin_logs` freeze, and only then the shared
+> password off. Panel 0's second half is on the branch `panel-0-access`, and merges only when the
+> owner approves.
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
-**State as of:** 2026-11-02. Branch `main`. Two restructures and all five audit phases are done:
+**State as of:** 2026-11-02. **Panel 0 (Access foundation) is complete on the branch
+`panel-0-access`** and awaits the owner's approval to merge; its first half is on `main`
+([`PANEL_DOCS.md`](PANEL_DOCS.md), §4). None of its SQL is applied yet. Before it, two restructures
+and all five audit phases were done:
 - **Audit Phases 1–5** fixed the 28 audit findings. None is open: 22 are resolved, 5 await a check
   that needs production or the owner, and 1 (F-028) is partial. Status per finding:
   [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md).
@@ -20,11 +23,14 @@
 - **Restructure 1** (Phases A–E, [ADR 0001](adr/0001-feature-first-structure.md), now superseded)
   came before it.
 
-**Next: Panel 0 (Access foundation)**, the first panel of the back office: staff accounts, roles,
-permissions, MFA, the audit log and the server-side permission check. The plan is
-[`PANEL_PLAN.md`](PANEL_PLAN.md); progress and per-panel docs are in [`PANEL_DOCS.md`](PANEL_DOCS.md).
-Panels are built one at a time, and Panel 0 starts with a design for the owner to approve. The
-deployment phase (§11) stays on the owner's list. Run `git log --oneline -20` for the exact head.
+**Next:**
+1. The owner reviews Panel 0 and merges `panel-0-access`.
+2. The owner switches it on in the runbook's order (§11).
+3. Then Panel 1 (Administration: granting roles in the app, the access review, retiring the shared
+   password).
+
+The plan is [`PANEL_PLAN.md`](PANEL_PLAN.md); the panels, one at a time, are in
+[`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
 
 Read §1 and §3 before touching anything. §3 in particular will save you from false conclusions
 that have already been reached and discarded once.
@@ -74,12 +80,14 @@ Check `/api/health` before assuming the database is either up or down.
 | `docs/architecture.md` | The layout, the flows, and the import rules (F1–X1, V1, R3–R9, LIB, CR-06) in prose a reviewer can cite |
 | `docs/AUDIT-FINDINGS.md` | The 28 audit findings, each with its status and fixing commit, and the `npm audit` history |
 | `docs/PRD.md` | Full PRD: FR-001..024 with code citations, NFR, CR, data model, defect register |
-| `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..BL-032) |
+| `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..BL-034) |
 | `docs/runbooks/apply-database.md` | **For the deployment phase.** Apply the SQL files in order, verify each, roll back each |
 | `docs/PANEL_PLAN.md` | **For the back office.** The owner's reference plan: panels, roles, permission matrix, four-eyes and MFA rules, data model. Not edited |
-| `docs/PANEL_DOCS.md` | Back-office progress (panels 0–9) and each finished panel's record, from one template |
-| `docs/adr/` | ADR 0002 (accepted, this layout) and ADR 0001 (superseded) |
-| `docs/_baseline-routes.txt` | The built route table (28 URLs); every structural change must match it byte for byte |
+| `docs/PANEL_DOCS.md` | Back-office progress (panels 0–9) and each finished panel's record, from one template. **Panel 0 is written up there** |
+| `docs/design/panel-0-access-foundation.md` | Panel 0's design as approved, with the owner's decisions (D1–D12, Q1–Q8) and the amendments |
+| `docs/runbooks/staff-access.md` | **For switching Panel 0 on.** The order (migrations, deploy, bootstrap, staff sign-in, freeze, then the shared password off), each step's check and undo, and how to get back in |
+| `docs/adr/` | ADR 0003 (accepted, the section rule for permission scope), ADR 0002 (accepted, this layout) and ADR 0001 (superseded) |
+| `docs/_baseline-routes.txt` | The built route table (30 URLs since Panel 0 added `/api/admin/me` and `/api/admin/mfa`); every structural change must match it byte for byte |
 | `CONTRIBUTING.md` | Where new code goes, the verify gate, the commit convention |
 | `AGENTS.md` | Project instruction: read the bundled Next docs before using framework APIs |
 
@@ -109,15 +117,15 @@ npm test                  # jest
 npm run test:ci           # jest with coverage
 ```
 
-**Baselines at the audit Phase 5 close-out (2026-11-02).** Compare against these after any change:
+**Baselines at the end of Panel 0, on the branch `panel-0-access` (2026-11-02).** Compare against these after any change:
 
 | Measure | Value |
 |---|---|
-| Routes | **28**, identical to `_baseline-routes.txt` |
-| Client JS | **976,061 bytes** in 18 chunks (restructure 2 ended at 974,067). Per route: `/admin` 162,443 · `/article/[slug]` 141,655 · `/` 125,795 · `/saved` 113,333 · `/contact` 100,601 · `/about`, `/privacy`, `/terms` 97,443 each · `/admin/login` 31,750 · `/_not-found` 28,259 |
-| CSS | **93,540 bytes**, one file, 921 selectors (+1 in F-027: `dark:hover:text-white`) |
-| Tests | **32 suites, 388 tests**, all passing |
-| Coverage | **80 files** (the shims excluded): 47.01% of statements (5,968 of 12,694), 71.33% of branches, 61.84% of functions. `backend/` + `shared/`: 61.51% (3,448 of 5,606) |
+| Routes | **30**, identical to `_baseline-routes.txt` (Panel 0 added `/api/admin/me` and `/api/admin/mfa`) |
+| Client JS | **981,592 bytes** in 18 chunks (976,061 at the audit close-out). Per route: `/admin` 164,101 · `/article/[slug]` 141,655 · `/` 125,795 · `/saved` 113,333 · `/contact` 100,601 · `/about`, `/privacy`, `/terms` 97,443 each · `/admin/login` 35,623 · `/_not-found` 28,259. Panel 0 changed only the two admin pages: `/admin` +1,658 (the clear button out, `/me` and the permission checks in), `/admin/login` +3,873 (staff sign-in and the MFA steps) |
+| CSS | **93,942 bytes**, one file, 927 selectors (+6 in Panel 0, for the notices and the code field) |
+| Tests | **47 suites, 736 tests**, all passing |
+| Coverage | **93 files** (the shims excluded): 60.07% of statements (8,635 of 14,374), 74.98% of branches, 74.35% of functions. `backend/` + `shared/`: 78.02% (5,514 of 7,067). `proxy.ts`: 100% (it was 0%) |
 | Lint | **0 errors, 13 warnings** (all in source; BL-002 accounts for two) |
 | Boundaries | `check:boundaries`: 0 violations. CODEMAP: 0 server-only modules in the client bundle |
 | `npm audit` | **37: 0 critical, 0 high, 34 moderate, 3 low**. The moderates are dev and build tooling (BL-031); the lows are the accepted jest set |
@@ -130,8 +138,8 @@ when module ids do (§3.17).
 tsc --noEmit             exit 0
 eslint                   exit 0   (0 errors, 13 warnings)
 check:boundaries         exit 0   (0 violations)
-jest --ci                32 suites, 388 tests passed
-next build               exit 0   (28 routes)
+jest --ci                47 suites, 736 tests passed
+next build               exit 0   (30 routes)
 ```
 
 ---
@@ -318,6 +326,34 @@ the port. The next `next start` then fails with `EADDRINUSE`, and `curl` silentl
 `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | ? CommandLine -match 'next.*start'` and
 stop the leftovers with `Stop-Process`.
 
+### 3.20 PowerShell's `$env:X = ""` deletes X, so Next fills it from `.env.local`
+
+Next's env loader fills only keys that are `undefined` in the process (`@next/env`, `processEnv`). A
+Panel 0 smoke test set every key the code reads to `""` in PowerShell to keep `.env.local` out.
+On Windows that **removes** the variable, so Next loaded the real `NEWSDATA_API_KEY` and the feed
+made one real NewsData.io request. Nothing was written: Supabase pointed at a local stand-in, and
+Upstash was not configured. To run the app without `.env.local`'s values, spawn it from Node with an
+explicit `env` object, where an empty string survives as "set".
+
+### 3.21 Windows PowerShell 5.1 reads UTF-8 files as ANSI, and writes a BOM
+
+`Get-Content -Raw` without `-Encoding` decodes a BOM-less UTF-8 file as Windows-1252, so writing it
+back turns `§` into `Â§` (it happened to a test file in Panel 0, repaired before commit).
+`Set-Content -Encoding utf8` and `Out-File` add a BOM, which once reached a commit subject (amended
+before push). Read and write text with Node, or the Write and Edit tools. Check a commit message's
+first bytes with `git cat-file -p`, not through a PowerShell pipe, which adds its own BOM.
+
+### 3.22 Tailwind reads test files too
+
+§3.16 again: a test id `"row-1"` produced a `.row-1` rule (grid-row) in the shipped CSS. Choose
+ids that are not utility class names.
+
+### 3.23 `check:boundaries` sees only tracked files
+
+It reads `git ls-files`. A gate run before a new file is added cannot see it, so the gate passed and
+the commit failed: `proxy.test.ts` at the root mapped to no layer (`ebb7049`, reverted in `75c53a4`,
+fixed in `9fed6f1`). Register new files with `git add -N <file>` before the gate.
+
 ---
 
 ## 4. Commits — restructure 2, then audit Phases 2–5
@@ -350,6 +386,24 @@ for security code, and characterization tests first for untested UI and route lo
 
 Every commit passed `npm run verify` and reported client JS and CSS. No route changed.
 
+**Panel 0, the access foundation** (design approved with conditions; [`PANEL_DOCS.md`](PANEL_DOCS.md)).
+Tests first for authorization code; characterization first for untested UI and the proxy.
+
+| Part | Commits | What it did |
+|---|---|---|
+| Step 1, workflow | `862cf41`..`5f8b835` | PANEL_PLAN.md (from the owner's PDF), PANEL_DOCS.md, CLAUDE.md's panel section, README, this file |
+| Step 2, design | `e9bce19`, `6bcfb4e` | BL-033; the design and ADR 0003 |
+| First half, on `main` | `38ac276`..`f357d71` | The approval; BL-034; supabase-js 2.116.0; the access SQL; `decide` and `scope`; the shared password's end date; `requirePermission` with `@supabase/ssr` 0.12.7; every admin route wired, one per commit; the route walk; the cron as `system:cron`; `logAdminAction` deleted |
+| Warning on `main` | `c35637f` | `main` is not deployable until the migrations are applied |
+| Second half, branch `panel-0-access` | `d1bff91`..this file | The bulk limit test; the proxy (characterized, then both sessions); `/me` and `/mfa`; staff sign-in and sign-out; the activity log read-only; the dashboard by `/me`; the sign-in page with MFA; CODEMAP; the runbooks; architecture; PANEL_DOCS; this file |
+
+Every commit passed `npm run verify` before it was made, except `ebb7049`, whose tree failed
+`check:boundaries` (§3.23). It was reverted, not patched. Six second-half commit messages state the
+suite count one too high (`d8bf37a` 45, `523cc51` 46, `ced5f2a` and `e5c6914` 47, `4b809f5` and
+`06da24b` 48; the logs say 44, 45, 46, 46, 47, 47). Their test counts are right. They were pushed,
+so they are not rewritten. Client JS and CSS were reported per commit. The two admin pages grew,
+with the causes recorded in their commits (§2).
+
 **Retired:** `docs/TimesPrime-PRD-and-Architecture.pdf` was committed in `ddbcc9f`, then untracked
 and git-ignored at the owner's direction. `docs/PRD.md` is the only canonical spec — do not consult
 the PDF if a copy exists on disk.
@@ -366,12 +420,15 @@ app/          URLs: route and page files, mostly one-line re-exports; two compos
 frontend/     views/ · features/{news,admin,chat} · components/ui · context · styles
 backend/      api/ · services/{news,classify,health,translate,scrape} · repositories · auth · lib
 shared/       config · types · validation
-database/     schema.sql · policies.sql · migrations/ · seed/
+database/     schema.sql · policies.sql · migrations/ · bootstrap/ · seed/
 proxy.ts · instrumentation*.ts · sentry.*.config.ts    framework-pinned at the root
 ```
 
-**Authorisation is still the one choke point:** `proxy.ts`, matcher `/admin/*` and
-`/api/admin/*`. No route handler does its own auth check, so a route outside the matcher is public.
+**Authorisation, since Panel 0:** `proxy.ts` (matcher `/admin/*`, `/api/admin/*`) only checks that a
+session exists. Every admin route body calls `requirePermission`, the **only** gate on the data,
+because the app reads Supabase as `service_role` and bypasses RLS. A route outside the matcher is
+still public, and an admin route without a rule fails the route walk (`access.test.ts`).
+[`architecture.md`](architecture.md) §1 has the flow.
 
 ### Files over 500 lines
 
@@ -441,6 +498,8 @@ are resolved:
   needed), BL-024 (nullable columns, deployment phase), BL-025 (the anon-key fallback).
 - BL-026 (headline translation, a feature), BL-028 (theme ternaries), BL-030 (lazy-load the chatbot),
   BL-031 (the new moderate advisories), BL-032 (A2 for new pages).
+- BL-033 (the 7-day purge against Rule 19's 60 days; Panel 4 or 7), BL-034 (export the audit chain's
+  head hash outside the database).
 
 **Resolved:** BL-003, BL-010, BL-011, BL-012, BL-013, BL-014, BL-015, BL-017, BL-018, BL-020, BL-021,
 BL-027, BL-029.
@@ -475,7 +534,29 @@ out of UI primitives. Each decision is in ADR 0002 and in the commit that applie
 - **F-017:** external callers of the public scraper see 502/504. **F-021:** the feed's effect runs on
   language only. **F-027:** the growth is accepted. **F-028:** Partial.
 - **Refuted, never "fixed":** the `javascript:` XSS, `preload` on `next/image`, AVIF/SVG. Sentry's
-  `tunnelRoute` must never be enabled: all authorization lives in `proxy.ts`.
+  `tunnelRoute` must never be enabled (D12): it would add a route the proxy does not see.
+
+**Panel 0 (2026-11-02).** All recorded in the design's "Approval" section and in
+[`PANEL_DOCS.md`](PANEL_DOCS.md):
+- **The matrix is canonical (D2).**
+- **Who is privileged, and who needs MFA (D3):** two admins to grant Super Admin, Managing Editor,
+  Legal or Privacy Officer; `aal2` for those four, Desk Editor, Security Lead and Ingestion Ops;
+  MFA for all staff by default (Q1).
+- **Bootstrap by SQL only (D4).**
+- **Scope (D5, D6, ADR 0003):** `en`/`hi` mapped from `english`/`hindi`; the section is `category[0]`.
+- **One public list (D10), and the cron as `system:cron` (D11).**
+- **Audit fail-closed (Q2):** "attempted", then the outcome.
+- **The shared password (Q3):** ends 2027-01-01 IST in code, with a fixed permission list and no
+  admin, audit or settings permission.
+- **Dependencies (Q4):** `@supabase/ssr` 0.12.7 with `supabase-js` 2.116.0.
+- **Removed or refused:** the purge until Panel 4 (Q5); clearing the log (Q6).
+- **`admin_logs` (Q7):** frozen and readable.
+- **`database/bootstrap/` (Q8).**
+- **Approved at the midway STOP:**
+  - no staff-record cache;
+  - the banner for unscoped grants only, until Panel 3;
+  - the three behaviour changes;
+  - the bulk audit as one pair, with the 100-article limit.
 
 **Follow-up the product decisions created:** the privacy policy still describes newsletter and
 contact-form collection that no longer happens. Legal copy, for the owner or legal review (BL-008).
@@ -506,6 +587,20 @@ contact-form collection that no longer happens. Legal copy, for the owner or leg
 
 Nothing below can be done from this machine without touching production. It is the owner's list.
 
+**Panel 0 first** ([`runbooks/staff-access.md`](runbooks/staff-access.md), in this order):
+1. Supabase dashboard: sign-ups off, TOTP on. Apply `2026-11-02-access-1-foundation.sql`, then
+   `2026-11-02-access-2-catalog.sql`, and run their checks.
+2. Merge `panel-0-access` and deploy. The shared password still works, and an admin change writes
+   `audit_log` rows.
+3. Invite two Super Admins, and run `database/bootstrap/super-admin.sql` for each, with its four
+   checks.
+4. Each signs in with email, password and a second factor; check the audit rows.
+5. Apply `2026-11-02-access-3-freeze-admin-logs.sql`.
+6. Only after Panel 1: consider `ADMIN_LEGACY_LOGIN=off`. The code ends the shared password on
+   1 January 2027 regardless.
+
+The items below are from the audit, and still stand.
+
 **Database** ([`runbooks/apply-database.md`](runbooks/apply-database.md)):
 1. Confirm `SUPABASE_SERVICE_ROLE_KEY` is set in the deployment (present, not copied). Without it the
    app falls back to the anon key and RLS refuses every write (BL-025).
@@ -527,7 +622,7 @@ Nothing below can be done from this machine without touching production. It is t
 **Production smoke test:**
 - `/api/health` answers 200, and Sentry receives a Supabase fallback event (F-002).
 - `X-Data-Source` shows `supabase` or `cache` for readers (NFR-01).
-- The cron runs and its audit entry carries the purge count (F-015).
+- The cron runs and its `audit_log` row (`system:cron`, `cron.refresh_news`) carries the purge count (F-015).
 - The Redis limiter: the 11th login attempt in 15 minutes and the 31st uncached scrape in a minute
   answer 429 across instances (F-004, F-011).
 - BL-019 (publisher image timeouts) under real traffic.
@@ -570,6 +665,10 @@ node -e "const pm=require('next/dist/compiled/picomatch'); console.log(pm.makeRe
   Only `id`, `article_id`, `title` and `created_at` are NOT NULL (the root of BL-001).
 - `breaking_news` and `admin_logs`, committed in `db28a46` (F-008); their nullable columns are BL-024.
 
+Panel 0's six access tables (`staff_profiles`, `roles`, `permissions`, `role_permissions`,
+`role_assignments`, `audit_log`) are in `database/migrations/2026-11-02-access-1-foundation.sql`, the
+catalogue in `-2-catalog.sql`, generated from the plan's matrix by `scripts/generate-access-catalog.mjs`.
+
 Policies and grants are in `database/policies.sql`. Indexes: `created_at` and `article_id` in the
 schema; GIN on `category`/`country`, trigram on `title`/`description`, and `link` in
 `database/migrations/2026-11-02-indexes.sql`. None of it is applied by the app: the owner applies it
@@ -577,9 +676,12 @@ schema; GIN on `category`/`country`, trigram on `title`/`description`, and `link
 
 ### Test suite
 
-32 files, 388 tests, all passing. Every security module has tests: `urlValidation` (73),
+47 files, 736 tests, all passing. Panel 0: `access.test.ts` is the route walk and the access matrix
+(every admin route and method, through the real gate, for every kind of caller), with `decide`,
+`requirePermission`, the session, the proxy, sign-in, `/me`, `/mfa`, the catalogue against the matrix,
+and the access SQL's guarantees. Every security module has tests: `urlValidation` (73),
 `fetchPage` (real axios against a local server), `adminSession`, the login and scrape routes, the
 rate limiter (memory and Redis), the size-capped body reader, and the search escaping. Repo-reading
 tests keep the SQL in step with the code (`backend/repositories/schema.test.ts`, including the
 runbook's rollback), and `.env.local.example` in step with `process.env`
-(`shared/config/envExample.test.ts`). Untested: `proxy.ts` (0%), `ArticlesTable.tsx` and `Header.tsx`.
+(`shared/config/envExample.test.ts`). Untested: `ArticlesTable.tsx` and `Header.tsx`.

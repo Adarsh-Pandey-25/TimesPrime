@@ -32,7 +32,8 @@ the language scope. **Do not consult it.** If a copy exists on disk, it is wrong
 | Path | Contents |
 |---|---|
 | [`adr/`](adr/) | Architecture decision records. One per structural decision, immutable once merged, each recording the alternatives rejected **and why** |
-| [`runbooks/`](runbooks/) | Operational procedures, written for someone under pressure who did not build the system |
+| [`runbooks/`](runbooks/) | Operational procedures, written for someone under pressure who did not build the system. [`staff-access.md`](runbooks/staff-access.md) switches Panel 0 on, in order, and gets you back in |
+| [`design/`](design/) | Designs approved before a panel was built, with the owner's decisions; Panel 0's is [`panel-0-access-foundation.md`](design/panel-0-access-foundation.md) |
 | `_baseline-routes.txt` | Route table captured at Phase 0. The diff target the migration must match **byte for byte** |
 
 ## If you only read two things
