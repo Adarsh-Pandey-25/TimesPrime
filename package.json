@@ -15,7 +15,12 @@
     "verify": "npm run typecheck && npm run lint && npm run check:boundaries && npm test && npm run build",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:ci": "jest --ci --coverage"
+    "test:ci": "jest --ci --coverage",
+    "db:local": "node scripts/local-db.mjs",
+    "dev:local": "node scripts/localdb/run.mjs next dev -p 3100",
+    "start:local": "node scripts/localdb/run.mjs next build && node scripts/localdb/run.mjs next start -p 3100",
+    "test:db": "node scripts/localdb/run.mjs jest -c jest.db.config.ts --runInBand",
+    "test:e2e": "node scripts/localdb/run.mjs playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
