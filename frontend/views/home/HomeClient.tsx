@@ -50,7 +50,7 @@ function latestCreatedAt(articles: Article[]): Date | null {
  * other count (0-3, 5, 6, 7+) already fills a 3-col grid evenly or with a
  * multi-card final row, so lg:grid-cols-3 stays as-is.
  *
- * Under the current `articles.slice(1, 5)` split, topStories can only ever
+ * Under the current four-article slice (`gridStart` to `gridStart + 4`), topStories can only ever
  * be 0-4 long, so the 5/6/7+ branches below are unreachable today — kept
  * anyway since the rule is correct if that slice range ever changes.
  */
@@ -315,15 +315,20 @@ export default function HomeClient({
 
   const isDark = theme === "dark";
 
-  const featuredArticle = articles[0];
-  const topStories = articles.slice(1, 5);
-  const latestStories = articles.slice(5);
+  // A search shows no featured slot, so its grids start at the first match
+  // (BL-027: they started at the second, and the best match never showed).
+  const gridStart = searchQuery ? 0 : 1;
+  const featuredArticle = searchQuery ? undefined : articles[0];
+  const topStories = articles.slice(gridStart, gridStart + 4);
+  const latestStories = articles.slice(gridStart + 4);
 
   // Dedupe topic images across every visible card: several articles from
   // the same category otherwise resolve to the same pooled Unsplash photo
   // (see topicImages.ts). One Map spans featured + topStories + latestStories
   // so no two cards on the page share an image.
-  const cardImageUrls = assignDedupedTopicImages([featuredArticle, ...topStories, ...latestStories].filter(Boolean));
+  const cardImageUrls = assignDedupedTopicImages(
+    [featuredArticle, ...topStories, ...latestStories].filter((art): art is Article => !!art)
+  );
 
   return (
     <div

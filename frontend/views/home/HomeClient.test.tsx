@@ -93,14 +93,22 @@ describe("the home feed's fetches (characterization, F-021)", () => {
     expect(titles()).toContain("Sports story");
   });
 
-  // While searching, the featured slot is hidden and the grids start at the
-  // second article, so the first match is never shown (BACKLOG; not F-021).
-  test("a search fetches with q and shows only the matches", async () => {
+  // BL-027: while searching, the featured slot is hidden, and the grids used
+  // to start at the second article, so the best match was never shown.
+  test("a search fetches with q and shows every match, the first one included", async () => {
     serveFeed(() => feed("Budget passes", "Budget debate", "Weather today", "Budget vote"));
     renderHome();
     await click("search:budget");
     expect(feedCalls()).toContain("/api/news/top-headlines?category=general&language=en&q=budget");
-    expect(titles()).toEqual(["Budget debate", "Budget vote"]);
+    expect(titles()).toEqual(["Budget passes", "Budget debate", "Budget vote"]);
+  });
+
+  test("without a search, the first article is the featured one and is not repeated in the grids", async () => {
+    serveFeed(() => feed("Lead story", "Second", "Third"));
+    renderHome();
+    await click("cat:sports");
+    expect(titles().filter((t) => t === "Lead story")).toHaveLength(1);
+    expect(titles()).toEqual(["Lead story", "Second", "Third"]);
   });
 
   test("a language change refetches the current category in that language", async () => {
