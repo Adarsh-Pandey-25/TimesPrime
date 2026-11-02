@@ -129,4 +129,42 @@ describe("POST /api/chat", () => {
     const data = await res.json();
     expect(data.error).toMatch(/AI assistant unavailable/i);
   });
+
+  // F-010: a message of any length went straight to the model. A question
+  // typed into the chat box or the article panel is a sentence or two.
+  describe("input caps (F-010)", () => {
+    it("accepts a 2,000-character message", async () => {
+      const res = await POST(makeRequest({ message: "q".repeat(2000) }));
+      expect(res.status).toBe(200);
+    });
+
+    it("rejects a message over 2,000 characters with 400, without calling the model", async () => {
+      const res = await POST(makeRequest({ message: "q".repeat(2001) }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/2,000/);
+      expect(mockStreamFn).not.toHaveBeenCalled();
+    });
+
+    it("applies the same cap to the legacy { messages } shape", async () => {
+      const res = await POST(makeRequest({ messages: [{ role: "user", content: "q".repeat(2001) }] }));
+      expect(res.status).toBe(400);
+      expect(mockStreamFn).not.toHaveBeenCalled();
+    });
+
+    it("rejects a body over 16 KB with 413 and a JSON error", async () => {
+      const res = await POST(makeRequest(JSON.stringify({ message: "hi", pad: "x".repeat(17_000) }), true));
+      expect(res.status).toBe(413);
+      expect((await res.json()).error).toMatch(/too large/i);
+      expect(mockStreamFn).not.toHaveBeenCalled();
+    });
+
+    it("bounds the article context it puts in the system prompt", async () => {
+      await POST(makeRequest({ message: "Why?", articleContext: { title: "t".repeat(1000), description: "d".repeat(5000) } }));
+      const { system } = mockStreamFn.mock.calls[0][0] as { system: string };
+      expect(system).toContain("t".repeat(300));
+      expect(system).not.toContain("t".repeat(301));
+      expect(system).toContain("d".repeat(1000));
+      expect(system).not.toContain("d".repeat(1001));
+    });
+  });
 });

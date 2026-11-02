@@ -71,6 +71,13 @@ test("a redirect the guard refuses is never requested", async () => {
   expect(hits).toEqual([`pinned.example:${port}/start`]);
 });
 
+test("a response over 5 MB is refused (F-010), one within it is read", async () => {
+  routes["/huge"] = (res) => res.writeHead(200, { "content-type": "text/html" }).end("x".repeat(5 * 1024 * 1024 + 1));
+  routes["/large"] = (res) => res.writeHead(200, { "content-type": "text/html" }).end("x".repeat(5 * 1024 * 1024));
+  await expect(fetchPage(`http://pinned.example:${port}/huge`, options)).rejects.toThrow(/maxContentLength/);
+  await expect(fetchPage(`http://pinned.example:${port}/large`, options)).resolves.toMatchObject({ url: `http://pinned.example:${port}/large` });
+});
+
 test(`more than ${MAX_REDIRECTS} redirects is refused`, async () => {
   routes["/loop"] = redirect(`http://pinned.example:${port}/loop`);
   await expect(fetchPage(`http://pinned.example:${port}/loop`, options)).rejects.toThrow(/more than 5 redirects/);

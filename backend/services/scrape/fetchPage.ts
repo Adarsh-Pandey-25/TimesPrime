@@ -22,6 +22,12 @@ import { validateExternalUrl, type ValidatedAddress } from "@/backend/lib/urlVal
 
 export const MAX_REDIRECTS = 5;
 
+// F-010: the most of a response the scraper will read, counted after
+// decompression. A heavy news page with inline scripts and JSON is 1–3 MB;
+// 5 MB keeps those working and stops a hostile or broken page from filling
+// memory. A GET sends no body, so its body limit is 0.
+export const MAX_PAGE_BYTES = 5 * 1024 * 1024;
+
 /** The URL, or a redirect it led to, is not one the guard allows. The route answers 400. */
 export class UnsafeTargetError extends Error {
   constructor(message: string) {
@@ -54,6 +60,8 @@ export async function fetchPage(url: string, { timeoutMs, headers }: FetchPageOp
       timeout: Math.max(1, deadline - Date.now()),
       headers,
       maxRedirects: 0,
+      maxContentLength: MAX_PAGE_BYTES,
+      maxBodyLength: 0,
       proxy: false,
       lookup: pinnedLookup(check.addresses),
       validateStatus: (status) => status >= 200 && status < 400,

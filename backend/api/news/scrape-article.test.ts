@@ -160,6 +160,11 @@ describe("GET /api/news/scrape-article — redirects are revalidated hop by hop 
       expect(config.proxy).toBe(false);
       expect(typeof config.lookup).toBe("function");
     }
+    // F-010: every hop caps the response it will read, and sends no body.
+    for (const config of configs) {
+      expect(config.maxContentLength).toBe(5 * 1024 * 1024);
+      expect(config.maxBodyLength).toBe(0);
+    }
     // The second hop's pinned lookup answers with cdn's validated address, whatever name it is asked.
     const pinned = configs[1].lookup as (host: string, opts: object) => Promise<unknown>;
     await expect(pinned("anything.example", { all: true })).resolves.toEqual([[{ address: "93.184.216.36", family: 4 }]]);

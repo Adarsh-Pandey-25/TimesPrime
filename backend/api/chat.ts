@@ -4,8 +4,19 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/nextjs";
 import { isRateLimited, getClientIp } from "@/backend/lib/rateLimit";
+import { readJsonBody } from "@/backend/lib/readJsonBody";
 
 const MODEL = "claude-haiku-4-5"; // fast + cheap, good fit for chat
+
+// Input caps (F-010). Both callers send one question typed by a reader (the
+// chat box and the article page's AI panel), plus, from the panel, the
+// article's title and description. 2,000 characters is a long question; the
+// context is trimmed rather than refused, since it comes from the page, not
+// the reader. 16 KB bounds the body in JSON, in any script.
+const MAX_MESSAGE_CHARS = 2_000;
+const MAX_CONTEXT_TITLE_CHARS = 300;
+const MAX_CONTEXT_DESCRIPTION_CHARS = 1_000;
+const MAX_BODY_BYTES = 16 * 1024;
 
 const SYSTEM_PROMPT =
   "You are TimesPrime AI, a helpful news assistant. Answer questions about news topics concisely and factually. If given article context, use it to answer specifically.";
@@ -46,9 +57,9 @@ function extractMessageText(body: ChatRequestBody): string | null {
 
 function buildSystemPrompt(articleContext?: ArticleContext): string {
   if (!articleContext?.title) return SYSTEM_PROMPT;
-  const lines = [SYSTEM_PROMPT, "", "Article context:", `Title: ${articleContext.title}`];
+  const lines = [SYSTEM_PROMPT, "", "Article context:", `Title: ${String(articleContext.title).slice(0, MAX_CONTEXT_TITLE_CHARS)}`];
   if (articleContext.description) {
-    lines.push(`Description: ${articleContext.description}`);
+    lines.push(`Description: ${String(articleContext.description).slice(0, MAX_CONTEXT_DESCRIPTION_CHARS)}`);
   }
   return lines.join("\n");
 }
@@ -71,12 +82,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: ChatRequestBody;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Request body was not valid JSON." }, { status: 400 });
+  const read = await readJsonBody(request, MAX_BODY_BYTES);
+  if (!read.ok) {
+    return read.tooLarge
+      ? NextResponse.json({ error: `Request body is too large (limit ${MAX_BODY_BYTES / 1024} KB).` }, { status: 413 })
+      : NextResponse.json({ error: "Request body was not valid JSON." }, { status: 400 });
   }
+  const body = (read.value ?? {}) as ChatRequestBody;
 
   const message = extractMessageText(body);
   if (!message) {
@@ -85,6 +97,12 @@ export async function POST(request: NextRequest) {
         error:
           'Message content is required — send either { message: string } or { messages: [{ role, content }] }.',
       },
+      { status: 400 }
+    );
+  }
+  if (message.length > MAX_MESSAGE_CHARS) {
+    return NextResponse.json(
+      { error: `Message is too long (limit ${MAX_MESSAGE_CHARS.toLocaleString("en-US")} characters).` },
       { status: 400 }
     );
   }
