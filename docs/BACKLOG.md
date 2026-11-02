@@ -545,3 +545,34 @@ title, description and paragraphs through `/api/translate` when the UI is in Hin
 title. Translating headlines in the feed would need the same: a batched `/api/translate` call per
 feed load (the route allows 50 texts and 10,000 characters per request, F-010) and a cache, or
 translated titles stored at ingest. Either costs translate-API quota on every new story.
+
+## BL-027 — The first search result is never shown
+
+**Found:** audit Phase 4, writing the F-021 characterization (`675ce1d`) · **Status:** Open
+
+In `frontend/views/home/HomeClient.tsx` the featured slot shows `articles[0]` only when no search is
+active (`featuredArticle && !searchQuery`, `:424`), while Top Stories and Latest start at
+`articles.slice(1, …)` (`:319`). So during a search the best match is filtered in and then never
+rendered. `HomeClient.test.tsx` pins the current behaviour ("Budget passes" is dropped). Fix: start
+the grids at index 0 while searching, and update that test.
+
+## BL-028 — Theme ternaries still switch after hydration
+
+**Found:** audit Phase 4, F-028 (`5ad891a`) · **Status:** Open
+
+F-028's pre-paint script sets the `dark` class on `<html>`, so everything styled with `dark:`
+variants is right from the first paint. Components that choose classes in JavaScript instead
+(`isDark ? "…" : "…"` from `useTheme()`: 75 ternaries in 16 files under `frontend/`) still render
+light until ThemeContext's effect runs after hydration. They cannot read the theme during render
+without their server and client HTML differing. Fix: convert those ternaries to `dark:` variants,
+file by file. Check the CSS budget, since most of the colours are already in the stylesheet.
+
+## BL-029 — The seed route falls back to a public-prefixed NewsData key
+
+**Found:** audit F-009 (ledger note) · **Status:** Open — owner decision
+
+`backend/api/admin/seed-supabase.ts:15` reads `NEWSDATA_API_KEY || NEXT_PUBLIC_NEWSDATA_API_KEY`.
+It runs on the server, so nothing leaks today. But the fallback invites putting a secret under a
+`NEXT_PUBLIC_` name, and Next inlines such a name into any client bundle that reads it. F-009 lists
+it in `.env.local.example` as "do not set it". Removing the fallback is a one-line change; it breaks
+the seed route only for an environment that sets the public name alone.
