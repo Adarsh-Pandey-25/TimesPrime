@@ -10,8 +10,11 @@
 - **Restructure 1** (Phases A–E, [ADR 0001](adr/0001-feature-first-structure.md), now superseded)
   came before it.
 
-**Next: the deployment phase** (§11): the owner applies the SQL files and runs the production checks.
-Run `git log --oneline -20` for the exact head.
+**Next: Panel 0 (Access foundation)**, the first panel of the back office: staff accounts, roles,
+permissions, MFA, the audit log and the server-side permission check. The plan is
+[`PANEL_PLAN.md`](PANEL_PLAN.md); progress and per-panel docs are in [`PANEL_DOCS.md`](PANEL_DOCS.md).
+Panels are built one at a time, and Panel 0 starts with a design for the owner to approve. The
+deployment phase (§11) stays on the owner's list. Run `git log --oneline -20` for the exact head.
 
 Read §1 and §3 before touching anything. §3 in particular will save you from false conclusions
 that have already been reached and discarded once.
@@ -63,6 +66,8 @@ Check `/api/health` before assuming the database is either up or down.
 | `docs/PRD.md` | Full PRD: FR-001..024 with code citations, NFR, CR, data model, defect register |
 | `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..BL-032) |
 | `docs/runbooks/apply-database.md` | **For the deployment phase.** Apply the SQL files in order, verify each, roll back each |
+| `docs/PANEL_PLAN.md` | **For the back office.** The owner's reference plan: panels, roles, permission matrix, four-eyes and MFA rules, data model. Not edited |
+| `docs/PANEL_DOCS.md` | Back-office progress (panels 0–9) and each finished panel's record, from one template |
 | `docs/adr/` | ADR 0002 (accepted, this layout) and ADR 0001 (superseded) |
 | `docs/_baseline-routes.txt` | The built route table (28 URLs); every structural change must match it byte for byte |
 | `CONTRIBUTING.md` | Where new code goes, the verify gate, the commit convention |
