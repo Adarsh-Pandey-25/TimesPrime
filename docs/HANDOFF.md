@@ -7,9 +7,9 @@
 > change writes `audit_log` first and refuses with 503 without it, so the app needs Panel 0's
 > migrations wherever it runs.
 >
-> **Branch rule:** each panel is built on its own branch (`panel-N-<name>`), and only that branch is
-> pushed. It is merged into `main`, and `main` pushed, only when the panel is complete and the owner
-> approves.
+> **Branch rule:** all work happens on a branch (`panel-N-<name>`, `fix/<topic>`, `chore/<topic>`),
+> and only that branch is pushed. Nothing is pushed to `main` directly: a branch is merged into
+> `main`, and `main` pushed, only after the owner approves.
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
 **State as of:** 2026-11-02. **Panel 0 (Access foundation) is complete on the branch
@@ -25,13 +25,21 @@ and all five audit phases were done:
   came before it.
 
 **Next:**
-1. A local database (§2: proposal to the owner, not set up yet). Until it exists, no Panel 0
-   migration, bootstrap or staff sign-in is run anywhere.
-2. On it, rehearse Panel 0's switch-on order ([`runbooks/staff-access.md`](runbooks/staff-access.md),
-   steps 1–5) and check the staff flow end to end.
-3. The owner approves Panel 0; `panel-0-access` is merged into `main`, and `main` pushed.
-4. Then Panel 1, on `panel-1-administration` (Administration: granting roles in the app, the access review, retiring the shared
-   password).
+1. **A local database** (Supabase CLI stack in Docker, proposed to the owner; not set up yet). Until
+   it runs, no Panel 0 migration, bootstrap or staff sign-in is run anywhere.
+2. **Finish Panel 0 locally**, on `panel-0-access`:
+   - `staff-access.md` step by step against the local database;
+   - the new definition-of-done items 7–13 (real-database tests in `npm run test:db`, end-to-end
+     browser tests, states, accessibility, Sentry, the JS budget in CI, a runbook).
+3. The owner approves; `panel-0-access` is merged into `main`, and `main` pushed.
+4. **The audit's remaining items**, on `fix/audit-closeout`, after that merge:
+   - F-028 / BL-028 (theme ternaries);
+   - the local SQL checks for F-006, F-008 and F-018;
+   - the F-002 fallback check;
+   - BL-030 (lazy-load the chatbot);
+   - BL-032 (A2 for new pages).
+5. Then Panel 1, on `panel-1-administration` (granting roles in the app, the access review,
+   retiring the shared password).
 
 The plan is [`PANEL_PLAN.md`](PANEL_PLAN.md); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
@@ -543,8 +551,18 @@ out of UI primitives. Each decision is in ADR 0002 and in the commit that applie
   `tunnelRoute` must never be enabled (D12): it would add a route the proxy does not see.
 
 **Process and hosting (2026-11-02):**
-- **Branches:** each panel is built on its own branch (`panel-N-<name>`), and only that branch is
-  pushed. It reaches `main` only when the panel is complete and the owner approves.
+- **Branches:** all work happens on a branch (`panel-N-<name>`, `fix/<topic>`, `chore/<topic>`), and
+  only that branch is pushed. Nothing reaches `main` without the owner's approval.
+- **A production-level standard:** a panel is done only with items 7–13 of CLAUDE.md's definition
+  of done as well:
+  - real-database tests against the local Supabase;
+  - end-to-end browser tests, including a refused-access flow;
+  - loading, error and empty states;
+  - accessibility;
+  - failures in Sentry and privileged actions audited;
+  - a JS size budget per route in CI;
+  - a runbook for when the main flow breaks.
+- **The audit's remaining items** wait for Panel 0's merge, then go on `fix/audit-closeout` (§ "Next").
 - **Deployment:** none until the whole project is complete. Ignore the earlier Vercel deployment.
   The target is AWS, `ap-south-1`. All verification is local, against a local database.
 
@@ -653,6 +671,18 @@ database, then done once more against the production database at deployment, in 
 - The Redis limiter: the 11th login attempt in 15 minutes and the 31st uncached scrape in a minute
   answer 429 across instances (F-004, F-011).
 - BL-019 (publisher image timeouts) under real traffic.
+
+**Before production.** A list only; no work is planned on it yet (owner, 2026-11-02):
+- **Environments:** local, then staging on AWS, then production. Nothing skips a stage.
+- **Backup and restore:** a restore actually tested, not just backups switched on.
+- **Load test** of the reader paths and the admin API.
+- **Review:** dependencies (advisories, BL-031) and HTTP headers (CSP, HSTS, frame and referrer
+  policies).
+- **AWS infrastructure as code:** no hand-made production resources.
+- **Alerts:** Sentry, the cron's runs, `/api/health`, the audit chain.
+- **Incident runbook:** including CERT-In's 6-hour report.
+- **Legal pages:** the privacy policy (BL-008), and the grievance officer page (PANEL_PLAN, IT Rules
+  Level I).
 
 **Not covered by any audit:** accessibility (axe-core), a scraper replay against the 120-URL
 publisher sample, a staging environment, Supabase backup and restore, end-to-end tests, and a bundle

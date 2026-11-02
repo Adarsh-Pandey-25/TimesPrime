@@ -14,7 +14,7 @@ the same piece of work.
 
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
-| 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | Done on branch `panel-0-access`; merge awaits the owner | 2026-11-02 | `e9bce19`..this entry on `main` then the branch; [list](#commits) |
+| 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress** on `panel-0-access`: built and tested with mocks; the local-database run and definition-of-done items 7–13 remain | — | `e9bce19`..`f357d71` on `main`, the rest on the branch; [list](#commits) |
 | 1 | Administration: users, role assignments with scope and expiry, access review | Planned | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | Planned | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |

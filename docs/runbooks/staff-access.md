@@ -5,11 +5,11 @@ second factor ([design](../design/panel-0-access-foundation.md), [PANEL_DOCS](..
 Nothing in the app applies SQL or changes settings: every step below is yours. Each step says how to
 check it and how to undo it.
 
-**Where.** Nothing is deployed until the whole project is complete (owner decision, 2026-11-02). Until
-then these steps are rehearsed against a **local** database, never against the one `.env.local`
-points at, which may be production ([HANDOFF](../HANDOFF.md) §2). They are done once more against
-the production database at the AWS deployment ([HANDOFF](../HANDOFF.md) §11). "Run the code" below
-means the local app now, and the deployed app then.
+**Where.** Nothing is deployed until the whole project is complete (owner decision, 2026-11-02).
+- **[Part A](#part-a--locally-now)** is now: the six steps against a **local** Supabase. Never
+  against the database `.env.local` points at, which may be production.
+- **[Part B](#part-b--at-the-aws-deployment)** is for the day of the AWS deployment: the same six
+  steps against the production database ([HANDOFF](../HANDOFF.md) §11).
 
 ## The order
 
@@ -29,7 +29,66 @@ staff accounts up. It stops by itself at 00:00 IST on 1 January 2027, whatever i
 
 ---
 
-## 1. Apply the SQL migrations
+## Part A — locally, now
+
+Against the local Supabase stack (Docker), once it is set up as [HANDOFF](../HANDOFF.md) §2
+describes. That setup is proposed to the owner and not in place yet, so these steps wait for it.
+Step C of the Panel 0 plan runs them and records the output, and `npm run test:db` then repeats
+steps 1–5 automatically.
+
+Locally, nothing can reach production. The worst outcome is a local database to reset.
+
+| Hosted dashboard | Local stack |
+|---|---|
+| SQL Editor | Studio's SQL editor, `http://127.0.0.1:54323`, or `psql` on `127.0.0.1:54322` (user and password `postgres`) |
+| Authentication → Users → Invite user | Studio → Authentication → Add user. Invite emails go to Mailpit, `http://127.0.0.1:54324` |
+| Sign-ups off, TOTP on | `supabase/config.toml`: `[auth] enable_signup = false`; `[auth.mfa.totp] enroll_enabled = true` and `verify_enabled = true`. **Both TOTP settings default to `false` locally** |
+| Deployment | `npm run dev` (or a `next start` build) with the local env file; the guard refuses any other Supabase URL |
+
+**A1. Apply the SQL.**
+- First the base the access files sit on: `database/schema.sql`, `database/policies.sql`,
+  `database/migrations/2026-11-02-indexes.sql`.
+- Then `2026-11-02-access-1-foundation.sql` and `2026-11-02-access-2-catalog.sql`.
+- **Check:** the verification queries at the end of each file, as in [B1](#b1-apply-the-sql-migrations).
+- **Undo:** `supabase db reset`, which recreates the local database empty, then apply again.
+
+**A2. Run the code.**
+- Start the app with the local env file; the guard confirms the target is local before it starts.
+- **Check:** the shared password signs in, and one admin change writes two `audit_log` rows
+  (`attempted`, `succeeded`).
+- **Undo:** stop the app.
+
+**A3. Bootstrap two Super Admins.**
+- Add two users in local Studio (any email: Mailpit catches the mail).
+- Run `database/bootstrap/super-admin.sql` for each in Studio's SQL editor, which runs as
+  `postgres`.
+- **Check:** its checks 1–4. Checks 3 and 4 must fail.
+- **Undo:** the file's revoke, or reset.
+
+**A4. Sign in with a staff account.**
+- Email and password, then enrol TOTP with any authenticator app (it works offline), then sign in
+  again with a code.
+- **Check:** a session without its code is refused on a privileged route (403 `mfa_required`), and
+  the `auth.*` audit rows.
+- **Undo:** nothing to undo.
+
+**A5. Freeze `admin_logs`.**
+- **Check:** the file's checks, and old rows still readable at `GET /api/admin/logs?source=legacy`.
+- **Undo:** the file's grant.
+
+**A6. The shared password off.**
+- `ADMIN_LEGACY_LOGIN=off` in the local env file, then restart.
+- **Check:** 403 "retired".
+- **Undo:** remove the line and restart.
+
+---
+
+## Part B — at the AWS deployment
+
+Only when the whole project is complete, against the production database. The detail below is for
+that day.
+
+### B1. Apply the SQL migrations
 
 **Before you start.** In the Supabase dashboard:
 - Authentication → Sign In / Providers: turn **off** "Allow new users to sign up". Staff accounts are
@@ -61,10 +120,9 @@ The running app does not use these tables until step 2, so nothing changes for a
 Use it only before go-live: once `audit_log` holds real rows, it is never dropped (logs are kept at
 least one year).
 
-## 2. Run the code
+### B2. Run the code
 
-Run Panel 0 (the branch `panel-0-access`, or `main` once merged): locally now, deployed at the end.
-No new environment variable is needed. `ADMIN_LEGACY_LOGIN` stays unset (the shared password stays
+Deploy `main` (with Panel 0 merged) on AWS. No new environment variable is needed. `ADMIN_LEGACY_LOGIN` stays unset (the shared password stays
 on).
 
 **Check.**
@@ -85,10 +143,9 @@ If every admin change answers 503 "The audit log could not be written", step 1 i
 [apply-database.md](apply-database.md#which-key-the-app-uses-and-what-rls-does-to-it)). Nothing was
 changed in either case: the app refuses a change it cannot record.
 
-**Undo.** Run the previous version: locally, check out the commit before Panel 0; at deployment, the
-host's previous release. The new tables stay; the previous code ignores them.
+**Undo.** Roll back to the host's previous release. The new tables stay; the previous code ignores them.
 
-## 3. Bootstrap two Super Admins
+### B3. Bootstrap two Super Admins
 
 Super Admins are the only accounts created outside the app, and only by you (owner decision D4).
 Two of them, because granting any privileged role in the app needs two different Super Admins, and
@@ -111,7 +168,7 @@ For each person:
 **Undo.** The file's rollback revokes the assignment (assignments are history, never deleted), and
 optionally suspends the profile. It applies to the person's next request.
 
-## 4. Sign in with a staff account, and verify
+### B4. Sign in with a staff account, and verify
 
 Each Super Admin, on their own device:
 1. `/admin/login` → email and password → **Sign In**.
@@ -138,7 +195,7 @@ Each Super Admin, on their own device:
 Granting editorial roles (Managing Editor, Desk Editor and the rest) in the app is Panel 1. Until
 then, editorial work continues on the shared password, now recorded as `legacy:shared-password`.
 
-## 5. Freeze `admin_logs`
+### B5. Freeze `admin_logs`
 
 Nothing writes `admin_logs` since the deploy: staff actions and the cron write `audit_log`. Run
 `database/migrations/2026-11-02-access-3-freeze-admin-logs.sql`.
@@ -154,7 +211,7 @@ Its history stays readable in the app at `GET /api/admin/logs?source=legacy` (`a
 
 **Undo.** `GRANT ALL ON public.admin_logs TO service_role;` (in the file).
 
-## 6. Only then: turning the shared password off
+### B6. Only then: turning the shared password off
 
 Turn it off only when all three hold:
 - two Super Admins have signed in with their second factor, in production (after the AWS deployment);
@@ -175,7 +232,8 @@ step is a code change that deletes it, with `ADMIN_PASSWORD` and `ADMIN_SESSION_
 
 ## Getting back in, and other emergencies
 
-Your own way in never depends on the app: the Supabase dashboard and the SQL editor.
+Your own way in never depends on the app: the Supabase dashboard and the SQL editor (locally, Studio
+and `psql`; there, a reset is also always available).
 
 **A staff member lost their authenticator device.** Authentication → Users → the user → remove
 their MFA factor. Then sign them out of all sessions on the same page. At their next sign-in they

@@ -14,8 +14,19 @@
   4. `npm run verify` and CI are green; routes, JS and CSS reported.
   5. SQL is in migration files with a rollback, listed as an owner action.
   6. `docs/PANEL_DOCS.md`, `docs/HANDOFF.md` and `docs/CODEMAP.md` are updated.
-- **Each panel on its own branch** (`panel-N-<name>`, e.g. `panel-0-access`). Push only that branch,
-  never `main`. It reaches `main` only when the panel is complete and the owner approves; then merge
+  7. Real-database tests run against the local Supabase, not only mocks.
+  8. End-to-end browser tests cover the critical flows, including a refused-access flow.
+  9. Every screen has loading, error and empty states.
+  10. Accessibility is checked (keyboard, labels).
+  11. Failures reach Sentry; privileged actions are audited.
+  12. A JS size budget per route is enforced in CI.
+  13. A runbook covers what to do when the main flow breaks.
+
+## Branches
+
+- **All work happens on a branch:** `panel-N-<name>` for a panel (e.g. `panel-0-access`), `fix/<topic>`
+  for fixes, `chore/<topic>` for tooling and docs. Push only the branch.
+- **Never push to `main` directly.** A branch reaches `main` only after the owner approves: then merge
   it into `main` and push `main`.
 
 ## Deployment: none until the project is complete
