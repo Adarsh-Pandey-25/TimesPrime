@@ -29,7 +29,23 @@ interface MemoryCacheEntry<T> {
   expiresAt: number;
 }
 
+// Insertion order is recency order: a key is re-inserted on every set.
 const memoryStore = new Map<string, MemoryCacheEntry<unknown>>();
+
+// BL-013: an expired entry used to leave only when its key was read again,
+// so keys never re-read (every distinct scraped URL, every search) piled up.
+// Now each set sweeps expired entries at most once a minute, and the store
+// holds at most MEMORY_MAX_ENTRIES, dropping the least recently set first.
+const MEMORY_SWEEP_INTERVAL_MS = 60_000;
+const MEMORY_MAX_ENTRIES = 1_000;
+let lastMemorySweep = 0;
+
+function sweepMemory(now: number): void {
+  for (const [key, entry] of memoryStore) {
+    if (now > entry.expiresAt) memoryStore.delete(key);
+  }
+  lastMemorySweep = now;
+}
 
 function memoryGet<T>(key: string): T | null {
   const entry = memoryStore.get(key);
@@ -42,7 +58,18 @@ function memoryGet<T>(key: string): T | null {
 }
 
 function memorySet<T>(key: string, data: T, ttlSeconds: number): void {
-  memoryStore.set(key, { data, expiresAt: Date.now() + ttlSeconds * 1000 });
+  const now = Date.now();
+  if (now - lastMemorySweep >= MEMORY_SWEEP_INTERVAL_MS) sweepMemory(now);
+  memoryStore.delete(key);
+  memoryStore.set(key, { data, expiresAt: now + ttlSeconds * 1000 });
+  while (memoryStore.size > MEMORY_MAX_ENTRIES) {
+    memoryStore.delete(memoryStore.keys().next().value as string);
+  }
+}
+
+/** How many entries the in-memory fallback is holding. For tests. */
+export function memoryEntryCount(): number {
+  return memoryStore.size;
 }
 
 export const cache = {
