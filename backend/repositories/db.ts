@@ -377,6 +377,18 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
   }
 }
 
+// F-016: the feed reads pages of FEED_PAGE_SIZE rows, newest first, until
+// FEED_WANTED pass the JS filters below, the rows run out, or FEED_MAX_PAGES
+// have been read. It used to read one page of 80 and return whatever of it
+// passed, so a run of filtered rows (a Hindi burst in the English feed, a
+// flood from a spam source) left the feed short while older good rows sat
+// unread. The filters stay in JS: script detection and the filler
+// heuristics have no SQL form, and the freshness check and new-story count
+// apply the same ones, so all three keep describing the same rows.
+const FEED_PAGE_SIZE = 80;
+const FEED_WANTED = 40;
+const FEED_MAX_PAGES = 5;
+
 /**
  * Retrieves articles stored in Supabase filtered by category and query.
  */
@@ -390,52 +402,63 @@ export async function getDBArticles(
   }
 
   try {
-    const queryBuilder = applyArticleFilters(
-      supabase.from("articles").select("*").order("created_at", { ascending: false }),
-      category,
-      query
-    );
-
-    const { data, error } = await queryBuilder.limit(80);
-
-    if (error) {
-      console.error("Supabase Select Error:", error.message);
-      reportSupabaseFailure("getDBArticles", (suppressed) =>
-        Sentry.captureMessage(`Supabase select error: ${error.message}`, {
-          tags: { source: "supabase" },
-          extra: { operation: "getDBArticles", category, language, ...suppressed },
-        })
+    const kept: ArticleRow[] = [];
+    for (let page = 0; page < FEED_MAX_PAGES && kept.length < FEED_WANTED; page++) {
+      const from = page * FEED_PAGE_SIZE;
+      const queryBuilder = applyArticleFilters(
+        supabase.from("articles").select("*").order("created_at", { ascending: false }),
+        category,
+        query
       );
-      return [];
-    }
 
-    // Language-script filter, plus horoscope/tarot filler, wire-spam, and
-    // non-news-listing rows saved before those exclusions existed —
-    // saveArticlesToDB now keeps new rows like this out entirely, but rows
-    // already stored from before those fixes still need filtering out here
-    // so they don't linger for up to 7 days until they naturally purge.
-    //
-    // category_mismatches is per-row, per-category (not a blanket
-    // exclusion): an article tagged both "business" and "technology" can be
-    // genuinely on-topic for one and not the other (e.g. a local
-    // connectivity story is real business news but not real tech news), so
-    // it's only excluded from the specific category(ies) Haiku flagged as a
-    // mismatch, not from every category it's tagged with. Null (not yet
-    // classified, or classification failed) reads as "no mismatches" — see
-    // categoryClassifier.ts for why that's the deliberate fail-open default.
-    const filtered = (data || []).filter(
-      (row: ArticleRow) =>
-        matchesLanguageScript(row.title, language) &&
-        !isHoroscopeOrRitualFiller(row) &&
-        !isFromWireSpamSource(row.source_id) &&
-        !isFromNonNewsListingSource(row.source_id) &&
-        !(row.category_mismatches || []).includes(category)
-    );
+      const { data, error } = await queryBuilder.range(from, from + FEED_PAGE_SIZE - 1);
+
+      if (error) {
+        console.error("Supabase Select Error:", error.message);
+        reportSupabaseFailure("getDBArticles", (suppressed) =>
+          Sentry.captureMessage(`Supabase select error: ${error.message}`, {
+            tags: { source: "supabase" },
+            extra: { operation: "getDBArticles", category, language, ...suppressed },
+          })
+        );
+        // A later page failing still serves what the earlier ones found.
+        if (page === 0) return [];
+        break;
+      }
+
+      // Language-script filter, plus horoscope/tarot filler, wire-spam, and
+      // non-news-listing rows saved before those exclusions existed —
+      // saveArticlesToDB now keeps new rows like this out entirely, but rows
+      // already stored from before those fixes still need filtering out here
+      // so they don't linger for up to 7 days until they naturally purge.
+      //
+      // category_mismatches is per-row, per-category (not a blanket
+      // exclusion): an article tagged both "business" and "technology" can be
+      // genuinely on-topic for one and not the other (e.g. a local
+      // connectivity story is real business news but not real tech news), so
+      // it's only excluded from the specific category(ies) Haiku flagged as a
+      // mismatch, not from every category it's tagged with. Null (not yet
+      // classified, or classification failed) reads as "no mismatches" — see
+      // categoryClassifier.ts for why that's the deliberate fail-open default.
+      const rows: ArticleRow[] = data || [];
+      kept.push(
+        ...rows.filter(
+          (row: ArticleRow) =>
+            matchesLanguageScript(row.title, language) &&
+            !isHoroscopeOrRitualFiller(row) &&
+            !isFromWireSpamSource(row.source_id) &&
+            !isFromNonNewsListingSource(row.source_id) &&
+            !(row.category_mismatches || []).includes(category)
+        )
+      );
+      if (rows.length < FEED_PAGE_SIZE) break; // the table has no more rows to give
+    }
+    const filtered = kept;
 
     // Same nullable-column vs required-Article-field mismatch as the mapping
     // in saveArticlesToDB above. See docs/BACKLOG.md (BL-001).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return filtered.slice(0, 40).map((row: any) => ({
+    return filtered.slice(0, FEED_WANTED).map((row: any) => ({
       article_id: row.article_id,
       title: row.title,
       link: row.link,

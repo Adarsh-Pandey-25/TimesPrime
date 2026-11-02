@@ -264,3 +264,61 @@ describe("the feed search filter (F-006)", () => {
     expect(value).toBe("%50\\%\\_off\\\\%");
   });
 });
+
+// F-016: the feed fetched 80 rows, filtered them in JS (language script,
+// filler, wire spam, category mismatches) and returned up to 40. When most of
+// the newest 80 were filtered out, the feed came back short even though older
+// rows that pass existed.
+describe("the feed fills to 40 when rows are filtered out (F-016)", () => {
+  const row = (i: number, title: string) => ({
+    id: `id-${i}`, article_id: `a-${i}`, title, link: `https://publisher.example/${i}`, description: "d",
+    content: null, pub_date: null, image_url: null, source_id: "publisher", source_name: "Publisher",
+    category: ["technology"], country: ["united states of america"], language: "english",
+    created_at: new Date(Date.UTC(2026, 10, 2) - i * 60_000).toISOString(), category_mismatches: null,
+  });
+  // Newest first: 100 Hindi-script rows (filtered out of the English feed), then 100 English ones.
+  const table = [
+    ...Array.from({ length: 100 }, (_, i) => row(i, "बजट पर संसद में लंबी बहस हुई")),
+    ...Array.from({ length: 100 }, (_, i) => row(100 + i, `Parliament passes the annual budget ${i}`)),
+  ];
+
+  function serving(rows: object[], calls: Array<[string, unknown[]]>): object {
+    let from = 0;
+    let to = Infinity;
+    const proxy: object = new Proxy({}, {
+      get(_t, prop) {
+        if (prop === "then") return (resolve: (v: object) => void) => resolve({ data: rows.slice(from, to + 1), error: null });
+        return (...args: unknown[]) => {
+          calls.push([String(prop), args]);
+          if (prop === "limit") { from = 0; to = (args[0] as number) - 1; }
+          if (prop === "range") { from = args[0] as number; to = args[1] as number; }
+          return proxy;
+        };
+      },
+    });
+    return proxy;
+  }
+
+  test("40 English articles come back although the newest 100 rows are Hindi", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    supabase.from.mockImplementation(() => serving(table, calls));
+    const articles = await getDBArticles("technology", "", "en");
+    expect(articles).toHaveLength(40);
+    expect(articles[0].title).toBe("Parliament passes the annual budget 0");
+  });
+
+  test("a short table returns what passes, and stops when the rows run out", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    supabase.from.mockImplementation(() => serving(table.slice(0, 110), calls));
+    expect(await getDBArticles("technology", "", "en")).toHaveLength(10);
+    expect(calls.filter(([m]) => m === "range" || m === "limit").length).toBeLessThanOrEqual(2);
+  });
+
+  test("the search is bounded: at most 5 pages of 80 rows, however few pass", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    const allHindi = Array.from({ length: 1000 }, (_, i) => row(i, "बजट पर संसद में लंबी बहस हुई"));
+    supabase.from.mockImplementation(() => serving(allHindi, calls));
+    expect(await getDBArticles("technology", "", "en")).toEqual([]);
+    expect(calls.filter(([m]) => m === "range").length).toBeLessThanOrEqual(5);
+  });
+});
