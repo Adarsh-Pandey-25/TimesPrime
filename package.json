@@ -45,8 +45,6 @@
     "eslint-config-next": "16.4.3",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
-    "pg": "8.23.1",
-    "supabase": "2.121.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
