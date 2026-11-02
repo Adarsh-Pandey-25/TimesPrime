@@ -1,14 +1,17 @@
 # TimesPrime — Session Handoff
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
-**State as of:** 2026-10-30. Branch `main`. Two restructures are done:
-- **Restructure 2** is complete (S0–S5, `b0c471b` onwards; [ADR 0002](adr/0002-frontend-backend-separation.md)
-  accepted). The code is now split into `app/`, `frontend/`, `backend/`, `shared/` and `database/`.
+**State as of:** 2026-11-02. Branch `main`. Two restructures and all five audit phases are done:
+- **Audit Phases 1–5** fixed the 28 audit findings. None is open: 22 are resolved, 5 await a check
+  that needs production or the owner, and 1 (F-028) is partial. Status per finding:
+  [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md).
+- **Restructure 2** is complete (S0–S5, [ADR 0002](adr/0002-frontend-backend-separation.md)
+  accepted). The code is split into `app/`, `frontend/`, `backend/`, `shared/` and `database/`.
 - **Restructure 1** (Phases A–E, [ADR 0001](adr/0001-feature-first-structure.md), now superseded)
-  and **Phase 1 of the audit fixes** came before it.
+  came before it.
 
-**Next: audit Phase 2 (security)**, from [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md) (§11). Run
-`git log --oneline -20` for the exact head.
+**Next: the deployment phase** (§11): the owner applies the SQL files and runs the production checks.
+Run `git log --oneline -20` for the exact head.
 
 Read §1 and §3 before touching anything. §3 in particular will save you from false conclusions
 that have already been reached and discarded once.
@@ -26,9 +29,9 @@ unofficial Google Translate wrapper, and a session-gated admin panel at `/admin`
 - **Restructure 1** (Phases 0, 1, A–E) built the knowledge base (PRD, CODEMAP, architecture), took
   the owner's five product decisions (§9), and moved the code into a feature-first `src/`. It also
   made the import rules fail CI.
-- **Audit Phase 1** is complete. Of the 28 findings, 6 are resolved, 2 await a check that cannot
-  run on this machine, 1 is partly fixed and 19 are open; the status of each is in
-  `AUDIT-FINDINGS.md`.
+- **Audit Phase 1** cleared the critical and high dependency advisories and added `/api/health`.
+  **Phases 2–5** (after restructure 2) fixed the security findings, the data layer and the
+  failure and UX findings, then closed out (§4). Every finding has a status in `AUDIT-FINDINGS.md`.
 - **Restructure 2** answered the reviewer's request to make frontend, backend, database and docs
   visibly separate. One app, with `app/` as a routing shell
   ([`architecture.md`](architecture.md) §4):
@@ -56,9 +59,10 @@ Check `/api/health` before assuming the database is either up or down.
 | `docs/README.md` | **Entry point.** What to read, in what order |
 | `docs/CODEMAP.md` | **Every module: purpose, LOC, importers, imports, coverage.** Answers "where does X live / what touches Y" without a single grep. Derived from the repo; regenerate after any move |
 | `docs/architecture.md` | The layout, the flows, and the import rules (F1–X1, V1, R3–R9, LIB, CR-06) in prose a reviewer can cite |
-| `docs/AUDIT-FINDINGS.md` | The 28 audit findings at today's paths and lines, re-verified after restructure 2. **Audit Phase 2 starts here** |
+| `docs/AUDIT-FINDINGS.md` | The 28 audit findings, each with its status and fixing commit, and the `npm audit` history |
 | `docs/PRD.md` | Full PRD: FR-001..024 with code citations, NFR, CR, data model, defect register |
-| `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..BL-020) |
+| `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..BL-032) |
+| `docs/runbooks/apply-database.md` | **For the deployment phase.** Apply the SQL files in order, verify each, roll back each |
 | `docs/adr/` | ADR 0002 (accepted, this layout) and ADR 0001 (superseded) |
 | `docs/_baseline-routes.txt` | The built route table (28 URLs); every structural change must match it byte for byte |
 | `CONTRIBUTING.md` | Where new code goes, the verify gate, the commit convention |
@@ -90,18 +94,18 @@ npm test                  # jest
 npm run test:ci           # jest with coverage
 ```
 
-**Baselines at the end of restructure 2.** Compare against these after any change:
+**Baselines at the audit Phase 5 close-out (2026-11-02).** Compare against these after any change:
 
 | Measure | Value |
 |---|---|
 | Routes | **28**, identical to `_baseline-routes.txt` |
-| Client JS | **974,067 bytes** in 18 chunks. Per route: `/admin` 161,585 · `/article/[slug]` 140,433 · `/` 125,049 · `/saved` 112,956 · `/contact` 100,198 · `/about`, `/privacy`, `/terms` 97,040 each · `/admin/login` 31,306 |
-| CSS | **93,463 bytes**, one file, 920 selectors |
-| Tests | **9 suites, 70 tests**, all passing |
-| Coverage | **74 files** (the 25 shims excluded): 9.27% of statements (1,116 of 12,038), 53.69% of branches, 37.61% of functions |
-| Lint | **0 errors, 14 warnings** (all in source; BL-002 accounts for two) |
-| Boundaries | `check:boundaries`: 0 violations |
-| `npm audit` | **5 low**: the accepted jest lows (`AUDIT-FINDINGS.md`) |
+| Client JS | **976,061 bytes** in 18 chunks (restructure 2 ended at 974,067). Per route: `/admin` 162,443 · `/article/[slug]` 141,655 · `/` 125,795 · `/saved` 113,333 · `/contact` 100,601 · `/about`, `/privacy`, `/terms` 97,443 each · `/admin/login` 31,750 · `/_not-found` 28,259 |
+| CSS | **93,540 bytes**, one file, 921 selectors (+1 in F-027: `dark:hover:text-white`) |
+| Tests | **32 suites, 388 tests**, all passing |
+| Coverage | **80 files** (the shims excluded): 47.01% of statements (5,968 of 12,694), 71.33% of branches, 61.84% of functions. `backend/` + `shared/`: 61.51% (3,448 of 5,606) |
+| Lint | **0 errors, 13 warnings** (all in source; BL-002 accounts for two) |
+| Boundaries | `check:boundaries`: 0 violations. CODEMAP: 0 server-only modules in the client bundle |
+| `npm audit` | **37: 0 critical, 0 high, 34 moderate, 3 low**. The moderates are dev and build tooling (BL-031); the lows are the accepted jest set |
 
 Client JS is the sum of `.next/static/chunks/**/*.js`. A route's JS is the chunks listed in
 `entryJSFiles` of its `.next/server/app/**/page_client-reference-manifest.js`. Chunk bytes move
@@ -109,9 +113,9 @@ when module ids do (§3.17).
 
 ```
 tsc --noEmit             exit 0
-eslint                   exit 0   (0 errors, 14 warnings)
+eslint                   exit 0   (0 errors, 13 warnings)
 check:boundaries         exit 0   (0 violations)
-jest --ci                9 suites, 70 tests passed
+jest --ci                32 suites, 388 tests passed
 next build               exit 0   (28 routes)
 ```
 
@@ -284,14 +288,24 @@ S3; ADR 0002).
 ### 3.18 `next start` reads `.env.local`, so a local run uses the real Supabase
 
 Next loads `.env.local` itself. A local `next start` therefore runs the app's normal flow against
-the configured project: the feed's read path purges old rows (F-015), and a stale table triggers a
-NewsData fetch and an upsert. The S3 smoke tests did exactly that (reported to the owner). Nothing
+the configured project: a stale table triggers a NewsData fetch and an upsert. (Before F-015, the
+feed's read path also purged old rows.) In audit Phase 4, `next start` was run only to read static
+HTML (`/about`, and an `/article/...` URL without `?url=`), on port 3123, so the article page's
+suggestions fetch to `localhost:3000` failed and wrote nothing. The S3 smoke tests did exactly that (reported to the owner). Nothing
 in this repo writes to the database by hand: SQL changes are files in `database/` that the owner
 applies.
 
+### 3.19 `TaskStop` leaves `next start` running on Windows
+
+Stopping a background `npx next start` with `TaskStop` kills `npx`, not its `node` child, which keeps
+the port. The next `next start` then fails with `EADDRINUSE`, and `curl` silently answers from the
+**old** build. Before trusting a page, list them with
+`Get-CimInstance Win32_Process -Filter "Name='node.exe'" | ? CommandLine -match 'next.*start'` and
+stop the leftovers with `Stop-Process`.
+
 ---
 
-## 4. Commits — restructure 2
+## 4. Commits — restructure 2, then audit Phases 2–5
 
 `f260d3e` closed audit Phase 1. Everything after it is restructure 2. Restructure 1 and Phase 1 are
 in `git log` before it, with their reasoning in ADR 0001 and the audit ledger.
@@ -308,6 +322,19 @@ in `git log` before it, with their reasoning in ADR 0001 and the audit ledger.
 Every commit passed `npm run verify`. Every commit that touched `app/` or deleted anything was
 diffed against the route table, and every one matched it. CI was green at each push.
 
+**Audit Phases 2–5** (after `f1d268c`). One finding per commit, each prefixed with its ID; tests first
+for security code, and characterization tests first for untested UI and route logic.
+
+| Phase | Commits | What it did |
+|---|---|---|
+| **2** security | `487eb47`..`25d1c7f` | F-003 (redirects revalidated, connections pinned), F-010 (size caps), F-020 and BL-013 (eviction), F-004 (login limit, digest compare), F-011 (scraper limit), F-005 (stored-article trust anchor), F-006 (search escaping), F-015 (purge off the read path) |
+| **2** follow-up | `3d8b5ed`..`fcdf1db` | BL-016: the article page calls the scraper directly, which fixes BL-021; the public scraper takes only stored articles; Retry-After on chat and translate |
+| **3** data layer | `db28a46`..`9e5c5ad` | F-008 (DDL and policies as files), F-018 (index migration), F-016 (feed fills to 40), the owner runbook with its rollback, the `#`-link tests |
+| **4** honest failure, UX | `e582d2d`..`ecc4a31` | Admin search escaping, F-013, F-014, F-017, F-021, F-024, F-022, F-009, F-027, F-028 |
+| **5** close-out | `96f192d`..this file | BL-027 (the first search result), BL-029 (no public-prefixed key), the ledger, PRD, CODEMAP, this file |
+
+Every commit passed `npm run verify` and reported client JS and CSS. No route changed.
+
 **Retired:** `docs/TimesPrime-PRD-and-Architecture.pdf` was committed in `ddbcc9f`, then untracked
 and git-ignored at the owner's direction. `docs/PRD.md` is the only canonical spec — do not consult
 the PDF if a copy exists on disk.
@@ -322,26 +349,28 @@ in [`architecture.md`](architecture.md). The tree, in short:
 ```
 app/          URLs: route and page files, mostly one-line re-exports; two composition pages
 frontend/     views/ · features/{news,admin,chat} · components/ui · context · styles
-backend/      api/ · services/{news,classify,health,translate} · repositories · auth · lib
+backend/      api/ · services/{news,classify,health,translate,scrape} · repositories · auth · lib
 shared/       config · types · validation
-database/     schema.sql · policies.sql · seed/
+database/     schema.sql · policies.sql · migrations/ · seed/
 proxy.ts · instrumentation*.ts · sentry.*.config.ts    framework-pinned at the root
 ```
 
 **Authorisation is still the one choke point:** `proxy.ts`, matcher `/admin/*` and
 `/api/admin/*`. No route handler does its own auth check, so a route outside the matcher is public.
 
-### Files over 500 lines (all at 0% coverage)
+### Files over 500 lines
 
-| File | LOC |
-|---|--:|
-| `frontend/views/article/ArticleDetailView.tsx` | 963 |
-| `frontend/features/admin/ArticlesTable.tsx` | 751 |
-| `backend/repositories/db.ts` | 613 |
-| `frontend/features/news/Header.tsx` | 568 |
-| `backend/api/news/scrape-article.ts` | 558 |
-| `frontend/views/home/HomeClient.tsx` | 529 |
-| `frontend/views/admin/AdminView.tsx` | 506 |
+| File | LOC | Statements covered |
+|---|--:|--:|
+| `frontend/views/article/ArticleDetailView.tsx` | 970 | tested (F-005, F-013, F-017) |
+| `frontend/features/admin/ArticlesTable.tsx` | 751 | 0% |
+| `backend/repositories/db.ts` | 678 | 71.8% |
+| `backend/services/scrape/scrapeArticle.ts` | 580 | 87.1% |
+| `frontend/features/news/Header.tsx` | 568 | stubbed in tests |
+| `frontend/views/home/HomeClient.tsx` | 561 | tested (F-021, BL-027) |
+| `frontend/views/admin/AdminView.tsx` | 521 | tested (F-014) |
+
+Per-file coverage: [`CODEMAP.md`](CODEMAP.md).
 
 ---
 
@@ -353,46 +382,32 @@ proxy.ts · instrumentation*.ts · sentry.*.config.ts    framework-pinned at the
 | Restructure 2: S0 design, S1 cleanup, S2 tooling, S3 moves, S4 enforcement, S5 docs | ✅ Done (ADR 0002, accepted) |
 | **Phase F** — decompose the oversized files; move route-body logic into services | Optional, not started; needs an owner decision |
 
-### Phase F candidates — which need a characterization test first
+### Phase F candidates
 
-All seven are at 0% coverage. Decomposing any of them edits a module body, so each needs a
-characterization test first. The only part that splits by pure move is noted.
-
-| File | Lines | Shape | Test first? |
-|---|--:|---|---|
-| `frontend/views/article/ArticleDetailView.tsx` | 963 | One ~885-line component: 10 `useState`, 3 effects, 3 `fetch`es (scrape, translate, chat) | **Yes** — render with mocked `fetch`: scrape success, scrape fallback, translate. DEF-03/04/10 live here, so coordinate with the security work |
-| `frontend/features/admin/ArticlesTable.tsx` | 751 | Table plus two modals already at module scope (`EditArticleModal`, `PreviewArticleModal`) | **Yes** for the table logic. The two modals can move to their own files as a pure move |
-| `backend/repositories/db.ts` | 613 | Pure helpers (filters, language script, paywall) + Supabase-backed functions | **Yes**. The pure helpers are cheap to test with no database; the rest needs a Supabase mock (`db.test.ts` has one). BL-001, DEF-05, DEF-08 sit here |
-| `frontend/features/news/Header.tsx` | 568 | One ~528-line component: 9 `useState`, 5 effects | **Yes** |
-| `backend/api/news/scrape-article.ts` | 558 | Many pure extraction helpers + the handler | **Yes** — HTML fixtures through the pure helpers. The logic belongs in a service (architecture §5, "What code does"). DEF-02/10 here; coordinate with the security work |
-| `frontend/views/home/HomeClient.tsx` | 529 | 3 small pure helpers + a ~457-line component with 2-minute polling | **Yes** — fake timers for the poll |
-| `frontend/views/admin/AdminView.tsx` | 506 | One component: 20 `useState`, 5 `fetch`es | **Yes**. Its data logic belongs in `frontend/features/admin` |
-
-**Cheapest first:** the pure helpers in `scrape-article` and `db.ts` need no rendering and no
-database, so they buy the most safety per hour.
+Decomposing any of the files above edits a module body, so each needs a characterization test of
+what it splits. The audit phases added most of them: `ArticleDetailView` (links, the AI panel, the
+story area), `HomeClient` (the feed's fetches and search), `AdminView` (sync and purge),
+`scrapeArticle` and `db.ts` (through their route and repository tests). Still untested:
+`ArticlesTable.tsx`, whose two modals already sit at module scope and can move to their own files as
+a pure move, and `Header.tsx`.
 
 ---
 
 ## 7. Known defects — current behaviour that is NOT intended
 
-Numbered to match `docs/PRD.md` §11. These are deliberately excluded from the requirement set so no
-future reader mistakes them for design. Audit status and current locations: `AUDIT-FINDINGS.md`.
+Numbered to match `docs/PRD.md` §11, which now carries a Status column. Of DEF-01..25, all but six
+are resolved:
 
-| ID | Defect | Severity |
+| ID | What remains | Status |
 |---|---|---|
-| DEF-01 | Supabase calls failed and the app silently served upstream instead. Reachable again since 30 Oct, and no longer silent: F-002 awaits its production check | **Critical** |
-| DEF-02 | Scraper follows up to 21 redirects, none re-validated — defeats the SSRF guard running immediately before it | **Critical** |
-| DEF-03 | Two of four publisher links render an unvalidated `targetUrl` from the query string. Branded phishing surface. (The `javascript:` XSS variant is **refuted** — React 19 blocks it) | High |
-| DEF-04 | AI panel prints a canned "Key Takeaway" when the API fails, as if it were a real answer. `Chatbot.tsx` handles the same failure honestly | High |
-| DEF-05 | `purgeOldArticles()` runs a DELETE on the feed read path | Medium |
-| DEF-06 | Admin login unthrottled; password compare returns early on length mismatch, leaking length | High |
-| DEF-07 | `breaking_news` and `admin_logs` exist only as SQL inside comments in their route bodies, not in `database/schema.sql` | High |
-| DEF-08 | Feed fetches 80 rows, filters in JS, slices to 40 — under-fills exactly when a spam source floods | Medium |
-| DEF-09 | ~~Contact form and newsletter show success, send nothing~~ — **resolved by removal** in `59b875d` | Resolved |
-| DEF-10 | Scraper returns HTTP 200 with placeholder prose on failure; UI detects errors by string-matching three hard-coded sentences | Medium |
+| DEF-01 | Supabase reachable again and no longer silent; `/api/health` 200 and a Sentry fallback event in production | Pending verification (F-002) |
+| DEF-07 | `breaking_news` and `admin_logs` DDL in `database/schema.sql`; the owner applies it | Pending verification (F-008) |
+| DEF-12 | Search escaping fixed; the injection probe against the live database | Pending verification (F-006) |
+| DEF-18 | The index migration; the owner applies it | Pending verification (F-018) |
+| DEF-23 | The Vercel project's Node version | Pending verification (F-026) |
+| DEF-25 | `dark:` classes right before paint; 75 `isDark` ternaries still switch after hydration | Partial (F-028, BL-028) |
 
-**`npm audit`:** 5 low, the jest packages accepted by owner ruling. The criticals and highs were
-cleared in Phase 1 (`47e62ae`, `56e7509`, `31f4a54`, `5970692`).
+**`npm audit`:** 0 critical, 0 high. 34 moderate in dev and build tooling, published after Phase 1 (BL-031), and the 3 accepted jest lows.
 
 ---
 
@@ -405,12 +420,15 @@ cleared in Phase 1 (`47e62ae`, `56e7509`, `31f4a54`, `5970692`).
   self-heals). BL-005, real contact and newsletter backends, is future feature work.
 - BL-007 (`next typegen` in `typecheck`, a one-line change) and BL-009 (two cosmetic leftovers).
 - BL-008 (privacy policy, needs the owner or legal).
-- BL-013 (in-memory cache eviction, with F-020 in audit Phase 2) and BL-015 (`urlValidation` →
-  `shared/validation` with F-005, split at its DNS step).
-- BL-016 (the article page fetches its own API over HTTP) and BL-019 (an image optimizer timeout:
-  act only if it recurs).
+- BL-016's remainder (the suggestions fetch is still HTTP; no per-IP limit on its route) and BL-019
+  (an image optimizer timeout: act only if it recurs).
+- BL-022 (a public scrape writes `articles.content`; kept by the owner), BL-023 (signed links, only if
+  needed), BL-024 (nullable columns, deployment phase), BL-025 (the anon-key fallback).
+- BL-026 (headline translation, a feature), BL-028 (theme ternaries), BL-030 (lazy-load the chatbot),
+  BL-031 (the new moderate advisories), BL-032 (A2 for new pages).
 
-**Resolved:** BL-003, BL-010, BL-011, BL-012, BL-014, BL-017, BL-018, BL-020.
+**Resolved:** BL-003, BL-010, BL-011, BL-012, BL-013, BL-014, BL-015, BL-017, BL-018, BL-020, BL-021,
+BL-027, BL-029.
 
 ---
 
@@ -430,6 +448,19 @@ cleared in Phase 1 (`47e62ae`, `56e7509`, `31f4a54`, `5970692`).
 Pages that combine backend data with a view stay in `app/`. Views reach features only through their
 entry points, at a measured 109 bytes. Features never import views (V1). R5 keeps `shared/config`
 out of UI primitives. Each decision is in ADR 0002 and in the commit that applied it.
+
+**Audit (Phases 0–5).** Each one is recorded in the ledger row or backlog entry it governs:
+- **Severity:** the higher rating governs (F-003 Critical, F-013 High). The jest lows are accepted;
+  `npm audit fix --force` is never run.
+- **D1:** login and the public scraper use a Redis fixed window on the existing `@upstash/redis`,
+  falling back to memory, with the fallback logged. Every other route uses the in-memory limiter.
+- **D3:** the `translateHeadline` no-op is removed (BL-026).
+- **F-005:** the trust anchor is the stored articles (exact link match), not signed links (BL-023).
+- **F-015:** the admin's explicit purge stays. **BL-022:** kept.
+- **F-017:** external callers of the public scraper see 502/504. **F-021:** the feed's effect runs on
+  language only. **F-027:** the growth is accepted. **F-028:** Partial.
+- **Refuted, never "fixed":** the `javascript:` XSS, `preload` on `next/image`, AVIF/SVG. Sentry's
+  `tunnelRoute` must never be enabled: all authorization lives in `proxy.ts`.
 
 **Follow-up the product decisions created:** the privacy policy still describes newsletter and
 contact-form collection that no longer happens. Legal copy, for the owner or legal review (BL-008).
@@ -456,32 +487,42 @@ contact-form collection that no longer happens. Legal copy, for the owner or leg
 
 ---
 
-## 11. Immediate next actions
+## 11. Immediate next actions — the deployment phase
 
-**Next session: audit Phase 2 (security)**, from `docs/AUDIT-FINDINGS.md`, whose locations were
-re-verified after restructure 2:
+Nothing below can be done from this machine without touching production. It is the owner's list.
 
-1. Tests first for `shared/validation/urlValidation.ts` and `backend/auth/adminSession.ts` (§12).
-2. Then F-003 (scraper redirects), F-010 (input size caps), F-020 with BL-013 (eviction, owner:
-   deferred into Phase 2), F-004 and F-011 (D1: a Redis-backed limiter for login and the scraper),
-   F-005 (with BL-015's split of `urlValidation`), F-006.
+**Database** ([`runbooks/apply-database.md`](runbooks/apply-database.md)):
+1. Confirm `SUPABASE_SERVICE_ROLE_KEY` is set in the deployment (present, not copied). Without it the
+   app falls back to the anon key and RLS refuses every write (BL-025).
+2. Take the step 0 snapshot and confirm `service_role` has `rolbypassrls`.
+3. Apply `database/schema.sql`, then `database/policies.sql`, then
+   `database/migrations/2026-11-02-indexes.sql`. Verify each as the runbook shows. Each has a
+   rollback. This closes F-008 and F-018 (the F-005 and scraper lookups use the link index).
+4. Before any `NOT NULL` migration, count the nulls in live data (BL-024).
+5. Re-run the F-006 injection probe, and an RLS check, against the live database.
 
-**Open with the owner:**
-- Is production on the same Supabase project as `.env.local` (project ref `yhjotyxrdaqtcgsxigok`)?
-  Not confirmable from here: production env lives in Vercel, and GitHub carries no Vercel
-  deployments or statuses. Read-only evidence against it: all 78 articles were inserted in 7
-  minutes that match this machine's own activity, none on the cron's :00/:30 schedule, and
-  `admin_logs` holds no `news_synced` row although the cron writes one per run. So production
-  either uses another project or its cron is not running. If it is the same project, local runs
-  write to the production database (§3.18), and it needs a separate dev project.
-- `/api/health` shares one result for 15 s per instance (`HEALTH_CACHE_MS`). Proposed: 60 s. Not
-  implemented; awaiting approval.
-- The Vercel project's Node version (F-026's last check).
-- The privacy policy (BL-008).
+**Environment and platform:**
+- Confirm whether local and production use the same Supabase project (`.env.local` names
+  `yhjotyxrdaqtcgsxigok`). If they do, set up a separate dev project: a local run writes to it (§3.18).
+- Vercel: Node 24 (F-026), `NEXT_PUBLIC_SENTRY_DSN`, the Upstash variables, `CRON_SECRET`, and that
+  the cron runs. No production cron entry has ever been seen in the database.
+- Owner's `.env.local`: `ADMIN_SECRET_TOKEN` and `MEDIASTACK_API_KEY` can go; nothing reads them.
+  Never set `NEXT_PUBLIC_NEWSDATA_API_KEY`.
 
-**Also open:** Phase F (§6) is optional. Set `ANTHROPIC_API_KEY` locally to see the chat route
-stream end to end; on this machine it answers 503 by design. Promoting `breaking_news` and
-`admin_logs` into `database/schema.sql` (DEF-07, F-008) is independent of the rest.
+**Production smoke test:**
+- `/api/health` answers 200, and Sentry receives a Supabase fallback event (F-002).
+- `X-Data-Source` shows `supabase` or `cache` for readers (NFR-01).
+- The cron runs and its audit entry carries the purge count (F-015).
+- The Redis limiter: the 11th login attempt in 15 minutes and the 31st uncached scrape in a minute
+  answer 429 across instances (F-004, F-011).
+- BL-019 (publisher image timeouts) under real traffic.
+
+**Not covered by any audit:** accessibility (axe-core), a scraper replay against the 120-URL
+publisher sample, a staging environment, Supabase backup and restore, end-to-end tests, and a bundle
+budget in CI.
+
+**Open with the owner:** the privacy policy (BL-008); BL-031 (accept the moderate advisories or wait);
+Phase F (§6) is optional.
 
 ---
 
@@ -509,25 +550,21 @@ node -e "const pm=require('next/dist/compiled/picomatch'); console.log(pm.makeRe
 
 ### Data model
 
-`database/schema.sql` defines **`articles` only** — 15 columns, `article_id` unique,
-`category`/`country`/`category_mismatches` are `TEXT[]`. Only `id`, `article_id`, `title`,
-`created_at` are NOT NULL (this is the root of BL-001).
+`database/schema.sql` defines all three tables, `IF NOT EXISTS`, with RLS enabled:
+- `articles`: 15 columns, `article_id` unique, `category`/`country`/`category_mismatches` are `TEXT[]`.
+  Only `id`, `article_id`, `title` and `created_at` are NOT NULL (the root of BL-001).
+- `breaking_news` and `admin_logs`, committed in `db28a46` (F-008); their nullable columns are BL-024.
 
-`breaking_news` and `admin_logs` are used by code but **not in committed SQL** (DEF-07): their DDL
-is in comments in `backend/api/admin/breaking-news.ts` and `backend/api/admin/logs.ts`.
-
-Indexes: `created_at`, `article_id`. Queries also filter on `category`/`country` (array containment
-— wants GIN) and `title`/`description` with `ILIKE '%…%'` (wants `pg_trgm`).
+Policies and grants are in `database/policies.sql`. Indexes: `created_at` and `article_id` in the
+schema; GIN on `category`/`country`, trigram on `title`/`description`, and `link` in
+`database/migrations/2026-11-02-indexes.sql`. None of it is applied by the app: the owner applies it
+(§11).
 
 ### Test suite
 
-9 files, 70 tests, all passing:
-- `backend/api/admin/health.test.ts`, `backend/api/chat.test.ts`, `backend/api/health.test.ts`;
-- `backend/lib/reportFallback.test.ts`, `backend/repositories/db.test.ts`,
-  `backend/services/health/health.test.ts`;
-- `frontend/features/news/bookmarks.test.ts`;
-- `shared/config/newsConfig.test.ts`, `shared/validation/sentryScrub.test.ts`.
-
-**Untested and security-critical:** `shared/validation/urlValidation.ts` (124 lines) and
-`backend/auth/adminSession.ts` (69 lines). Both pure, no I/O, trivially testable. The highest
-value-per-hour work available, and audit Phase 2's first step.
+32 files, 388 tests, all passing. Every security module has tests: `urlValidation` (73),
+`fetchPage` (real axios against a local server), `adminSession`, the login and scrape routes, the
+rate limiter (memory and Redis), the size-capped body reader, and the search escaping. Repo-reading
+tests keep the SQL in step with the code (`backend/repositories/schema.test.ts`, including the
+runbook's rollback), and `.env.local.example` in step with `process.env`
+(`shared/config/envExample.test.ts`). Untested: `proxy.ts` (0%), `ArticlesTable.tsx` and `Header.tsx`.
