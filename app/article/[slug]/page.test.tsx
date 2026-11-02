@@ -134,12 +134,14 @@ describe("a '#' link matches stored rows but is still absent", () => {
 
 // BL-016 characterization: what the view receives for each scraper outcome.
 // Written while the page reached the scraper over HTTP (3d8b5ed); the
-// expectations are unchanged now that it calls the backend directly. Only the
-// way an outcome is staged moved, from fetch to the scrapeArticle mock.
+// expectations did not change when it began calling the backend directly.
+// Only the way an outcome is staged moved, from fetch to the scrapeArticle
+// mock. F-017 changed the failure cases on purpose: no content, not
+// placeholder prose. The success cases are unchanged.
 describe("the page's scrape behaviour (characterization, BL-016)", () => {
   const FALLBACK = {
     title: "Full Story Coverage",
-    content: ["Full article coverage details for this report are available directly on the official publisher website below."],
+    content: [],
   };
 
   function scraperAnswers(outcome: { status: number; body: object } | Error) {
@@ -163,7 +165,7 @@ describe("the page's scrape behaviour (characterization, BL-016)", () => {
     ["an error status", { status: 500, body: { error: "boom" } }],
     ["a refusal", { status: 400, body: { error: "Invalid target URL" } }],
     ["a network failure", new Error("ECONNREFUSED")],
-  ])("%s gives the view the fallback text", async (_label, outcome) => {
+  ])("%s gives the view no content, so its read-at-source card (F-017: no placeholder prose)", async (_label, outcome) => {
     scraperAnswers(outcome as { status: number; body: object } | Error);
     expect((await render({ url: KNOWN })).scrapedData).toEqual(FALLBACK);
   });
@@ -171,10 +173,7 @@ describe("the page's scrape behaviour (characterization, BL-016)", () => {
   test("no url gives the overview, and no scrape", async () => {
     scraperAnswers({ status: 200, body: {} });
     const { scrapedData } = await render({});
-    expect(scrapedData).toEqual({
-      title: "Story Overview",
-      content: ["Full coverage details for this article are presented below. Click the external publisher link to read directly on the source website."],
-    });
+    expect(scrapedData).toEqual({ title: "Story Overview", content: [] });
     expect(scrapeArticle).not.toHaveBeenCalled();
   });
 });

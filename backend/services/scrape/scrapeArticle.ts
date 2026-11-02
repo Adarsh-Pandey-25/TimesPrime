@@ -8,6 +8,7 @@ import { validateExternalUrl } from "@/shared/validation/urlValidation";
 import { fetchPage, resolveHostname, UnsafeTargetError } from "@/backend/services/scrape/fetchPage";
 import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/backend/lib/cache";
 import { urlToHostname } from "@/shared/validation/sentryScrub";
+import type { ScrapeErrorResponse, ScrapeResponse } from "@/shared/types";
 
 interface ScrapeCacheEntry {
   title: string;
@@ -372,9 +373,10 @@ function truncateContent(paragraphs: string[], maxChars: number): string[] {
 }
 
 /** What a scrape answers: an HTTP status and a JSON body, the same pair the public route sends. */
+/** 200 with a ScrapeResponse, or any other status with a ScrapeErrorResponse (F-017). */
 export interface ScrapeResult {
   status: number;
-  body: Record<string, unknown>;
+  body: ScrapeResponse | ScrapeErrorResponse;
   headers?: Record<string, string>;
 }
 
@@ -385,8 +387,6 @@ export interface ScrapeOptions {
    * (F-011), so a cached answer is never counted or refused.
    */
   beforeFetch?: () => Promise<ScrapeResult | null>;
-  /** The `url` the failure placeholder reports. The public route passes its own request URL, as it always has. */
-  fallbackUrl?: string;
 }
 
 /**
@@ -404,7 +404,9 @@ export async function scrapeArticle(targetUrl: string, options: ScrapeOptions = 
       return { status: 400, body: { error: `Invalid target URL: ${urlCheck.reason}` } };
     }
 
-    const cacheKey = `scrape:${targetUrl}`;
+    // v2 (F-017): entries cached before it can hold placeholder prose as
+    // content; a new key lets them expire unread (1 hour).
+    const cacheKey = `scrape:v2:${targetUrl}`;
 
     // 1. Instant cache lookup
     const cached = await cache.get<ScrapeCacheEntry>(cacheKey);
@@ -518,10 +520,9 @@ export async function scrapeArticle(targetUrl: string, options: ScrapeOptions = 
     }
 
     const cleanedParagraphs = cleanContent(rawParagraphs);
-    const resultContent =
-      cleanedParagraphs.length > 0
-        ? truncateContent(cleanedParagraphs, MAX_CONTENT_CHARS)
-        : ["Full article coverage is available at the publisher source."];
+    // Nothing extracted is an empty answer, not placeholder prose (F-017):
+    // the article page shows its "read at source" card for it.
+    const resultContent = cleanedParagraphs.length > 0 ? truncateContent(cleanedParagraphs, MAX_CONTENT_CHARS) : [];
     const fullText = resultContent.join("\n\n");
 
     // Save to shared cache
@@ -534,7 +535,7 @@ export async function scrapeArticle(targetUrl: string, options: ScrapeOptions = 
     // Save full article content to Supabase database asynchronously
     try {
       const { supabase, isSupabaseConfigured } = await import("@/backend/lib/supabase");
-      if (isSupabaseConfigured() && targetUrl) {
+      if (isSupabaseConfigured() && targetUrl && fullText) {
         supabase
           .from("articles")
           .update({ content: fullText })
@@ -549,7 +550,7 @@ export async function scrapeArticle(targetUrl: string, options: ScrapeOptions = 
       url: targetUrl,
       title: pageTitle,
       content: resultContent,
-      text: fullText || "Full article coverage.",
+      text: fullText,
       isPaywalled: false,
     } };
   } catch (error: unknown) {
@@ -569,12 +570,11 @@ export async function scrapeArticle(targetUrl: string, options: ScrapeOptions = 
       extra: { targetDomain: failedTargetUrl ? urlToHostname(failedTargetUrl) : "unknown" },
     });
 
-    return { status: 200, body: {
-      url: options.fallbackUrl ?? targetUrl,
-      title: "Full Story Coverage",
-      content: ["Full article coverage details for this report are available directly on the official publisher website below."],
-      text: "Full story details.",
-      isPaywalled: false,
-    } };
+    // F-017: a failure is a failure status, not a 200 with placeholder prose
+    // for the UI to recognise by its wording. 504 when the publisher timed
+    // out, 502 for anything else it did wrong.
+    return isTimeout
+      ? { status: 504, body: { error: "The publisher's page took too long to answer." } }
+      : { status: 502, body: { error: "The publisher's page could not be read." } };
   }
 }

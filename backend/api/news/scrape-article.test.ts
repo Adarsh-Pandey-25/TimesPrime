@@ -312,13 +312,43 @@ describe("GET /api/news/scrape-article — response shapes (characterization, BL
     });
   });
 
-  test("a failed fetch: 200 with the placeholder", async () => {
+  // F-017: a failure used to be 200 with placeholder prose, which the UI
+  // recognised by its wording. It is now a failure status with an error.
+  test("a failed fetch: 502 with an error, and nothing cached", async () => {
     web["https://publisher.example/broken"] = { status: 500 };
+    cacheMock.set.mockClear();
     const res = await scrape("https://publisher.example/broken");
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "The publisher's page could not be read." });
+    expect(cacheMock.set).not.toHaveBeenCalled();
+  });
+
+  test("a publisher that times out: 504 with an error", async () => {
+    axios.get.mockRejectedValueOnce(Object.assign(new Error("timeout of 2500ms exceeded"), { isAxiosError: true, code: "ECONNABORTED" }));
+    const res = await scrape("https://publisher.example/slow");
+    expect(res.status).toBe(504);
+    expect(await res.json()).toEqual({ error: "The publisher's page took too long to answer." });
+  });
+
+  test("a page with nothing to extract: 200 with empty content, no placeholder, and no database write", async () => {
+    const { supabase, isSupabaseConfigured } = jest.requireMock("@/backend/lib/supabase") as {
+      supabase: { from: jest.Mock };
+      isSupabaseConfigured: jest.Mock;
+    };
+    isSupabaseConfigured.mockReturnValueOnce(true);
+    supabase.from.mockClear();
+    web["https://publisher.example/empty"] = { status: 200, body: "<html><head><title>Empty</title></head><body><div>Menu</div></body></html>" };
+    const res = await scrape("https://publisher.example/empty");
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toMatchObject({ title: "Full Story Coverage", isPaywalled: false, text: "Full story details." });
-    expect(body.content).toEqual(["Full article coverage details for this report are available directly on the official publisher website below."]);
+    expect(await res.json()).toEqual({ url: "https://publisher.example/empty", title: "Empty", content: [], text: "", isPaywalled: false });
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  test("answers are cached under the v2 key, so entries holding the old placeholder are never read", async () => {
+    cacheMock.get.mockClear();
+    web["https://publisher.example/story"] = { status: 200, body: ARTICLE };
+    await scrape("https://publisher.example/story");
+    expect(cacheMock.get).toHaveBeenCalledWith("scrape:v2:https://publisher.example/story");
   });
 
   test("a missing url: 400", async () => {

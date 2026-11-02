@@ -28,21 +28,6 @@ import { TRANSLATIONS } from "@/shared/config/translations";
 import { assignDedupedTopicImages } from "@/shared/config/topicImages";
 import { safePublisherHref } from "@/shared/validation/urlValidation";
 
-// Generic placeholder sentences the scraper/route layer substitutes in when
-// it can't extract real paragraphs from the publisher page (see
-// backend/services/scrape/scrapeArticle.ts and app/article/[slug]/page.tsx).
-// Rendered verbatim they look like a broken app, not a deliberate message —
-// detect them here so the UI can swap in a styled "read at source" CTA instead.
-const SCRAPE_FALLBACK_MESSAGES = [
-  "Full article coverage is available at the publisher source.",
-  "Full article coverage details for this report are available directly on the official publisher website below.",
-  "Full coverage details for this article are presented below. Click the external publisher link to read directly on the source website.",
-];
-
-function isScrapeFallbackContent(content?: string[] | null): boolean {
-  return !!content && content.length === 1 && SCRAPE_FALLBACK_MESSAGES.includes(content[0].trim());
-}
-
 /** Estimated reading time at ~200 wpm, minimum 1 minute. */
 function estimateReadMinutes(paragraphs: string[]): number {
   const wordCount = paragraphs.join(" ").split(/\s+/).filter(Boolean).length;
@@ -102,9 +87,10 @@ export default function ArticleDetailView({
   );
 
   const hasScrapedContent =
-    !!scrapedData.content &&
-    scrapedData.content.length > 0 &&
-    !isScrapeFallbackContent(scrapedData.content);
+    // F-017: no string matching. A failed or empty scrape reaches the view as
+    // no content (the page checks the scraper's status), and gets the
+    // "read at source" card.
+    !!scrapedData.content && scrapedData.content.length > 0;
 
   const isPaywalled = !!scrapedData.isPaywalled;
 

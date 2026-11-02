@@ -32,7 +32,6 @@ export async function GET(request: NextRequest) {
   }
 
   const result = await scrapeArticle(targetUrl, {
-    fallbackUrl: request.url,
     beforeFetch: async () => {
       const rate = await checkRateLimit(getClientIp(request), SCRAPE_RATE_LIMIT);
       if (!rate.limited) return null;

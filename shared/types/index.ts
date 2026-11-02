@@ -23,11 +23,27 @@ export interface Article {
   duplicate?: boolean;
 }
 
+/**
+ * The scraper's answer for an article it read (status 200), from
+ * scrapeArticle() and GET /api/news/scrape-article. `content` is empty when
+ * nothing could be extracted or the page is paywalled; it never holds
+ * placeholder prose. Any failure is a non-200 status with a
+ * ScrapeErrorResponse instead (F-017).
+ */
 export interface ScrapeResponse {
   url: string;
   title?: string;
   content: string[];
   text: string;
+  isPaywalled: boolean;
+  description?: string;
+  image?: string;
+  cached?: boolean;
+}
+
+/** The scraper's body for any non-200 status (F-017). */
+export interface ScrapeErrorResponse {
+  error: string;
 }
 
 /**

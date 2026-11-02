@@ -45,9 +45,7 @@ async function getArticleContent(targetUrl?: string) {
   if (!targetUrl) {
     return {
       title: "Story Overview",
-      content: [
-        "Full coverage details for this article are presented below. Click the external publisher link to read directly on the source website.",
-      ],
+      content: [],
     };
   }
 
@@ -56,15 +54,13 @@ async function getArticleContent(targetUrl?: string) {
   // one rate-limit bucket (BL-021). targetUrl is already a known article
   // (F-005); the scrape cache is still checked first.
   try {
-    const result = await scrapeArticle(targetUrl);
-    if (result.status !== 200) throw new Error("Scrape request failed");
-    return result.body;
+    const { status, body } = await scrapeArticle(targetUrl);
+    if (status !== 200 || "error" in body) throw new Error("Scrape request failed");
+    return body;
   } catch {
     return {
       title: "Full Story Coverage",
-      content: [
-        "Full article coverage details for this report are available directly on the official publisher website below.",
-      ],
+      content: [],
     };
   }
 }
