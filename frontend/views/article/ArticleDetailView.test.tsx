@@ -182,3 +182,39 @@ describe("askTimesPrime: a failure is reported, never answered (F-013)", () => {
     expect(screen.getByText(/It passed\./)).toBeInTheDocument();
   });
 });
+
+// What the story area shows for each kind of scrape result (characterization,
+// F-017): the paragraphs, the subscriber-only notice, or the "read at source"
+// card when there is nothing to show.
+describe("the story area (characterization, F-017)", () => {
+  function story(scrapedData: { title?: string; content?: string[]; isPaywalled?: boolean; description?: string }) {
+    const { container, unmount } = render(
+      <ThemeProvider>
+        <LanguageProvider>
+          <ArticleDetailView slug="budget-passes" targetUrl="https://publisher.example/story" scrapedData={scrapedData} allArticles={[]} />
+        </LanguageProvider>
+      </ThemeProvider>
+    );
+    const text = container.querySelector("article")?.textContent ?? "";
+    unmount();
+    return text;
+  }
+
+  test("scraped paragraphs are shown", () => {
+    const text = story({ title: "Budget passes", content: SCRAPED });
+    expect(text).toContain(SCRAPED[0]);
+    expect(text).not.toContain("Full Story Available at Source");
+  });
+
+  test("a paywalled page shows the subscriber-only notice and its description", () => {
+    const text = story({ title: "Locked", content: [], isPaywalled: true, description: "The teaser." });
+    expect(text).toContain("Subscriber-only article");
+    expect(text).toContain("The teaser.");
+  });
+
+  test.each([[[]], [undefined]])("no content (%p) shows the read-at-source card", (content) => {
+    const text = story({ title: "Budget passes", content });
+    expect(text).toContain("Full Story Available at Source");
+    expect(text).toContain("Read Full Article →");
+  });
+});
