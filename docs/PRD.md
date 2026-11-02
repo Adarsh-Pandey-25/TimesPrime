@@ -2,7 +2,8 @@
 
 **Type:** brownfield / reverse-engineered · **Baseline:** commit `506a4ab`, branch `main`, updated
 through `59b875d` to record the owner decisions in §12 · **Updated:** 2026-10-29; code citations
-moved to the restructure-2 layout on 2026-10-30 (statuses unchanged)
+moved to the restructure-2 layout on 2026-10-30; statuses, §7, §11 and §13 brought up to date at the
+audit Phase 5 close-out on 2026-11-02 (each number re-measured then, or marked as unmeasured)
 
 This document describes what TimesPrime **does**, not what anyone intended it to do. Every
 functional requirement cites the code implementing it; a requirement with no citation is marked
@@ -83,8 +84,8 @@ page is cited at its body, which the one-line file in `app/` re-exports.
 |---|---|---|---|
 | FR-001 | Fetch headlines by category from NewsData.io | `backend/services/news/newsdata.ts`, `backend/services/news/fetchNews.ts` | Implemented |
 | FR-002 | Refresh all 7 categories on a 30-minute schedule | `backend/api/cron/refresh-news.ts`, `vercel.json` | Implemented |
-| FR-003 | Serve from cache → store → upstream → mock, in that order | `backend/api/news/top-headlines.ts` | **Partial** — tier 2 unreachable, DEF-01 |
-| FR-004 | Persist articles on a rolling 7-day window | `backend/repositories/db.ts` → `purgeOldArticles` | **Partial** — runs on the read path, DEF-05 |
+| FR-003 | Serve from cache → store → upstream → mock, in that order | `backend/api/news/top-headlines.ts` | Implemented — tier 2 reachable again since 2026-10-30; its production check is pending (DEF-01) |
+| FR-004 | Persist articles on a rolling 7-day window | `backend/repositories/db.ts` → `purgeOldArticles`, run by `backend/api/cron/refresh-news.ts` | Implemented · tested — once per cron run, off the read path (`2f31bad`) |
 | FR-005 | De-duplicate by normalised title | `shared/config/newsConfig.ts` → `dedupeArticlesByTitle` | Implemented · tested |
 | FR-006 | Exclude horoscope/tarot filler, wire-spam and non-news listing sources | `shared/config/newsConfig.ts` | Implemented · tested |
 | FR-007 | Exclude hard-paywalled publishers at write time | `backend/repositories/db.ts` → `HARD_PAYWALL_SOURCE_DOMAINS` | Implemented |
@@ -96,50 +97,50 @@ page is cited at its body, which the one-line file in `app/` re-exports.
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
 | FR-010 | Restrict each feed to its language by script detection | `shared/config/newsConfig.ts`, `backend/repositories/db.ts` | Implemented · tested |
-| FR-011 | Translate article text on demand | `backend/api/translate.ts`, `backend/services/translate/googleTranslate.ts` | **Partial** — unofficial endpoint, no size cap |
+| FR-011 | Translate article text on demand | `backend/api/translate.ts`, `backend/services/translate/googleTranslate.ts` | **Partial** — unofficial endpoint; size-capped since `58c7f7d` |
 | FR-012 | Persist the language choice across visits | `frontend/context/LanguageContext.tsx` | Implemented |
 
 ### Article reading
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-013 | Extract readable full text from a publisher page | `backend/api/news/scrape-article.ts` | Implemented |
-| FR-014 | Detect paywalls and show publisher metadata instead of junk | same → `detectPaywall` | Implemented |
+| FR-013 | Extract readable full text from a publisher page | `backend/services/scrape/scrapeArticle.ts` | Implemented · tested — a failure is a 502/504, not placeholder prose (`b7f6fbc`) |
+| FR-014 | Detect paywalls and show publisher metadata instead of junk | same → `detectPaywall` | Implemented · tested |
 | FR-015 | Strip author bios, nav and app-download boilerplate | same → `isJunkParagraph` | Implemented |
-| FR-016 | Refuse to fetch internal/private network addresses | `shared/validation/urlValidation.ts` | **Partial** — redirects bypass it, DEF-02 |
-| FR-017 | Always link out to the original publisher | `frontend/views/article/ArticleDetailView.tsx` | **Partial** — 2 of 4 links unvalidated, DEF-03 |
+| FR-016 | Refuse to fetch internal/private network addresses | `shared/validation/urlValidation.ts`, `backend/services/scrape/fetchPage.ts` | Implemented · tested — every redirect hop revalidated, connections pinned (`2e383cb`, `1145bca`) |
+| FR-017 | Always link out to the original publisher | `frontend/views/article/ArticleDetailView.tsx` | Implemented · tested — only a stored article's http(s) link is used (`8d0b775`) |
 
 ### Reader features
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
 | FR-018 | Save articles device-locally and list them | `frontend/features/news/bookmarks.ts`, `frontend/views/saved/SavedView.tsx` | Implemented · tested |
-| FR-019 | Answer questions about a story, streamed | `backend/api/chat.ts` | Implemented · tested — error path misleads, DEF-04 |
+| FR-019 | Answer questions about a story, streamed | `backend/api/chat.ts` | Implemented · tested — both chat surfaces report a failure honestly (`86bdf78`) |
 | FR-020 | Provide a themed, topic-appropriate image for every card | `shared/config/topicImages.ts`, `shared/config/imageDomains.ts` | Implemented |
 
 ### Operations
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-021 | Gate every admin surface behind a session | `proxy.ts`, `backend/auth/adminSession.ts` | **Partial** — unthrottled, DEF-06 |
+| FR-021 | Gate every admin surface behind a session | `proxy.ts`, `backend/auth/adminSession.ts` | Implemented · tested — login rate-limited, constant-time compare (`7eb9253`) |
 | FR-022 | List, search, edit, delete and bulk-delete stored articles | `backend/api/admin/articles.ts`, `backend/api/admin/articles-bulk.ts`, `frontend/features/admin/ArticlesTable.tsx` | Implemented |
 | FR-023 | Publish an editorial article directly | `backend/api/admin/publish-article.ts` | Implemented — bypasses the filter pipeline by design |
-| FR-024 | Set a time-boxed breaking-news banner | `backend/api/admin/breaking-news.ts` | **Blocked** — table absent from schema, DEF-07 |
+| FR-024 | Set a time-boxed breaking-news banner | `backend/api/admin/breaking-news.ts` | Implemented — its table is in `database/schema.sql` since `db28a46`, to be applied by the owner (DEF-07) |
 
 ## 7. Non-functional requirements
 
 | ID | Requirement | Current reality |
 |---|---|---|
-| NFR-01 | A reader request should not call the upstream API | **Not met.** Every uncached request reaches NewsData.io |
+| NFR-01 | A reader request should not call the upstream API | **Unmeasured since 2026-10-30.** It was not met while every Supabase call failed (DEF-01); Supabase answers again, and the store is read first. Measure in production with the `X-Data-Source` header |
 | NFR-02 | No third-party outage produces a user-visible error | Met — arguably over-met; see §11 |
-| NFR-03 | Abuse-prone endpoints are rate-limited | **Partial.** Chat and translate only; login and scraper unprotected |
-| NFR-04 | Request bodies and upstream responses are size-capped | **Not met.** No cap on chat message, translate array, or scraped response |
-| NFR-05 | Secrets never reach the browser or an error report | Met — `shared/validation/sentryScrub.ts` redacts; no secret is `NEXT_PUBLIC_` |
-| NFR-06 | Stored articles are purged after 7 days | Met, on the wrong execution path |
+| NFR-03 | Abuse-prone endpoints are rate-limited | **Met in code.** Chat and translate per IP in memory, with eviction; login (10 per 15 min) and the public scraper (30 per min, stored articles only) on Redis with an in-memory fallback. On Redis: a production check |
+| NFR-04 | Request bodies and upstream responses are size-capped | **Met.** Chat 16 KB / 2,000 characters; translate 64 KB, 50 texts, 5,000 characters each and 10,000 in all; scraped pages 5 MB (`58c7f7d`) |
+| NFR-05 | Secrets never reach the browser or an error report | Met — `shared/validation/sentryScrub.ts` redacts nine keys; no secret is read under a `NEXT_PUBLIC_` name (the last fallback went in `45223f0`) |
+| NFR-06 | Stored articles are purged after 7 days | Met — once per cron run (`2f31bad`) |
 | NFR-07 | Usable at 400 px width | Appears met from the breakpoint set; **not verified in a browser** |
 | NFR-08 | Typecheck, lint, test and build pass on every commit | Met, and enforced in CI since `506a4ab` |
-| NFR-09 | No dependency carries a known critical advisory | **Not met.** 2 critical, 9 high — including the framework |
-| NFR-10 | Business logic is covered by tests | **Not met.** Measured baseline: 3.62% statements (428 of 11,795) at `73e207f`. It fell 4.41% → 3.50% when the well-covered paraphraser was deleted, not because any test regressed; it has since crept up only because later deletions shrank the denominator — 428 statements have been covered throughout (BL-003) |
+| NFR-09 | No dependency carries a known critical advisory | **Met.** `npm audit` on 2026-11-02: 0 critical, 0 high; 34 moderate and 3 low, all in dev and build tooling (`AUDIT-FINDINGS.md`, npm audit) |
+| NFR-10 | Business logic is covered by tests | **Met for non-UI modules.** On 2026-11-02: 61.51% of statements in `backend/` and `shared/` (3,448 of 5,606, 44 files); 47.01% overall (5,968 of 12,694, 80 files), with `frontend/` at 34.24%. Earlier baseline: 3.62% statements (428 of 11,795) at `73e207f`. It fell 4.41% → 3.50% when the well-covered paraphraser was deleted, not because any test regressed; it has since crept up only because later deletions shrank the denominator — 428 statements have been covered throughout (BL-003) |
 
 ## 8. Compatibility requirements
 
@@ -178,7 +179,7 @@ B-tree at all — wants **`pg_trgm`**). Not urgent at seven-day volume; a cliff 
 | Service | Purpose | On failure | Assessment |
 |---|---|---|---|
 | NewsData.io | Source of all articles | 5 built-in mock articles | Correct; the mock set is obviously synthetic |
-| Supabase | Storage, 7-day window | **Silently serves upstream** | **Too quiet.** Invisible and expensive — DEF-01 |
+| Supabase | Storage, 7-day window | Serves upstream, and says so | `/api/health` answers 503, and each fallback is reported to Sentry, rate-limited (D5). Was silent: DEF-01 |
 | Upstash Redis | Shared cache | In-process `Map` | Correct, trade-off documented in code |
 | Anthropic | Chat + classification | Chat 503; classifier fails open | Fail-open on classification is the right call |
 | Google Translate | On-demand translation | Returns the original string | Unofficial endpoint — fine at this volume, not a foundation |
@@ -186,36 +187,37 @@ B-tree at all — wants **`pg_trgm`**). Not urgent at seven-day volume; a cliff 
 
 ## 11. Known defects — NOT requirements
 
-Current, observable behaviour that is a defect. Listed here so no future reader mistakes it for
-intent. **Do not promote any of these into §6.**
+Behaviour that was a defect when found. Listed here so no future reader mistakes it for intent.
+**Do not promote any of these into §6.** The Behaviour column describes the defect as found; Status
+records what happened to it (statuses as in [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md), 2026-11-02).
 
-| ID | Behaviour | Severity |
-|---|---|---|
-| DEF-01 | Every Supabase call fails; app silently serves upstream instead | **Critical** |
-| DEF-02 | Scraper follows up to 21 redirects, none re-validated — defeats the SSRF guard running immediately before it | **Critical** |
-| DEF-03 | Two of four publisher links render an unvalidated `targetUrl` from the query string. Branded phishing surface | High |
-| DEF-04 | AI panel prints a canned "Key Takeaway" when the API fails, as if it were a real answer. `Chatbot.tsx` handles the same failure honestly | High |
-| DEF-05 | `purgeOldArticles()` runs a DELETE on the feed read path | Medium |
-| DEF-06 | Admin login unthrottled; password compare returns early on length mismatch, leaking length | High |
-| DEF-07 | `breaking_news` and `admin_logs` exist only as SQL inside route-file comments | High |
-| DEF-08 | Feed fetches 80 rows, filters in JS, slices to 40 — under-fills exactly when a spam source floods | Medium |
-| DEF-09 | ~~Contact form and newsletter show success, send nothing.~~ **Resolved by removal** in `59b875d`: all three forms deleted — the contact form and **two** newsletter forms, footer and article sidebar (owner decision Q4). A real backend is future work, BL-005 | Resolved |
-| DEF-10 | Scraper returns HTTP 200 with placeholder prose on failure; UI detects errors by string-matching three hard-coded sentences | Medium |
-| DEF-11 | `next` 16.3.0 carries 13 advisories, four of them critical unauthenticated RCE; fixed in a non-major release (audit F-001) | **Critical** |
-| DEF-12 | The feed search interpolates the raw query into a PostgREST `.or()` filter string — filter injection (audit F-006) | High |
-| DEF-13 | `axios` 1.19.0 carries advisories including redirect-based SSRF and ReDoS (audit F-007) | High |
-| DEF-14 | `.env.local.example` documents `ADMIN_SECRET_TOKEN`, which no code reads, and omits `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`, which the code requires (audit F-009; README is already correct) | High |
-| DEF-15 | No input size caps: translate `texts[]` (count and item length), chat `message`, scraper response size (audit F-010) | High |
-| DEF-16 | The public scraper, which makes arbitrary outbound requests, has no rate limit (audit F-011) | High |
-| DEF-17 | Admin purge and sync show a success message from their `catch` blocks, and nothing when `!res.ok` (audit F-014) | Medium |
-| DEF-18 | Two indexes for seven filtered columns: array `.contains()` wants GIN, `ILIKE '%x%'` wants `pg_trgm` (audit F-018) | Medium |
-| DEF-19 | The in-memory rate limiter never evicts keys — unbounded memory growth (audit F-020) | Medium |
-| DEF-20 | The home feed starts overlapping fetches with no `AbortController` or sequence guard; a stale response can overwrite a fresh one (audit F-021) | Medium |
-| DEF-21 | Article page title is doubled: `… \| TimesPrime News \| TimesPrime News` (audit F-022) | Low |
-| DEF-22 | `translateHeadline()` ignores its `lang` argument yet runs on every card title and description (audit F-024) | Low |
-| DEF-23 | Node version drift: `.node-version` and CI use 20, the local runtime is 24, `package.json` has no `engines`, Vercel's version is unconfirmed (audit F-026) | Low |
-| DEF-24 | The chat drawer has no dark mode (audit F-027) | Low |
-| DEF-25 | Theme flash on load: the theme is read from `localStorage` in an effect, after first paint (audit F-028) | Low |
+| ID | Behaviour | Severity | Status |
+|---|---|---|---|
+| DEF-01 | Every Supabase call fails; app silently serves upstream instead | **Critical** | Pending verification — reachable again; production check (F-002) |
+| DEF-02 | Scraper follows up to 21 redirects, none re-validated — defeats the SSRF guard running immediately before it | **Critical** | Resolved `2e383cb`, `1145bca` |
+| DEF-03 | Two of four publisher links render an unvalidated `targetUrl` from the query string. Branded phishing surface | High | Resolved `8d0b775` |
+| DEF-04 | AI panel prints a canned "Key Takeaway" when the API fails, as if it were a real answer. `Chatbot.tsx` handles the same failure honestly | High | Resolved `86bdf78` |
+| DEF-05 | `purgeOldArticles()` runs a DELETE on the feed read path | Medium | Resolved `2f31bad` |
+| DEF-06 | Admin login unthrottled; password compare returns early on length mismatch, leaking length | High | Resolved `7eb9253` |
+| DEF-07 | `breaking_news` and `admin_logs` exist only as SQL inside route-file comments | High | Pending verification — SQL in `db28a46`, to be applied |
+| DEF-08 | Feed fetches 80 rows, filters in JS, slices to 40 — under-fills exactly when a spam source floods | Medium | Resolved `2e3fa0b` |
+| DEF-09 | ~~Contact form and newsletter show success, send nothing.~~ **Resolved by removal** in `59b875d`: all three forms deleted — the contact form and **two** newsletter forms, footer and article sidebar (owner decision Q4). A real backend is future work, BL-005 | Medium | Resolved `59b875d` |
+| DEF-10 | Scraper returns HTTP 200 with placeholder prose on failure; UI detects errors by string-matching three hard-coded sentences | Medium | Resolved `b7f6fbc` |
+| DEF-11 | `next` 16.3.0 carries 13 advisories, four of them critical unauthenticated RCE; fixed in a non-major release (audit F-001) | **Critical** | Resolved `47e62ae` |
+| DEF-12 | The feed search interpolates the raw query into a PostgREST `.or()` filter string — filter injection (audit F-006) | High | Pending verification — fixed `4b33611`, `614e514`; live probe |
+| DEF-13 | `axios` 1.19.0 carries advisories including redirect-based SSRF and ReDoS (audit F-007) | High | Resolved `56e7509` |
+| DEF-14 | `.env.local.example` documents `ADMIN_SECRET_TOKEN`, which no code reads, and omits `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`, which the code requires (audit F-009; README is already correct) | High | Resolved `10c8b47` |
+| DEF-15 | No input size caps: translate `texts[]` (count and item length), chat `message`, scraper response size (audit F-010) | High | Resolved `58c7f7d` |
+| DEF-16 | The public scraper, which makes arbitrary outbound requests, has no rate limit (audit F-011) | High | Resolved `3b63a37`, `988c7fa` |
+| DEF-17 | Admin purge and sync show a success message from their `catch` blocks, and nothing when `!res.ok` (audit F-014) | Medium | Resolved `5997567` |
+| DEF-18 | Two indexes for seven filtered columns: array `.contains()` wants GIN, `ILIKE '%x%'` wants `pg_trgm` (audit F-018) | Medium | Pending verification — migration in `4898da4`, to be applied |
+| DEF-19 | The in-memory rate limiter never evicts keys — unbounded memory growth (audit F-020) | Medium | Resolved `b44203d` |
+| DEF-20 | The home feed starts overlapping fetches with no `AbortController` or sequence guard; a stale response can overwrite a fresh one (audit F-021) | Medium | Resolved `9ce42bc` |
+| DEF-21 | Article page title is doubled: `… \| TimesPrime News \| TimesPrime News` (audit F-022) | Low | Resolved `ef510f9` |
+| DEF-22 | `translateHeadline()` ignores its `lang` argument yet runs on every card title and description (audit F-024) | Low | Resolved `3de9a1e` |
+| DEF-23 | Node version drift: `.node-version` and CI use 20, the local runtime is 24, `package.json` has no `engines`, Vercel's version is unconfirmed (audit F-026) | Low | Pending verification — Vercel's Node setting (`974b255`) |
+| DEF-24 | The chat drawer has no dark mode (audit F-027) | Low | Resolved `7ead49b` |
+| DEF-25 | Theme flash on load: the theme is read from `localStorage` in an effect, after first paint (audit F-028) | Low | Partial `5ad891a` — `isDark` ternaries remain, BL-028 |
 
 **Audit cross-reference.** The 2026-10-29 audit (F-001..F-028, at commit `0e7f1f7`) maps onto this
 register as: DEF-01 = F-002, DEF-02 = F-003, DEF-03 = F-005, DEF-04 = F-013, DEF-05 = F-015,
@@ -230,10 +232,13 @@ rates DEF-02 Critical and DEF-04 High — both ratings are kept, and the ledger 
 `href="javascript:throw new Error('React has blocked a javascript: URL…')"`. The *phishing* half
 (DEF-03) is real; the XSS half is not.
 
-**Dependencies.** `npm audit` reports 2 critical and 9 high. `next` 16.3.0 carries four critical
-unauthenticated-RCE advisories; the fix is a **patch bump to 16.4.3**. The AVIF and SVG RCE paths
-appear closed by this configuration (`formats` defaults to webp-only, `dangerouslyAllowSVG` is
-false), and the Sentry critical advisory requires `tunnelRoute`, which is not set. Upgrade anyway.
+**Dependencies.** At the audit, `npm audit` reported 2 critical and 9 high, including four critical
+unauthenticated-RCE advisories in `next` 16.3.0. Phase 1 cleared them: `next` 16.4.3 (`47e62ae`), axios
+(`56e7509`), @sentry/nextjs (`31f4a54`) and transitive packages (`5970692`). On 2026-11-02 there are
+0 critical and 0 high: 34 moderate (`glob` and `minimatch`, published since, in dev and build tooling;
+the only fixes are major-version changes) and 3 low (the accepted jest set). The AVIF and SVG RCE
+paths were refuted (`formats` defaults to webp-only, `dangerouslyAllowSVG` is false). Sentry's
+`tunnelRoute` is not set and must never be enabled: all authorization lives in `proxy.ts`.
 
 ## 12. Owner decisions (2026-10-29)
 
@@ -259,12 +264,12 @@ review as BL-008.
 
 | Metric | Target | Why this number |
 |---|---|---|
-| Reader requests served without an upstream call | ≥ 95% | The storage tier exists for this; currently ~0% |
+| Reader requests served without an upstream call | ≥ 95% | The storage tier exists for this. ~0% while Supabase failed; unmeasured since (production) |
 | Upstream calls per day | ≤ 350 | 7 categories × 48 cron runs, plus headroom |
 | Feed items surviving the filter pipeline | 30–40 per category | Below 30 suggests over-filtering (DEF-08) |
 | Scrape success (real text, not fallback copy) | ≥ 85% | Measured ~96% in a 120-URL sample |
-| Statement coverage, non-UI modules | ≥ 60% | From 3.62%; security and data modules first |
-| Critical/high dependency advisories | 0 | Currently 2 critical, 9 high |
+| Statement coverage, non-UI modules | ≥ 60% | 61.51% on 2026-11-02 (`backend/` and `shared/`), from 3.62% |
+| Critical/high dependency advisories | 0 | 0 on 2026-11-02, from 2 critical and 9 high |
 
 ## 14. Appendix — environment variables
 
@@ -273,8 +278,8 @@ Set in `.env.local` locally and in the Vercel dashboard in production. **Never c
 | Variable | Required | Purpose |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | yes | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | Public anon key; RLS restricts it to reads |
-| `SUPABASE_SERVICE_ROLE_KEY` | server | Bypasses RLS for server writes. Never expose to the client |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | Public anon key; RLS restricts it to reads. Used only without the service-role key, and then every write fails (BL-025) |
+| `SUPABASE_SERVICE_ROLE_KEY` | server, required in production | Bypasses RLS for server writes. Never expose to the client |
 | `NEWSDATA_API_KEY` | yes | Upstream news. Without it the app serves mock articles |
 | `ANTHROPIC_API_KEY` | yes | Chat and category classification |
 | `ADMIN_PASSWORD` | yes | Admin password, compared in constant time |
@@ -286,5 +291,6 @@ Set in `.env.local` locally and in the Vercel dashboard in production. **Never c
 | `NEXT_PUBLIC_APP_URL` | prod | Public origin; CORS and OpenGraph |
 | `NEXT_PUBLIC_BASE_URL` | optional | Base URL for the server's own internal fetches |
 
-`ADMIN_SECRET_TOKEN` appears in some older `.env.local` files and is **read by nothing** — a
-leftover from a stale example file.
+`.env.local.example` lists exactly these variables, and a test keeps it in step with the code (F-009,
+`10c8b47`). `ADMIN_SECRET_TOKEN` and `MEDIASTACK_API_KEY` appear in some older `.env.local` files
+and are **read by nothing**; `NEXT_PUBLIC_NEWSDATA_API_KEY` is no longer read either (`45223f0`).
