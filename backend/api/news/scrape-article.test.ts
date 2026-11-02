@@ -209,3 +209,56 @@ describe("GET /api/news/scrape-article — per-IP rate limit (F-011)", () => {
     expect((await scrape("https://publisher.example/story", "192.0.2.53")).status).toBe(200);
   });
 });
+
+// BL-016 characterization: the public route's response shapes. Pinned before
+// the scrape logic moves into backend/services/scrape; they must not change.
+describe("GET /api/news/scrape-article — response shapes (characterization, BL-016)", () => {
+  const cacheMock = (jest.requireMock("@/backend/lib/cache") as { cache: { get: jest.Mock; set: jest.Mock } }).cache;
+  afterEach(() => cacheMock.get.mockResolvedValue(null));
+
+  test("an extracted article", async () => {
+    web["https://publisher.example/story"] = { status: 200, body: ARTICLE };
+    const body = await (await scrape("https://publisher.example/story")).json();
+    expect(Object.keys(body).sort()).toEqual(["content", "isPaywalled", "text", "title", "url"]);
+    expect(body).toMatchObject({ url: "https://publisher.example/story", title: "Budget passes", isPaywalled: false });
+    expect(body.text).toBe(body.content.join("\n\n"));
+  });
+
+  test("a cached answer", async () => {
+    cacheMock.get.mockResolvedValue({ title: "Cached", content: ["c"], text: "c", description: "d", image: "i" });
+    const res = await scrape("https://publisher.example/story");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      url: "https://publisher.example/story", title: "Cached", content: ["c"], text: "c",
+      isPaywalled: false, description: "d", image: "i", cached: true,
+    });
+  });
+
+  test("a paywalled page", async () => {
+    web["https://publisher.example/locked"] = {
+      status: 200,
+      body: '<html><head><meta name="access" content="paid"><meta property="og:title" content="Locked story"></head><body></body></html>',
+    };
+    const res = await scrape("https://publisher.example/locked");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      url: "https://publisher.example/locked", title: "Locked story", content: [], text: "",
+      isPaywalled: true, description: "", image: "",
+    });
+  });
+
+  test("a failed fetch: 200 with the placeholder", async () => {
+    web["https://publisher.example/broken"] = { status: 500 };
+    const res = await scrape("https://publisher.example/broken");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ title: "Full Story Coverage", isPaywalled: false, text: "Full story details." });
+    expect(body.content).toEqual(["Full article coverage details for this report are available directly on the official publisher website below."]);
+  });
+
+  test("a missing url: 400", async () => {
+    const res = await GET(new NextRequest("http://localhost:3000/api/news/scrape-article"));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Missing required query parameter: url" });
+  });
+});

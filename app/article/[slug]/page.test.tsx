@@ -94,3 +94,55 @@ describe("the app's own links reach the lookup exactly as stored", () => {
     expect(findKnownArticle).toHaveBeenCalledWith(link);
   });
 });
+
+// BL-016 characterization: what the view receives for each scraper outcome.
+// Written while the page reached the scraper over HTTP; these expectations
+// must hold unchanged once it calls the backend directly.
+describe("the page's scrape behaviour (characterization, BL-016)", () => {
+  const FALLBACK = {
+    title: "Full Story Coverage",
+    content: ["Full article coverage details for this report are available directly on the official publisher website below."],
+  };
+
+  function scraperAnswers(outcome: { status: number; body: object } | Error) {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      requests.push(String(input));
+      if (String(input).includes("scrape-article")) {
+        if (outcome instanceof Error) throw outcome;
+        return new Response(JSON.stringify(outcome.body), { status: outcome.status });
+      }
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+  }
+
+  test("a successful scrape reaches the view exactly as the scraper returned it", async () => {
+    const body = { url: KNOWN, title: "Budget passes", content: ["p1", "p2"], text: "p1\n\np2", isPaywalled: false };
+    scraperAnswers({ status: 200, body });
+    expect((await render({ url: KNOWN })).scrapedData).toEqual(body);
+  });
+
+  test("a paywalled answer reaches the view as returned", async () => {
+    const body = { url: KNOWN, title: "Locked", content: [], text: "", isPaywalled: true, description: "d", image: "" };
+    scraperAnswers({ status: 200, body });
+    expect((await render({ url: KNOWN })).scrapedData).toEqual(body);
+  });
+
+  test.each([
+    ["an error status", { status: 500, body: { error: "boom" } }],
+    ["a refusal", { status: 400, body: { error: "Invalid target URL" } }],
+    ["a network failure", new Error("ECONNREFUSED")],
+  ])("%s gives the view the fallback text", async (_label, outcome) => {
+    scraperAnswers(outcome as { status: number; body: object } | Error);
+    expect((await render({ url: KNOWN })).scrapedData).toEqual(FALLBACK);
+  });
+
+  test("no url gives the overview, and no scrape", async () => {
+    scraperAnswers({ status: 200, body: {} });
+    const { scrapedData } = await render({});
+    expect(scrapedData).toEqual({
+      title: "Story Overview",
+      content: ["Full coverage details for this article are presented below. Click the external publisher link to read directly on the source website."],
+    });
+    expect(requests.some((r) => r.includes("scrape-article"))).toBe(false);
+  });
+});
