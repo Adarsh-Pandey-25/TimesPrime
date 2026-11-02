@@ -3,8 +3,13 @@
  */
 
 jest.mock("@/backend/services/health/health", () => ({ getHealth: jest.fn() }));
+// The gate is tested in access.test.ts; here it lets the request through.
+jest.mock("@/backend/auth/requirePermission", () => ({ requirePermission: jest.fn(async () => ({ ok: true, actor: {} })) }));
 
-import { GET } from "./health";
+import { NextRequest } from "next/server";
+import { GET as handler } from "./health";
+
+const GET = () => handler(new NextRequest("http://localhost:3000/api/admin/health"));
 
 const { getHealth } = jest.requireMock("@/backend/services/health/health") as { getHealth: jest.Mock };
 
@@ -19,8 +24,7 @@ const report = {
   },
 };
 
-// The session check lives in proxy.ts, not here; the next start probe
-// covers it (no session -> 401).
+// The permission check (health.view) is covered by access.test.ts.
 describe("GET /api/admin/health (behind the admin session)", () => {
   test("returns the per-dependency detail, 503 while degraded", async () => {
     getHealth.mockResolvedValue(report);

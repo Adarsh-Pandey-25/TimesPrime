@@ -27,6 +27,9 @@ jest.mock("@/backend/repositories/auditLog", () => {
   return { recordAudit: jest.fn(async () => "audit-id"), recordSystemAudit: jest.fn(), logAdminAction: jest.fn(), AuditWriteError };
 });
 jest.mock("@/backend/lib/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
+jest.mock("@/backend/services/health/health", () => ({
+  getHealth: jest.fn(async () => ({ status: "ok", checkedAt: "2026-11-10T00:00:00Z", dependencies: {} })),
+}));
 // The news service writes through its own client; here its writes are recorded like the tables'.
 jest.mock("@/backend/services/news", () => ({
   saveArticlesToDB: jest.fn(async () => {
@@ -55,6 +58,8 @@ import * as breakingNews from "./breaking-news";
 import * as publish from "./publish-article";
 import * as seed from "./seed-supabase";
 import * as dbStats from "./db-stats";
+import * as stats from "./stats";
+import * as health from "./health";
 
 const { supabase } = jest.requireMock("@/backend/lib/supabase") as { supabase: { from: jest.Mock } };
 
@@ -267,6 +272,22 @@ const CASES: Case[] = [
     method: "GET",
     handler: dbStats.GET,
     allowed: { role: "writer", language: "en" },
+    changes: false,
+  },
+  {
+    path: "/api/admin/stats",
+    method: "GET",
+    handler: stats.GET,
+    allowed: { role: "writer", language: "en" },
+    data: { articles: { data: [], error: null, count: 0 } },
+    changes: false,
+  },
+  // Ingestion Ops holds health.view as R; the shared password holds no settings permission (Q3).
+  {
+    path: "/api/admin/health",
+    method: "GET",
+    handler: health.GET,
+    allowed: { role: "ingestion_ops", language: null },
     changes: false,
   },
 ];

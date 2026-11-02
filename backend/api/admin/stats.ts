@@ -1,11 +1,14 @@
 import "server-only";
 
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
+import { ADMIN_ROUTE_RULES } from "@/backend/auth/adminRoutePolicy";
+import { requirePermission } from "@/backend/auth/requirePermission";
 
-// Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),
-// so by the time a request reaches this handler it has already been validated.
+// Gated by requirePermission, the only gate on this path (service_role bypasses RLS; Panel 0):
+// stats.view in any scope. The numbers are totals over public articles; per-desk stats are Panel 6.
+const RULE = ADMIN_ROUTE_RULES["/api/admin/stats"].GET;
 
 // Supabase caps a single .select() at 1000 rows regardless of an explicit
 // range, so a full-table scan for the category/language breakdown has to
@@ -67,7 +70,10 @@ async function fetchAllCategoryLanguageCountry(): Promise<BreakdownRow[]> {
  * presentation concern for the caller, not something to hide here.
  * countryBreakdown is capped to the top TOP_COUNTRIES_LIMIT by count.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const gate = await requirePermission(request, RULE);
+  if (!gate.ok) return gate.response;
+
   try {
     if (!isSupabaseConfigured()) {
       return NextResponse.json(
