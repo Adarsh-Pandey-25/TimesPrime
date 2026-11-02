@@ -29,9 +29,15 @@ import { MOVES, KNOWN, SLICE_NAMES, SLICE_CHECKLIST } from "./move-map.mjs";
 
 const all = execSync("git ls-files", { encoding: "utf8" }).split("\n").map((s) => s.trim()).filter(Boolean);
 const tracked = new Set(all);
-// Source files in the graph: every tracked .ts/.tsx except tooling configs and declarations.
+// Source files in the graph: every tracked .ts/.tsx except tooling configs and declarations. e2e/
+// (the browser tests) is tooling like scripts/: it reaches the app over HTTP, never by import.
 const files = all.filter(
-  (f) => /\.(ts|tsx)$/.test(f) && !/\.d\.ts$/.test(f) && !/^(jest\.config|jest\.setup)\.ts$/.test(f) && !f.startsWith("scripts/")
+  (f) =>
+    /\.(ts|tsx)$/.test(f) &&
+    !/\.d\.ts$/.test(f) &&
+    !/^(jest\.config|jest\.setup|playwright\.config)\.ts$/.test(f) &&
+    !f.startsWith("scripts/") &&
+    !f.startsWith("e2e/")
 );
 
 // Slice 1 lifts src/ to the root, so a pending move's file may sit at src/x or at x.

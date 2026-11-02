@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NextResponse, type NextRequest } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { enrollTotp, getMfaState, verifyTotp } from "@/backend/auth/mfa";
 import { auditEvent, requireSession } from "@/backend/auth/requirePermission";
 import { createRouteClient } from "@/backend/auth/supabaseServer";
@@ -39,14 +40,22 @@ export async function POST(request: NextRequest) {
 
   const client = await createRouteClient();
   const state = client ? await getMfaState(client) : null;
-  if (!client || !state) return json({ error: "Could not read your second-factor status. Try again." }, 503);
+  if (!client || !state) {
+    // No client: Supabase is not configured, a set-up state the sign-in route answers too. A failed
+    // read with a client is Auth failing, which is reported.
+    if (client) Sentry.captureMessage("MFA: the factors could not be read", { level: "error", tags: { source: "supabase" }, extra: { operation: "listFactors" } });
+    return json({ error: "Could not read your second-factor status. Try again." }, 503);
+  }
 
   if (input.action === "enroll") {
     if (state.enrolled) {
       return json({ error: "A second factor is already set up. Ask an administrator to reset it if you lost the device." }, 409);
     }
     const enrolment = await enrollTotp(client, state);
-    if (!enrolment) return json({ error: "Could not start the set-up. Try again." }, 502);
+    if (!enrolment) {
+      Sentry.captureMessage("MFA: the enrolment could not start", { level: "error", tags: { source: "supabase" }, extra: { operation: "enroll" } });
+      return json({ error: "Could not start the set-up. Try again." }, 502);
+    }
     await auditEvent(actor, "auth.mfa_enroll_started", "succeeded");
     return json(enrolment);
   }

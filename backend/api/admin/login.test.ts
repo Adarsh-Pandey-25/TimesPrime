@@ -18,6 +18,7 @@ jest.mock("@/backend/repositories/auditLog", () => {
   return { recordAudit: jest.fn(async () => "audit-id"), AuditWriteError };
 });
 
+import * as Sentry from "@sentry/nextjs";
 import { NextRequest } from "next/server";
 import { POST } from "./login";
 import { createRouteClient } from "@/backend/auth/supabaseServer";
@@ -188,10 +189,12 @@ describe("POST /api/admin/login — staff accounts (Panel 0)", () => {
     expect(recordAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "auth.sign_in", outcome: "failed", reason: code }));
   });
 
-  test("the staff record cannot be read: signed back out, 503", async () => {
-    (loadStaffRecord as jest.Mock).mockRejectedValue(new Error("down"));
+  test("the staff record cannot be read: signed back out, 503, and Sentry hears of it", async () => {
+    const down = new Error("down");
+    (loadStaffRecord as jest.Mock).mockRejectedValue(down);
     expect((await staffLogin("asha@example.com", "pw")).status).toBe(503);
     expect(auth.signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(Sentry.captureException).toHaveBeenCalledWith(down, { tags: { source: "supabase" }, extra: { operation: "loadStaffRecord", at: "sign-in" } });
   });
 
   test("Supabase not configured: 503, the shared password still works", async () => {

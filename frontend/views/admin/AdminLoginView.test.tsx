@@ -139,3 +139,26 @@ describe("staff sign-in and the second factor (Panel 0)", () => {
     expect(screen.getByRole("button", { name: /shared admin password/i })).toBeInTheDocument();
   });
 });
+
+describe("its states", () => {
+  test("while the server answers: the button says so and cannot be pressed again", async () => {
+    await renderPage();
+    global.fetch = jest.fn(() => new Promise(() => {})) as unknown as typeof fetch;
+    typeInto(/email/i, "asha@example.com");
+    typeInto(/^password$/i, "pw");
+    await submit(/^sign in$/i);
+    expect(screen.getByRole("button", { name: "Signing in..." })).toBeDisabled();
+  });
+
+  test("a network failure: its own message, as an alert, and the form stays", async () => {
+    await renderPage();
+    global.fetch = jest.fn(async () => {
+      throw new TypeError("fetch failed");
+    }) as unknown as typeof fetch;
+    typeInto(/email/i, "asha@example.com");
+    typeInto(/^password$/i, "pw");
+    await submit(/^sign in$/i);
+    expect(screen.getByRole("alert")).toHaveTextContent("Network error. Please try again.");
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
+  });
+});

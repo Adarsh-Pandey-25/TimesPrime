@@ -125,13 +125,13 @@ export default function ActivityLog() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-300 bg-red-50 dark:border-red-900/50 dark:bg-red-950/40 p-3 text-xs font-semibold text-red-700 dark:text-red-300">
+        <div role="alert" className="rounded-xl border border-red-300 bg-red-50 dark:border-red-900/50 dark:bg-red-950/40 p-3 text-xs font-semibold text-red-700 dark:text-red-300">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="space-y-2">
+        <div role="status" aria-label="Loading activity" className="space-y-2">
           {Array.from({ length: 5 }).map((_, idx) => (
             <div key={idx} className={`h-14 rounded-xl animate-pulse ${isDark ? "bg-slate-900" : "bg-slate-100"}`} />
           ))}

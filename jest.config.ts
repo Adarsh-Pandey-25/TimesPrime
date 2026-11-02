@@ -39,6 +39,8 @@ const config: Config = {
   ],
   testEnvironment: "jsdom",
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
+  // e2e/ is Playwright's (npm run test:e2e), not the unit suite.
+  testPathIgnorePatterns: ["/node_modules/", "/.next/", "<rootDir>/e2e/"],
   moduleNameMapper: {
     // Mirrors tsconfig "paths", as the Next jest guide recommends: one alias per
     // layer and no catch-all, so every import names its layer. In practice

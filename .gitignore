@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 !.env.local.example
 
+# Playwright (npm run test:e2e)
+/test-results/
+/playwright-report/
+
 # vercel
 .vercel
 

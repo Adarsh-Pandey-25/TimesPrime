@@ -291,7 +291,7 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {!me && !meError && <p className="text-xs text-slate-500 dark:text-slate-400">Checking your access…</p>}
+        {!me && !meError && <p role="status" className="text-xs text-slate-500 dark:text-slate-400">Checking your access…</p>}
 
         {me && !needsCode && (
         <>
@@ -485,10 +485,11 @@ export default function AdminDashboardPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
+                <label htmlFor="publish-category" className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
                   Category ID
                 </label>
                 <select
+                  id="publish-category"
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
                   className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${

@@ -18,6 +18,7 @@ jest.mock("@/backend/repositories/auditLog", () => {
 });
 jest.mock("@/backend/auth/supabaseServer", () => ({ createRouteClient: jest.fn() }));
 
+import * as Sentry from "@sentry/nextjs";
 import { NextRequest } from "next/server";
 import { POST } from "./mfa";
 import { readSession } from "@/backend/auth/staffSession";
@@ -124,6 +125,30 @@ describe("verify", () => {
     const res = await post({ action: "verify", code: "000000" });
     expect(res.status).toBe(429);
     expect(res.headers.get("retry-after")).not.toBeNull();
+  });
+});
+
+describe("failures reach Sentry", () => {
+  test("the factors cannot be read: 503, reported", async () => {
+    mfa.listFactors.mockResolvedValue({ data: null, error: { message: "auth down" } });
+    const res = await post({ action: "enroll" });
+    expect(res.status).toBe(503);
+    expect(Sentry.captureMessage).toHaveBeenCalledWith("MFA: the factors could not be read", { level: "error", tags: { source: "supabase" }, extra: { operation: "listFactors" } });
+  });
+
+  test("the enrolment cannot start: 502, reported", async () => {
+    mfa.enroll.mockResolvedValue({ data: null, error: { message: "totp disabled" } });
+    const res = await post({ action: "enroll" });
+    expect(res.status).toBe(502);
+    expect(Sentry.captureMessage).toHaveBeenCalledWith("MFA: the enrolment could not start", { level: "error", tags: { source: "supabase" }, extra: { operation: "enroll" } });
+  });
+
+  test("a wrong code is not a failure of the system: not reported", async () => {
+    mfa.listFactors.mockResolvedValue({ data: { all: [{ id: "f-1", factor_type: "totp", status: "verified" }] }, error: null });
+    mfa.challengeAndVerify.mockResolvedValue({ data: null, error: { message: "Invalid TOTP code entered" } });
+    expect((await post({ action: "verify", code: "123456" })).status).toBe(401);
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 });
 

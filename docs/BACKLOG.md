@@ -669,3 +669,30 @@ predates the indexes migration and Panel 0's access migrations, and does not poi
 It should list the files in their order and link `docs/runbooks/apply-database.md` and
 `docs/runbooks/staff-access.md` instead. Left alone in that pass, which was limited to the Vercel
 wording.
+
+## BL-036 — The login limit trusts the first `X-Forwarded-For` address
+
+**Found:** Panel 0's browser tests (2026-11-02) · **Status:** Open — before the AWS deployment
+
+`getClientIp` (`backend/lib/rateLimit.ts`) takes the first address in `X-Forwarded-For`, then
+`X-Real-IP`. The sign-in limit (10 per 15 minutes) is counted per that address. On Vercel the
+platform sets the header, so the first address is the client's. Behind an AWS load balancer the
+balancer **appends** the client's address, and the first one is whatever the client sent: a
+guesser can send a new address with each attempt and never reach the limit. The per-user MFA limit
+(five codes per 15 minutes) is not affected. At the AWS move, read the address the balancer adds
+(the last entry, or a header it sets that clients cannot), and test it with a forged header.
+
+## BL-037 — Contrast in the public site's chrome
+
+**Found:** Panel 0's accessibility tests (2026-11-02) · **Status:** Open — public site
+
+axe (WCAG 2.1 AA) reports `color-contrast` (serious) on parts every page renders, outside Panel 0:
+- `frontend/features/news/BreakingNewsBanner.tsx`: the "🔴 BREAKING" label is white on red with
+  `animate-pulse`, which lowers its opacity, so it falls below 4.5:1 for part of every cycle.
+- `frontend/features/news/Header.tsx`: the 10px red "EN"/"HI" language marker, and the 11px
+  "Follow Us:" label in `text-slate-400` (dark theme).
+- `frontend/features/news/Footer.tsx`: the column headings and labels in `text-slate-400` at 10–11px.
+
+`e2e/accessibility.spec.ts` excludes exactly these three from its check of the sign-in page, which
+is Panel 0's. The fix is darker text (slate-500 and up on white) and no opacity pulse on text, or a
+pulse only under `prefers-reduced-motion: no-preference`.

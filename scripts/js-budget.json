@@ -1,0 +1,14 @@
+{
+  "$comment": "Raw client JS bytes per page route (scripts/check-js-budget.mjs). Each budget is the size measured on 2026-11-02 plus 5%, rounded up to the next KiB. Raise one only with an evidenced cause.",
+  "/_global-error/page": 633856,
+  "/_not-found/page": 649216,
+  "/about/page": 721920,
+  "/admin/login/page": 656384,
+  "/admin/page": 791552,
+  "/article/[slug]/page": 768000,
+  "/contact/page": 724992,
+  "/page": 751616,
+  "/privacy/page": 721920,
+  "/saved/page": 738304,
+  "/terms/page": 721920
+}

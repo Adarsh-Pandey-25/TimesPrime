@@ -12,10 +12,12 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "check:boundaries": "node scripts/check-move-map.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run check:boundaries && npm test && npm run build",
+    "check:js-budget": "node scripts/check-js-budget.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run check:boundaries && npm test && npm run build && npm run check:js-budget",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:ci": "jest --ci --coverage"
+    "test:ci": "jest --ci --coverage",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
