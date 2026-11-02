@@ -6,7 +6,7 @@
  * allowed twin, so a test that passes because everything is refused cannot hide here.
  */
 
-import { decide, decideLegacy, LEGACY_PERMISSIONS, type Assignment, type StaffRecord } from "./decide";
+import { ANY_SCOPE, decide, decideLegacy, LEGACY_PERMISSIONS, type Assignment, type StaffRecord } from "./decide";
 import type { Target } from "./scope";
 import { PERMISSION_KEYS, type AccessCode, type PermissionKey } from "@/shared/config/permissions";
 
@@ -155,6 +155,16 @@ describe("scope", () => {
   test("an act with no target is refused (a change always has a target)", () => {
     const d = decide({ staff: staff([assignment({ language: null })]), aal: "aal2", permission: "article.edit", mode: "act", now: NOW });
     expect(d).toMatchObject({ allowed: false, code: "forbidden" });
+  });
+
+  test("ANY_SCOPE: the pre-check before a route loads its target asks whether the permission is held in some scope", () => {
+    const hiOnly = staff([assignment({ language: "hi" })]);
+    const anywhere = (s: StaffRecord, permission: PermissionKey) =>
+      decide({ staff: s, aal: "aal2", permission, mode: "act", target: ANY_SCOPE, now: NOW });
+    expect(anywhere(hiOnly, "article.edit")).toMatchObject({ allowed: true });
+    expect(anywhere(hiOnly, "article.unpublish")).toMatchObject({ allowed: false, code: "forbidden" });
+    expect(anywhere(staff([assignment({ expiresAt: EARLIER })]), "article.edit")).toMatchObject({ allowed: false });
+    expect(decide({ staff: hiOnly, aal: "aal1", permission: "article.edit", mode: "act", target: ANY_SCOPE, now: NOW })).toMatchObject({ code: "mfa_required" });
   });
 
   test("one in-scope assignment among several is enough", () => {

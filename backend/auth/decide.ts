@@ -56,13 +56,20 @@ const ALLOWS: Record<Mode, ReadonlySet<AccessCode>> = {
 
 const deny = (code: DenyCode): Decision => ({ allowed: false, status: 403, code });
 
+/**
+ * "Held in some scope": the pre-check a route makes before it loads its target (an article it must
+ * read first), so that a caller with no grant at all is refused before any database read. It is
+ * never the final answer for a change: the route then decides again with the real target.
+ */
+export const ANY_SCOPE = "any" as const;
+
 export function decide(input: {
   staff: StaffRecord | null;
   aal: Aal;
   permission: PermissionKey;
   mode: Mode;
   /** Required to act. Omitted for a read that lists or totals: then any scope will do. */
-  target?: Target;
+  target?: Target | typeof ANY_SCOPE;
   now: Date;
 }): Decision {
   const { staff, aal, permission, mode, target, now } = input;
@@ -81,7 +88,7 @@ export function decide(input: {
     const grant = a.grants.find((g) => g.permission === permission);
     if (!grant) continue;
     if (grant.breakGlassOnly && !a.isBreakGlass) continue;
-    if (target && !covers(a, target)) continue;
+    if (target && target !== ANY_SCOPE && !covers(a, target)) continue;
     if (!ALLOWS[mode].has(grant.access)) {
       if (mode === "act" && grant.access === "A") needsApproval = true;
       continue;
