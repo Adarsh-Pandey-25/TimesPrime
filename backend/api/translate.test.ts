@@ -83,3 +83,22 @@ describe("POST /api/translate — input caps (F-010)", () => {
     expect(translateBatch).not.toHaveBeenCalled();
   });
 });
+
+describe("POST /api/translate — rate limit", () => {
+  test("the 11th request in a minute is 429 with Retry-After", async () => {
+    const send = () =>
+      POST(
+        new NextRequest("http://localhost:3000/api/translate", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-forwarded-for": "10.1.9.9" },
+          body: JSON.stringify({ texts: ["a"], target: "hi" }),
+        })
+      );
+    for (let i = 0; i < 10; i++) expect((await send()).status).toBe(200);
+    const res = await send();
+    expect(res.status).toBe(429);
+    const retryAfter = Number(res.headers.get("retry-after"));
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(60);
+  });
+});

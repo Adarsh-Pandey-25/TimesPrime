@@ -57,7 +57,21 @@ function recordHit(key: string, windowMs: number, now: number): number[] {
 
 /** Returns true if `key` has exceeded MAX_REQUESTS_PER_WINDOW requests in the last minute. */
 export function isRateLimited(key: string): boolean {
-  return recordHit(key, WINDOW_MS, Date.now()).length > MAX_REQUESTS_PER_WINDOW;
+  return limitDefault(key).limited;
+}
+
+/** isRateLimited with the wait: the decision /api/chat and /api/translate answer 429 + Retry-After from. */
+export function limitDefault(key: string): RateLimitDecision {
+  const now = Date.now();
+  return decide(recordHit(key, WINDOW_MS, now), MAX_REQUESTS_PER_WINDOW, WINDOW_MS, now);
+}
+
+// Every call counts, the retry included: it is allowed once at most limit - 1
+// of these hits remain in the window, i.e. once hits[length - limit] leaves it.
+function decide(hits: number[], limit: number, windowMs: number, now: number): RateLimitDecision {
+  const limited = hits.length > limit;
+  const blocking = hits[hits.length - limit] ?? now;
+  return { limited, retryAfterSeconds: limited ? Math.max(1, Math.ceil((blocking + windowMs - now) / 1000)) : 0 };
 }
 
 /** How many keys the limiter is holding. For tests. */
@@ -85,12 +99,7 @@ let warnedNoRedis = false;
 
 function checkInMemory(key: string, rule: RateLimitRule, now: number): RateLimitDecision {
   const windowMs = rule.windowSeconds * 1000;
-  const hits = recordHit(`${rule.name}:${key}`, windowMs, now);
-  const limited = hits.length > rule.limit;
-  // Every call counts, the retry included: it is allowed once at most limit - 1
-  // of these hits remain in the window, i.e. once hits[length - limit] leaves it.
-  const blocking = hits[hits.length - rule.limit] ?? now;
-  return { limited, retryAfterSeconds: limited ? Math.max(1, Math.ceil((blocking + windowMs - now) / 1000)) : 0 };
+  return decide(recordHit(`${rule.name}:${key}`, windowMs, now), rule.limit, windowMs, now);
 }
 
 export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<RateLimitDecision> {

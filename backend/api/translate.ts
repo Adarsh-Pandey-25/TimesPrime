@@ -3,7 +3,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { translateBatch } from "@/backend/services/translate/googleTranslate";
-import { isRateLimited, getClientIp } from "@/backend/lib/rateLimit";
+import { limitDefault, getClientIp } from "@/backend/lib/rateLimit";
 import { readJsonBody } from "@/backend/lib/readJsonBody";
 
 interface TranslateRequestBody {
@@ -31,10 +31,11 @@ const MAX_BODY_BYTES = 64 * 1024;
  */
 export async function POST(request: NextRequest) {
   try {
-    if (isRateLimited(`translate:${getClientIp(request)}`)) {
+    const rate = limitDefault(`translate:${getClientIp(request)}`);
+    if (rate.limited) {
       return NextResponse.json(
         { error: "Too many translation requests. Please try again shortly." },
-        { status: 429 }
+        { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
       );
     }
 

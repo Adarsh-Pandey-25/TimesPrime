@@ -130,6 +130,23 @@ describe("POST /api/chat", () => {
     expect(data.error).toMatch(/AI assistant unavailable/i);
   });
 
+  it("the 11th request in a minute is 429 with Retry-After", async () => {
+    const send = () =>
+      POST(
+        new NextRequest("http://localhost:3000/api/chat", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-forwarded-for": "10.0.9.9" },
+          body: JSON.stringify({ message: "Hello" }),
+        })
+      );
+    for (let i = 0; i < 10; i++) expect((await send()).status).toBe(200);
+    const res = await send();
+    expect(res.status).toBe(429);
+    const retryAfter = Number(res.headers.get("retry-after"));
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(60);
+  });
+
   // F-010: a message of any length went straight to the model. A question
   // typed into the chat box or the article panel is a sentence or two.
   describe("input caps (F-010)", () => {

@@ -3,7 +3,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/nextjs";
-import { isRateLimited, getClientIp } from "@/backend/lib/rateLimit";
+import { limitDefault, getClientIp } from "@/backend/lib/rateLimit";
 import { readJsonBody } from "@/backend/lib/readJsonBody";
 
 const MODEL = "claude-haiku-4-5"; // fast + cheap, good fit for chat
@@ -66,10 +66,11 @@ function buildSystemPrompt(articleContext?: ArticleContext): string {
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
-  if (isRateLimited(ip)) {
+  const rate = limitDefault(ip);
+  if (rate.limited) {
     return NextResponse.json(
       { error: "Too many requests. Please wait a moment and try again." },
-      { status: 429 }
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
     );
   }
 
