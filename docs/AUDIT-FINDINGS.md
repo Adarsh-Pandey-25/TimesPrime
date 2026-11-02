@@ -17,10 +17,10 @@ its ID.
 
 | Status | Count | Findings |
 |---|--:|---|
-| Resolved | 8 | F-001, F-003, F-005, F-007, F-012, F-019, F-023, F-025 |
+| Resolved | 10 | F-001, F-003, F-005, F-007, F-011, F-012, F-015, F-019, F-023, F-025 |
 | Pending verification | 2 | F-002 (production check), F-026 (Vercel setting) |
 | Partial | 1 | F-009 |
-| Open | 17 | everything else (Phase 2 fixes not yet recorded here are marked at the Phase 5 close-out) |
+| Open | 15 | everything else (Phase 2 fixes not yet recorded here are marked at the Phase 5 close-out) |
 
 ## Ledger
 
@@ -36,11 +36,11 @@ its ID.
 | F-008 | High | `admin_logs` and `breaking_news` DDL only in code comments | Open | `database/schema.sql` creates `articles` only (`:4`). DDL lives in comments in `backend/api/admin/breaking-news.ts:12` and `backend/api/admin/logs.ts:12` | DEF-07 |
 | F-009 | High | Documented env ≠ actual env | **Partial** | README (`ada0757`, lines 102–103) documents `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` correctly. **Open:** `.env.local.example` still lists `ADMIN_SECRET_TOKEN` (read by no code) and omits `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`. Also: `backend/api/admin/seed-supabase.ts:15` falls back to `NEXT_PUBLIC_NEWSDATA_API_KEY` — server-only code, so not a leak, but it invites a public-prefixed name for a secret | DEF-14 |
 | F-010 | High | No input size caps | Open | `backend/api/translate.ts:38` checks `texts` is a non-empty string array, no length or item cap. `backend/api/chat.ts` has no `message` length cap. Scraper `axios.get` (`backend/api/news/scrape-article.ts:412`) sets no `maxContentLength` / `maxBodyLength` | DEF-15 |
-| F-011 | High | Public scraper has no rate limit | Open | `backend/api/news/scrape-article.ts` imports no limiter. `backend/lib/rateLimit` is used only by `/api/chat` and `/api/translate` (`backend/api/chat.ts`, `backend/api/translate.ts`) | DEF-16 |
+| F-011 | High | Public scraper has no rate limit | **Resolved** | `3b63a37`: `/api/news/scrape-article` allows 30 uncached scrapes a minute per IP (owner decision D1: Redis fixed window, in-memory fallback), 429 with Retry-After; cached answers are never counted. `65d3337` (BL-016): the article page calls the scraper directly, so **the limit now applies only to external callers**, not to every reader through the server's own address (BL-021). `988c7fa`: the route scrapes only stored articles (the F-005 lookup), so it can no longer be used to fetch arbitrary sites; a refused URL costs no DNS lookup or fetch. Production behaviour on Redis is a deployment check | DEF-16 |
 | F-012 | Med | Contact/newsletter forms send nothing | **Resolved** | `59b875d` removed all three forms. No `<form>` remains outside admin, search, chat and the AI panel. The leftover unused newsletter strings were removed in `a81d3c4` (restructure 2, S1) | DEF-09 |
 | F-013 | **High** (audit: Med) | AI panel shows a canned "Key Takeaway" on failure | Open | `frontend/views/article/ArticleDetailView.tsx:339` | DEF-04 |
 | F-014 | Med | Admin purge/sync show success from `catch`; `!res.ok` shows nothing | Open | `frontend/views/admin/AdminView.tsx:76–77` (sync: `catch` → "News synchronization request sent."), `:93–94` (purge: `catch` → "Purge operation complete."); the `!res.ok` branches at `:72` and `:89` set no message | DEF-17 |
-| F-015 | Med | `purgeOldArticles()` awaited on read and write paths | Open | `backend/repositories/db.ts:253` (`saveArticlesToDB`) and `:380` (`getDBArticles`); also `backend/api/admin/db-stats.ts:27` (admin action, intended) | DEF-05 |
+| F-015 | Med | `purgeOldArticles()` awaited on read and write paths | **Resolved** | `2f31bad`: the purge is off the feed's read path (`getDBArticles`) and the upsert path (`saveArticlesToDB`); it runs once per cron run (`backend/api/cron/refresh-news.ts`), whose response and audit entry carry the count. The admin's explicit purge action (`POST /api/admin/db-stats`) **stays, by owner decision**: the intent was "off the read path", and a deliberate admin action is fine | DEF-05 |
 | F-016 | Med | Feed fetches 80, filters in JS, slices 40 | Open | `backend/repositories/db.ts:389` (`.limit(80)`) and `:428` (`.slice(0, 40)`) | DEF-08 |
 | F-017 | Med | Scraper returns 200 with placeholder prose; UI string-matches | Open | `backend/api/news/scrape-article.ts` catch block (`:538–557`) returns `NextResponse.json({... content: ["Full article coverage details ..."]})` with the default 200. UI: `frontend/views/article/ArticleDetailView.tsx:35` (`SCRAPE_FALLBACK_MESSAGES`), `:41`, `:105` | DEF-10 |
 | F-018 | Med | 2 indexes for 7 filtered columns | Open | `database/schema.sql:28–29`: `created_at`, `article_id` only. No GIN, no `pg_trgm` | DEF-18 |

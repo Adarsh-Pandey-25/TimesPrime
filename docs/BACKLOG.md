@@ -314,8 +314,10 @@ whole.
 
 ## BL-016 — The article page fetches its own API over HTTP
 
-**Found:** restructure 2, S0 (the F1 list) · **Status:** Open — possible improvement; **not changed
-in restructure 2** (owner)
+**Found:** restructure 2, S0 (the F1 list) · **Status:** **Resolved for the scrape** in `65d3337`
+(owner, Phase 2 follow-up, to fix BL-021): the page calls `scrapeArticle`
+(`backend/services/scrape/scrapeArticle.ts`) directly. **Still over HTTP:** the suggestions fetch
+of `/api/news/top-headlines`, which has no per-IP limit and was not part of the fix
 
 `app/article/[slug]/page.tsx` is a server component, yet it reaches the scraper and the feed
 over HTTP to its own deployment: `getArticleContent()` fetches `/api/news/scrape-article`
@@ -434,7 +436,9 @@ same host, so `imageDomains` and `remotePatterns` are unchanged.
 
 ## BL-021 — The scraper's rate limit puts every reader in one bucket
 
-**Found:** audit Phase 2, F-011 (`3b63a37`) · **Status:** Open — **owner decision needed**
+**Found:** audit Phase 2, F-011 (`3b63a37`) · **Status:** **Resolved** in `65d3337` (BL-016,
+owner-chosen): the article page no longer comes through the public route, so the route's per-IP
+limit now sees only external callers
 
 F-011 limits `/api/news/scrape-article` to 30 uncached scrapes a minute per client IP (owner
 decision D1). The route's only caller today is the article page's server-side fetch of it
@@ -454,7 +458,9 @@ Options:
 
 ## BL-022 — A public scrape writes to the database
 
-**Found:** audit Phase 2, F-003 tests · **Status:** Open — for the owner
+**Found:** audit Phase 2, F-003 tests · **Status:** **Kept** (owner, Phase 2 follow-up): it caches
+scraped content to the stored article, and since `988c7fa` the public route scrapes only stored
+articles, so it writes only to our own rows
 
 Every uncached scrape that extracts an article also runs
 `supabase.from("articles").update({ content }).eq("link", targetUrl)` in the background
