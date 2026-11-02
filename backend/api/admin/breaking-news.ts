@@ -3,15 +3,17 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
-import { logAdminAction } from "@/backend/repositories/auditLog";
+import { ADMIN_ROUTE_RULES } from "@/backend/auth/adminRoutePolicy";
+import { SITE_WIDE } from "@/backend/auth/scope";
+import { auditUnavailable, beginAudit, finishAudit, requirePermission } from "@/backend/auth/requirePermission";
 
 // The breaking_news table and its RLS policies: database/schema.sql and database/policies.sql (F-008).
 
-// GET is deliberately public — proxy.ts special-cases this exact path
-// for the GET method only, since the homepage banner has no admin session.
-// POST/DELETE stay behind the normal admin session gate like every other
-// /api/admin/* route (no per-route check needed here, same convention as
-// db-stats/seed-supabase/publish-article/articles).
+// GET is deliberately public: the homepage banner has no admin session (CR-08), and it is on the
+// public allowlist (PUBLIC_ADMIN_ROUTES, D10) that proxy.ts reads. POST and DELETE pass
+// requirePermission, the only gate on this path (service_role bypasses RLS; Panel 0): they need
+// breaking_banner.manage for the whole site, which only an unscoped grant covers.
+const RULES = ADMIN_ROUTE_RULES["/api/admin/breaking-news"];
 
 const MAX_TEXT_LENGTH = 500;
 
@@ -76,6 +78,10 @@ interface PostBreakingNewsBody {
  * { success: true, item }.
  */
 export async function POST(request: NextRequest) {
+  const gate = await requirePermission(request, RULES.POST, SITE_WIDE);
+  if (!gate.ok) return gate.response;
+  const actor = gate.actor;
+
   try {
     if (!isSupabaseConfigured()) {
       return NextResponse.json(
@@ -115,6 +121,10 @@ export async function POST(request: NextRequest) {
       expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
     }
 
+    const entry = { action: "breaking_banner.set", entityType: "breaking_news", entityId: "new", after: { text, expires_at: expiresAt } };
+    const attempt = await beginAudit(actor, entry);
+    if (!attempt) return auditUnavailable();
+
     const { data, error } = await supabase
       .from("breaking_news")
       .insert([{ text, is_active: true, expires_at: expiresAt }])
@@ -127,12 +137,14 @@ export async function POST(request: NextRequest) {
         tags: { source: "supabase" },
         extra: { operation: "createBreakingNews" },
       });
+      await finishAudit(actor, attempt, "failed", { ...entry, reason: error.message });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    await logAdminAction("breaking_news_set", `Set breaking news: ${text.slice(0, 50)}`, { expires_at: expiresAt });
+    const item = data as BreakingNewsItem;
+    await finishAudit(actor, attempt, "succeeded", { ...entry, entityId: item.id });
 
-    return NextResponse.json({ success: true, item: data as BreakingNewsItem });
+    return NextResponse.json({ success: true, item });
   } catch (err) {
     console.error("Breaking news create error:", err);
     Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "createBreakingNews" } });
@@ -148,6 +160,10 @@ export async function POST(request: NextRequest) {
  * hard-deletes). Body: { id: string }. Returns { success: true }.
  */
 export async function DELETE(request: NextRequest) {
+  const gate = await requirePermission(request, RULES.DELETE, SITE_WIDE);
+  if (!gate.ok) return gate.response;
+  const actor = gate.actor;
+
   try {
     if (!isSupabaseConfigured()) {
       return NextResponse.json(
@@ -168,6 +184,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "id is required." }, { status: 400 });
     }
 
+    const entry = { action: "breaking_banner.remove", entityType: "breaking_news", entityId: id, after: { is_active: false } };
+    const attempt = await beginAudit(actor, entry);
+    if (!attempt) return auditUnavailable();
+
     const { error } = await supabase.from("breaking_news").update({ is_active: false }).eq("id", id);
 
     if (error) {
@@ -176,10 +196,11 @@ export async function DELETE(request: NextRequest) {
         tags: { source: "supabase" },
         extra: { operation: "removeBreakingNews", id },
       });
+      await finishAudit(actor, attempt, "failed", { ...entry, reason: error.message });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    await logAdminAction("breaking_news_removed", `Removed breaking news: ${id}`, { id });
+    await finishAudit(actor, attempt, "succeeded", entry);
 
     return NextResponse.json({ success: true });
   } catch (err) {

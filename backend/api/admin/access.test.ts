@@ -39,6 +39,7 @@ import { LEGACY_PERMISSIONS, type Assignment, type Grant, type StaffRecord } fro
 import type { AccessCode, PermissionKey, RoleKey, ScopeLanguage } from "@/shared/config/permissions";
 import * as articles from "./articles";
 import * as bulk from "./articles-bulk";
+import * as breakingNews from "./breaking-news";
 
 const { supabase } = jest.requireMock("@/backend/lib/supabase") as { supabase: { from: jest.Mock } };
 
@@ -202,6 +203,29 @@ const CASES: Case[] = [
     data: { articles: { data: [HINDI_SPORTS, { ...HINDI_SPORTS, article_id: "a-2" }], error: null } },
     changes: true,
   },
+  // The banner is site-wide, so only an unscoped grant covers it. A Desk Editor always has a
+  // language (scope_required), so in practice it is the Managing Editor's until banners get a
+  // language (Panel 3).
+  {
+    path: "/api/admin/breaking-news",
+    method: "POST",
+    handler: breakingNews.POST,
+    body: { text: "Flood alert", expires_in_hours: 2 },
+    allowed: { role: "managing_editor", language: null },
+    wrongScope: { role: "desk_editor", language: "hi" },
+    data: { breaking_news: { data: { id: "b-1", text: "Flood alert", is_active: true, expires_at: null, created_at: "2026-11-10T00:00:00Z" }, error: null } },
+    changes: true,
+  },
+  {
+    path: "/api/admin/breaking-news",
+    method: "DELETE",
+    handler: breakingNews.DELETE,
+    body: { id: "b-1" },
+    allowed: { role: "managing_editor", language: null },
+    wrongScope: { role: "desk_editor", language: "hi" },
+    data: { breaking_news: { data: null, error: null } },
+    changes: true,
+  },
 ];
 
 function request(c: Case): NextRequest {
@@ -271,6 +295,14 @@ describe("route-specific rules", () => {
     const res = await c.handler(request(c));
     expect(res.status).toBe(403);
     expect((await res.json()).required).toBe("article.bulk_action");
+  });
+
+  test("GET /api/admin/breaking-news stays public: no session, 200 (CR-08, D10)", async () => {
+    tables = { breaking_news: { data: [], error: null } };
+    (readSession as jest.Mock).mockResolvedValue(null);
+    const res = await breakingNews.GET();
+    expect(res.status).toBe(200);
+    expect(readSession).not.toHaveBeenCalled();
   });
 
   test("DELETE /api/admin/articles: an unknown article is 404 (no scope to check it against)", async () => {
