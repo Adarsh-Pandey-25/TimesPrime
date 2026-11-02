@@ -103,6 +103,35 @@ describe("the app's own links reach the lookup exactly as stored", () => {
   });
 });
 
+// Stored rows can carry `#` as their link (it is why the link index is not
+// UNIQUE), so `#` passes the stored-article lookup. It must still never become
+// a publisher link or a scrape: it is not an http(s) URL.
+describe("a '#' link matches stored rows but is still absent", () => {
+  beforeEach(() => {
+    findKnownArticle.mockImplementation(async (link: string) => (link === "#" ? { title: "Placeholder", link: "#" } : null));
+  });
+
+  test.each([
+    ["?url=# (the fragment never reaches the server)", "/article/slug?url=#", ""],
+    ["?url=%23 (the encoded form)", "/article/slug?url=%23", "#"],
+    ["?url=%2523 (encoded twice)", "/article/slug?url=%2523", "%23"],
+  ])("%s", async (_label, href, parsed) => {
+    const url = new URL(href, "http://localhost:3000").searchParams.get("url") ?? undefined;
+    expect(url).toBe(parsed);
+    const view = await render({ url });
+    expect(view.targetUrl).toBeUndefined();
+    expect(view.scrapedData.title).toBe("Story Overview");
+    expect(scrapeArticle).not.toHaveBeenCalled();
+    expect(requests.some((r) => r.includes("scrape-article"))).toBe(false);
+  });
+
+  test("the lookup does match it, so the http(s) check is what refuses it", async () => {
+    await render({ url: "#" });
+    expect(findKnownArticle).toHaveBeenCalledWith("#");
+    await expect(findKnownArticle.mock.results[0].value).resolves.toEqual({ title: "Placeholder", link: "#" });
+  });
+});
+
 // BL-016 characterization: what the view receives for each scraper outcome.
 // Written while the page reached the scraper over HTTP (3d8b5ed); the
 // expectations are unchanged now that it calls the backend directly. Only the

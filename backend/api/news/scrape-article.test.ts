@@ -149,6 +149,40 @@ describe("GET /api/news/scrape-article — stored articles only", () => {
   });
 });
 
+// Stored rows can carry `#` as their link, so `#` passes the stored-article
+// check. The URL guard still refuses it before the cache, the limiter or any
+// fetch: a cached answer for `#` would be some other article's content.
+describe("GET /api/news/scrape-article — a '#' link", () => {
+  const { findKnownArticle } = jest.requireMock("@/backend/services/news") as { findKnownArticle: jest.Mock };
+  const { cache } = jest.requireMock("@/backend/lib/cache") as { cache: { get: jest.Mock } };
+  const get = (query: string) => GET(new NextRequest(`http://localhost:3000/api/news/scrape-article${query}`));
+
+  beforeEach(() => {
+    findKnownArticle.mockImplementation(async (link: string) =>
+      link === "#" || /^https?:\/\/publisher\.example\//.test(link) ? { title: "Stored", link } : null
+    );
+    cache.get.mockClear();
+  });
+
+  test("?url=# carries no url (the fragment never reaches the server): 400, nothing looked up", async () => {
+    const res = await get("?url=#");
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Missing required query parameter: url" });
+    expect(findKnownArticle).not.toHaveBeenCalledWith("#");
+  });
+
+  test("?url=%23 matches a stored row, and is still refused with 400: no cache read, no DNS, no fetch", async () => {
+    findKnownArticle.mockClear();
+    const res = await get("?url=%23");
+    expect(findKnownArticle).toHaveBeenCalledWith("#");
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/^Invalid target URL/);
+    expect(cache.get).not.toHaveBeenCalled();
+    expect(lookup).not.toHaveBeenCalled();
+    expect(requested).toEqual([]);
+  });
+});
+
 describe("GET /api/news/scrape-article — redirects are revalidated hop by hop (F-003)", () => {
   test.each([
     ["loopback", "http://127.0.0.1/admin"],
