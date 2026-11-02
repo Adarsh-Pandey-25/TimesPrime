@@ -8,6 +8,7 @@ import * as Sentry from "@sentry/nextjs";
 import { validateExternalUrl } from "@/backend/lib/urlValidation";
 import { fetchPage, UnsafeTargetError } from "@/backend/services/scrape/fetchPage";
 import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/backend/lib/cache";
+import { checkRateLimit, getClientIp } from "@/backend/lib/rateLimit";
 import { urlToHostname } from "@/shared/validation/sentryScrub";
 
 interface ScrapeCacheEntry {
@@ -20,6 +21,13 @@ interface ScrapeCacheEntry {
 }
 
 const MAX_CONTENT_CHARS = 5000;
+
+// F-011, owner decision D1: per client IP, counting only scrapes that reach
+// a publisher (a cached answer costs nothing). A reader opening an article
+// a second is far inside 30 a minute. Caveat, logged in BACKLOG: the one
+// caller today is the article page's server-side fetch of this route
+// (BL-016), so every reader's uncached article shares the server's bucket.
+const SCRAPE_RATE_LIMIT = { name: "scrape", limit: 30, windowSeconds: 60 };
 
 // DOM-level removal — runs BEFORE paragraph extraction, so anything inside
 // these containers can never reach $("p").each() as a paragraph at all.
@@ -407,6 +415,14 @@ export async function GET(request: NextRequest) {
         image: cached.image,
         cached: true,
       });
+    }
+
+    const rate = await checkRateLimit(getClientIp(request), SCRAPE_RATE_LIMIT);
+    if (rate.limited) {
+      return NextResponse.json(
+        { error: `Too many scrape requests. Try again in ${rate.retryAfterSeconds} seconds.` },
+        { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
+      );
     }
 
     // 2. Fast fetch with a 2.5 second aggressive timeout for the whole

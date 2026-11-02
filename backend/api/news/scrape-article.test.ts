@@ -81,8 +81,15 @@ beforeEach(() => {
 
 afterEach(() => jest.restoreAllMocks());
 
-const scrape = (url: string) =>
-  GET(new NextRequest(`http://localhost:3000/api/news/scrape-article?url=${encodeURIComponent(url)}`));
+// Each request from its own client unless one is given, so the F-011 limit
+// never trips a test that is not about it.
+let ipCounter = 0;
+const scrape = (url: string, ip = `10.9.${Math.floor(++ipCounter / 250)}.${ipCounter % 250}`) =>
+  GET(
+    new NextRequest(`http://localhost:3000/api/news/scrape-article?url=${encodeURIComponent(url)}`, {
+      headers: { "x-forwarded-for": ip },
+    })
+  );
 
 describe("GET /api/news/scrape-article — unchanged behaviour", () => {
   test("a public article is fetched and extracted", async () => {
@@ -168,5 +175,37 @@ describe("GET /api/news/scrape-article — redirects are revalidated hop by hop 
     // The second hop's pinned lookup answers with cdn's validated address, whatever name it is asked.
     const pinned = configs[1].lookup as (host: string, opts: object) => Promise<unknown>;
     await expect(pinned("anything.example", { all: true })).resolves.toEqual([[{ address: "93.184.216.36", family: 4 }]]);
+  });
+});
+
+// F-011: the public scraper had no rate limit, so any client could make
+// this server fetch arbitrary URLs as fast as it liked. The limit counts
+// only scrapes that reach a publisher; a cached answer costs nothing.
+describe("GET /api/news/scrape-article — per-IP rate limit (F-011)", () => {
+  const cacheMock = (jest.requireMock("@/backend/lib/cache") as { cache: { get: jest.Mock } }).cache;
+
+  test("30 uncached scrapes a minute are fetched; the 31st is 429 with Retry-After, and not fetched", async () => {
+    web["https://publisher.example/story"] = { status: 200, body: ARTICLE };
+    for (let i = 0; i < 30; i++) expect((await scrape("https://publisher.example/story", "192.0.2.50")).status).toBe(200);
+    const fetchedBefore = requested.length;
+    const res = await scrape("https://publisher.example/story", "192.0.2.50");
+    expect(res.status).toBe(429);
+    const retryAfter = Number(res.headers.get("retry-after"));
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(60);
+    expect((await res.json()).error).toMatch(/too many/i);
+    expect(requested.length).toBe(fetchedBefore);
+  });
+
+  test("cached answers are not counted", async () => {
+    cacheMock.get.mockResolvedValue({ title: "Cached", content: ["c"], text: "c" });
+    for (let i = 0; i < 40; i++) expect((await scrape("https://publisher.example/story", "192.0.2.51")).status).toBe(200);
+    cacheMock.get.mockResolvedValue(null);
+  });
+
+  test("another client is not affected", async () => {
+    web["https://publisher.example/story"] = { status: 200, body: ARTICLE };
+    for (let i = 0; i < 31; i++) await scrape("https://publisher.example/story", "192.0.2.52");
+    expect((await scrape("https://publisher.example/story", "192.0.2.53")).status).toBe(200);
   });
 });
