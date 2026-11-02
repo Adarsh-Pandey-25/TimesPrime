@@ -54,6 +54,7 @@ import * as bulk from "./articles-bulk";
 import * as breakingNews from "./breaking-news";
 import * as publish from "./publish-article";
 import * as seed from "./seed-supabase";
+import * as dbStats from "./db-stats";
 
 const { supabase } = jest.requireMock("@/backend/lib/supabase") as { supabase: { from: jest.Mock } };
 
@@ -261,6 +262,29 @@ const CASES: Case[] = [
     wrongScope: { role: "ingestion_ops", language: "hi" },
     changes: true,
   },
+  {
+    path: "/api/admin/db-stats",
+    method: "GET",
+    handler: dbStats.GET,
+    allowed: { role: "writer", language: "en" },
+    changes: false,
+  },
+];
+
+/**
+ * Routes no one may use yet: every holder's cell is A (a second person approves), and the approval
+ * flow comes with a later panel. Refused for every caller, with nothing written.
+ */
+const REFUSED_FOR_ALL: Array<{ path: keyof typeof ADMIN_ROUTE_RULES; method: Method; handler: (request: NextRequest) => Promise<Response>; holders: Grantee[] }> = [
+  {
+    path: "/api/admin/db-stats",
+    method: "POST",
+    handler: dbStats.POST,
+    holders: [
+      { role: "super_admin", language: null },
+      { role: "ingestion_ops", language: null },
+    ],
+  },
 ];
 
 function request(c: Case): NextRequest {
@@ -364,6 +388,30 @@ describe("route-specific rules", () => {
     signIn("allowed", c);
     expect((await c.handler(request(c))).status).toBe(404);
     expect(wrote()).toEqual([]);
+  });
+});
+
+describe.each(REFUSED_FOR_ALL.map((r) => [`${r.method} ${r.path}`, r] as const))("%s: refused for everyone until its approval flow exists", (_name, r) => {
+  const go = () => r.handler(new NextRequest(`http://localhost:3000${r.path}`, { method: r.method }));
+
+  test.each(r.holders.map((h) => [h.role, h] as const))("%s (the matrix gives it A): 403 needs_approval, nothing written", async (_role, holder) => {
+    (readSession as jest.Mock).mockResolvedValue({ kind: "staff", userId: "u-1", aal: "aal2", sessionId: "s-1" });
+    (loadStaffRecord as jest.Mock).mockResolvedValue(staff([holder]));
+    const res = await go();
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe("needs_approval");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("legacy shared password: 403, nothing written", async () => {
+    (readSession as jest.Mock).mockResolvedValue({ kind: "legacy" });
+    expect((await go()).status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("no session: 401", async () => {
+    (readSession as jest.Mock).mockResolvedValue(null);
+    expect((await go()).status).toBe(401);
   });
 });
 
