@@ -1,7 +1,7 @@
 # ADR 0003 — An article's section, for permission scope, is its first category
 
-**Status:** **Proposed**: drafted 2026-11-02 for the Panel 0 design, from owner decision D6 on the
-Step 1 report. It becomes Accepted with the owner's approval of that design.
+**Status:** **Accepted**: 2026-11-02, with the owner's approval of the Panel 0 design. Drafted the
+same day from owner decision D6 on the Step 1 report.
 **Related:** [`PANEL_PLAN.md`](../PANEL_PLAN.md) ("Generic roles, scoped by language desk and
 section"), [`design/panel-0-access-foundation.md`](../design/panel-0-access-foundation.md) §3,
 [`database/schema.sql`](../../database/schema.sql) (`articles.category`).

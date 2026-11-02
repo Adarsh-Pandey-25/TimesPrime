@@ -1,16 +1,64 @@
 # Panel 0 design: the access foundation
 
-**Status:** Proposed, for the owner's approval (master prompt, STEP 2). Nothing here is built yet.
+**Status:** **Approved with conditions** by the owner on 2026-11-02 (STEP 2). Being built (STEP 3).
+The section "Approval: decisions and amendments" below overrides anything later in this file that
+disagrees with it.
 **Plan:** [`PANEL_PLAN.md`](../PANEL_PLAN.md), "The proxy guesses and the backend decides", the
 matrix, and "Four-eyes, takedown and MFA rules". **Owner decisions folded in:** the twelve answers to
 the Step 1 report (2026-11-02), cited below as D1 to D12.
-**Related:** [ADR 0003](../adr/0003-primary-section-scope.md) (draft, the primary-section rule),
-[BL-033](../BACKLOG.md) (retention).
+**Related:** [ADR 0003](../adr/0003-primary-section-scope.md) (the primary-section rule),
+[BL-033](../BACKLOG.md) (retention), [BL-034](../BACKLOG.md) (the chain's head hash).
 
 Panel 0 replaces the shared admin password with named staff accounts. Every admin route checks a
 permission on the server, privileged staff sign in with a second factor, and every privileged action
 lands in an append-only audit log. It adds no new admin screens beyond sign-in and MFA. Managing
 people and roles in the app is Panel 1.
+
+## Approval: decisions and amendments (2026-11-02)
+
+**Answers to §10.**
+- **Q1:** MFA is required for all staff (`mfa_required` defaults to true).
+- **Q2:** "attempted, then outcome", fail closed. An attempt with no outcome row is a state of its
+  own. The audit viewer (Panel 8) must show it distinctly, not as a success and not as a failure.
+- **Q3:** the shared password runs until Panel 1. The end date is 2026-12-31, and
+  `ADMIN_LEGACY_LOGIN=off` is the kill switch. Two conditions:
+  - The date is enforced in code. After it, legacy login is refused even with the switch on, and a
+    test proves it.
+  - A legacy session holds a **fixed list** of today's admin capabilities and nothing else: never
+    `user.manage`, `role.assign`, `audit.read`, `settings.manage` or `health.view`. Otherwise the old
+    password could mint admins in the new system. Tests prove each refusal. The list is in §7.
+- **Q4:** option A. `@supabase/supabase-js` 2.109.0 → 2.116.0 in its own commit, with the full verify
+  and a smoke test, then `@supabase/ssr` 0.12.7.
+- **Q5:** the admin purge is refused for everyone, including a legacy session, until Panel 4. The
+  cron purge continues.
+- **Q6:** `DELETE /api/admin/logs` is removed.
+- **Q7:** `admin_logs` is frozen and not copied, and stays **readable** as history. The freeze SQL
+  revokes writes only. `GET /api/admin/logs?source=legacy` returns its rows, under `audit.read`.
+- **Q8:** `database/bootstrap/` is approved. D1 (nothing imports `database/`) and Tailwind's
+  `@source not` both cover it: they match the folder `database/` and everything below it.
+
+**The backend check is the only gate.** The app talks to Supabase as `service_role`, which bypasses
+RLS. On the app's request path, RLS protects nothing. `requirePermission` is therefore the only
+thing between a request and the data. Every admin route and method is tested for these cases:
+- allowed;
+- denied (no assignment);
+- expired assignment;
+- wrong scope;
+- missing MFA;
+- legacy session.
+
+RLS (Phase 2) protects only direct access with a user's own token.
+
+**Revocation is immediate.** Changing an assignment, a role or a staff member's status takes effect
+on the next request. `expires_at` is checked on every decision.
+- **Amendment: no staff-record cache in Panel 0.** §3 proposed a 60-second Redis cache, cleared on
+  every change the app makes. A change the owner makes in the SQL editor cannot clear Redis, so a
+  revoked user would keep access for up to 60 seconds. Instead, `requirePermission` reads the staff
+  record from the database on every request, one query, and keeps it only for that request. Nothing
+  is cached, so nothing can be stale.
+- The cost is one indexed query per admin request, which is small at admin traffic. If it ever
+  matters, a cache keyed by a database-maintained version number can come back. A test proves that
+  an assignment revoked between two requests is refused on the second.
 
 ## 0. What the docs say, and what it changes
 
@@ -264,8 +312,8 @@ browser ──cookie sb-<ref>-auth-token──▶ proxy.ts (matcher unchanged: /
          requirePermission(request, "article.unpublish", { mode: "act", target })
            1. staff session: getClaims() for sub, aal, session_id; getUser() to confirm the
               session still exists (a signed-out JWT stays valid until expiry; getUser catches it)
-           2. staff record: staff_profiles + active assignments + role_permissions,
-              from Redis (60 s) or Supabase (service role)
+           2. staff record: staff_profiles + assignments + role_permissions,
+              read live from Supabase (service role) on every request (Approval: no cache)
            3. decide(): pure function, deny by default
          ✗ ──▶ 401 / 403 (and an audit row, outcome "denied", for a signed-in staff member)
          ✓ ──▶ audit row "attempted" (if this write fails, stop: 503, nothing changed)
@@ -314,11 +362,13 @@ not check your permissions. Nothing was changed." An unknown permission key cann
 because the key parameter is the typed union from `shared/config/permissions.ts`. At runtime it
 finds no matching row anyway.
 
-**Caching** (plan: "about 60 s", Upstash). Key `staff:v1:<user_id>` holds the profile and
-assignments with their permission rows. It is not a decision: expiry is evaluated at check time,
-against the current clock. Any assignment or profile change made by the app deletes the key in the
-same request. A change the owner makes by SQL takes effect within 60 seconds. If Redis is down, the
-check reads Supabase. A cache failure never turns into "allowed".
+**Caching.** *Superseded by the approval: there is no cache in Panel 0, and the record is read live
+on every request.* As first proposed (plan: "about 60 s", Upstash): key `staff:v1:<user_id>` would
+hold the profile and assignments with their permission rows. That is data, not a decision: expiry
+would be evaluated at check time, against the current clock. Any assignment or profile change made
+by the app would delete the key in the same request, and a change the owner made by SQL would take
+effect within 60 seconds. If Redis were down, the check would read Supabase; a cache failure would
+never turn into "allowed".
 
 **What the proxy no longer does.** It stops being the only line of defence, but keeps its job: the
 optimistic check, the redirect to `/admin/login`, and the refresh of the Supabase token. The
@@ -427,10 +477,23 @@ raise, a hash chain, and at least one year.
 | Run | Everyone | Editorial work continues on the shared password, now audited as `legacy:shared-password`. Super Admins work on their accounts | As above |
 | Removal | Me, then owner | When the conditions below hold, one deletion commit removes the legacy path; the owner deletes `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from Vercel | The SQL editor (below) |
 
-**What a legacy session may do during the run.** Exactly what it can do today: the 11 routes'
-current capabilities, minus clearing the log, which no one can do any more. It is recorded as
-`legacy:shared-password`, so the audit shows which actions were still anonymous. It is not mapped to
-a role, because it is not a person.
+**What a legacy session may do during the run** (amended by the approval, Q3). A fixed list, in
+code (`LEGACY_PERMISSIONS`), with every scope:
+- `article.view_admin`, `article.create`, `article.edit`, `article.unpublish`,
+  `article.bulk_action`, `article.publish_direct`;
+- `breaking_banner.manage`;
+- `sync.run`, `sync.view`;
+- `stats.view`.
+
+That is today's editorial and sync work. It loses three things it can do today:
+- clearing the log (no one can);
+- the purge (Q5);
+- the activity log and admin health (`audit.read`, `health.view`: no audit or settings permission
+  for the shared password).
+
+It never holds `user.manage` or `role.assign`. It is recorded as `legacy:shared-password`, so the
+audit shows which actions were still anonymous. It is not mapped to a role, because it is not a
+person, and it never needs MFA.
 
 **How long.** Until Panel 1 is done. Panel 0 has no screen for granting roles, so without the shared
 password nobody could edit, publish or set the banner: Super Admin holds no editorial verbs (plan).
