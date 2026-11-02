@@ -177,3 +177,16 @@ describe("the page's scrape behaviour (characterization, BL-016)", () => {
     expect(scrapeArticle).not.toHaveBeenCalled();
   });
 });
+
+// F-022: the root layout's title.template adds the suffix, so the page must not.
+describe("the page title", () => {
+  test("is the bare title, so the layout's template adds ' | TimesPrime News' once", async () => {
+    const metadata = await generateMetadata(props({}, "Budget%20passes"));
+    expect(metadata.title).toBe("Budget passes");
+  });
+
+  test("openGraph.title, which no template reaches, keeps the brand", async () => {
+    const metadata = await generateMetadata(props({}, "Budget%20passes"));
+    expect(metadata.openGraph?.title).toBe("Budget passes | TimesPrime News");
+  });
+});

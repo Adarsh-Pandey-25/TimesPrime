@@ -30,7 +30,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const title = decodeURIComponent(resolvedParams.slug || "Article View");
 
   return {
-    title: `${title} | TimesPrime News`,
+    // The root layout's title.template adds " | TimesPrime News" (F-022: it
+    // was added here too, so the tab read "… | TimesPrime News | TimesPrime
+    // News"). The template does not apply to openGraph.title, which keeps it.
+    title,
     description: `Read full coverage and AI-synthesized analysis on ${title}.`,
     openGraph: {
       title: `${title} | TimesPrime News`,
