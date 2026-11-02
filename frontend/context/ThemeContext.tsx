@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { THEME_BACKGROUND, THEME_STORAGE_KEY } from "@/shared/config/theme";
 
 type Theme = "light" | "dark";
 
@@ -22,13 +23,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (targetTheme === "dark") {
       document.documentElement.classList.add("dark");
       document.body.classList.add("dark");
-      document.documentElement.style.backgroundColor = "#1a1c1e";
-      document.body.style.backgroundColor = "#1a1c1e";
+      document.documentElement.style.backgroundColor = THEME_BACKGROUND.dark;
+      document.body.style.backgroundColor = THEME_BACKGROUND.dark;
     } else {
       document.documentElement.classList.remove("dark");
       document.body.classList.remove("dark");
-      document.documentElement.style.backgroundColor = "#f8fafc";
-      document.body.style.backgroundColor = "#f8fafc";
+      document.documentElement.style.backgroundColor = THEME_BACKGROUND.light;
+      document.body.style.backgroundColor = THEME_BACKGROUND.light;
     }
   };
 
@@ -39,7 +40,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-    const savedTheme = (localStorage.getItem("timesprime_theme") as Theme) || "light";
+    const savedTheme = (localStorage.getItem(THEME_STORAGE_KEY) as Theme) || "light";
     setTheme(savedTheme);
     applyTheme(savedTheme);
   }, []);
@@ -47,7 +48,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
     setTheme(nextTheme);
-    localStorage.setItem("timesprime_theme", nextTheme);
+    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
     applyTheme(nextTheme);
   };
 
