@@ -1,6 +1,9 @@
 # Panel 0 design: the access foundation
 
-**Status:** **Approved with conditions** by the owner on 2026-11-02 (STEP 2). Being built (STEP 3).
+**Status:** **Approved with conditions** by the owner on 2026-11-02 (STEP 2), and **built** (STEP 3):
+complete on the branch `panel-0-access`, awaiting the owner's merge. What was built, and how it
+checks, is in [`PANEL_DOCS.md`](../PANEL_DOCS.md); where the build went past this file (the
+session-only routes and the sign-in flow), PANEL_DOCS is the record.
 The section "Approval: decisions and amendments" below overrides anything later in this file that
 disagrees with it.
 **Plan:** [`PANEL_PLAN.md`](../PANEL_PLAN.md), "The proxy guesses and the backend decides", the
