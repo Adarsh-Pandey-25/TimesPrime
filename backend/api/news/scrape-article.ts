@@ -6,6 +6,7 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import * as Sentry from "@sentry/nextjs";
 import { validateExternalUrl } from "@/backend/lib/urlValidation";
+import { fetchPage, UnsafeTargetError } from "@/backend/services/scrape/fetchPage";
 import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/backend/lib/cache";
 import { urlToHostname } from "@/shared/validation/sentryScrub";
 
@@ -408,9 +409,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 2. Fast Axios request with 2.5 second aggressive timeout
-    const response = await axios.get(targetUrl, {
-      timeout: 2500,
+    // 2. Fast fetch with a 2.5 second aggressive timeout for the whole
+    // redirect chain; every hop goes back through the SSRF guard (F-003).
+    const response = await fetchPage(targetUrl, {
+      timeoutMs: 2500,
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -536,6 +538,11 @@ export async function GET(request: NextRequest) {
       isPaywalled: false,
     });
   } catch (error: unknown) {
+    // A redirect the guard refused is a bad target, like a refused first URL.
+    if (error instanceof UnsafeTargetError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     console.warn("Fast scrape fallback for:", error instanceof Error ? error.message : String(error));
 
     // Domain only — never send the full target URL (which may carry query
