@@ -39,9 +39,6 @@ const config: Config = {
   ],
   testEnvironment: "jsdom",
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
-  // The database tests need the local Supabase (jest.db.config.ts, npm run test:db), and e2e/ is
-  // Playwright's (npm run test:e2e). Neither belongs in the unit suite.
-  testPathIgnorePatterns: ["/node_modules/", "/.next/", "\\.db\\.test\\.ts$", "<rootDir>/e2e/"],
   moduleNameMapper: {
     // Mirrors tsconfig "paths", as the Next jest guide recommends: one alias per
     // layer and no catch-all, so every import names its layer. In practice

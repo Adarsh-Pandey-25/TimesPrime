@@ -31,7 +31,7 @@ const all = execSync("git ls-files", { encoding: "utf8" }).split("\n").map((s) =
 const tracked = new Set(all);
 // Source files in the graph: every tracked .ts/.tsx except tooling configs and declarations.
 const files = all.filter(
-  (f) => /\.(ts|tsx)$/.test(f) && !/\.d\.ts$/.test(f) && !/^(jest\.config|jest\.db\.config|jest\.setup|playwright\.config)\.ts$/.test(f) && !f.startsWith("scripts/")
+  (f) => /\.(ts|tsx)$/.test(f) && !/\.d\.ts$/.test(f) && !/^(jest\.config|jest\.setup)\.ts$/.test(f) && !f.startsWith("scripts/")
 );
 
 // Slice 1 lifts src/ to the root, so a pending move's file may sit at src/x or at x.
