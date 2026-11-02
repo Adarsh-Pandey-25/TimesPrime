@@ -529,3 +529,19 @@ No policy change fixes this, because the anon key is public by design. Options: 
 startup or health warning when only the anon key is set, or report the writes as unavailable), or
 keep it and rely on the runbook's pre-check that the key is set. Not changed: no audit finding
 covers it.
+
+## BL-026 — Headline translation
+
+**Found:** audit F-024 · **Status:** Open — feature, not a defect (owner decision D3)
+
+`translateHeadline(text, lang)` in `shared/config/translations.ts` returned `text` unchanged. It
+ran on every card title and description (`ArticleCard`) and on the mega-menu titles
+(`CategoryMegaMenu`), so it looked like translation without doing any. F-024 removed it. Cards
+and the mega menu show each article in the language its publisher wrote it in; the Hindi feed is
+already chosen by script (`matchesLanguageScript` in `backend/repositories/db.ts`).
+
+The only real translation is on the article page: `ArticleDetailView` translates the article's
+title, description and paragraphs through `/api/translate` when the UI is in Hindi, cached per
+title. Translating headlines in the feed would need the same: a batched `/api/translate` call per
+feed load (the route allows 50 texts and 10,000 characters per request, F-010) and a cache, or
+translated titles stored at ingest. Either costs translate-API quota on every new story.

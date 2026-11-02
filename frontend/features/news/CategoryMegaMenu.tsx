@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Article } from "@/shared/types";
 import { ChevronRight, Sparkles } from "lucide-react";
-import { Language, TRANSLATIONS, translateHeadline } from "@/shared/config/translations";
+import { Language, TRANSLATIONS } from "@/shared/config/translations";
 import { useTheme } from "@/frontend/context/ThemeContext";
 
 import { useLanguage } from "@/frontend/context/LanguageContext";
@@ -182,7 +182,7 @@ export default function CategoryMegaMenu({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 pt-2">
               {categoryArticles.map((art, idx) => {
                 const slug = encodeURIComponent(art.article_id || art.title.slice(0, 30));
-                const titleText = translateHeadline(art.title, language);
+                const titleText = art.title;
                 const imgSrc = dedupedImages.get(art)!;
 
                 return (

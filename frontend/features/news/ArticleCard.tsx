@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Article } from "@/shared/types";
 import { Clock, ExternalLink, Bookmark, Layers } from "lucide-react";
-import { Language, TRANSLATIONS, translateHeadline } from "@/shared/config/translations";
+import { Language, TRANSLATIONS } from "@/shared/config/translations";
 import { useTheme } from "@/frontend/context/ThemeContext";
 import { isBookmarked, toggleBookmark } from "./bookmarks";
 import { useLanguage } from "@/frontend/context/LanguageContext";
@@ -114,12 +114,12 @@ export default function ArticleCard({
     }
   };
 
-  const displayTitle = translateHeadline(article.title, language);
+  const displayTitle = article.title;
   const rawBody = article.description || article.content || "";
   const cleanBody = containsPaywallPlaceholder(rawBody)
     ? "Click to read the full story at the source."
     : rawBody;
-  const displayDesc = translateHeadline(cleanBody, language);
+  const displayDesc = cleanBody;
 
   const articleSlug = encodeURIComponent(
     article.article_id || article.title.slice(0, 30)

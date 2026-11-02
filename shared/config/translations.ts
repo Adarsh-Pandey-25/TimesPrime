@@ -120,8 +120,3 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
     },
   },
 };
-
-export function translateHeadline(text: string, lang: Language): string {
-  if (!text) return text;
-  return text;
-}
