@@ -2,10 +2,16 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
-import { logAdminAction } from "@/backend/repositories/auditLog";
+import { ADMIN_ROUTE_RULES } from "@/backend/auth/adminRoutePolicy";
+import { ANY_SCOPE } from "@/backend/auth/decide";
+import { articleScope } from "@/backend/auth/scope";
+import { auditUnavailable, beginAudit, finishAudit, requirePermission, requireTarget } from "@/backend/auth/requirePermission";
 
-// Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),
-// so by the time a request reaches this handler it has already been validated.
+// Gated by requirePermission, the only gate on this path (service_role bypasses RLS; Panel 0).
+// Publishing here is immediate, with no review step, so it is the matrix's direct path:
+// article.publish_direct and article.create, in the new article's scope (its language and its one
+// category). Panel 2 adds the reviewed path.
+const RULE = ADMIN_ROUTE_RULES["/api/admin/publish-article"].POST;
 
 function slugify(title: string): string {
   return title
@@ -28,6 +34,10 @@ interface PublishRequestBody {
 }
 
 export async function POST(request: NextRequest) {
+  const gate = await requirePermission(request, RULE, ANY_SCOPE);
+  if (!gate.ok) return gate.response;
+  const actor = gate.actor;
+
   try {
     if (!isSupabaseConfigured()) {
       return NextResponse.json(
@@ -76,6 +86,20 @@ export async function POST(request: NextRequest) {
       language: "english",
     };
 
+    const target = articleScope(row);
+    const scoped = await requireTarget(actor, RULE, target);
+    if (!scoped.ok) return scoped.response;
+
+    const entry = {
+      action: "article.publish_direct",
+      entityType: "article",
+      entityId: articleId,
+      target,
+      after: { title: row.title, link: row.link, category: row.category, language: row.language },
+    };
+    const attempt = await beginAudit(actor, entry);
+    if (!attempt) return auditUnavailable();
+
     // Direct Supabase call (not saveArticlesToDB) so a real insert failure
     // is reported as an error rather than silently returning as if it saved
     // — db.ts's shared helper intentionally fails soft for the best-effort
@@ -89,13 +113,11 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error("Publish article Supabase error:", error.message);
+      await finishAudit(actor, attempt, "failed", { ...entry, reason: error.message });
       return NextResponse.json({ error: `Database error: ${error.message}` }, { status: 500 });
     }
 
-    await logAdminAction("article_published", `Published: ${title.trim()}`, {
-      article_id: articleId,
-      title: title.trim(),
-    });
+    await finishAudit(actor, attempt, "succeeded", entry);
 
     return NextResponse.json({ status: "success", article: data });
   } catch (error: unknown) {

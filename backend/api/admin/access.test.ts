@@ -40,6 +40,7 @@ import type { AccessCode, PermissionKey, RoleKey, ScopeLanguage } from "@/shared
 import * as articles from "./articles";
 import * as bulk from "./articles-bulk";
 import * as breakingNews from "./breaking-news";
+import * as publish from "./publish-article";
 
 const { supabase } = jest.requireMock("@/backend/lib/supabase") as { supabase: { from: jest.Mock } };
 
@@ -226,6 +227,18 @@ const CASES: Case[] = [
     data: { breaking_news: { data: null, error: null } },
     changes: true,
   },
+  // The editorial publish route stores language "english" (BL-004 era code), so its target is
+  // en + the chosen category.
+  {
+    path: "/api/admin/publish-article",
+    method: "POST",
+    handler: publish.POST,
+    body: { title: "Local results", link: "https://example.com/r", category: "sports", description: "d" },
+    allowed: { role: "desk_editor", language: "en", section: "sports" },
+    wrongScope: { role: "desk_editor", language: "hi", section: "sports" },
+    data: { articles: { data: { article_id: "admin-local-results-1" }, error: null } },
+    changes: true,
+  },
 ];
 
 function request(c: Case): NextRequest {
@@ -295,6 +308,16 @@ describe("route-specific rules", () => {
     const res = await c.handler(request(c));
     expect(res.status).toBe(403);
     expect((await res.json()).required).toBe("article.bulk_action");
+  });
+
+  test("POST /api/admin/publish-article: a Sub-editor (article.publish but not publish_direct) is refused", async () => {
+    const c = caseFor("POST", "/api/admin/publish-article");
+    tables = { ...c.data };
+    signIn("allowed", { ...c, allowed: { role: "sub_editor", language: "en", section: "sports" } });
+    const res = await c.handler(request(c));
+    expect(res.status).toBe(403);
+    expect((await res.json()).required).toBe("article.publish_direct");
+    expect(wrote()).toEqual([]);
   });
 
   test("GET /api/admin/breaking-news stays public: no session, 200 (CR-08, D10)", async () => {
