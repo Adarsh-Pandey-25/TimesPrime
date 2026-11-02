@@ -49,7 +49,7 @@ import { NextRequest } from "next/server";
 import { readSession } from "@/backend/auth/staffSession";
 import { loadStaffRecord } from "@/backend/repositories/staff";
 import { recordAudit } from "@/backend/repositories/auditLog";
-import { ADMIN_ROUTE_RULES, type RouteRule } from "@/backend/auth/adminRoutePolicy";
+import { ADMIN_ROUTE_RULES, PUBLIC_ADMIN_ROUTES, type RouteRule } from "@/backend/auth/adminRoutePolicy";
 import { LEGACY_PERMISSIONS, type Assignment, type Grant, type StaffRecord } from "@/backend/auth/decide";
 import type { AccessCode, PermissionKey, RoleKey, ScopeLanguage } from "@/shared/config/permissions";
 import * as articles from "./articles";
@@ -346,6 +346,52 @@ beforeEach(() => {
 afterEach(() => {
   jest.restoreAllMocks();
   process.env = { ...env };
+});
+
+describe("the route walk: every admin route and method on disk is public by name, or guarded and tested", () => {
+  const ROOT = path.join(process.cwd(), "app", "api", "admin");
+  const onDisk: Array<{ path: string; method: string }> = [];
+  (function walk(dir: string) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name === "route.ts") {
+        const url = "/api/admin/" + path.relative(ROOT, dir).split(path.sep).join("/");
+        const exported = fs.readFileSync(full, "utf8").match(/export\s*\{([^}]*)\}/);
+        for (const name of (exported?.[1] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
+          onDisk.push({ path: url, method: name });
+        }
+      }
+    }
+  })(ROOT);
+
+  const isPublic = (r: { path: string; method: string }) => PUBLIC_ADMIN_ROUTES.some((p) => p.path === r.path && p.method === r.method);
+  const ruleFor = (r: { path: string; method: string }) =>
+    (ADMIN_ROUTE_RULES as Record<string, Partial<Record<string, RouteRule>>>)[r.path]?.[r.method];
+
+  test("the walk found the admin routes (11 files)", () => {
+    expect(new Set(onDisk.map((r) => r.path)).size).toBe(11);
+  });
+
+  test.each(onDisk.map((r) => [`${r.method} ${r.path}`, r] as const))("%s is either public or has a rule, not both", (_name, r) => {
+    expect(isPublic(r) !== (ruleFor(r) !== undefined)).toBe(true);
+  });
+
+  test("the public allowlist is exactly sign-in, sign-out and the banner's read (D10)", () => {
+    expect(PUBLIC_ADMIN_ROUTES.map((r) => `${r.method} ${r.path}`).sort()).toEqual(
+      ["GET /api/admin/breaking-news", "POST /api/admin/login", "POST /api/admin/logout"].sort()
+    );
+  });
+
+  test("every rule names a route and method that exists, and has a case in this file", () => {
+    const tested = new Set([...CASES, ...REFUSED_FOR_ALL].map((c) => `${c.method} ${c.path}`));
+    for (const [route, methods] of Object.entries(ADMIN_ROUTE_RULES)) {
+      for (const method of Object.keys(methods)) {
+        expect(onDisk).toContainEqual({ path: route, method });
+        expect(tested).toContain(`${method} ${route}`);
+      }
+    }
+  });
 });
 
 describe("route-specific rules", () => {
