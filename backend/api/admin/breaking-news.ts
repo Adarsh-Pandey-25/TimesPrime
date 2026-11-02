@@ -5,28 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 import { logAdminAction } from "@/backend/repositories/auditLog";
 
-// ---------------------------------------------------------------------
-// SETUP REQUIRED — this file does not create the table itself. Run this
-// once in the Supabase SQL editor before this route will work:
-//
-// CREATE TABLE IF NOT EXISTS public.breaking_news (
-//   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-//   text TEXT NOT NULL,
-//   is_active BOOLEAN DEFAULT true,
-//   expires_at TIMESTAMP WITH TIME ZONE,
-//   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-// );
-//
-// ALTER TABLE public.breaking_news ENABLE ROW LEVEL SECURITY;
-//
-// CREATE POLICY "Public read access" ON public.breaking_news
-//   FOR SELECT TO anon, authenticated USING (true);
-// CREATE POLICY "Service role full access" ON public.breaking_news
-//   FOR ALL TO service_role USING (true) WITH CHECK (true);
-//
-// GRANT SELECT ON public.breaking_news TO anon, authenticated;
-// GRANT ALL ON public.breaking_news TO service_role;
-// ---------------------------------------------------------------------
+// The breaking_news table and its RLS policies: database/schema.sql and database/policies.sql (F-008).
 
 // GET is deliberately public — proxy.ts special-cases this exact path
 // for the GET method only, since the homepage banner has no admin session.

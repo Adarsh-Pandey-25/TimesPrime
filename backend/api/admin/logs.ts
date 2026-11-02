@@ -5,25 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 import type { AdminLog } from "@/shared/types";
 
-// ---------------------------------------------------------------------
-// SETUP REQUIRED — this file does not create the table itself. Run this
-// once in the Supabase SQL editor before this route will work:
-//
-// CREATE TABLE IF NOT EXISTS public.admin_logs (
-//   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-//   action TEXT NOT NULL,
-//   details TEXT,
-//   metadata JSONB DEFAULT '{}',
-//   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-// );
-//
-// ALTER TABLE public.admin_logs ENABLE ROW LEVEL SECURITY;
-//
-// CREATE POLICY "Service role full access" ON public.admin_logs
-//   FOR ALL TO service_role USING (true) WITH CHECK (true);
-//
-// GRANT ALL ON public.admin_logs TO service_role;
-// ---------------------------------------------------------------------
+// The admin_logs table and its RLS policies: database/schema.sql and database/policies.sql (F-008).
 
 // Auth is handled upstream by proxy.ts (matcher covers /api/admin/:path*),
 // so by the time a request reaches this handler it has already been validated.

@@ -1,5 +1,10 @@
--- TimesPrime News Aggregator Supabase SQL Schema & Permissions Fix
--- Copy and paste this into your Supabase SQL Editor (https://supabase.com/dashboard -> Project -> SQL Editor -> New query -> Run)
+-- TimesPrime News Aggregator — Supabase tables
+-- Copy and paste this into your Supabase SQL Editor (https://supabase.com/dashboard -> Project -> SQL Editor -> New query -> Run),
+-- then run database/policies.sql for the Row Level Security policies and grants.
+--
+-- Idempotent: every statement is IF NOT EXISTS or harmless to repeat, so it is safe to re-run
+-- against a project that already has some or all of these tables. On an existing table,
+-- CREATE TABLE IF NOT EXISTS changes nothing (it does not add columns or constraints).
 
 CREATE TABLE IF NOT EXISTS public.articles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -27,19 +32,32 @@ CREATE TABLE IF NOT EXISTS public.articles (
 -- Index for high-performance 7-day retention filtering
 CREATE INDEX IF NOT EXISTS idx_articles_created_at ON public.articles (created_at);
 CREATE INDEX IF NOT EXISTS idx_articles_article_id ON public.articles (article_id);
+-- Further indexes (the feed's filters, the article-link lookup): database/migrations/.
 
--- Row Level Security: public read, server-only (service_role) write.
--- See database/policies.sql for the full policy set and rationale.
+-- The homepage breaking-news banner. Written by the admin panel
+-- (backend/api/admin/breaking-news.ts); read publicly by its GET, which the
+-- proxy leaves open for the banner (CR-08). Its DDL lived only in a comment
+-- in that file until F-008.
+CREATE TABLE IF NOT EXISTS public.breaking_news (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  text TEXT NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  expires_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- The admin activity log. Written by backend/repositories/auditLog.ts, read
+-- and cleared by backend/api/admin/logs.ts; never public. Its DDL lived only
+-- in a comment in logs.ts until F-008.
+CREATE TABLE IF NOT EXISTS public.admin_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  action TEXT NOT NULL,
+  details TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Row Level Security on every table; the policies and grants are in database/policies.sql.
 ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Public read access" ON public.articles
-  FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Service role insert" ON public.articles
-  FOR INSERT TO service_role WITH CHECK (true);
-CREATE POLICY "Service role update" ON public.articles
-  FOR UPDATE TO service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Service role delete" ON public.articles
-  FOR DELETE TO service_role USING (true);
-
-GRANT SELECT ON public.articles TO anon, authenticated;
-GRANT ALL PRIVILEGES ON TABLE public.articles TO service_role, postgres;
+ALTER TABLE public.breaking_news ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_logs ENABLE ROW LEVEL SECURITY;
