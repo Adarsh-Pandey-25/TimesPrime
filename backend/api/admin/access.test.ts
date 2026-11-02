@@ -38,6 +38,7 @@ import { ADMIN_ROUTE_RULES, type RouteRule } from "@/backend/auth/adminRoutePoli
 import { LEGACY_PERMISSIONS, type Assignment, type Grant, type StaffRecord } from "@/backend/auth/decide";
 import type { AccessCode, PermissionKey, RoleKey, ScopeLanguage } from "@/shared/config/permissions";
 import * as articles from "./articles";
+import * as bulk from "./articles-bulk";
 
 const { supabase } = jest.requireMock("@/backend/lib/supabase") as { supabase: { from: jest.Mock } };
 
@@ -191,6 +192,16 @@ const CASES: Case[] = [
     data: { articles: { data: HINDI_SPORTS, error: null } },
     changes: true,
   },
+  {
+    path: "/api/admin/articles/bulk",
+    method: "DELETE",
+    handler: bulk.DELETE,
+    body: { article_ids: ["a-1", "a-2"] },
+    allowed: { role: "desk_editor", language: "hi", section: "sports" },
+    wrongScope: { role: "desk_editor", language: "en" },
+    data: { articles: { data: [HINDI_SPORTS, { ...HINDI_SPORTS, article_id: "a-2" }], error: null } },
+    changes: true,
+  },
 ];
 
 function request(c: Case): NextRequest {
@@ -243,6 +254,23 @@ describe("route-specific rules", () => {
     const res = await c.handler(request(c));
     expect(res.status).toBe(503);
     expect(wrote()).toEqual([]);
+  });
+
+  test("DELETE /api/admin/articles/bulk: one article outside the editor's scope refuses the whole request", async () => {
+    const c = caseFor("DELETE", "/api/admin/articles/bulk");
+    tables = { articles: { data: [HINDI_SPORTS, { ...HINDI_SPORTS, article_id: "a-2", category: ["politics"] }], error: null } };
+    signIn("allowed", c);
+    expect((await c.handler(request(c))).status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("DELETE /api/admin/articles/bulk: a Sub-editor (no article.bulk_action) is refused", async () => {
+    const c = caseFor("DELETE", "/api/admin/articles/bulk");
+    tables = { articles: { data: [HINDI_SPORTS], error: null } };
+    signIn("allowed", { ...c, allowed: { role: "sub_editor", language: "hi" } });
+    const res = await c.handler(request(c));
+    expect(res.status).toBe(403);
+    expect((await res.json()).required).toBe("article.bulk_action");
   });
 
   test("DELETE /api/admin/articles: an unknown article is 404 (no scope to check it against)", async () => {
