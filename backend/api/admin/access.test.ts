@@ -432,6 +432,18 @@ describe("route-specific rules", () => {
     expect(wrote()).toEqual([]);
   });
 
+  test("DELETE /api/admin/articles/bulk: at most 100 articles; 101 is 400 and nothing is read or written", async () => {
+    const c = caseFor("DELETE", "/api/admin/articles/bulk");
+    signIn("allowed", c);
+    const ids = (n: number) => Array.from({ length: n }, (_, i) => `a-${i}`);
+    tables = { articles: { data: [], error: null } };
+    const over = await c.handler(request({ ...c, body: { article_ids: ids(101) } }));
+    expect(over.status).toBe(400);
+    expect((await over.json()).error).toMatch(/more than 100/);
+    expect(calls).toEqual([]);
+    expect((await c.handler(request({ ...c, body: { article_ids: ids(100) } }))).status).toBe(200);
+  });
+
   test("DELETE /api/admin/articles/bulk: a Sub-editor (no article.bulk_action) is refused", async () => {
     const c = caseFor("DELETE", "/api/admin/articles/bulk");
     tables = { articles: { data: [HINDI_SPORTS], error: null } };
