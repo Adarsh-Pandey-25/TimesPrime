@@ -1,7 +1,13 @@
 import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
-import { ADMIN_SESSION_COOKIE, createSessionToken, sessionCookieOptions, verifyAdminPassword } from "@/backend/auth/adminSession";
+import {
+  ADMIN_SESSION_COOKIE,
+  createSessionToken,
+  isLegacyLoginAllowed,
+  sessionCookieOptions,
+  verifyAdminPassword,
+} from "@/backend/auth/adminSession";
 import { checkRateLimit, getClientIp } from "@/backend/lib/rateLimit";
 
 // F-004: every attempt counts, right or wrong. An admin who mistypes a few
@@ -13,6 +19,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "Admin login is not configured. Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in .env.local." },
       { status: 503 }
+    );
+  }
+
+  // Q3: refused once retired, before the password is even compared, so a retired password cannot
+  // be tested for correctness either.
+  if (!isLegacyLoginAllowed()) {
+    return NextResponse.json(
+      { error: "The shared admin password has been retired. Sign in with your staff account." },
+      { status: 403 }
     );
   }
 

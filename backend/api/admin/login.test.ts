@@ -23,15 +23,47 @@ const attempt = (password: unknown, ip: string) =>
     })
   );
 
+// The shared password ends on 2027-01-01 IST (Q3), so these run on a clock fixed before that,
+// not on the real one: they must keep passing after the date.
+const BEFORE_THE_END = Date.parse("2026-11-02T10:00:00Z");
+
 beforeEach(() => {
   process.env.ADMIN_PASSWORD = "correct horse battery staple";
   process.env.ADMIN_SESSION_SECRET = "session-secret-for-tests";
+  jest.useFakeTimers({ now: BEFORE_THE_END, doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
   jest.spyOn(console, "warn").mockImplementation(() => {});
 });
 
 afterEach(() => {
+  jest.useRealTimers();
   process.env = { ...env };
   jest.restoreAllMocks();
+});
+
+describe("POST /api/admin/login — the shared password's end (Q3)", () => {
+  test("after 2027-01-01 00:00 IST the right password is refused with 403, and no cookie is set", async () => {
+    jest.setSystemTime(Date.parse("2026-12-31T18:30:00Z"));
+    const res = await attempt("correct horse battery staple", nextIp());
+    expect(res.status).toBe(403);
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect((await res.json()).error).toMatch(/retired/i);
+  });
+
+  test("ADMIN_LEGACY_LOGIN=on does not bring it back after the date", async () => {
+    jest.setSystemTime(Date.parse("2027-02-01T00:00:00Z"));
+    process.env.ADMIN_LEGACY_LOGIN = "on";
+    expect((await attempt("correct horse battery staple", nextIp())).status).toBe(403);
+  });
+
+  test("ADMIN_LEGACY_LOGIN=off refuses it before the date", async () => {
+    process.env.ADMIN_LEGACY_LOGIN = "off";
+    expect((await attempt("correct horse battery staple", nextIp())).status).toBe(403);
+  });
+
+  test("the last minute of 2026 IST still works", async () => {
+    jest.setSystemTime(Date.parse("2026-12-31T18:29:00Z"));
+    expect((await attempt("correct horse battery staple", nextIp())).status).toBe(200);
+  });
 });
 
 describe("POST /api/admin/login — unchanged behaviour", () => {

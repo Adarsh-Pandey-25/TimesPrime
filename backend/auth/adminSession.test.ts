@@ -16,6 +16,8 @@ import { timingSafeEqual } from "crypto";
 import {
   ADMIN_SESSION_COOKIE,
   createSessionToken,
+  isLegacyLoginAllowed,
+  LEGACY_LOGIN_ENDS_AT,
   sessionCookieOptions,
   verifyAdminPassword,
   verifySessionToken,
@@ -144,5 +146,56 @@ describe("sessionCookieOptions", () => {
 
   test("Secure only in production", () => {
     expect(sessionCookieOptions().secure).toBe(process.env.NODE_ENV === "production");
+  });
+});
+
+// Owner decision Q3: the shared password runs until Panel 1 with a hard end in code, so it stops
+// even if no one ever changes the code or the environment again; ADMIN_LEGACY_LOGIN=off ends it
+// sooner. The end is midnight IST at the close of 2026-12-31.
+describe("the shared password's end date and kill switch (Q3)", () => {
+  const LAST_MOMENT = Date.parse("2026-12-31T18:29:59.999Z"); // 23:59:59.999 IST
+  const END = Date.parse("2026-12-31T18:30:00.000Z"); // 2027-01-01 00:00 IST
+
+  test("the end is 2027-01-01 00:00 IST", () => {
+    expect(LEGACY_LOGIN_ENDS_AT.getTime()).toBe(END);
+  });
+
+  test("allowed before the end; refused at and after it", () => {
+    expect(isLegacyLoginAllowed(new Date(LAST_MOMENT))).toBe(true);
+    expect(isLegacyLoginAllowed(new Date(END))).toBe(false);
+    expect(isLegacyLoginAllowed(new Date("2027-03-01T00:00:00Z"))).toBe(false);
+  });
+
+  test("after the end, even ADMIN_LEGACY_LOGIN=on cannot bring it back", () => {
+    process.env.ADMIN_LEGACY_LOGIN = "on";
+    expect(isLegacyLoginAllowed(new Date(END))).toBe(false);
+  });
+
+  test("ADMIN_LEGACY_LOGIN=off ends it before the date; any other value leaves it on", () => {
+    process.env.ADMIN_LEGACY_LOGIN = "off";
+    expect(isLegacyLoginAllowed(new Date(LAST_MOMENT))).toBe(false);
+    process.env.ADMIN_LEGACY_LOGIN = "OFF ";
+    expect(isLegacyLoginAllowed(new Date(LAST_MOMENT))).toBe(false);
+    process.env.ADMIN_LEGACY_LOGIN = "on";
+    expect(isLegacyLoginAllowed(new Date(LAST_MOMENT))).toBe(true);
+  });
+
+  test("a valid session cookie stops verifying at the end, so the proxy and the routes refuse it too", () => {
+    jest.setSystemTime(END - 60 * 60 * 1000);
+    const token = createSessionToken();
+    expect(verifySessionToken(token)).toBe(true);
+    jest.setSystemTime(END);
+    expect(verifySessionToken(token)).toBe(false);
+  });
+
+  test("with the kill switch, a valid cookie stops verifying at once", () => {
+    const token = createSessionToken();
+    process.env.ADMIN_LEGACY_LOGIN = "off";
+    expect(verifySessionToken(token)).toBe(false);
+  });
+
+  test("no token is issued once it is over", () => {
+    process.env.ADMIN_LEGACY_LOGIN = "off";
+    expect(createSessionToken()).toBeNull();
   });
 });
