@@ -2,12 +2,25 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_SESSION_COOKIE, createSessionToken, sessionCookieOptions, verifyAdminPassword } from "@/backend/auth/adminSession";
+import { checkRateLimit, getClientIp } from "@/backend/lib/rateLimit";
+
+// F-004: every attempt counts, right or wrong. An admin who mistypes a few
+// times stays well inside 10 per 15 minutes; a guesser gets 40 an hour per IP.
+const LOGIN_RATE_LIMIT = { name: "login", limit: 10, windowSeconds: 15 * 60 };
 
 export async function POST(request: NextRequest) {
   if (!process.env.ADMIN_PASSWORD || !process.env.ADMIN_SESSION_SECRET) {
     return NextResponse.json(
       { error: "Admin login is not configured. Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in .env.local." },
       { status: 503 }
+    );
+  }
+
+  const rate = await checkRateLimit(getClientIp(request), LOGIN_RATE_LIMIT);
+  if (rate.limited) {
+    return NextResponse.json(
+      { error: `Too many login attempts. Try again in ${rate.retryAfterSeconds} seconds.` },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
     );
   }
 

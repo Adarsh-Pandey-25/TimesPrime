@@ -6,6 +6,13 @@
  * behaviour; F-004 changes the password comparison and adds its own tests.
  */
 
+// Pass-through spy on timingSafeEqual, so a test can see which comparison ran.
+jest.mock("crypto", () => {
+  const actual = jest.requireActual("crypto");
+  return { ...actual, timingSafeEqual: jest.fn(actual.timingSafeEqual) };
+});
+
+import { timingSafeEqual } from "crypto";
 import {
   ADMIN_SESSION_COOKIE,
   createSessionToken,
@@ -105,6 +112,27 @@ describe("verifyAdminPassword", () => {
     delete process.env.ADMIN_PASSWORD;
     expect(verifyAdminPassword("")).toBe(false);
     expect(verifyAdminPassword("anything")).toBe(false);
+  });
+
+  // F-004: a candidate of the wrong length returned early, before the
+  // timing-safe compare, so response time told an attacker the length.
+  describe("every candidate takes the same path (F-004)", () => {
+    const compare = timingSafeEqual as jest.Mock;
+    beforeEach(() => compare.mockClear());
+
+    test.each([
+      ["the correct password", "correct horse battery staple"],
+      ["a wrong password of the same length", "correct horse battery stapl!"],
+      ["a wrong password of a different length", "x"],
+      ["a very long wrong password", "y".repeat(500)],
+      ["an empty password", ""],
+    ])("%s: one timingSafeEqual over two 32-byte digests", (_label, candidate) => {
+      verifyAdminPassword(candidate);
+      expect(compare).toHaveBeenCalledTimes(1);
+      const [a, b] = compare.mock.calls[0] as [Buffer, Buffer];
+      expect(a.length).toBe(32);
+      expect(b.length).toBe(32);
+    });
   });
 });
 

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 
 export const ADMIN_SESSION_COOKIE = "timesprime_admin_session";
 
@@ -47,15 +47,19 @@ export function verifySessionToken(token: string | undefined | null): boolean {
   return ageSeconds >= 0 && ageSeconds <= SESSION_MAX_AGE_SECONDS;
 }
 
-/** Timing-safe comparison so a wrong-password guess can't be narrowed down character-by-character via response latency. */
+const sha256 = (value: string) => createHash("sha256").update(value).digest();
+
+/**
+ * Timing-safe comparison so a wrong-password guess can't be narrowed down
+ * character-by-character via response latency. Both sides are hashed first,
+ * so timingSafeEqual always compares two 32-byte digests: a candidate of the
+ * wrong length takes the same path as any other (F-004). It used to return
+ * early on a length mismatch, which told an attacker the password's length.
+ */
 export function verifyAdminPassword(candidate: string): boolean {
   const expected = process.env.ADMIN_PASSWORD;
-  if (!expected || !candidate) return false;
-
-  const expectedBuf = Buffer.from(expected);
-  const candidateBuf = Buffer.from(candidate);
-  if (expectedBuf.length !== candidateBuf.length) return false;
-  return timingSafeEqual(expectedBuf, candidateBuf);
+  if (!expected) return false;
+  return timingSafeEqual(sha256(candidate), sha256(expected));
 }
 
 export function sessionCookieOptions(maxAge: number = SESSION_MAX_AGE_SECONDS) {
