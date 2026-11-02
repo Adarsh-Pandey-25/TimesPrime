@@ -1,5 +1,15 @@
 # TimesPrime — Session Handoff
 
+> **⚠ `main` is not deployable until the Panel 0 migrations are applied; see the runbook.**
+> Since `78e58b6` every admin route writes the audit log before it changes anything, and refuses
+> (503) when it cannot. Until the owner applies `database/migrations/2026-11-02-access-1-foundation.sql`
+> and `2026-11-02-access-2-catalog.sql`, the `audit_log` table does not exist, so every admin change
+> answers 503. Reads and the shared-password login still work. Each SQL file carries its own
+> apply, verify and rollback notes; the runbook steps for them (`runbooks/apply-database.md`, and the
+> new `runbooks/staff-access.md` with the full order: migrations, then deploy, then bootstrap, then a
+> staff sign-in) arrive with the rest of Panel 0. That is built on the branch `panel-0-access` and
+> merges only when it is complete and approved.
+
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
 **State as of:** 2026-11-02. Branch `main`. Two restructures and all five audit phases are done:
 - **Audit Phases 1–5** fixed the 28 audit findings. None is open: 22 are resolved, 5 await a check
