@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, getClientIp } from "@/backend/lib/rateLimit";
+import { findKnownArticle } from "@/backend/services/news";
 import { scrapeArticle } from "@/backend/services/scrape/scrapeArticle";
 
 /**
@@ -20,6 +21,14 @@ export async function GET(request: NextRequest) {
   const targetUrl = new URL(request.url).searchParams.get("url");
   if (!targetUrl) {
     return NextResponse.json({ error: "Missing required query parameter: url" }, { status: 400 });
+  }
+
+  // Only stored articles, the same lookup the article page uses (F-005).
+  // Scraping any public URL made this server a proxy for fetching arbitrary
+  // sites. Checked first, so a refused URL costs no DNS lookup and no fetch.
+  // The lookup relies on the index on articles.link (database/migrations, F-018).
+  if (!(await findKnownArticle(targetUrl))) {
+    return NextResponse.json({ error: "Only a stored article can be scraped." }, { status: 403 });
   }
 
   const result = await scrapeArticle(targetUrl, {

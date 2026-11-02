@@ -14,6 +14,12 @@
  */
 
 jest.mock("@sentry/nextjs", () => ({ captureException: jest.fn() }));
+// The stored articles, for the public route's check: anything on publisher.example.
+jest.mock("@/backend/services/news", () => ({
+  findKnownArticle: jest.fn(async (link: string | null | undefined) =>
+    link && /^https?:\/\/publisher\.example\//.test(link) ? { title: "Stored", link } : null
+  ),
+}));
 jest.mock("@/backend/lib/cache", () => ({
   cache: { get: jest.fn(() => Promise.resolve(null)), set: jest.fn(() => Promise.resolve()) },
   CACHE_TTL_SCRAPE_SECONDS: 60,
@@ -38,6 +44,7 @@ const DNS: Record<string, string> = {
   "publisher.example": "93.184.216.34",
   "www.publisher.example": "93.184.216.35",
   "cdn.publisher.example": "93.184.216.36",
+  "www.public.example": "93.184.216.40",
 };
 
 const ARTICLE = `<html><head><title>Budget passes</title></head><body><h1>Budget passes</h1>
@@ -113,8 +120,32 @@ describe("GET /api/news/scrape-article — unchanged behaviour", () => {
 
   test("an internal target URL is refused before any fetch", async () => {
     const res = await scrape("http://127.0.0.1/admin");
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403); // not a stored article (it was 400 from the guard before that check)
     expect(requested).toEqual([]);
+  });
+});
+
+// The public route scraped any public URL, so the server could be used as a
+// proxy to fetch arbitrary sites. It now scrapes only stored articles, with
+// the same lookup as the article page (F-005).
+describe("GET /api/news/scrape-article — stored articles only", () => {
+  test.each([
+    ["the F-005 probe", "https://evil.example.com/phish"],
+    ["an arbitrary public site", "https://www.public.example/anything"],
+  ])("%s is refused with 403, without any outbound request", async (_label, url) => {
+    web[url] = { status: 200, body: ARTICLE };
+    const res = await scrape(url);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/stored article/i);
+    expect(requested).toEqual([]);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  test("a stored article still scrapes", async () => {
+    web["https://publisher.example/story"] = { status: 200, body: ARTICLE };
+    const res = await scrape("https://publisher.example/story");
+    expect(res.status).toBe(200);
+    expect((await res.json()).title).toBe("Budget passes");
   });
 });
 
