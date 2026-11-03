@@ -1,5 +1,5 @@
 // Lint: eslint-config-next, plus the import boundaries — rules F1–X1 and V1
-// (docs/architecture.md §5, ADR 0002), enforced by lint.
+// (docs/ARCHITECTURE.md, System design §5; ADRs 0002 and 0004), enforced by lint.
 //
 // Every message starts with the ID of the rule it implements. Path rules use
 // import/no-restricted-paths (eslint-plugin-import, already installed by
@@ -423,7 +423,7 @@ const boundaries = [
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  // Import boundaries: docs/architecture.md §5, rule by rule.
+  // Import boundaries: docs/ARCHITECTURE.md, System design §5, rule by rule.
   ...boundaries,
   {
     rules: {
@@ -433,7 +433,7 @@ const eslintConfig = defineConfig([
       // changes render timing — a behavior change on files that have zero
       // test coverage today. They are scheduled for Phase 6, once
       // characterization tests exist to prove the rewrite is equivalent.
-      // Do not re-enable as "error" before then. See docs/BACKLOG.md (BL-002).
+      // Do not re-enable as "error" before then. See the backlog in docs/OPERATIONS.md (BL-002).
       "react-hooks/set-state-in-effect": "warn",
     },
   },

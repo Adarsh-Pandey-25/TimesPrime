@@ -350,7 +350,7 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
     // Article.link and Article.pubDate are required strings, so this mapping
     // silently relies on `any` to paper over unhandled nulls. Fixing it needs
     // a logic change (null coalescing, or a narrower Article), which is out of
-    // scope for a lint-only commit. See docs/BACKLOG.md (BL-001).
+    // scope for a lint-only commit. See the backlog in docs/OPERATIONS.md (BL-001).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (data || []).map((row: any) => ({
       article_id: row.article_id,
@@ -455,7 +455,7 @@ export async function getDBArticles(
     const filtered = kept;
 
     // Same nullable-column vs required-Article-field mismatch as the mapping
-    // in saveArticlesToDB above. See docs/BACKLOG.md (BL-001).
+    // in saveArticlesToDB above. See the backlog in docs/OPERATIONS.md (BL-001).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return filtered.slice(0, FEED_WANTED).map((row: any) => ({
       article_id: row.article_id,

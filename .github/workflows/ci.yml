@@ -40,8 +40,8 @@ jobs:
         run: npm run lint
 
       - name: Import boundaries
-        # The transitive client-bundle check lint cannot do (architecture.md
-        # rule 6). Reads `git ls-files`, so it needs the checkout above.
+        # The transitive client-bundle check lint cannot do (docs/ARCHITECTURE.md,
+        # import rules). Reads `git ls-files`, so it needs the checkout above.
         run: npm run check:boundaries
 
       - name: Docs

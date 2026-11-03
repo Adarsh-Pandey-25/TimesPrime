@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * The permission catalogue in its three places: the matrix in docs/PANEL_PLAN.md (the owner's
+ * The permission catalogue in its three places: the matrix in the panel plan (docs/PANEL_DOCS.md; the owner's
  * canonical source, D2), the generated SQL the owner applies, and the typed constants the code
  * uses. The matrix is read here by its own parser, not the generator's, so a generator bug cannot
  * hide by agreeing with itself.

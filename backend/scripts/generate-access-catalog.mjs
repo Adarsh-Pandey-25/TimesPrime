@@ -1,15 +1,16 @@
 // Generates database/migrations/2026-11-02-access-2-catalog.sql from the roles × permissions matrix
-// in docs/PANEL_PLAN.md, the owner's reference plan (D2: "the matrix is canonical").
+// in the panel plan (docs/PANEL_DOCS.md, between its markers), the owner's reference plan (D2: "the
+// matrix is canonical").
 //
-//   node scripts/generate-access-catalog.mjs          write the SQL file
-//   node scripts/generate-access-catalog.mjs --check  exit 1 if the file is not what it would write
+//   node backend/scripts/generate-access-catalog.mjs          write the SQL file
+//   node backend/scripts/generate-access-catalog.mjs --check  exit 1 if the file is not what it would write
 //
 // Each matrix row becomes one permission key per verb it names ("sync.run / sync.view" is two keys
 // with the same cells), so every key traces to a row. Each non-empty cell becomes one
 // role_permissions row: its code (F, S, Own, A, R, M), "break-glass" as a flag, and any other
 // parenthetical as a note. The role flags are the owner's decisions D3 and the plan's rule that only
-// Managing Editor and above hold null-scope editorial grants. Design: docs/design/
-// panel-0-access-foundation.md §1-2. shared/config/permissions.test.ts checks the result
+// Managing Editor and above hold null-scope editorial grants. Design: Panel 0's design in
+// docs/PANEL_DOCS.md, §1-2. backend/shared/config/permissions.test.ts checks the result
 // independently, cell by cell, against the same matrix.
 
 import fs from "node:fs";

@@ -1,4 +1,4 @@
-// Checks the import rules (docs/architecture.md §5) over the whole import graph.
+// Checks the import rules (docs/ARCHITECTURE.md, System design §5) over the whole import graph.
 //
 //   node backend/scripts/check-boundaries.mjs
 //

@@ -1,5 +1,5 @@
 // The app/ files that hold only re-exports and literal segment config (rule A2,
-// docs/architecture.md §5): every route.ts, and every page.tsx except the
+// docs/ARCHITECTURE.md, System design §5): every route.ts, and every page.tsx except the
 // composition pages, which fetch server data and pass it to a view. Read from
 // disk, so a new page is held to the rule the day it is created (BL-032).
 //
