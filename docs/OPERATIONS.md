@@ -868,7 +868,8 @@ are resolved:
 - BL-022 (a public scrape writes `articles.content`; kept by the owner), BL-023 (signed links, only if
   needed), BL-024 (nullable columns, deployment phase), BL-025 (the anon-key fallback).
 - BL-026 (headline translation, a feature), BL-028 (theme ternaries), BL-030 (lazy-load the chatbot),
-  BL-031 (the new moderate advisories), BL-035 (docs statements stale before restructure 3).
+  BL-031 (the new moderate advisories), BL-035 (docs statements stale before restructure 3),
+  BL-036 (runtime messages that still say `.env.local`).
 
 **Resolved:** BL-003, BL-010, BL-011, BL-012, BL-013, BL-014, BL-015, BL-017, BL-018, BL-020, BL-021,
 BL-027, BL-029, BL-032.
@@ -1586,6 +1587,27 @@ them:
   `panel-0-access`.
 
 Fix with the Panel 0 docs, when panel work resumes (the definition of done, item 6).
+
+### BL-036 — Runtime messages still tell the reader to set `.env.local`
+
+**Found:** restructure 3, S3 (2026-11-03) · **Status:** Open — needs owner approval (changes app output)
+
+Since restructure 3 the local env file is `frontend/.env`, but these strings, which the app prints or
+returns, still name `.env.local`. They are output, not comments, so restructure 3 (behaviour-
+preserving) left them:
+
+- `backend/api/admin/login.ts`: the 503 JSON, "Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in
+  .env.local."
+- `backend/api/news/top-headlines.ts` and `backend/services/news/fetchNews.ts`: the warning
+  "NEWSDATA_API_KEY is not set — falling back to mock articles. Add it to .env.local."
+- `backend/repositories/db.ts`: the warning "Supabase credentials not configured in .env.local yet."
+  and the health note "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local".
+- `database/seed/seed_supabase.mjs`: its usage line, `node --env-file=.env.local ...`, which now
+  needs `--env-file=frontend/.env`.
+
+Proposed: one change commit naming `frontend/.env` (or "the env file", which stays true in
+production, where the values come from the Vercel project), with any test that asserts a message
+updated in the same commit.
 
 ## Audit ledger
 
