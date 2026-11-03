@@ -7,12 +7,17 @@
  * hide by agreeing with itself.
  */
 
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { ACCESS_CODES, PERMISSION_KEYS, ROLE_KEYS } from "./permissions";
 
 const read = (...p: string[]) => fs.readFileSync(path.join(path.resolve(__dirname, "../../.."), ...p), "utf8").replace(/\r\n/g, "\n");
-const plan = read("docs", "PANEL_PLAN.md");
+// The panel plan, carried byte for byte into docs/PANEL_DOCS.md between these markers.
+const BEGIN = "<!-- BEGIN:panel-plan -->\n";
+const END = "<!-- END:panel-plan -->";
+const panelDocs = read("docs", "PANEL_DOCS.md");
+const plan = panelDocs.slice(panelDocs.indexOf(BEGIN) + BEGIN.length, panelDocs.indexOf(END));
 const sql = read("database", "migrations", "2026-11-02-access-2-catalog.sql");
 
 const HEADINGS = [
@@ -60,7 +65,17 @@ function sqlRows(table: string): string[][] {
 
 const { keys, cells } = matrixCells();
 
-describe("the permission catalogue matches the matrix in docs/PANEL_PLAN.md", () => {
+// The plan is the owner's reference and is not edited. Restructure 3 merged docs/PANEL_PLAN.md
+// into docs/PANEL_DOCS.md; the block must stay the blob it was at 239e701, the last commit with
+// the file (git rev-parse 239e701:docs/PANEL_PLAN.md).
+test("the panel plan in docs/PANEL_DOCS.md is byte-identical to docs/PANEL_PLAN.md at 239e701", () => {
+  expect(panelDocs.indexOf(BEGIN)).toBeGreaterThan(-1);
+  expect(panelDocs.indexOf(END)).toBeGreaterThan(panelDocs.indexOf(BEGIN));
+  const blob = crypto.createHash("sha1").update(`blob ${Buffer.byteLength(plan)}\0`).update(plan).digest("hex");
+  expect(blob).toBe("4552f1913a71b1e8cbb6656869e9d774e1670295");
+});
+
+describe("the permission catalogue matches the matrix in the panel plan (docs/PANEL_DOCS.md)", () => {
   test("the matrix has 31 rows naming 39 permission keys, and the constant lists them in order", () => {
     expect(keys).toHaveLength(39);
     expect([...PERMISSION_KEYS]).toEqual(keys);

@@ -16,7 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..", "..");
-const PLAN = path.join(ROOT, "docs", "PANEL_PLAN.md");
+const PLAN = path.join(ROOT, "docs", "PANEL_DOCS.md");
 const OUT = path.join(ROOT, "database", "migrations", "2026-11-02-access-2-catalog.sql");
 
 // Matrix heading → role key, in the matrix's column order.
@@ -51,10 +51,21 @@ const risk = (key) => (CRITICAL.has(key) ? "critical" : LOW.has(key) ? "low" : "
 
 const CODES = new Set(["F", "S", "Own", "A", "R", "M"]);
 
+// The panel plan, carried byte for byte into PANEL_DOCS.md between these markers.
+const PLAN_BEGIN = "<!-- BEGIN:panel-plan -->\n";
+const PLAN_END = "<!-- END:panel-plan -->";
+export function planBlock(markdown) {
+  const text = markdown.replace(/\r\n/g, "\n");
+  const begin = text.indexOf(PLAN_BEGIN);
+  const end = text.indexOf(PLAN_END);
+  if (begin < 0 || end < begin) throw new Error("panel plan markers not found in PANEL_DOCS.md");
+  return text.slice(begin + PLAN_BEGIN.length, end);
+}
+
 export function parseMatrix(markdown) {
   const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const start = lines.findIndex((l) => l.startsWith("| Permission (verb) |"));
-  if (start < 0) throw new Error("matrix header not found in PANEL_PLAN.md");
+  if (start < 0) throw new Error("matrix header not found in the panel plan");
   const cells = (l) => l.split("|").slice(1, -1).map((c) => c.trim());
   const header = cells(lines[start]).slice(1);
   if (header.join("|") !== ROLES.map((r) => r[0]).join("|")) throw new Error(`matrix columns changed: ${header.join(", ")}`);
@@ -126,7 +137,7 @@ export function renderSql(rows) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"))) {
-  const sql = renderSql(parseMatrix(fs.readFileSync(PLAN, "utf8")));
+  const sql = renderSql(parseMatrix(planBlock(fs.readFileSync(PLAN, "utf8"))));
   if (process.argv.includes("--check")) {
     const current = fs.existsSync(OUT) ? fs.readFileSync(OUT, "utf8").replace(/\r\n/g, "\n") : "";
     if (current !== sql) { console.error(`${path.relative(ROOT, OUT)} is stale: run node scripts/generate-access-catalog.mjs`); process.exit(1); }
