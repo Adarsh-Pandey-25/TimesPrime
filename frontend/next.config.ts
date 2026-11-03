@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { ALLOWED_IMAGE_HOSTNAMES } from "../backend/shared/config/imageDomains";
@@ -18,7 +19,21 @@ const corsHeaders = [
   { key: "ngrok-skip-browser-warning", value: "true" },
 ];
 
+// This folder is the Next root, but app/ imports backend/ from the repository
+// root, where the one package.json and lockfile are too. Turbopack resolves no
+// file outside its root, and output tracing includes none outside its own
+// (bundled docs: next-config-js/turbopack.md "Root directory", output.md), so
+// both are the repository root. Turbopack would infer it from the lockfile;
+// stating it keeps a build machine that copies only part of the repo honest.
+const repoRoot = path.join(__dirname, "..");
+
 const nextConfig: NextConfig = {
+  turbopack: { root: repoRoot },
+  outputFileTracingRoot: repoRoot,
+  // next dev writes a managed block into AGENTS.md when it detects an AI
+  // agent (agentRules.md). The owner keeps four Markdown files, all in docs/;
+  // docs/README.md carries the same instruction (read the bundled Next docs).
+  agentRules: false,
   allowedDevOrigins: [
     "grinch-failing-purebred.ngrok-free.dev",
     "*.ngrok-free.dev",
