@@ -1,6 +1,9 @@
+/// <reference types="@testing-library/jest-dom" />
+// The reference above gives every test the jest-dom matcher types; the
+// setupFilesAfterEnv entry below registers the matchers at run time.
 import type { Config } from "jest";
 import nextJest from "next/jest.js";
-import { SHIMS } from "./backend/scripts/move-map.mjs";
+import { shimFiles } from "./backend/scripts/shims.mjs";
 
 // next/jest handles: SWC-based TS/JSX transform matching the app's own
 // build, .env loading, next.config.ts loading, and mocking CSS/image/font
@@ -20,7 +23,7 @@ const config: Config = {
   // location-pinned Next.js conventions that only call SDK init.
   // The globs name no folder, so moving code (restructure 2 empties src/)
   // cannot quietly drop it from the measurement; root tooling is excluded.
-  // So are the route and page shims, by name from the move map: a one-line
+  // So are the route and page shims (backend/scripts/shims.mjs): a one-line
   // re-export has nothing to cover, and V8 counts each as one uncovered
   // function and branch. Composition pages and layouts stay measured.
   collectCoverageFrom: [
@@ -35,10 +38,11 @@ const config: Config = {
     "!next.config.ts",
     "!jest.config.ts",
     "!jest.setup.ts",
-    ...SHIMS.map((shim) => `!${shim}`),
+    ...shimFiles().map((shim) => `!${shim}`),
   ],
   testEnvironment: "jsdom",
-  setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
+  // jest-dom's entry point registers its matchers (expect.extend) when loaded.
+  setupFilesAfterEnv: ["@testing-library/jest-dom"],
   moduleNameMapper: {
     // Mirrors tsconfig "paths", as the Next jest guide recommends: one alias per
     // layer and no catch-all, so every import names its layer. In practice

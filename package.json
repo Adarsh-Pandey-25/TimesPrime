@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "check:boundaries": "node backend/scripts/check-move-map.mjs",
+    "check:boundaries": "node backend/scripts/check-boundaries.mjs",
     "verify": "npm run typecheck && npm run lint && npm run check:boundaries && npm test && npm run build",
     "test": "jest",
     "test:watch": "jest --watch",
