@@ -37,7 +37,6 @@ const config: Config = {
     "!**/sentry.*.config.ts",
     "!next.config.ts",
     "!jest.config.ts",
-    "!jest.setup.ts",
     ...shimFiles().map((shim) => `!${shim}`),
   ],
   testEnvironment: "jsdom",

@@ -28,7 +28,7 @@ const all = execSync("git ls-files", { encoding: "utf8" }).split("\n").map((s) =
 const tracked = new Set(all);
 // Source files in the graph: every tracked .ts/.tsx except tooling configs and declarations.
 const files = all.filter(
-  (f) => /\.(ts|tsx)$/.test(f) && !/\.d\.ts$/.test(f) && ![`${NEXT_ROOT}jest.config.ts`, `${NEXT_ROOT}jest.setup.ts`].includes(f) && !f.startsWith("backend/scripts/")
+  (f) => /\.(ts|tsx)$/.test(f) && !/\.d\.ts$/.test(f) && f !== `${NEXT_ROOT}jest.config.ts` && !f.startsWith("backend/scripts/")
 );
 
 // tsconfig "paths", longest prefix first, as TypeScript matches them. Targets are
