@@ -1,5 +1,15 @@
 # TimesPrime — Session Handoff
 
+> **Release in progress (owner, 2026-11-02).** The owner's senior asked for a deployment now. The
+> release is built on `release/v1`, branched from `main`, in phases R0–R4, each ending at a STOP; it
+> merges to `main` after the owner approves. **Panel work is paused** and resumes after the release:
+> Panel 0's second half waits on `panel-0-access`.
+>
+> **The real database.** `.env.local` holds its credentials and the app uses them. Never read, print
+> or edit `.env.local`. Never write to the database yourself: no SQL, migrations, bootstrap, test
+> users or destructive tests. Schema changes are owner actions in a runbook. The app's normal
+> behaviour (reading, ingesting, caching scraped content) is fine. End-to-end tests are read-only.
+
 > **⚠ `main` is not deployable until the Panel 0 migrations are applied; see the runbook.**
 > Since `78e58b6` every admin route writes the audit log before it changes anything, and refuses
 > (503) when it cannot. Until the owner applies `database/migrations/2026-11-02-access-1-foundation.sql`
