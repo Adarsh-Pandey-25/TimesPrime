@@ -10,15 +10,19 @@
 // Paths are repo-relative with forward slashes, as `git ls-files` prints them.
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-// The Next.js root, relative to the repository root ("" while it is the root).
-export const NEXT_ROOT = "";
+// The repository root: two folders above this file, whatever the working directory.
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+// The Next.js root (the folder that holds next.config.ts), relative to the repository root.
+export const NEXT_ROOT = "frontend/";
 export const APP = `${NEXT_ROOT}app`;
 
 // Composition pages: they import backend/ to fetch, then render a frontend view.
 export const COMPOSITION_PAGES = [`${APP}/page.tsx`, `${APP}/article/[slug]/page.tsx`];
 
-export function shimFiles(root = process.cwd()) {
+export function shimFiles(root = REPO) {
   const out = [];
   const walk = (dir) => {
     for (const e of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {

@@ -10,7 +10,7 @@
 import fs from "fs";
 import path from "path";
 
-const read = (...p: string[]) => fs.readFileSync(path.join(process.cwd(), "database", ...p), "utf8").replace(/\r\n/g, "\n");
+const read = (...p: string[]) => fs.readFileSync(path.join(path.resolve(__dirname, "../.."), "database", ...p), "utf8").replace(/\r\n/g, "\n");
 const foundation = read("migrations", "2026-11-02-access-1-foundation.sql");
 const catalog = read("migrations", "2026-11-02-access-2-catalog.sql");
 const freeze = read("migrations", "2026-11-02-access-3-freeze-admin-logs.sql");

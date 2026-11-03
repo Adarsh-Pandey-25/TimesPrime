@@ -12,7 +12,7 @@ import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 
-const root = process.cwd();
+const root = path.resolve(__dirname, "../../..");
 const example = fs.readFileSync(path.join(root, ".env.local.example"), "utf8");
 
 const sources = execSync("git ls-files", { cwd: root, encoding: "utf8" })

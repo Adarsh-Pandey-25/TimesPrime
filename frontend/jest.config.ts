@@ -3,7 +3,7 @@
 // setupFilesAfterEnv entry below registers the matchers at run time.
 import type { Config } from "jest";
 import nextJest from "next/jest.js";
-import { shimFiles } from "./backend/scripts/shims.mjs";
+import { shimFiles } from "../backend/scripts/shims.mjs";
 
 // next/jest handles: SWC-based TS/JSX transform matching the app's own
 // build, .env loading, next.config.ts loading, and mocking CSS/image/font
@@ -14,6 +14,8 @@ const createJestConfig = nextJest({
 });
 
 const config: Config = {
+  // The repository root, relative to this file: tests live in frontend/ and backend/.
+  rootDir: "..",
   coverageProvider: "v8",
   // Without this, coverage only instruments files a test happens to import,
   // which reported 91.42% while actually describing 5 of 73 source files.
@@ -35,8 +37,8 @@ const config: Config = {
     "!**/instrumentation.ts",
     "!**/instrumentation-client.ts",
     "!**/sentry.*.config.ts",
-    "!next.config.ts",
-    "!jest.config.ts",
+    "!frontend/next.config.ts",
+    "!frontend/jest.config.ts",
     ...shimFiles().map((shim) => `!${shim}`),
   ],
   testEnvironment: "jsdom",

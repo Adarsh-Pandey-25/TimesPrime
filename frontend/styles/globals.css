@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Next runs in frontend/, and automatic detection starts at the working
+   directory. Utilities are also written outside it (backend/shared/config/
+   categoryColors.ts), so the scan covers the whole repository, as it did while
+   the Next root was the repository root. */
+@source "../..";
+
 /* Automatic detection scans every file git does not ignore, Markdown included,
    so prose could add or drop a utility (BL-018). None of these hold markup.
    Paths resolve from this stylesheet: if it moves, rewrite them in the same

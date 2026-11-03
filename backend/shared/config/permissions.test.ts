@@ -11,7 +11,7 @@ import fs from "fs";
 import path from "path";
 import { ACCESS_CODES, PERMISSION_KEYS, ROLE_KEYS } from "./permissions";
 
-const read = (...p: string[]) => fs.readFileSync(path.join(process.cwd(), ...p), "utf8").replace(/\r\n/g, "\n");
+const read = (...p: string[]) => fs.readFileSync(path.join(path.resolve(__dirname, "../../.."), ...p), "utf8").replace(/\r\n/g, "\n");
 const plan = read("docs", "PANEL_PLAN.md");
 const sql = read("database", "migrations", "2026-11-02-access-2-catalog.sql");
 

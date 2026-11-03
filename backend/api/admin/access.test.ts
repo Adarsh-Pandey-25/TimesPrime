@@ -66,7 +66,7 @@ const { supabase } = jest.requireMock("@/backend/lib/supabase") as { supabase: {
 
 // ---- the catalogue, read from the generated SQL (the matrix) -------------------------------
 
-const catalog = fs.readFileSync(path.join(process.cwd(), "database", "migrations", "2026-11-02-access-2-catalog.sql"), "utf8");
+const catalog = fs.readFileSync(path.join(path.resolve(__dirname, "../../.."), "database", "migrations", "2026-11-02-access-2-catalog.sql"), "utf8");
 const tuples = (table: string) => {
   const block = catalog.match(new RegExp(`INSERT INTO public\\.${table} \\([^)]*\\) VALUES\\r?\\n([\\s\\S]*?)(?:\\r?\\nON CONFLICT|;\\r?\\n)`));
   if (!block) throw new Error(`no ${table} in the catalogue`);
@@ -349,7 +349,7 @@ afterEach(() => {
 });
 
 describe("the route walk: every admin route and method on disk is public by name, or guarded and tested", () => {
-  const ROOT = path.join(process.cwd(), "app", "api", "admin");
+  const ROOT = path.join(path.resolve(__dirname, "../../.."), "frontend", "app", "api", "admin");
   const onDisk: Array<{ path: string; method: string }> = [];
   (function walk(dir: string) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

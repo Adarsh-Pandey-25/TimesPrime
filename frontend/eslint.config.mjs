@@ -29,21 +29,24 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-import { shimFiles } from "./backend/scripts/shims.mjs";
+import { shimFiles } from "../backend/scripts/shims.mjs";
 
 // Relative to the working directory, which import/no-restricted-paths resolves
-// zones against (its default basePath): lint runs from the repo root.
-const APP = "./app";
+// zones against (its default basePath): lint runs from the repo root, and
+// `npm run lint` passes -c, so ESLint's own base path is the repo root too.
+const APP = "./frontend/app";
 const FRONTEND = "./frontend";
 const BACKEND = "./backend";
 const SHARED = "./backend/shared";
 const DATABASE = "./database";
 const SCRIPTS = "./backend/scripts";
-const PROXY = "./proxy.ts";
-const NEXT_CONFIG = "./next.config.ts";
+const PROXY = "./frontend/proxy.ts";
+const NEXT_CONFIG = "./frontend/next.config.ts";
 // The root files Next pins in place, by the runtime they load in.
-const CLIENT_ROOT = "./instrumentation-client.ts";
-const SERVER_ROOT = ["./instrumentation.ts", "./sentry.server.config.ts", "./sentry.edge.config.ts"];
+const CLIENT_ROOT = "./frontend/instrumentation-client.ts";
+const SERVER_ROOT = ["./frontend/instrumentation.ts", "./frontend/sentry.server.config.ts", "./frontend/sentry.edge.config.ts"];
+// frontend/ without app/ and the Next root files: features, views, components, context, styles.
+const FRONTEND_UI = "./frontend/!(app)/**";
 const FEATURES = "./frontend/features";
 const VIEWS = "./frontend/views";
 const UI = "./frontend/components/ui";
@@ -55,6 +58,8 @@ const VALIDATION = "./backend/shared/validation";
 
 // Every file outside one top-level folder: the other folders, and the root files.
 const outside = (dir) => [`./!(${dir})/**`, "./*"];
+// Every file outside frontend/app.
+const outsideApp = ["./!(frontend)/**", "./*", "./frontend/!(app)/**", "./frontend/*"];
 // A folder's modules, without its colocated tests. A test is not a module and
 // never ships, so the rules about what a layer may import (X1's entry points,
 // R5, R9, R7, LIB) leave tests out, as check:boundaries does.
@@ -78,7 +83,7 @@ const zones = [
   // A1 — app/ composes frontend/, backend/ and shared/, and is the only place
   // they meet. Nothing outside it imports app/ ...
   {
-    target: outside("app"),
+    target: outsideApp,
     from: APP,
     message: "A1: nothing outside app/ imports app/. app/ is the routing shell on top: it imports frontend/, backend/ and shared/, never the other way round.",
   },
@@ -91,7 +96,7 @@ const zones = [
   },
   {
     target: SERVER_ROOT,
-    from: FRONTEND,
+    from: FRONTEND_UI,
     message: "A1: server instrumentation never imports frontend/. Only app/ joins frontend and backend.",
   },
   // ... and app/ reaches backend/ only through the API bodies, backend/shared and
@@ -104,7 +109,7 @@ const zones = [
   },
   // F1 — frontend never imports backend.
   {
-    target: FRONTEND,
+    target: FRONTEND_UI,
     from: BACKEND,
     except: ["./shared"],
     message: "F1: frontend/ never imports backend/. Backend data reaches the UI through app/ (a page passes it as props) or an API route.",
@@ -113,12 +118,14 @@ const zones = [
   {
     target: BACKEND,
     from: FRONTEND,
+    except: ["./app"],
     message: "B1: backend/ never imports frontend/. What both sides need belongs in shared/.",
   },
   // S1 — shared imports nothing from frontend/ or backend/ (app/ is A1's).
   {
     target: SHARED,
     from: FRONTEND,
+    except: ["./app"],
     message: "S1: shared/ imports nothing from frontend/, backend/ or app/. Both sides import it, so it can depend on neither.",
   },
   {
@@ -136,7 +143,13 @@ const zones = [
   },
   {
     target: PROXY,
-    from: [FRONTEND, SCRIPTS],
+    from: FRONTEND,
+    except: ["./app"],
+    message: "P1: proxy.ts imports only backend/auth and shared/.",
+  },
+  {
+    target: PROXY,
+    from: SCRIPTS,
     message: "P1: proxy.ts imports only backend/auth and shared/.",
   },
   // CR-06 — next.config.ts imports only shared/config (app/ is A1's, database/ D1's).
@@ -149,6 +162,7 @@ const zones = [
   {
     target: NEXT_CONFIG,
     from: FRONTEND,
+    except: ["./app"],
     message: "CR-06: next.config.ts imports only shared/config. Next evaluates it at config-load time.",
   },
   {
@@ -368,7 +382,7 @@ const boundaries = [
     rules: { "import/no-restricted-paths": ["error", { zones }] },
   },
   {
-    files: ["app/**/*.{ts,tsx}"],
+    files: ["frontend/app/**/*.{ts,tsx}"],
     rules: {
       "boundaries/no-server-in-client": "error",
       "boundaries/shim-only": "error",
@@ -426,10 +440,10 @@ const eslintConfig = defineConfig([
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
+    "frontend/.next/**",
+    "frontend/out/**",
+    "frontend/build/**",
+    "frontend/next-env.d.ts",
     // Generated by `npm run test:ci` (Istanbul's lcov-report). Linting it made the
     // warning count depend on whether coverage/ happened to exist (BL-010).
     "coverage/**",
