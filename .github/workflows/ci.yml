@@ -21,8 +21,10 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          # Single source of truth: .node-version, so CI cannot drift from local.
-          node-version-file: .node-version
+          # Single source of truth: package.json "engines.node", so CI cannot
+          # drift from local or from Vercel. setup-node reads engines.node from
+          # package.json (docs/advanced-usage.md, node-version-file).
+          node-version-file: package.json
           cache: npm
 
       - name: Install
