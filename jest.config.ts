@@ -1,6 +1,6 @@
 import type { Config } from "jest";
 import nextJest from "next/jest.js";
-import { SHIMS } from "./scripts/move-map.mjs";
+import { SHIMS } from "./backend/scripts/move-map.mjs";
 
 // next/jest handles: SWC-based TS/JSX transform matching the app's own
 // build, .env loading, next.config.ts loading, and mocking CSS/image/font
@@ -47,7 +47,6 @@ const config: Config = {
     // removed), so this is the fallback for anything that bypasses the transform.
     "^@/frontend/(.*)$": "<rootDir>/frontend/$1",
     "^@/backend/(.*)$": "<rootDir>/backend/$1",
-    "^@/shared/(.*)$": "<rootDir>/shared/$1",
   },
 };
 

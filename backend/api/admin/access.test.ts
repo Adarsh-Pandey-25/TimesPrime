@@ -51,7 +51,7 @@ import { loadStaffRecord } from "@/backend/repositories/staff";
 import { recordAudit } from "@/backend/repositories/auditLog";
 import { ADMIN_ROUTE_RULES, PUBLIC_ADMIN_ROUTES, type RouteRule } from "@/backend/auth/adminRoutePolicy";
 import { LEGACY_PERMISSIONS, type Assignment, type Grant, type StaffRecord } from "@/backend/auth/decide";
-import type { AccessCode, PermissionKey, RoleKey, ScopeLanguage } from "@/shared/config/permissions";
+import type { AccessCode, PermissionKey, RoleKey, ScopeLanguage } from "@/backend/shared/config/permissions";
 import * as articles from "./articles";
 import * as bulk from "./articles-bulk";
 import * as breakingNews from "./breaking-news";

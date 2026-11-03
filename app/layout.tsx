@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/frontend/context/ThemeContext";
 import { LanguageProvider } from "@/frontend/context/LanguageContext";
 import { FloatingAiAssistant } from "@/frontend/features/chat";
 import { BreakingNewsBanner } from "@/frontend/features/news";
-import { THEME_INIT_SCRIPT } from "@/shared/config/theme";
+import { THEME_INIT_SCRIPT } from "@/backend/shared/config/theme";
 
 const ptSerif = PT_Serif({
   weight: ["400", "700"],

@@ -5,7 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 import { ADMIN_ROUTE_RULES } from "@/backend/auth/adminRoutePolicy";
 import { requirePermission, type Actor } from "@/backend/auth/requirePermission";
-import type { AdminLog } from "@/shared/types";
+import type { AdminLog } from "@/backend/shared/types";
 
 // The activity log, read from the append-only audit_log (Panel 0; database/migrations/2026-11-02-
 // access-1-foundation.sql). Gated by requirePermission, the only gate on this path (service_role

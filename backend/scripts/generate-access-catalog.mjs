@@ -15,7 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..", "..");
 const PLAN = path.join(ROOT, "docs", "PANEL_PLAN.md");
 const OUT = path.join(ROOT, "database", "migrations", "2026-11-02-access-2-catalog.sql");
 

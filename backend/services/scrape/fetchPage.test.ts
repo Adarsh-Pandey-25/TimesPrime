@@ -9,13 +9,13 @@
  * a request that reaches the server can only have used the pinned address.
  */
 
-jest.mock("@/shared/validation/urlValidation", () => ({ validateExternalUrl: jest.fn() }));
+jest.mock("@/backend/shared/validation/urlValidation", () => ({ validateExternalUrl: jest.fn() }));
 
 import http from "http";
 import type { AddressInfo } from "net";
 import { fetchPage, MAX_REDIRECTS, UnsafeTargetError } from "./fetchPage";
 
-const { validateExternalUrl } = jest.requireMock("@/shared/validation/urlValidation") as { validateExternalUrl: jest.Mock };
+const { validateExternalUrl } = jest.requireMock("@/backend/shared/validation/urlValidation") as { validateExternalUrl: jest.Mock };
 
 let server: http.Server;
 let port: number;

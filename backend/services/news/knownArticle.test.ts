@@ -8,7 +8,7 @@
 jest.mock("@/backend/repositories/db", () => ({ findArticleByLink: jest.fn() }));
 
 import { findKnownArticle } from "./knownArticle";
-import { MOCK_ARTICLES } from "@/shared/config/newsConfig";
+import { MOCK_ARTICLES } from "@/backend/shared/config/newsConfig";
 
 const { findArticleByLink } = jest.requireMock("@/backend/repositories/db") as { findArticleByLink: jest.Mock };
 

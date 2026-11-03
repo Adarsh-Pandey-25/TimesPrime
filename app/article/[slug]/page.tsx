@@ -1,10 +1,10 @@
 import { Metadata } from "next";
 import { Header, Footer } from "@/frontend/features/news";
 import ArticleDetailView from "@/frontend/views/article/ArticleDetailView";
-import { Article } from "@/shared/types";
+import { Article } from "@/backend/shared/types";
 import { findKnownArticle } from "@/backend/services/news";
 import { scrapeArticle } from "@/backend/services/scrape/scrapeArticle";
-import { safePublisherHref } from "@/shared/validation/urlValidation";
+import { safePublisherHref } from "@/backend/shared/validation/urlValidation";
 
 interface PageProps {
   params: Promise<{ slug: string }>;

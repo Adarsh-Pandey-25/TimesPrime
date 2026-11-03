@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { ScopeLanguage } from "@/shared/config/permissions";
+import type { ScopeLanguage } from "@/backend/shared/config/permissions";
 
 // The one place that turns an article into a permission scope (design §3).
 //

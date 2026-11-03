@@ -26,7 +26,7 @@ jest.mock("@/frontend/features/news", () => ({
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import HomeClient from "./HomeClient";
 import { ThemeProvider } from "@/frontend/context/ThemeContext";
-import type { Article } from "@/shared/types";
+import type { Article } from "@/backend/shared/types";
 
 const article = (title: string): Article => ({
   article_id: title,

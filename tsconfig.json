@@ -20,8 +20,7 @@
     ],
     "paths": {
       "@/frontend/*": ["./frontend/*"],
-      "@/backend/*": ["./backend/*"],
-      "@/shared/*": ["./shared/*"]
+      "@/backend/*": ["./backend/*"]
     }
   },
   "include": [

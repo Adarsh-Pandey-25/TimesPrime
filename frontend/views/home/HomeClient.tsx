@@ -4,12 +4,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Header, Footer, ArticleCard, MarqueeTicker } from "@/frontend/features/news";
 import ThemeSpinner from "@/frontend/components/ui/ThemeSpinner";
-import { Article } from "@/shared/types";
+import { Article } from "@/backend/shared/types";
 import { Flame, Layers, RefreshCw, X, ChevronDown } from "lucide-react";
-import { Language, TRANSLATIONS } from "@/shared/config/translations";
+import { Language, TRANSLATIONS } from "@/backend/shared/config/translations";
 import { useTheme } from "@/frontend/context/ThemeContext";
 import { useLanguage } from "@/frontend/context/LanguageContext";
-import { assignDedupedTopicImages } from "@/shared/config/topicImages";
+import { assignDedupedTopicImages } from "@/backend/shared/config/topicImages";
 
 interface HomeClientProps {
   initialArticles: Article[];

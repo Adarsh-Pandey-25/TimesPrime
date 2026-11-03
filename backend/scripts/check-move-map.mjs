@@ -31,7 +31,7 @@ const all = execSync("git ls-files", { encoding: "utf8" }).split("\n").map((s) =
 const tracked = new Set(all);
 // Source files in the graph: every tracked .ts/.tsx except tooling configs and declarations.
 const files = all.filter(
-  (f) => /\.(ts|tsx)$/.test(f) && !/\.d\.ts$/.test(f) && !/^(jest\.config|jest\.setup)\.ts$/.test(f) && !f.startsWith("scripts/")
+  (f) => /\.(ts|tsx)$/.test(f) && !/\.d\.ts$/.test(f) && !/^(jest\.config|jest\.setup)\.ts$/.test(f) && !f.startsWith("backend/scripts/")
 );
 
 // Slice 1 lifts src/ to the root, so a pending move's file may sit at src/x or at x.
@@ -126,14 +126,14 @@ function layer(p) {
   if (p.startsWith("frontend/context/")) return "fe-context";
   if (p.startsWith("frontend/")) return "fe-other";
   if ((m = p.match(/^backend\/services\/([^/]+)\//))) return "be-service:" + m[1];
+  if (p.startsWith("backend/shared/config/")) return "sh-config";
+  if (p.startsWith("backend/shared/types/")) return "sh-types";
+  if (p.startsWith("backend/shared/validation/")) return "sh-validation";
   if (p.startsWith("backend/api/")) return "be-api";
   if (p.startsWith("backend/repositories/")) return "be-repositories";
   if (p.startsWith("backend/auth/")) return "be-auth";
   if (p.startsWith("backend/lib/")) return "be-lib";
   if (p.startsWith("backend/jobs/")) return "be-jobs";
-  if (p.startsWith("shared/config/")) return "sh-config";
-  if (p.startsWith("shared/types/")) return "sh-types";
-  if (p.startsWith("shared/validation/")) return "sh-validation";
   if (p.startsWith("database/")) return "database";
   if (p === "proxy.ts") return "proxy";
   if (/^(instrumentation(-client)?|sentry\.(server|edge)\.config)\.ts$/.test(p)) return "pinned";
@@ -237,7 +237,7 @@ for (const f of files) {
   if (problem) violations.push({ rule: "A2 app/ route file holds only re-exports and literal segment config", key: `${f}: ${problem}`, kind: "value" });
 }
 
-const imageDomains = ["src/config/imageDomains.ts", "config/imageDomains.ts", "shared/config/imageDomains.ts"];
+const imageDomains = ["src/config/imageDomains.ts", "config/imageDomains.ts", "shared/config/imageDomains.ts", "backend/shared/config/imageDomains.ts"];
 const imageDomainsImports = edges.filter((e) => imageDomains.includes(e.from)).length;
 
 if (process.argv.includes("--plan")) {

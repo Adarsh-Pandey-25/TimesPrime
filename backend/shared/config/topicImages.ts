@@ -5,7 +5,7 @@
  */
 
 import { isAllowedImageUrl } from "./imageDomains";
-import { Article } from "@/shared/types";
+import { Article } from "@/backend/shared/types";
 
 const TOPIC_IMAGE_MAP = [
   {

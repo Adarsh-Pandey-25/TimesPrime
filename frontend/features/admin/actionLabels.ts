@@ -1,4 +1,4 @@
-import type { AdminAction } from "@/shared/types";
+import type { AdminAction } from "@/backend/shared/types";
 
 // Display labels and icons for the admin activity log. ActivityLog.tsx is the
 // only consumer, so they live beside it rather than in a shared layer. They

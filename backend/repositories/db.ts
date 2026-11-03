@@ -1,7 +1,7 @@
 import "server-only";
 
 import * as Sentry from "@sentry/nextjs";
-import { Article } from "@/shared/types";
+import { Article } from "@/backend/shared/types";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 import {
   containsHindiScript,
@@ -9,7 +9,7 @@ import {
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
-} from "@/shared/config/newsConfig";
+} from "@/backend/shared/config/newsConfig";
 import { classifyCategoryRelevance } from "@/backend/services/classify/categoryClassifier";
 import { throttleReport } from "@/backend/lib/reportFallback";
 import { containsPattern } from "@/backend/lib/likePattern";

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Bot, Send, X, Sparkles, User, RefreshCw } from "lucide-react";
-import { ChatMessage } from "@/shared/types";
+import { ChatMessage } from "@/backend/shared/types";
 
 interface ChatbotProps {
   isOpen: boolean;

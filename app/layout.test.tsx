@@ -17,7 +17,7 @@ jest.mock("@/frontend/features/news", () => ({ BreakingNewsBanner: () => null })
 
 import { renderToStaticMarkup } from "react-dom/server";
 import RootLayout from "./layout";
-import { THEME_INIT_SCRIPT } from "@/shared/config/theme";
+import { THEME_INIT_SCRIPT } from "@/backend/shared/config/theme";
 
 test("the theme script is in <head>, before <body>", () => {
   const markup = renderToStaticMarkup(RootLayout({ children: <main>page</main> }));

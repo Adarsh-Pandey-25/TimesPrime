@@ -5,7 +5,7 @@
    Paths resolve from this stylesheet: if it moves, rewrite them in the same
    commit and compare the built CSS. */
 @source not "../../docs";
-@source not "../../scripts";
+@source not "../../backend/scripts";
 @source not "../../database";
 @source not "../../README.md";
 @source not "../../CLAUDE.md";

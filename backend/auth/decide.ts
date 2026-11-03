@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AccessCode, PermissionKey, RoleKey, ScopeLanguage } from "@/shared/config/permissions";
+import type { AccessCode, PermissionKey, RoleKey, ScopeLanguage } from "@/backend/shared/config/permissions";
 import { covers, type Target } from "./scope";
 
 // The permission rule, as a pure function: no I/O, no clock of its own, so every rule is tested

@@ -111,18 +111,18 @@ export const MOVES = [
   ["scripts/seed_supabase.mjs", "database/seed/seed_supabase.mjs", 2],
 
   // 3 — shared/: imported by both sides, or by neither side's code alone
-  ["src/types/index.ts", "shared/types/index.ts", 3],
-  ["src/config/categoryColors.ts", "shared/config/categoryColors.ts", 3],
+  ["src/types/index.ts", "backend/shared/types/index.ts", 3],
+  ["src/config/categoryColors.ts", "backend/shared/config/categoryColors.ts", 3],
   // CR-06: next.config.ts imports this at config-load time; move the import in the same commit.
-  ["src/config/imageDomains.ts", "shared/config/imageDomains.ts", 3],
-  ["src/config/topicImages.ts", "shared/config/topicImages.ts", 3],
-  ["src/config/translations.ts", "shared/config/translations.ts", 3],
+  ["src/config/imageDomains.ts", "backend/shared/config/imageDomains.ts", 3],
+  ["src/config/topicImages.ts", "backend/shared/config/topicImages.ts", 3],
+  ["src/config/translations.ts", "backend/shared/config/translations.ts", 3],
   // Importers on both sides: ArticleCard (frontend); db, fetchNews, newsdata and the news service entry (backend).
-  ["src/features/news/newsConfig.ts", "shared/config/newsConfig.ts", 3],
-  ["src/features/news/newsConfig.test.ts", "shared/config/newsConfig.test.ts", 3],
+  ["src/features/news/newsConfig.ts", "backend/shared/config/newsConfig.ts", 3],
+  ["src/features/news/newsConfig.test.ts", "backend/shared/config/newsConfig.test.ts", 3],
   // Both runtimes: instrumentation-client (browser) and the Sentry server/edge configs.
-  ["src/lib/sentryScrub.ts", "shared/validation/sentryScrub.ts", 3],
-  ["src/lib/sentryScrub.test.ts", "shared/validation/sentryScrub.test.ts", 3],
+  ["src/lib/sentryScrub.ts", "backend/shared/validation/sentryScrub.ts", 3],
+  ["src/lib/sentryScrub.test.ts", "backend/shared/validation/sentryScrub.test.ts", 3],
 
   // 4 — backend/lib + backend/auth
   ["src/server/supabase.ts", "backend/lib/supabase.ts", 4],
@@ -132,7 +132,7 @@ export const MOVES = [
   ["src/lib/reportFallback.test.ts", "backend/lib/reportFallback.test.ts", 4],
   // Slice 4 put it in backend/lib/; audit Phase 2 moved it on to shared/validation/,
   // where the article page's link sinks can use it too (F-005, BL-015).
-  ["src/lib/urlValidation.ts", "shared/validation/urlValidation.ts", 4],
+  ["src/lib/urlValidation.ts", "backend/shared/validation/urlValidation.ts", 4],
   // Imported by proxy.ts (P1) and the login/logout routes.
   ["src/server/auth/adminSession.ts", "backend/auth/adminSession.ts", 4],
 

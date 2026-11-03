@@ -2,7 +2,7 @@ import "server-only";
 
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 import type { Assignment, Grant, StaffRecord } from "@/backend/auth/decide";
-import { ACCESS_CODES, PERMISSION_KEYS, ROLE_KEYS, SCOPE_LANGUAGES, type AccessCode, type PermissionKey, type RoleKey, type ScopeLanguage } from "@/shared/config/permissions";
+import { ACCESS_CODES, PERMISSION_KEYS, ROLE_KEYS, SCOPE_LANGUAGES, type AccessCode, type PermissionKey, type RoleKey, type ScopeLanguage } from "@/backend/shared/config/permissions";
 
 // The staff record decide() needs: the profile, and the user's unrevoked, unexpired assignments
 // with their roles' grants. Read from Supabase on every request and never cached (design,

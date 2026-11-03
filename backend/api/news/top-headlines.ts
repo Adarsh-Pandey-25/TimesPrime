@@ -3,7 +3,7 @@ import "server-only";
 import { NextRequest, NextResponse, after } from "next/server";
 import { cache, CACHE_TTL_NEWS_SECONDS } from "@/backend/lib/cache";
 import { reportSupabaseFallback } from "@/backend/services/health/health";
-import { Article, NewsDataRawArticle } from "@/shared/types";
+import { Article, NewsDataRawArticle } from "@/backend/shared/types";
 import {
   saveArticlesToDB,
   getDBArticles,

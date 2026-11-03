@@ -4,7 +4,7 @@
  * and backend/api/news/top-headlines.ts (client-side refetch endpoint).
  */
 
-import { Article } from "@/shared/types";
+import { Article } from "@/backend/shared/types";
 
 export const CATEGORY_MAP: Record<string, string> = {
   general: "top",

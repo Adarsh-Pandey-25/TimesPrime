@@ -1,7 +1,7 @@
 import "server-only";
 
-import { Article } from "@/shared/types";
-import { mapCategory } from "@/shared/config/newsConfig";
+import { Article } from "@/backend/shared/types";
+import { mapCategory } from "@/backend/shared/config/newsConfig";
 
 /**
  * Shared NewsData.io fetch + normalize.

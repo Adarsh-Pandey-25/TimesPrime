@@ -1,6 +1,6 @@
 "use client";
 
-import { Article } from "@/shared/types";
+import { Article } from "@/backend/shared/types";
 
 const BOOKMARKS_KEY = "timesprime_saved_articles";
 

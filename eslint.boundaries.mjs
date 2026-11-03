@@ -25,16 +25,16 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { SHIMS } from "./scripts/move-map.mjs";
+import { SHIMS } from "./backend/scripts/move-map.mjs";
 
 // Relative to the working directory, which import/no-restricted-paths resolves
 // zones against (its default basePath): lint runs from the repo root.
 const APP = "./app";
 const FRONTEND = "./frontend";
 const BACKEND = "./backend";
-const SHARED = "./shared";
+const SHARED = "./backend/shared";
 const DATABASE = "./database";
-const SCRIPTS = "./scripts";
+const SCRIPTS = "./backend/scripts";
 const PROXY = "./proxy.ts";
 const NEXT_CONFIG = "./next.config.ts";
 // The root files Next pins in place, by the runtime they load in.
@@ -45,9 +45,9 @@ const VIEWS = "./frontend/views";
 const UI = "./frontend/components/ui";
 const CONTEXT = "./frontend/context";
 const SERVICES = "./backend/services";
-const CONFIG = "./shared/config";
-const TYPES = "./shared/types";
-const VALIDATION = "./shared/validation";
+const CONFIG = "./backend/shared/config";
+const TYPES = "./backend/shared/types";
+const VALIDATION = "./backend/shared/validation";
 
 // Every file outside one top-level folder: the other folders, and the root files.
 const outside = (dir) => [`./!(${dir})/**`, "./*"];
@@ -82,6 +82,7 @@ const zones = [
   {
     target: CLIENT_ROOT,
     from: BACKEND,
+    except: ["./shared"],
     message: "A1: instrumentation-client.ts runs in the browser and never imports backend/. Only app/ joins frontend and backend.",
   },
   {
@@ -93,6 +94,7 @@ const zones = [
   {
     target: FRONTEND,
     from: BACKEND,
+    except: ["./shared"],
     message: "F1: frontend/ never imports backend/. Backend data reaches the UI through app/ (a page passes it as props) or an API route.",
   },
   // B1 — backend never imports frontend.
@@ -104,14 +106,20 @@ const zones = [
   // S1 — shared imports nothing from frontend/ or backend/ (app/ is A1's).
   {
     target: SHARED,
-    from: [FRONTEND, BACKEND],
+    from: FRONTEND,
+    message: "S1: shared/ imports nothing from frontend/, backend/ or app/. Both sides import it, so it can depend on neither.",
+  },
+  {
+    target: SHARED,
+    from: BACKEND,
+    except: ["./shared"],
     message: "S1: shared/ imports nothing from frontend/, backend/ or app/. Both sides import it, so it can depend on neither.",
   },
   // P1 — the proxy imports only backend/auth and shared/ (app/ is A1's, database/ D1's).
   {
     target: PROXY,
     from: BACKEND,
-    except: ["./auth"],
+    except: ["./auth", "./shared"],
     message: "P1: proxy.ts imports only backend/auth and shared/. Authorisation is one choke point, and what it needs lives in backend/auth.",
   },
   {
@@ -128,7 +136,13 @@ const zones = [
   },
   {
     target: NEXT_CONFIG,
-    from: [FRONTEND, BACKEND, SCRIPTS],
+    from: FRONTEND,
+    message: "CR-06: next.config.ts imports only shared/config. Next evaluates it at config-load time.",
+  },
+  {
+    target: NEXT_CONFIG,
+    from: BACKEND,
+    except: ["./shared"],
     message: "CR-06: next.config.ts imports only shared/config. Next evaluates it at config-load time.",
   },
   // X1 — no imports between features ...
@@ -216,7 +230,6 @@ const zones = [
 const ALIASES = [
   ["@/frontend/", "frontend/"],
   ["@/backend/", "backend/"],
-  ["@/shared/", "shared/"],
 ];
 const relative = (filename) => path.relative(process.cwd(), filename).split(path.sep).join("/");
 
@@ -248,7 +261,7 @@ const noServerInClient = {
     const check = (node, source, typeOnly) => {
       if (!client || typeOnly || !source || typeof source.value !== "string") return;
       const target = resolveSpecifier(source.value, context.filename);
-      if (target && /^backend(\/|$)/.test(target)) context.report({ node, messageId: "server", data: { target } });
+      if (target && /^backend(\/|$)/.test(target) && !/^backend\/shared(\/|$)/.test(target)) context.report({ node, messageId: "server", data: { target } });
     };
     return {
       Program(node) { client = hasUseClient(node); },
@@ -353,12 +366,12 @@ export const boundaries = [
     files: ["backend/**/*.ts"],
     // A colocated test is not a module and never ships; next/jest maps
     // server-only to an empty module.
-    ignores: ["**/*.test.ts"],
+    ignores: ["**/*.test.ts", "backend/shared/**"],
     rules: { "boundaries/server-only-first": "error" },
   },
   // R7 — shared/config holds static data: no React, no server-only.
   {
-    files: ["shared/config/**/*.ts"],
+    files: ["backend/shared/config/**/*.ts"],
     rules: {
       "no-restricted-imports": ["error", {
         paths: [
@@ -372,7 +385,7 @@ export const boundaries = [
   },
   // CR-06 — next.config.ts evaluates imageDomains.ts at config-load time, so it imports nothing.
   {
-    files: ["shared/config/imageDomains.ts"],
+    files: ["backend/shared/config/imageDomains.ts"],
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [{ regex: ".*", message: "CR-06: imageDomains.ts imports nothing; next.config.ts evaluates it at config-load time." }],

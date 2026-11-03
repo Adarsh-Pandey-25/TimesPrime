@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Article } from "@/shared/types";
+import { Article } from "@/backend/shared/types";
 import {
   Share2,
   Copy,
@@ -24,9 +24,9 @@ import { ArticleCard } from "@/frontend/features/news";
 
 import { useLanguage } from "@/frontend/context/LanguageContext";
 import { useTheme } from "@/frontend/context/ThemeContext";
-import { TRANSLATIONS } from "@/shared/config/translations";
-import { assignDedupedTopicImages } from "@/shared/config/topicImages";
-import { safePublisherHref } from "@/shared/validation/urlValidation";
+import { TRANSLATIONS } from "@/backend/shared/config/translations";
+import { assignDedupedTopicImages } from "@/backend/shared/config/topicImages";
+import { safePublisherHref } from "@/backend/shared/validation/urlValidation";
 
 /** Estimated reading time at ~200 wpm, minimum 1 minute. */
 function estimateReadMinutes(paragraphs: string[]): number {

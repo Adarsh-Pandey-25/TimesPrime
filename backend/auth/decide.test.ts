@@ -8,7 +8,7 @@
 
 import { ANY_SCOPE, decide, decideLegacy, LEGACY_PERMISSIONS, type Assignment, type StaffRecord } from "./decide";
 import type { Target } from "./scope";
-import { PERMISSION_KEYS, type AccessCode, type PermissionKey } from "@/shared/config/permissions";
+import { PERMISSION_KEYS, type AccessCode, type PermissionKey } from "@/backend/shared/config/permissions";
 
 const NOW = new Date("2026-11-10T12:00:00Z");
 const LATER = "2026-12-01T00:00:00Z";

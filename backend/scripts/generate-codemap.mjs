@@ -415,7 +415,7 @@ L.push(
   "  such as `supabase.ts` contain no code that would fail in a browser.",
   "- **Violation:** a server-only module inside the client bundle.",
   "- **Limits:** the generator reads syntax, not types. An import written without `type` that only",
-  "  brings in interfaces (`import { Article } from \"@/shared/types\"`) is erased by the compiler but counted",
+  "  brings in interfaces (`import { Article } from \"@/backend/shared/types\"`) is erased by the compiler but counted",
   "  here as a value edge — which is why `shared/types/index.ts` shows as `bundled` though it compiles to",
   "  nothing. This can only over-include modules, never miss one, so the estimate errs high. A dynamic",
   "  `import()` with a non-literal specifier cannot be followed and is listed separately; `require()` is",
