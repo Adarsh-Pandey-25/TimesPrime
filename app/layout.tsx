@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { PT_Serif } from "next/font/google";
+import { Noto_Serif_Devanagari, PT_Serif } from "next/font/google";
 import "@/frontend/styles/globals.css";
 import { ThemeProvider } from "@/frontend/context/ThemeContext";
 import { LanguageProvider } from "@/frontend/context/LanguageContext";
@@ -12,6 +12,17 @@ const ptSerif = PT_Serif({
   subsets: ["latin"],
   variable: "--font-serif",
   display: "swap",
+});
+
+// PT Serif has no Devanagari, so Hindi fell back to whatever the device had. This face sits after
+// it in the font stack (globals.css) and only draws Devanagari. Not preloaded: an English page
+// never downloads it.
+const notoSerifDevanagari = Noto_Serif_Devanagari({
+  weight: "variable",
+  subsets: ["devanagari"],
+  variable: "--font-devanagari",
+  display: "swap",
+  preload: false,
 });
 
 export const viewport: Viewport = {
@@ -54,7 +65,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${ptSerif.variable} h-full antialiased`}
+      className={`${ptSerif.variable} ${notoSerifDevanagari.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

@@ -15,12 +15,25 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: var(--font-serif), "PT Serif", Georgia, Cambria, serif;
-  --font-serif: var(--font-serif), "PT Serif", Georgia, Cambria, serif;
+  --font-sans: var(--font-serif), "PT Serif", var(--font-devanagari), Georgia, Cambria, serif;
+  --font-serif: var(--font-serif), "PT Serif", var(--font-devanagari), Georgia, Cambria, serif;
+}
+
+/* Devanagari's matras rise above, and its vowel signs hang below, the Latin line box. At Latin line
+   heights they were cut off wherever text is clamped (line-clamp hides overflow). Hindi pages set
+   <html lang="hi"> (LanguageContext), so the tight leadings open up there only. */
+:lang(hi) .leading-none,
+:lang(hi) .leading-tight,
+:lang(hi) .leading-snug {
+  line-height: 1.5;
+}
+:lang(hi) .leading-normal,
+:lang(hi) .leading-relaxed {
+  line-height: 1.7;
 }
 
 body {
-  font-family: var(--font-serif), "PT Serif", Georgia, serif;
+  font-family: var(--font-serif), "PT Serif", var(--font-devanagari), Georgia, serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
