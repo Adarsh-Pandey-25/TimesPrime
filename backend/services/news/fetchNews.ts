@@ -38,7 +38,7 @@ export async function fetchInitialNews(
 
     if (!apiKey) {
       console.error(
-        "NEWSDATA_API_KEY is not set — falling back to mock articles. Add it to .env.local."
+        "NEWSDATA_API_KEY is not set — falling back to mock articles. Add it to frontend/.env."
       );
       return MOCK_ARTICLES;
     }

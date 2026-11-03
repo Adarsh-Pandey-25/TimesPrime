@@ -880,11 +880,10 @@ are resolved:
 - BL-022 (a public scrape writes `articles.content`; kept by the owner), BL-023 (signed links, only if
   needed), BL-024 (nullable columns, deployment phase), BL-025 (the anon-key fallback).
 - BL-026 (headline translation, a feature), BL-028 (theme ternaries), BL-030 (lazy-load the chatbot),
-  BL-031 (the new moderate advisories), BL-035 (docs statements stale before restructure 3),
-  BL-036 (runtime messages that still say `.env.local`).
+  BL-031 (the new moderate advisories), BL-035 (docs statements stale before restructure 3).
 
 **Resolved:** BL-003, BL-010, BL-011, BL-012, BL-013, BL-014, BL-015, BL-017, BL-018, BL-020, BL-021,
-BL-027, BL-029, BL-032.
+BL-027, BL-029, BL-032, BL-036.
 
 ### 12. Quick reference
 
@@ -1602,7 +1601,9 @@ Fix with the Panel 0 docs, when panel work resumes (the definition of done, item
 
 ### BL-036 — Runtime messages still tell the reader to set `.env.local`
 
-**Found:** restructure 3, S3 (2026-11-03) · **Status:** Open — needs owner approval (changes app output)
+**Found:** restructure 3, S3 (2026-11-03) · **Status:** Resolved (owner approval, 2026-11-03): every
+string below names `frontend/.env`; the login test asserts the 503 message, and `envExample.test.ts`
+fails if any source file names `.env.local` again
 
 Since restructure 3 the local env file is `frontend/.env`, but these strings, which the app prints or
 returns, still name `.env.local`. They are output, not comments, so restructure 3 (behaviour-

@@ -17,7 +17,7 @@ const LOGIN_RATE_LIMIT = { name: "login", limit: 10, windowSeconds: 15 * 60 };
 export async function POST(request: NextRequest) {
   if (!process.env.ADMIN_PASSWORD || !process.env.ADMIN_SESSION_SECRET) {
     return NextResponse.json(
-      { error: "Admin login is not configured. Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in .env.local." },
+      { error: "Admin login is not configured. Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in frontend/.env." },
       { status: 503 }
     );
   }

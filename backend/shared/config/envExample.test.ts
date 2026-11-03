@@ -48,6 +48,13 @@ test("ADMIN_PASSWORD and ADMIN_SESSION_SECRET are set in the example", () => {
   expect(assigned).toEqual(expect.arrayContaining(["ADMIN_PASSWORD", "ADMIN_SESSION_SECRET"]));
 });
 
+// BL-036: since restructure 3 the env file is frontend/.env. A message, warning or usage line
+// that still says .env.local sends the reader to a file that no longer exists.
+test("no source file tells the reader to use .env.local", () => {
+  const stale = sources.filter((file) => fs.readFileSync(path.join(root, file), "utf8").includes(".env.local"));
+  expect(stale).toEqual([]);
+});
+
 // Tests never receive the owner's credentials. The real file is frontend/.env,
 // which Next also loads in the test environment (it skips only .env.local
 // there). frontend/.env.test is loaded first, and @next/env keeps the first

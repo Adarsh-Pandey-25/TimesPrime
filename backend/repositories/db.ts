@@ -224,7 +224,7 @@ function isFromHardPaywallSource(link: string | undefined): boolean {
  */
 export async function purgeOldArticles(): Promise<number> {
   if (!isSupabaseConfigured()) {
-    console.warn("Supabase credentials not configured in .env.local yet.");
+    console.warn("Supabase credentials not configured in frontend/.env yet.");
     return 0;
   }
 
@@ -605,7 +605,7 @@ export async function getDBStats() {
       totalStoredArticles: 0,
       retentionDays: 7,
       databaseType: "Supabase PostgreSQL (Awaiting Credentials)",
-      note: "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local",
+      note: "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to frontend/.env",
     };
   }
 
