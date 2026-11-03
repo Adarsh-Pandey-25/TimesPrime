@@ -12,7 +12,8 @@
     "lint": "eslint -c frontend/eslint.config.mjs",
     "typecheck": "tsc --noEmit -p frontend",
     "check:boundaries": "node backend/scripts/check-boundaries.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run check:boundaries && npm test && npm run build",
+    "check:docs": "node backend/scripts/check-docs.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run check:boundaries && npm run check:docs && npm test && npm run build",
     "test": "cd frontend && jest",
     "test:watch": "cd frontend && jest --watch",
     "test:ci": "cd frontend && jest --ci --coverage"

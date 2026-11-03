@@ -44,6 +44,11 @@ jobs:
         # rule 6). Reads `git ls-files`, so it needs the checkout above.
         run: npm run check:boundaries
 
+      - name: Docs
+        # Four Markdown files, all in docs/, and every link in them resolves
+        # (backend/scripts/check-docs.mjs).
+        run: npm run check:docs
+
       - name: Test
         run: npm run test:ci
 
