@@ -30,9 +30,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files: every one is ignored (the owner's real frontend/.env, any
+# .env*.local, .env.production ...) except the two templates that hold no
+# secret: .env.example, and .env.test, which empties every key for the tests.
 .env*
 !.env.example
+!.env.test
 
 # vercel
 .vercel

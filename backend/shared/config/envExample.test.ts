@@ -47,3 +47,37 @@ test.each(["ADMIN_SECRET_TOKEN", "MEDIASTACK_API_KEY", "NEXT_PUBLIC_NEWSDATA_API
 test("ADMIN_PASSWORD and ADMIN_SESSION_SECRET are set in the example", () => {
   expect(assigned).toEqual(expect.arrayContaining(["ADMIN_PASSWORD", "ADMIN_SESSION_SECRET"]));
 });
+
+// Tests never receive the owner's credentials. The real file is frontend/.env,
+// which Next also loads in the test environment (it skips only .env.local
+// there). frontend/.env.test is loaded first, and @next/env keeps the first
+// value it finds for a key, an empty one included, so every key .env.test
+// empties is never filled from .env. These hold that chain together: the code
+// reads only what .env.example names, and .env.test empties all of it.
+describe("the test environment", () => {
+  const envTest = fs.readFileSync(path.join(root, "frontend", ".env.test"), "utf8");
+  const emptied = [...envTest.matchAll(/^([A-Z][A-Z0-9_]*)=(.*)$/gm)].map((m) => ({ name: m[1], value: m[2].trim() }));
+
+  test("frontend/.env.test sets every variable frontend/.env.example sets, and no other", () => {
+    expect(emptied.map((v) => v.name).sort()).toEqual([...assigned].sort());
+  });
+
+  test("every value in frontend/.env.test is empty", () => {
+    expect(emptied.filter((v) => v.value !== "")).toEqual([]);
+  });
+
+  // A variable named in .env.example only in a comment would reach the tests
+  // from .env. Only the platform's own variables may be read that way.
+  test("the code reads no variable .env.example leaves unset, except the platform's", () => {
+    expect([...read].filter((name) => !assigned.includes(name)).sort()).toEqual(["CI", "NEXT_RUNTIME", "NODE_ENV"]);
+  });
+
+  test("tests see every variable frontend/.env.example sets as empty", () => {
+    expect(assigned.filter((name) => process.env[name] !== "")).toEqual([]);
+  });
+
+  test("tests do not see a real Supabase project", () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+    expect(url === "" ? "" : new URL(url).hostname).not.toMatch(/(^|\.)supabase\.co$/i);
+  });
+});
