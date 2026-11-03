@@ -748,6 +748,18 @@ files resolve the root from their own folder (`path.resolve(__dirname, ...)`), n
 `process.cwd()`. Lint and the typecheck run from the root (`eslint -c frontend/eslint.config.mjs`,
 `tsc -p frontend`).
 
+#### 3.21 A lint zone silently passes an import it cannot resolve
+
+`import/no-restricted-paths` judges the resolved path, and skips an import whose path does not
+resolve, without a message. When the tsconfig moved into `frontend/`, eslint-config-next's
+TypeScript resolver (which looks for `tsconfig.json` in the working directory) stopped resolving
+`@/` imports, and every boundary zone let every aliased import through, from `93627ad` to
+`63bd34b`. Lint still reported 0 errors; only probes showed it. `frontend/eslint.config.mjs` now
+gives the resolver `project: "frontend/tsconfig.json"`. After any change to the tsconfig's place or
+its `paths`, probe at least one zone with an aliased import (for example `import "@/backend/lib/cache";`
+in a view must fail F1) before trusting lint. `check:boundaries` reads the tsconfig itself, and
+enforced every rule throughout.
+
 ### 4. Commits — restructure 2, audit Phases 2–5, restructure 3
 
 `f260d3e` closed audit Phase 1. Everything after it is restructure 2. Restructure 1 and Phase 1 are
@@ -790,7 +802,7 @@ client JS (+0 bytes on every route) and CSS (byte-identical).
 |---|---|---|
 | **S1** moves | `69304f8`..`8461fce` | `shared/` and `scripts/` into `backend/` (70 imports to `@/backend/shared/*`); `check-boundaries.mjs` replaces the move map, with A1's entry points and A2 for every page (BL-032); the lint rules and the jest setup folded into their configs; the CODEMAP, the move map and their scripts deleted; the Next.js app into `frontend/`, with Next and Jest run there; the Turbopack and tracing roots stated; `agentRules: false` |
 | **S2** env and clutter | `4d5964b`..`66a2a74` | `frontend/.env.example`; `frontend/.env.test` and its guard tests, before the owner moved `.env.local` to `frontend/.env`; CI reads the Node version from `package.json`; `.node-version` deleted; `.claude/settings.json` denies Read and Edit on the env files |
-| **S3** docs | `44f1e5c`..this file | Thirteen Markdown files merged into four; `check:docs` in `verify`; the doc paths in code comments |
+| **S3** docs | `44f1e5c`..this file | Thirteen Markdown files merged into four; `check:docs` in `verify`; the doc paths in code comments and the generated catalogue's header; BL-036. Then the rule probes (32, one per rule and variant): they found lint's `@/` resolution broken since `93627ad`, fixed in `63bd34b` ([gotcha 3.21](#321-a-lint-zone-silently-passes-an-import-it-cannot-resolve)) |
 
 ### 5. Architecture
 
