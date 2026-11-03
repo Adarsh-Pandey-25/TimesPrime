@@ -13,10 +13,6 @@
 @source not "../../docs";
 @source not "../../backend/scripts";
 @source not "../../database";
-@source not "../../README.md";
-@source not "../../CLAUDE.md";
-@source not "../../AGENTS.md";
-@source not "../../CONTRIBUTING.md";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
