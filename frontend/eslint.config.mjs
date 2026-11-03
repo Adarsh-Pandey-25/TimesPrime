@@ -23,7 +23,9 @@
 //  - What app/ code does (the routing shell holds no business logic) is about
 //    behaviour, not imports. Review enforces it.
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
@@ -114,9 +116,9 @@ const zones = [
     except: ["./shared"],
     message: "F1: frontend/ never imports backend/. Backend data reaches the UI through app/ (a page passes it as props) or an API route.",
   },
-  // B1 — backend never imports frontend.
+  // B1 — backend never imports frontend. (backend/shared/ is S1's, so one rule reports it.)
   {
-    target: BACKEND,
+    target: "./backend/!(shared)/**",
     from: FRONTEND,
     except: ["./app"],
     message: "B1: backend/ never imports frontend/. What both sides need belongs in shared/.",
@@ -420,9 +422,21 @@ const boundaries = [
   },
 ];
 
+// eslint-config-next registers eslint-import-resolver-typescript under its resolved path, with no
+// project, so it looks for tsconfig.json in the working directory. Lint runs from the repo root and
+// the tsconfig is frontend/tsconfig.json, so no "@/" import resolved, and import/no-restricted-paths
+// skips an import it cannot resolve: every zone above passed every aliased import. Found by the
+// restructure-3 rule probes. The same key, so this merges into Next's resolver settings.
+const TS_RESOLVER = createRequire(fileURLToPath(import.meta.resolve("eslint-config-next/core-web-vitals"))).resolve("eslint-import-resolver-typescript");
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    settings: {
+      "import/resolver": { [TS_RESOLVER]: { alwaysTryTypes: true, project: "frontend/tsconfig.json" } },
+    },
+  },
   // Import boundaries: docs/ARCHITECTURE.md, System design §5, rule by rule.
   ...boundaries,
   {
