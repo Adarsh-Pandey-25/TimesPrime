@@ -13,7 +13,7 @@ import fs from "fs";
 import path from "path";
 
 const root = path.resolve(__dirname, "../../..");
-const example = fs.readFileSync(path.join(root, ".env.local.example"), "utf8");
+const example = fs.readFileSync(path.join(root, "frontend", ".env.example"), "utf8");
 
 const sources = execSync("git ls-files", { cwd: root, encoding: "utf8" })
   .split("\n")
@@ -29,12 +29,12 @@ for (const name of ["NEWSDATA_API_KEY", "ANTHROPIC_API_KEY"]) read.add(name); //
 
 const assigned = [...example.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]);
 
-test("every variable the code reads is named in .env.local.example", () => {
+test("every variable the code reads is named in frontend/.env.example", () => {
   const missing = [...read].filter((name) => !new RegExp(`\\b${name}\\b`).test(example));
   expect(missing).toEqual([]);
 });
 
-test("every variable .env.local.example sets is read by the code", () => {
+test("every variable frontend/.env.example sets is read by the code", () => {
   expect(assigned.filter((name) => !read.has(name))).toEqual([]);
 });
 
