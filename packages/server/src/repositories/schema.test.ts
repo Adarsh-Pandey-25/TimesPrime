@@ -92,7 +92,8 @@ describe("database/migrations/2026-11-02-indexes.sql (F-018)", () => {
   });
 
   test("the owner runbook's rollback drops every index the migration creates", () => {
-    const runbook = fs.readFileSync(path.join(process.cwd(), "docs", "runbooks", "apply-database.md"), "utf8");
+    // The database runbook is a section of docs/OPERATIONS.md (Runbooks) since the docs merge.
+    const runbook = fs.readFileSync(path.join(process.cwd(), "docs", "OPERATIONS.md"), "utf8");
     const created = [...migration.matchAll(/CREATE INDEX IF NOT EXISTS (\w+)/g)].map((m) => m[1]);
     expect(created.length).toBe(5);
     for (const name of created) expect(runbook).toContain(`DROP INDEX IF EXISTS public.${name};`);

@@ -1,7 +1,8 @@
 /**
  * @jest-environment node
  *
- * The permission catalogue in its three places: the matrix in docs/PERMISSIONS.md (the owner's
+ * The permission catalogue in its three places: the matrix in the access rules (docs/PANEL_DOCS.md,
+ * between its markers; the owner's
  * canonical source, D2), the generated SQL the owner applies, and the typed constants the code
  * uses. The matrix is read here by its own parser, not the generator's, so a generator bug cannot
  * hide by agreeing with itself.
@@ -12,7 +13,9 @@ import path from "path";
 import { ACCESS_CODES, PERMISSION_KEYS, ROLE_KEYS } from "./permissions";
 
 const read = (...p: string[]) => fs.readFileSync(path.join(process.cwd(), ...p), "utf8").replace(/\r\n/g, "\n");
-const plan = read("docs", "PERMISSIONS.md");
+// Only the access rules: PANEL_DOCS.md also holds Panel 0's design, which quotes matrix rows.
+const panelDocs = read("docs", "PANEL_DOCS.md");
+const plan = panelDocs.slice(panelDocs.indexOf("<!-- BEGIN:access-rules -->"), panelDocs.indexOf("<!-- END:access-rules -->"));
 const sql = read("database", "migrations", "2026-11-02-access-2-catalog.sql");
 
 const HEADINGS = [
@@ -60,7 +63,7 @@ function sqlRows(table: string): string[][] {
 
 const { keys, cells } = matrixCells();
 
-describe("the permission catalogue matches the matrix in docs/PERMISSIONS.md", () => {
+describe("the permission catalogue matches the matrix in the access rules (docs/PANEL_DOCS.md)", () => {
   test("the matrix has 31 rows naming 39 permission keys, and the constant lists them in order", () => {
     expect(keys).toHaveLength(39);
     expect([...PERMISSION_KEYS]).toEqual(keys);

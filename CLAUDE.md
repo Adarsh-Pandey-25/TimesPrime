@@ -1,21 +1,32 @@
-@AGENTS.md
+# TimesPrime: start here (every session, every developer)
 
-## Start here (every session, every developer)
+## This is NOT the Next.js you know
 
-> **This branch (`chore/restructure`) is on hold.** The owner decided on 4 Nov 2026 that the release
-> on `main` (`release/v1`, run by Vivek) goes first. Work on `main` follows `main`'s own
-> `docs/OPERATIONS.md`. After the release, this plan is ported onto `main`. Hosting is AWS.
+This version (Next.js 16) has breaking changes: APIs, conventions and file structure may all differ
+from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing
+any code, and heed deprecation notices. (`next dev` no longer writes this into an `AGENTS.md`:
+`agentRules: false` in each app's `next.config.ts`.)
 
-1. **Read `docs/NEWSROOM_PLAN.md`.** It is the one plan for this project, approved by the owner on
-   4 Nov 2026. Its **Progress** table names the current phase: the first one not marked Done. Work
-   only on that phase, or on a parallel track the plan names, on the branch the table gives.
-   Nothing outside the plan gets built without the owner's approval.
-2. **Read `docs/HANDOFF.md` §1–§3** (state, environment, gotchas) before changing code.
-3. **Where code goes:** `CONTRIBUTING.md` ("Where does new code go?") and `docs/architecture.md` §4.
+## Before any work
+
+1. **Read [`docs/NEWSROOM_PLAN.md`](docs/NEWSROOM_PLAN.md).** It is the one plan for this project,
+   approved by the owner on 4 Nov 2026. Its **Progress** table names the current phase: the first
+   one not marked Done. **The release goes first** (row 0, `release/v1`, run by Vivek): the panel
+   phases wait for it. Work only on the current phase, or on a parallel track the plan names, on the
+   branch the table gives. Nothing outside the plan gets built without the owner's approval.
+2. **Read the [current status](docs/OPERATIONS.md#current-status)** in `docs/OPERATIONS.md`, §1–§3
+   (state, environment, gotchas), before changing code.
+3. **Where code goes:** [`docs/README.md`](docs/README.md#where-new-code-goes) and
+   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#4-layout) §4.
 4. **When a phase or panel is done**, update in the same piece of work: the plan's Progress table,
-   `docs/PANEL_DOCS.md` (for a panel), `docs/HANDOFF.md` and `docs/architecture.md`.
+   `docs/PANEL_DOCS.md` (for a panel), the current status in `docs/OPERATIONS.md`, and
+   `docs/ARCHITECTURE.md`.
 5. **The owner reads Hinglish.** Explain to the owner in simple Hinglish; keep the docs and commit
    messages in plain English for the developers.
+6. **Seven Markdown files, no others:** this file and, in `docs/`, `README.md`, `ARCHITECTURE.md`,
+   `OPERATIONS.md`, `PANEL_DOCS.md`, `NEWSROOM_PLAN.md` and `RESEARCH.md`. A new record (a design,
+   a decision, a runbook, a backlog item) is a section of one of them. `npm run check:docs` fails on
+   any other Markdown file and on a link that does not resolve.
 
 ## Structure and commands
 
@@ -26,38 +37,28 @@
 - From the root:
   - `npm run dev` starts the reader site on port 3000.
   - `npm run dev:admin` starts the back office on port 3001.
-  - `npm run job -- <name>` runs a worker job.
-  - `npm run verify` is the gate every commit must pass: typecheck, lint, test, build.
-- One `.env.local` at the root serves every app.
+  - `npm run job -- <name>` runs a worker job (never from a session: it writes to the database).
+  - `npm run verify` is the gate every commit must pass: typecheck, lint, check:docs, test, build,
+    and the JS budget.
+  - `npm run test:e2e` runs the read-only browser tests against production builds of both apps.
+- One env file at the root, `.env`, serves every app (template `.env.example`; tests get the empty
+  `.env.test`).
 
 ## Back-office panels
 
-- **Plan:** `docs/NEWSROOM_PLAN.md` (the phases, their order and what each delivers).
-- **Access rules:** `docs/PERMISSIONS.md` (roles, permission matrix, four-eyes and MFA rules).
-  Change it only with the owner's approval: propose the change in the panel's design doc, then
-  regenerate the catalogue SQL. Report errors or conflicts with the code instead of working around
-  them.
-- **Progress and per-panel docs:** `docs/PANEL_DOCS.md`.
+- **The definition of done, the access rules** (roles, the permission matrix, the four-eyes and MFA
+  rules) **and the progress of every panel** are in
+  [`docs/PANEL_DOCS.md`](docs/PANEL_DOCS.md). Read its
+  [definition of done](docs/PANEL_DOCS.md#definition-of-done) before panel work: a panel is done
+  only when all 13 items hold.
+- **The access rules change only with the owner's approval:** propose the change in the panel's
+  design, then regenerate the catalogue SQL (`node scripts/generate-access-catalog.mjs`). Report
+  errors or conflicts with the code instead of working around them.
 - **One panel at a time,** in the plan's order: 0 → 1 → 2 → 3 → 7 (launch minimum) → 8 (launch
   minimum) → launch → 7 and 8 in full → 4 → 5 → 6 → 9. No panel starts before the previous one is
   done.
-- **Every panel starts with a design doc** in `docs/design/panel-N-<name>.md`, approved by the owner
-  before code.
-- **A panel is done only when:**
-  1. Every feature in its `PANEL_DOCS.md` entry works, and the entry matches the code.
-  2. Every route and action it adds checks a permission server-side; tests prove allowed and denied.
-  3. Privileged actions are audited and need MFA where the plan says so.
-  4. `npm run verify` and CI are green; routes, JS and CSS reported.
-  5. SQL is in migration files with a rollback, listed as an owner action.
-  6. `docs/PANEL_DOCS.md`, `docs/HANDOFF.md` and `docs/architecture.md` are updated.
-  7. Database tests against the real database are read-only. The database's own rules (triggers,
-     audit hash chain, bootstrap) are verified by the owner via the runbook.
-  8. End-to-end browser tests cover the critical flows, including a refused-access flow.
-  9. Every screen has loading, error and empty states.
-  10. Accessibility is checked (keyboard, labels).
-  11. Failures reach Sentry; privileged actions are audited.
-  12. A JS size budget per route is enforced in CI.
-  13. A runbook covers what to do when the main flow breaks.
+- **Every panel starts with a design**, a section of `docs/PANEL_DOCS.md` ("Panel N design"),
+  approved by the owner before code.
 
 ## Branches
 
@@ -78,7 +79,7 @@
   replacing R0's Vercel): the two apps on ECS, and the worker as a task EventBridge starts every
   30 minutes.
 - **The real database:** the env file holds its credentials and the app uses them. Never read,
-  print or edit an env file. Never write to the database yourself: no SQL, migrations, bootstrap,
-  test users, destructive tests or worker jobs. Schema changes are owner actions in a runbook. The
-  app's normal behaviour (reading, ingesting, caching scraped content) is fine. End-to-end tests are
-  read-only.
+  print or edit an env file (`.claude/settings.json` denies it too). Never write to the database
+  yourself: no SQL, migrations, bootstrap, test users, destructive tests or worker jobs. Schema
+  changes are owner actions in a runbook. The app's normal behaviour (reading, ingesting, caching
+  scraped content) is fine. End-to-end tests are read-only.

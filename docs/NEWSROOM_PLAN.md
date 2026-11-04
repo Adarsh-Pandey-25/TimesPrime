@@ -1,15 +1,17 @@
 # TimesPrime newsroom build plan
 
-**Status:** Approved by the owner, 4 November 2026 (section 10). **On hold until `release/v1` ships**
-(owner, 4 Nov 2026): the release Vivek runs on `main` goes first, at the owner's senior's request;
-then this plan resumes, ported onto `main`'s layout (Progress, row 0). Hosting is **AWS** (owner,
-4 Nov 2026), which replaces the release's R0 choice of Vercel.
+**Status:** Approved by the owner, 4 November 2026 (section 10). **On `main` since 4 Nov 2026**
+(`chore/integrate`, the owner's "push everything to main"): this plan, the apps/packages split and
+Panel 0's second half joined the release's `main` in one pull request. **The release goes first**
+(Progress, row 0): `release/v1` continues on this layout, at the owner's senior's request, and the
+panel phases wait for it. Hosting is **AWS** (owner, 4 Nov 2026), which replaces the release's R0
+choice of Vercel.
 **For:** the developers who will build it, and the owner who approves it.
-**Based on:** [`PERMISSIONS.md`](PERMISSIONS.md) (roles, permission matrix, four-eyes and MFA rules),
+**Based on:** [the access rules](PANEL_DOCS.md#access-rules) (roles, permission matrix, four-eyes and MFA rules),
 [`PANEL_DOCS.md`](PANEL_DOCS.md) (what is built), `CLAUDE.md` (the rules every panel follows) and the
 research report [`RESEARCH.md`](RESEARCH.md).
 Section 9 records what this plan changed from the earlier plan (`PANEL_PLAN.md`, retired the same
-day; its matrix and rules moved to `PERMISSIONS.md`).
+day; its matrix and rules are the access rules in `PANEL_DOCS.md`).
 
 ---
 
@@ -75,10 +77,10 @@ first one that is not Done.
 
 | Phase | Status | Where |
 |---|---|---|
-| 0. Release v1 (Vivek, on `main`) | **In progress, goes first.** R0 done; R1 waits on four owner values and now on AWS instead of Vercel. This plan waits for it | `release/v1`, `main` |
-| A. Finish Panel 0, port this plan onto `main` | **After the release.** `main` now has the four-folder layout (`frontend/`, `backend/`, `database/`, `docs/`), so step 1 becomes: bring this plan, `PERMISSIONS.md` and `RESEARCH.md` onto `main`, then steps 2–4 | `chore/restructure` (pushed, reference), then a branch from `main` |
+| 0. Release v1 (Vivek, on `main`) | **In progress, goes first.** R0 done; R1 waits on four owner values, now on AWS instead of Vercel and on the apps/packages layout. The panel phases wait for it | branches from `main` |
+| A. Finish Panel 0, port this plan onto `main` | **Step 1 done** (4 Nov 2026): this plan, the access rules, the research, the split and Panel 0's second half reached `main` through `chore/integrate`. **After the release:** step 3's owner check, then step 4 | `chore/integrate` (merged), then `panel-0-access` work on a branch from `main` |
 | B. Make the product safe to be public | Not started | `fix/aggregator-off`, `fix/audit-closeout` |
-| C. Split into apps and packages | **Done on `chore/restructure`** (4 Nov 2026); **to redo on `main`** after the release, from its four-folder layout (the scripts are mechanical) | `chore/restructure`, then `chore/monorepo` from `main` |
+| C. Split into apps and packages | **Done** (4 Nov 2026), on `main` since `chore/integrate` | `chore/restructure`, `chore/integrate` |
 | D. Panel 1, Administration | Not started | `panel-1-administration` |
 | E. Panel 2, Desk | Not started | `panel-2-desk` |
 | F. Reader site for original journalism | Not started | `site/<topic>` |
@@ -103,44 +105,46 @@ Taken by the owner in conversation, or recommended by the research and proposed 
 | 7 | **Database: Supabase Mumbai**, with a custom domain, server-side reads on reader pages and log drains | Research D7 |
 | 8 | **Logs:** staff actions in Supabase `audit_log`; every system log in AWS Mumbai for 365 days; the audit chain's head hash exported daily to a locked S3 bucket (BL-034) | Research; this conversation |
 | 9 | **Video: YouTube first** (embeds and YouTube Live); no reader comments at launch | Research D9, D10 |
-| 10 | **No deployment until the project is complete** (production); staging only with owner approval | `CLAUDE.md` |
+| 10 | **A deployment now:** the release (`release/v1`, R0–R4), at the owner's senior's request, on AWS; staging only with owner approval | Owner, 2 and 4 Nov 2026 (`CLAUDE.md`) |
 
 ## 2. Rules every phase follows
 
-These come from `CLAUDE.md` and `CONTRIBUTING.md`. A phase that breaks one is not done.
+These come from `CLAUDE.md`, `docs/README.md` and the definition of done in `docs/PANEL_DOCS.md`. A
+phase that breaks one is not done.
 
 - **One panel at a time.** No panel starts before the previous one is Done. Non-panel tracks (reader
   site, infra, cleanup) may run alongside, on their own branches.
-- **Every panel starts with a design doc** in `docs/design/panel-N-<name>.md`, approved by the owner
-  before code (as Panel 0 did).
+- **Every panel starts with a design**, a section of `docs/PANEL_DOCS.md` ("Panel N design"),
+  approved by the owner before code (as Panel 0 did).
 - **Branches:** `panel-N-<name>` for a panel, `site/<topic>` for reader-site work, `fix/<topic>` for
   fixes, `chore/<topic>` for tooling, docs and infra (all in `CLAUDE.md`). Push only the branch. Never push to `main`; the owner approves every merge.
-- **A panel is Done only when all 13 items of the definition of done in `CLAUDE.md` hold.** In short:
+- **A panel is Done only when all 13 items of the definition of done in `docs/PANEL_DOCS.md` hold.** In short:
   - Every feature works, and the `PANEL_DOCS.md` entry matches the code.
   - Every route and action checks a permission on the server, with tests for allowed and denied.
   - Privileged actions are audited and need MFA (`aal2`) where the plan says so.
   - `npm run verify` and CI are green; routes, JS and CSS are reported.
   - SQL is in migrations with a rollback, listed as an owner action.
-  - `PANEL_DOCS.md`, `HANDOFF.md` and `architecture.md` are updated.
-  - Real-database tests run against the local Supabase.
+  - `PANEL_DOCS.md`, the current status in `OPERATIONS.md` and `ARCHITECTURE.md` are updated.
+  - Database tests against the real database are read-only; the owner verifies the database's own
+    rules (triggers, the audit hash chain, the bootstrap) with the runbook.
   - End-to-end browser tests cover the critical flows, including a refused-access flow.
   - Every screen has loading, error and empty states.
   - Accessibility is checked (keyboard, labels).
   - Failures reach Sentry.
   - A JS size budget per route is enforced in CI.
   - A runbook covers what to do when the main flow breaks.
-- **Never run a migration, bootstrap, smoke test or worker job against the database `.env.local`
-  points at.**
-  Local work uses the local Supabase (Phase A).
-- **Commits:** a move, a deletion or a change, never two in one commit (`CONTRIBUTING.md`).
-- **The permission catalogue is generated from the matrix in `PERMISSIONS.md`**
+- **Never write to the database yourself** (owner, 2026-11-02): no SQL, migrations, bootstrap, test
+  users, destructive tests or worker jobs. Schema changes are owner actions in a runbook. There is
+  no local database: the one the env file names is the real one.
+- **Commits:** a move, a deletion or a change, never two in one commit (`docs/README.md`).
+- **The permission catalogue is generated from the matrix in the access rules (`PANEL_DOCS.md`)**
   (`scripts/generate-access-catalog.mjs`). A new or changed permission is proposed in the panel's
-  design doc; after the owner approves it, the row goes into `PERMISSIONS.md`, the SQL is
+  design; after the owner approves it, the row goes into the access rules (`PANEL_DOCS.md`), the SQL is
   regenerated and it ships as a new migration.
 
 ## 3. Target structure
 
-This is the structure in the code since 4 Nov 2026 (Phase C, [ADR 0005](adr/0005-apps-and-packages.md)).
+This is the structure in the code since 4 Nov 2026 (Phase C, [ADR 0006](ARCHITECTURE.md#adr-0006--three-apps-over-shared-packages-2026-11-04)).
 Folders marked *later* are created by the phase that first needs them.
 
 ```
@@ -205,30 +209,33 @@ tracks. More developers shorten only the parallel tracks.
 
 ### Phase A: Finish Panel 0 and land the restructure
 
-**Branches:** `panel-0-access`, `chore/restructure` · **Estimate:** 2–3 weeks · **Who:** Dev 1 (Panel 0), Dev 2 (local database, E2E tooling)
+**Branches:** `panel-0-access`, `chore/restructure`, `chore/integrate` · **Estimate:** 2–3 weeks · **Who:** Dev 1 (Panel 0), Dev 2 (E2E tooling)
 
-1. **Land `chore/restructure` first.** *Done locally, 4 Nov 2026:* the `src/` layout, the cleanup,
-   the retirement of the old plans and the Phase C split are committed on `chore/restructure`
-   (built on `panel-0-access`'s head `2bbec83`), as separate move, deletion, change and docs
-   commits. Not pushed yet. Next: the owner approves; push the branch; merge it into
-   `panel-0-access`, so Panel 0 finishes in the new layout. Anyone with unpushed work on
-   `panel-0-access` pushes it before that merge, then moves it to the new paths
-   (`docs/architecture.md` §4 maps every folder).
-2. **Local database.**
-   - Supabase CLI stack in Docker, with a guard that refuses any run whose Supabase URL is not the
-     local one (HANDOFF "Next").
-   - Apply the three Panel 0 migrations and the bootstrap locally.
+1. **Land `chore/restructure` first.** *Done, 4 Nov 2026:* the `src/` layout, the cleanup, the
+   retirement of the old plans and the Phase C split were committed on `chore/restructure`, as
+   separate move, deletion, change and docs commits. `chore/integrate` then merged Panel 0's second
+   half (`panel-0-access`) into that layout, and `main` (the release and its four-folder
+   restructure) with it, and reached `main` by pull request. Panel 0 finishes in the new layout
+   (`docs/ARCHITECTURE.md` §4 maps every folder).
+2. **Local database: dropped** (owner, 2026-11-02, on `panel-0-access`). There is no local
+   database: the env file names the real one, which a session never writes to. The owner applies
+   the three Panel 0 migrations and the bootstrap, and verifies the database's own rules, with
+   Part B of the staff-access runbook.
 3. **Panel 0 definition-of-done items 7–13:**
-   - `npm run test:db` (real-database tests: the two-admin trigger, the append-only and hash-chained
-     audit log, including the queries that must fail);
-   - Playwright end-to-end tests (staff sign-in with TOTP; a refused-access flow);
-   - loading, error and empty states on `/admin` and `/admin/login`;
-   - an accessibility pass;
-   - the JS size budget per route in CI;
-   - `runbooks/staff-access.md` run step by step against the local database.
+   - the database's own rules (the two-admin trigger, the append-only and hash-chained audit log,
+     including the queries that must fail): verified by the owner with the staff-access runbook,
+     Part B, instead of `npm run test:db` (item 7 as the owner set it on 2026-11-02);
+   - Playwright end-to-end tests, read-only (a refused-access flow; staff sign-in is the owner's
+     runbook check, since a test that signs in writes to the database): *done*;
+   - loading, error and empty states on `/admin` and `/admin/login`: *done*;
+   - an accessibility pass: *done*;
+   - the JS size budget per route in CI: *done*;
+   - a runbook for when sign-in breaks: *done*.
+   What is done and what is not, item by item, is in `docs/PANEL_DOCS.md` (Panel 0, "Tests and
+   verification").
 4. **Owner approves** the Panel 0 merge into `main`.
 
-**Done when:** Panel 0 is marked Done in `PANEL_DOCS.md`; `main` contains Panel 0 and the `src/` layout.
+**Done when:** Panel 0 is marked Done in `PANEL_DOCS.md`; `main` contains Panel 0 and the apps/packages layout.
 
 ### Phase B: Make the product safe to be public
 
@@ -244,7 +251,7 @@ tracks. More developers shorten only the parallel tracks.
 - **The chatbot** answers only from our own and licensed content, or is switched off until our own
   content exists.
 - **Remove the mock-article fallback** from reader output; show an empty or stale state instead.
-- **The audit close-out items** listed in HANDOFF:
+- **The audit close-out items** listed in the current status (`docs/OPERATIONS.md`):
   - F-028 / BL-028;
   - the local SQL checks for F-006, F-008, F-018;
   - the F-002 check;
@@ -256,7 +263,7 @@ stock fallback; verify and CI are green.
 ### Phase C: Split into apps and packages
 
 **Status: Done**, 4 Nov 2026, on `chore/restructure`, ahead of Phases A and B at the owner's
-instruction. [ADR 0005](adr/0005-apps-and-packages.md) records it.
+instruction. [ADR 0006](ARCHITECTURE.md#adr-0006--three-apps-over-shared-packages-2026-11-04) records it.
 
 - npm workspaces (`apps/*`, `packages/*`); no Turborepo or Nx. All dependencies in the root
   `package.json`.
@@ -275,7 +282,7 @@ two apps' shared base CSS into `packages/ui`.
 
 **Branch:** `panel-1-administration` · **Estimate:** 2–3 weeks · **Who:** Dev 1
 
-From `PERMISSIONS.md` and the Panel 0 "not yet built" list:
+From the access rules (`PANEL_DOCS.md`) and the Panel 0 "not yet built" list:
 - Invite staff (public sign-up stays off).
 - Grant and revoke role assignments with scope (language, section) and expiry.
 - The two-admin rule for privileged roles, shown in the UI.
@@ -293,7 +300,7 @@ From `PERMISSIONS.md` and the Panel 0 "not yet built" list:
 
 **Branch:** `panel-2-desk` · **Estimate:** 3–5 months (research estimate) · **Who:** Dev 1, with Dev 2 on the editor package after Phase C
 
-This is the end-to-end newsroom. It starts with `docs/design/panel-2-desk.md` for owner approval.
+This is the end-to-end newsroom. It starts with a Panel 2 design in `docs/PANEL_DOCS.md`, for owner approval.
 
 **E1. Story model.** A new `stories` table, kept apart from the aggregator's `articles` table and
 never touched by its 7-day retention. Section 10, item 4; the earlier plan sketched
@@ -356,7 +363,8 @@ Check the bundled docs first.
 
 **Done when** two people can write, review, approve, schedule and correct one Hindi and one
 English story end to end. Every action must be audited, and every allowed and denied path tested
-against the local database and in the browser.
+with the database mocked and, read-only, in the browser; the owner checks the flow against the real
+database with the panel's runbook.
 
 ### Phase F: Reader site for original journalism (parallel with E)
 
@@ -400,7 +408,7 @@ against the local database and in the browser.
   - posting to an approved live blog without four-eyes on every update.
 
   The permission for posting updates is decided in the Panel 3 design. If it needs a new verb, it
-  goes into the `PERMISSIONS.md` matrix once the owner approves it.
+  goes into the the access rules (`PANEL_DOCS.md`) matrix once the owner approves it.
 
 - **Web push** for breaking news (`push.send`, tightly held, audited), through a vendor's free tier
   (OneSignal or iZooto); RSS per section and language; a "copy for WhatsApp" button.
@@ -524,7 +532,7 @@ Built inside the phases above (E, F, H), not as separate work:
 
 | Month (from Nov 2026) | Dev 1 (panel track) | Dev 2 (parallel tracks) |
 |---|---|---|
-| 0–1 | A: Panel 0 items 7–13 | A: local database, Playwright; B: aggregator off; C: monorepo |
+| 0–1 | A: Panel 0 items 7–13 | A: Playwright (done); B: aggregator off; C: monorepo (done) |
 | 1–2 | D: Panel 1 | C finish; E2 editor package; F start |
 | 2–5 | E: Panel 2 Desk | F: reader site and SEO; I from month 4 |
 | 5–6 | G: Panel 3 | I: infra and staging |
@@ -538,10 +546,10 @@ Launch lands around **May–June 2027** if nothing slips. DPDP's core duties sta
 
 | When | Task |
 |---|---|
-| Now (Phase A) | Approve this plan (section 10); approve the `chore/restructure` merge; trademark search for "TimesPrime" and "TimesPrime247" (research D1) |
+| Now (Phase A) | Approve this plan (section 10; done); approve the `chore/integrate` merge into `main`; move the real env file to the root as `.env`; trademark search for "TimesPrime" and "TimesPrime247" (research D1) |
 | Before Phase E ends | Incorporate an Indian private limited company (Indian-citizen CEO, majority-Indian board, foreign equity at most 26%); retain media-law counsel; hire an editor and the first reporters and desk editors in both languages |
 | Before launch | Write the editorial standards, corrections and AI-use policies; name the Grievance Officer, the CERT-In Point of Contact and a data-protection contact; file the Rule 18 details with MIB; join a self-regulatory body; register for GST if anything is sold; open wire-agency talks |
-| Each panel | Approve its design doc; apply its SQL (owner action); approve its merge |
+| Each panel | Approve its design; apply its SQL (owner action); approve its merge |
 
 ## 8. Questions a lawyer must answer before launch
 
