@@ -13,7 +13,7 @@ import fs from "fs";
 import path from "path";
 
 const root = process.cwd();
-const example = fs.readFileSync(path.join(root, ".env.local.example"), "utf8");
+const example = fs.readFileSync(path.join(root, ".env.example"), "utf8");
 
 const sources = execSync("git ls-files", { cwd: root, encoding: "utf8" })
   .split("\n")
