@@ -6,7 +6,10 @@
  * are stubbed to pass their children through.
  */
 
-jest.mock("next/font/google", () => ({ PT_Serif: () => ({ variable: "font-serif-var" }) }));
+jest.mock("next/font/google", () => ({
+  PT_Serif: () => ({ variable: "font-serif-var" }),
+  Noto_Serif_Devanagari: () => ({ variable: "font-devanagari-var" }),
+}));
 jest.mock("@timesprime/ui/ThemeContext", () => ({ ThemeProvider: ({ children }: { children: React.ReactNode }) => children }));
 jest.mock("@/context/LanguageContext", () => ({ LanguageProvider: ({ children }: { children: React.ReactNode }) => children }));
 jest.mock("@/components/chat/FloatingAiAssistant", () => ({ __esModule: true, default: () => null }));

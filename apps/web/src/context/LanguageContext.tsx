@@ -24,6 +24,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // <html lang> follows the choice: screen readers pick their voice from it, and the Devanagari
+  // line heights in globals.css apply under :lang(hi).
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     try {
