@@ -69,9 +69,7 @@ export default function CategoryMegaMenu({
     const fetchCategoryNews = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/news/top-headlines?category=${category}&language=${language}&pageSize=5`, {
-          headers: { "ngrok-skip-browser-warning": "true" },
-        });
+        const res = await fetch(`/api/news/top-headlines?category=${category}&language=${language}&pageSize=5`);
         if (res.ok) {
           const data = await res.json();
           if (isMounted && data.results && data.results.length > 0) {

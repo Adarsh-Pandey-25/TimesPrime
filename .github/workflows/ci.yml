@@ -46,7 +46,6 @@ jobs:
         # deterministic without wiring real credentials into CI.
         env:
           NEXT_PUBLIC_APP_URL: https://example.com
-          NEXT_PUBLIC_BASE_URL: http://localhost:3000
         run: npm run build
 
       - name: Upload coverage

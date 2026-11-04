@@ -24,12 +24,8 @@ export default function MarqueeTicker({ articles }: MarqueeTickerProps) {
     const fetchTickerNews = async () => {
       try {
         const [indiaRes, worldRes] = await Promise.all([
-          fetch(`/api/news/top-headlines?category=india&language=${language}`, {
-            headers: { "ngrok-skip-browser-warning": "true" },
-          }),
-          fetch(`/api/news/top-headlines?category=world&language=${language}`, {
-            headers: { "ngrok-skip-browser-warning": "true" },
-          }),
+          fetch(`/api/news/top-headlines?category=india&language=${language}`),
+          fetch(`/api/news/top-headlines?category=world&language=${language}`),
         ]);
 
         let indiaArticles: Article[] = [];

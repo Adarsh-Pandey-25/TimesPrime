@@ -15,7 +15,6 @@ import {
 /**
  * Server-side news fetching function.
  * Called directly on the server — no client-side fetch needed.
- * Works reliably via ngrok, Vercel, or any deployment.
  */
 export async function fetchInitialNews(
   category: string = "general",

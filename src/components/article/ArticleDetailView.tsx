@@ -112,9 +112,7 @@ export default function ArticleDetailView({
     let isMounted = true;
     const fetchLanguageNews = async () => {
       try {
-        const res = await fetch(`/api/news/top-headlines?category=general&language=${language}`, {
-          headers: { "ngrok-skip-browser-warning": "true" },
-        });
+        const res = await fetch(`/api/news/top-headlines?category=general&language=${language}`);
         if (res.ok) {
           const data = await res.json();
           if (isMounted && data.results && data.results.length > 0) {

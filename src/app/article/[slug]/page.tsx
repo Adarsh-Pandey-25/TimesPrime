@@ -4,6 +4,7 @@ import Footer from "@/components/news/Footer";
 import ArticleDetailView from "@/components/article/ArticleDetailView";
 import { Article } from "@/types";
 import { findKnownArticle } from "@/server/services/news";
+import { getTopHeadlines } from "@/server/services/news/topHeadlines";
 import { scrapeArticle } from "@/server/services/scrape/scrapeArticle";
 import { safePublisherHref } from "@/lib/urlValidation";
 
@@ -69,16 +70,12 @@ async function getArticleContent(targetUrl?: string) {
   }
 }
 
+// The feed's read path directly, not this app's own HTTP route: over HTTP the
+// page depended on NEXT_PUBLIC_BASE_URL and silently got nothing without it.
 async function getSuggestedArticles(): Promise<Article[]> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    const res = await fetch(`${baseUrl}/api/news/top-headlines?pageSize=8`, {
-      headers: { "ngrok-skip-browser-warning": "true" },
-      next: { revalidate: 900 },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.results || [];
+    const { body, status } = await getTopHeadlines(new URLSearchParams());
+    return status === 200 ? body.results || [] : [];
   } catch {
     return [];
   }

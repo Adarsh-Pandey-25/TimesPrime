@@ -14,7 +14,6 @@ async function ArticlesFeed({
   category: string;
   search: string;
 }) {
-  // Server-side fetch — works reliably via ngrok, Vercel, etc.
   const initialArticles = await fetchInitialNews(category, "en", search);
 
   return (

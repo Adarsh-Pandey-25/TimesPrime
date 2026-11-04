@@ -136,10 +136,7 @@ export default function HomeClient({
       if (bypassCache) {
         url += "&refresh=true";
       }
-      const res = await fetch(url, {
-        headers: { "ngrok-skip-browser-warning": "true" },
-        signal: controller.signal,
-      });
+      const res = await fetch(url, { signal: controller.signal });
       const data = await res.json();
       if (!isCurrent()) return;
 
@@ -248,9 +245,7 @@ export default function HomeClient({
           language,
           since: lastFetchedAt.toISOString(),
         });
-        const res = await fetch(`/api/news/check-new?${params.toString()}`, {
-          headers: { "ngrok-skip-browser-warning": "true" },
-        });
+        const res = await fetch(`/api/news/check-new?${params.toString()}`);
         if (!res.ok || cancelled) return;
 
         const data = await res.json();

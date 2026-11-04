@@ -10,6 +10,9 @@
  */
 
 jest.mock("@/server/services/news", () => ({ findKnownArticle: jest.fn() }));
+jest.mock("@/server/services/news/topHeadlines", () => ({
+  getTopHeadlines: jest.fn(async () => ({ body: { results: [] }, source: "cache", status: 200 })),
+}));
 jest.mock("@/components/news/Header", () => ({ __esModule: true, default: () => null }));
 jest.mock("@/components/news/Footer", () => ({ __esModule: true, default: () => null }));
 jest.mock("@/components/article/ArticleDetailView", () => ({ __esModule: true, default: jest.fn(() => null) }));

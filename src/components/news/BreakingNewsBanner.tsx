@@ -30,9 +30,7 @@ export default function BreakingNewsBanner() {
 
   const fetchItems = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/breaking-news", {
-        headers: { "ngrok-skip-browser-warning": "true" },
-      });
+      const res = await fetch("/api/admin/breaking-news");
       if (!res.ok) return;
       const data = (await res.json()) as BreakingNewsListResponse;
       setItems(data.items ?? []);
