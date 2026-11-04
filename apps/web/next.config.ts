@@ -4,10 +4,12 @@ import { loadEnvConfig } from "@next/env";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { ALLOWED_IMAGE_HOSTNAMES } from "@timesprime/shared/config/imageDomains";
 
-// One set of env files for every app, at the repository root. Next reads only this
-// app's folder by itself; variables already set keep their value.
+// One set of env files for every app, at the repository root. Next has already loaded this app's
+// folder (none there) before it evaluates this file, and @next/env returns that cached result to a
+// second call, so the root is loaded with forceReload (the fourth argument). Variables already set
+// in the process keep their value. In tests the root .env.test empties every key first.
 const repoRoot = path.resolve(__dirname, "../..");
-loadEnvConfig(repoRoot, process.env.NODE_ENV !== "production");
+loadEnvConfig(repoRoot, process.env.NODE_ENV !== "production", undefined, true);
 
 // No CORS headers: every API route is called same-origin by this app's own
 // pages, and the admin API must never be scriptable from another site.
