@@ -3,7 +3,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { translateBatch } from "@timesprime/server/services/translate/googleTranslate";
-import { limitDefault, getClientIp } from "@timesprime/server/lib/rateLimit";
+import { checkRateLimits, getClientIp, type RateLimitRule } from "@timesprime/server/lib/rateLimit";
 import { readJsonBody } from "@timesprime/server/lib/readJsonBody";
 
 interface TranslateRequestBody {
@@ -22,16 +22,24 @@ const MAX_TEXT_CHARS = 5_000;
 const MAX_TOTAL_CHARS = 10_000;
 const MAX_BODY_BYTES = 64 * 1024;
 
+// Per IP, in the shared Redis (R1-05), under names of its own, so translate and chat never share
+// a budget: the burst limit it always had (10 a minute), then a daily cap. A Hindi reader's
+// article page sends one batch per page, so the cap is a few hundred pages a day. The daily
+// window is the UTC day (it resets at 05:30 IST).
+const TRANSLATE_RATE_LIMITS: readonly RateLimitRule[] = [
+  { name: "translate", limit: 10, windowSeconds: 60 },
+  { name: "translate-day", limit: 300, windowSeconds: 24 * 60 * 60 },
+];
+
 /**
  * Translates a batch of strings via the free Google Translate endpoint.
  * Body: { texts: string[], target: "hi" | "en" }. Returns
  * { translated: string[] } in the same order as the input. Rate-limited
- * per IP under its own "translate:" key prefix — separate budget from
- * /api/chat, which uses the bare IP as its own rate-limit key.
+ * per IP by TRANSLATE_RATE_LIMITS, a budget separate from /api/chat's.
  */
 export async function POST(request: NextRequest) {
   try {
-    const rate = limitDefault(`translate:${getClientIp(request)}`);
+    const rate = await checkRateLimits(getClientIp(request), TRANSLATE_RATE_LIMITS);
     if (rate.limited) {
       return NextResponse.json(
         { error: "Too many translation requests. Please try again shortly." },

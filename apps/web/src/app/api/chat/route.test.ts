@@ -147,6 +147,33 @@ describe("POST /api/chat", () => {
     expect(retryAfter).toBeLessThanOrEqual(60);
   });
 
+  // R1-05: a daily cap per IP on top of the burst limit (shared across instances in Redis; here,
+  // with no Redis configured, the in-memory fallback, which counts the same).
+  it("the 101st request in a day is 429, even at 10 a minute", async () => {
+    const t0 = Date.parse("2026-11-04T01:00:00Z");
+    const now = jest.spyOn(Date, "now");
+    const send = () =>
+      POST(
+        new NextRequest("http://localhost:3000/api/chat", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-forwarded-for": "10.0.9.10" },
+          body: JSON.stringify({ message: "Hello" }),
+        })
+      );
+    try {
+      for (let i = 0; i < 100; i++) {
+        now.mockReturnValue(t0 + Math.floor(i / 10) * 61_000);
+        expect((await send()).status).toBe(200);
+      }
+      now.mockReturnValue(t0 + 11 * 61_000);
+      const res = await send();
+      expect(res.status).toBe(429);
+      expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(60);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   // F-010: a message of any length went straight to the model. A question
   // typed into the chat box or the article panel is a sentence or two.
   describe("input caps (F-010)", () => {

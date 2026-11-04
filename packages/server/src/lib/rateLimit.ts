@@ -13,7 +13,8 @@ import { Redis } from "@upstash/redis";
  * in memory for the life of the process.
  *
  * checkRateLimit adds a shared limit for the routes worth defending across
- * instances, admin login (F-004) and the scraper (F-011): a fixed-window
+ * instances, admin login (F-004), the scraper (F-011), and chat and
+ * translate with a daily cap per IP (R1-05, checkRateLimits): a fixed-window
  * counter in Upstash Redis (INCR, then EXPIRE on the window's first hit),
  * falling back to the in-memory limiter, with the fallback logged, when
  * Redis is not configured or fails (owner decision D1). The client is built
@@ -60,8 +61,8 @@ export function isRateLimited(key: string): boolean {
   return limitDefault(key).limited;
 }
 
-/** isRateLimited with the wait: the decision /api/chat and /api/translate answer 429 + Retry-After from. */
-export function limitDefault(key: string): RateLimitDecision {
+/** isRateLimited with the wait. /api/chat and /api/translate used it until R1-05 moved them to checkRateLimits. */
+function limitDefault(key: string): RateLimitDecision {
   const now = Date.now();
   return decide(recordHit(key, WINDOW_MS, now), MAX_REQUESTS_PER_WINDOW, WINDOW_MS, now);
 }
@@ -108,8 +109,8 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
     if (!warnedNoRedis) {
       warnedNoRedis = true;
       console.warn(
-        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not configured — rate limits for login and the " +
-          "scraper use the in-memory limiter, which is per instance."
+        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not configured — rate limits for login, the " +
+          "scraper, chat and translate use the in-memory limiter, which is per instance."
       );
     }
     return checkInMemory(key, rule, now);
@@ -130,6 +131,19 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
     );
     return checkInMemory(key, rule, now);
   }
+}
+
+/**
+ * checkRateLimit for several rules on one key, in order, stopping at the first that limits: a
+ * burst limit, then a daily cap (R1-05, for /api/chat and /api/translate). A rule after the one
+ * that limits is not counted, so a refused request never spends the day's budget.
+ */
+export async function checkRateLimits(key: string, rules: readonly RateLimitRule[]): Promise<RateLimitDecision> {
+  for (const rule of rules) {
+    const decision = await checkRateLimit(key, rule);
+    if (decision.limited) return decision;
+  }
+  return { limited: false, retryAfterSeconds: 0 };
 }
 
 /**

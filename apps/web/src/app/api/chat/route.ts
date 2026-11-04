@@ -3,7 +3,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/nextjs";
-import { limitDefault, getClientIp } from "@timesprime/server/lib/rateLimit";
+import { checkRateLimits, getClientIp, type RateLimitRule } from "@timesprime/server/lib/rateLimit";
 import { readJsonBody } from "@timesprime/server/lib/readJsonBody";
 
 const MODEL = "claude-haiku-4-5"; // fast + cheap, good fit for chat
@@ -17,6 +17,14 @@ const MAX_MESSAGE_CHARS = 2_000;
 const MAX_CONTEXT_TITLE_CHARS = 300;
 const MAX_CONTEXT_DESCRIPTION_CHARS = 1_000;
 const MAX_BODY_BYTES = 16 * 1024;
+
+// Per IP, counted in the shared Redis so every instance sees the same count (R1-05): the burst
+// limit the route always had (10 a minute), then a daily cap on what one reader can spend on the
+// model. The daily window is the UTC day (it resets at 05:30 IST).
+const CHAT_RATE_LIMITS: readonly RateLimitRule[] = [
+  { name: "chat", limit: 10, windowSeconds: 60 },
+  { name: "chat-day", limit: 100, windowSeconds: 24 * 60 * 60 },
+];
 
 const SYSTEM_PROMPT =
   "You are TimesPrime AI, a helpful news assistant. Answer questions about news topics concisely and factually. If given article context, use it to answer specifically.";
@@ -65,8 +73,7 @@ function buildSystemPrompt(articleContext?: ArticleContext): string {
 }
 
 export async function POST(request: NextRequest) {
-  const ip = getClientIp(request);
-  const rate = limitDefault(ip);
+  const rate = await checkRateLimits(getClientIp(request), CHAT_RATE_LIMITS);
   if (rate.limited) {
     return NextResponse.json(
       { error: "Too many requests. Please wait a moment and try again." },

@@ -78,6 +78,53 @@ describe("with Redis", () => {
   });
 });
 
+// R1-05: chat and translate, a burst limit then a daily cap, counted in Redis by every instance.
+describe("checkRateLimits (burst, then daily cap)", () => {
+  const BURST = { name: "chat", limit: 10, windowSeconds: 60 };
+  const DAY = { name: "chat-day", limit: 100, windowSeconds: 86_400 };
+
+  /** One Redis that every module load counts in: each load is one more server instance. */
+  const counters = new Map<string, number>();
+  const shareCounters = () => redis.incr.mockImplementation(async (key: string) => {
+    counters.set(key, (counters.get(key) ?? 0) + 1);
+    return counters.get(key);
+  });
+  beforeEach(() => counters.clear());
+
+  test("two instances share one count: 6 on the first and 5 on the second is the 11th, refused", async () => {
+    const first = await load(true);
+    shareCounters();
+    for (let i = 0; i < 6; i++) expect((await first.checkRateLimits("203.0.113.20", [BURST, DAY])).limited).toBe(false);
+    const second = await load(true);
+    shareCounters();
+    for (let i = 0; i < 4; i++) expect((await second.checkRateLimits("203.0.113.20", [BURST, DAY])).limited).toBe(false);
+    expect((await second.checkRateLimits("203.0.113.20", [BURST, DAY])).limited).toBe(true);
+  });
+
+  test("the daily cap: the 101st request of the UTC day is refused until midnight UTC", async () => {
+    const { checkRateLimits } = await load(true);
+    shareCounters();
+    // 100 requests spread over the day, 10 a minute, so the burst limit never trips.
+    for (let i = 0; i < 100; i++) {
+      jest.setSystemTime(Date.parse("2026-11-02T10:05:00Z") + Math.floor(i / 10) * 61_000);
+      expect((await checkRateLimits("203.0.113.21", [BURST, DAY])).limited).toBe(false);
+    }
+    jest.setSystemTime(Date.parse("2026-11-02T18:00:00Z"));
+    // 18:00 UTC to the day's end: 6 hours.
+    expect(await checkRateLimits("203.0.113.21", [BURST, DAY])).toEqual({ limited: true, retryAfterSeconds: 6 * 3600 });
+    jest.setSystemTime(Date.parse("2026-11-03T00:00:00Z"));
+    expect((await checkRateLimits("203.0.113.21", [BURST, DAY])).limited).toBe(false);
+  });
+
+  test("a request the burst limit refuses does not spend the day's budget", async () => {
+    const { checkRateLimits } = await load(true);
+    shareCounters();
+    for (let i = 0; i < 15; i++) await checkRateLimits("203.0.113.22", [BURST, DAY]);
+    const dayKey = [...counters.keys()].find((k) => k.startsWith("ratelimit:chat-day:203.0.113.22:"));
+    expect(counters.get(dayKey!)).toBe(10);
+  });
+});
+
 describe("without Redis", () => {
   test("the in-memory limiter decides, and the fallback is logged once", async () => {
     const { checkRateLimit } = await load(false);
