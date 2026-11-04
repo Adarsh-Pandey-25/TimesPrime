@@ -24,7 +24,7 @@ function timeAgo(dateStr: string): string {
 }
 
 /** "Next sync" is a display estimate (last sync + 30 min), not a real
- * schedule read from Vercel — there's no API for that here. */
+ * schedule read from the scheduler — there's no API for that here. */
 function nextSyncLabel(lastSyncAt: string | null): string {
   if (!lastSyncAt) return "—";
   const dueAt = new Date(lastSyncAt).getTime() + SYNC_INTERVAL_MINUTES * 60 * 1000;
@@ -190,7 +190,7 @@ export default function SyncDashboard() {
         <span>Auto-sync: Every {SYNC_INTERVAL_MINUTES} minutes</span>
         <span className="flex items-center gap-1">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Vercel Cron: Active
+          Scheduled by the worker (refresh-news)
         </span>
       </div>
     </div>

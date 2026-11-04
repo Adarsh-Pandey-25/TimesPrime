@@ -1,20 +1,17 @@
 import "server-only";
 
-import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { saveArticlesToDB, purgeOldArticles } from "@timesprime/server/services/news";
-import { fetchNewsDataArticles } from "@timesprime/server/services/news";
-import { recordSystemAudit } from "@timesprime/server/repositories/auditLog";
+import { saveArticlesToDB, purgeOldArticles } from "../../repositories/db";
+import { recordSystemAudit } from "../../repositories/auditLog";
+import { fetchNewsDataArticles } from "./newsdata";
 
 /**
  * Background refresh: pulls every category from NewsData.io into Supabase.
  *
- * Scheduled by vercel.json (*\/30 * * * *). Vercel sends
- * `Authorization: Bearer $CRON_SECRET` automatically when CRON_SECRET is
- * set in the project's environment variables.
- *
- * With this running, user requests are served from Supabase (see
- * top-headlines/route.ts) instead of hitting NewsData.io per visitor.
+ * Run by the worker (`npm run job -w @timesprime/worker -- refresh-news`), which a scheduler
+ * starts every 30 minutes (EventBridge on AWS). Nothing reaches it over HTTP, so it needs no
+ * cron secret. With it running, reader requests are served from Supabase (see topHeadlines.ts)
+ * instead of hitting NewsData.io per visitor.
  */
 
 // The 7 categories the UI exposes as primary feeds.
@@ -36,35 +33,20 @@ interface RefreshDetail {
   error?: string;
 }
 
-export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
+export interface RefreshResult {
+  refreshed: number;
+  failed: number;
+  purged: number;
+  timestamp: string;
+  details: RefreshDetail[];
+}
 
-  // Fail closed — an unprotected refresh endpoint is a free way for anyone
-  // to burn the NewsData.io quota.
-  if (!cronSecret) {
-    return NextResponse.json(
-      { error: "Cron is not configured. Set CRON_SECRET in the environment." },
-      { status: 503 }
-    );
-  }
+export type RefreshOutcome = { ok: true; result: RefreshResult } | { ok: false; error: string };
 
-  const bearerToken = request.headers
-    .get("authorization")
-    ?.match(/^Bearer\s+(.+)$/i)?.[1];
-
-  if (bearerToken !== cronSecret) {
-    return NextResponse.json(
-      { error: "Unauthorized: valid cron secret required." },
-      { status: 401 }
-    );
-  }
-
+export async function refreshNews(): Promise<RefreshOutcome> {
   const apiKey = process.env.NEWSDATA_API_KEY;
   if (!apiKey) {
-    return NextResponse.json(
-      { error: "NEWSDATA_API_KEY is not set — nothing to refresh." },
-      { status: 503 }
-    );
+    return { ok: false, error: "NEWSDATA_API_KEY is not set — nothing to refresh." };
   }
 
   // The 7-day purge runs here, once per run, and nowhere on the read path
@@ -98,7 +80,7 @@ export async function GET(request: NextRequest) {
       failed += 1;
       const message = err instanceof Error ? err.message : String(err);
 
-      console.error(`Cron refresh failed for category "${category}":`, message);
+      console.error(`Refresh failed for category "${category}":`, message);
       Sentry.captureException(err, {
         tags: { source: "cron" },
         extra: { operation: "refresh-news", category },
@@ -111,7 +93,7 @@ export async function GET(request: NextRequest) {
 
   const articlesSaved = details.reduce((sum, d) => sum + d.saved, 0);
 
-  // The cron is not a person and holds no staff account: it writes the audit log as system:cron
+  // The job is not a person and holds no staff account: it writes the audit log as system:cron
   // (owner decision D11). A failed write is reported, never thrown, so it cannot stop a run.
   await recordSystemAudit({
     actor_type: "system",
@@ -124,11 +106,5 @@ export async function GET(request: NextRequest) {
     after: { articles_saved: articlesSaved, refreshed, failed, purged },
   });
 
-  return NextResponse.json({
-    refreshed,
-    failed,
-    purged,
-    timestamp: new Date().toISOString(),
-    details,
-  });
+  return { ok: true, result: { refreshed, failed, purged, timestamp: new Date().toISOString(), details } };
 }

@@ -49,7 +49,6 @@ describe("public without a session", () => {
     ["GET", "/admin/login"],
     ["POST", "/api/admin/login"],
     ["POST", "/api/admin/logout"],
-    ["GET", "/api/admin/breaking-news"],
   ])("%s %s", async (method, path) => {
     expect(passes(await proxy(req(path, method)))).toBe(true);
   });
@@ -62,7 +61,8 @@ describe("everything else needs a session", () => {
     expect(await res.json()).toEqual({ error: "Unauthorized: please log in." });
   });
 
-  test("the breaking-news write with no session: 401 (only its GET is public)", async () => {
+  test("breaking news with no session: 401 for the read and the write (the public read is on the reader site)", async () => {
+    expect((await proxy(req("/api/admin/breaking-news"))).status).toBe(401);
     expect((await proxy(req("/api/admin/breaking-news", "POST"))).status).toBe(401);
   });
 

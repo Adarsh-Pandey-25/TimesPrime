@@ -227,6 +227,15 @@ const CASES: Case[] = [
   // The banner is site-wide, so only an unscoped grant covers it. A Desk Editor always has a
   // language (scope_required), so in practice it is the Managing Editor's until banners get a
   // language (Panel 3).
+  // The manager's list: a read in any scope, so a scoped Desk Editor holds it.
+  {
+    path: "/api/admin/breaking-news",
+    method: "GET",
+    handler: breakingNews.GET,
+    allowed: { role: "desk_editor", language: "hi" },
+    data: { breaking_news: { data: [], error: null } },
+    changes: false,
+  },
   {
     path: "/api/admin/breaking-news",
     method: "POST",
@@ -383,9 +392,9 @@ describe("the route walk: every admin route and method on disk is public by name
     expect(SESSION_ONLY_ADMIN_ROUTES.map((r) => `${r.method} ${r.path}`).sort()).toEqual(["GET /api/admin/me", "POST /api/admin/mfa"]);
   });
 
-  test("the public allowlist is exactly sign-in, sign-out and the banner's read (D10)", () => {
+  test("the public allowlist is exactly sign-in and sign-out (D10; the banner's public read is on the reader site)", () => {
     expect(PUBLIC_ADMIN_ROUTES.map((r) => `${r.method} ${r.path}`).sort()).toEqual(
-      ["GET /api/admin/breaking-news", "POST /api/admin/login", "POST /api/admin/logout"].sort()
+      ["POST /api/admin/login", "POST /api/admin/logout"].sort()
     );
   });
 
@@ -509,14 +518,6 @@ describe("route-specific rules", () => {
     test("there is no DELETE: an append-only log cannot be cleared (Q6)", () => {
       expect("DELETE" in logs).toBe(false);
     });
-  });
-
-  test("GET /api/admin/breaking-news stays public: no session, 200 (CR-08, D10)", async () => {
-    tables = { breaking_news: { data: [], error: null } };
-    (readSession as jest.Mock).mockResolvedValue(null);
-    const res = await breakingNews.GET();
-    expect(res.status).toBe(200);
-    expect(readSession).not.toHaveBeenCalled();
   });
 
   test("DELETE /api/admin/articles: an unknown article is 404 (no scope to check it against)", async () => {

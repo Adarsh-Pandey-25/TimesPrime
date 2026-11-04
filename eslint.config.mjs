@@ -59,6 +59,16 @@ const zones = [
     message: "The admin app never imports the reader site. Shared code belongs in packages/.",
   },
   {
+    target: "./apps/worker",
+    from: ["./apps/web", "./apps/admin"],
+    message: "The worker never imports an app. Its jobs call packages/server.",
+  },
+  {
+    target: ["./apps/web", "./apps/admin"],
+    from: "./apps/worker",
+    message: "No app imports the worker. A job is started by the scheduler, not imported.",
+  },
+  {
     target: ["./apps/web/src/components", "./apps/web/src/context", "./apps/admin/src/components"],
     from: ["./apps/web/src/app", "./apps/admin/src/app"],
     message: "Components never import from an app's src/app. A page imports its components, not the other way round.",

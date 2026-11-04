@@ -43,6 +43,7 @@ export default async function config(): Promise<Config> {
     projects: [
       await project("web", "./apps/web", "apps/web", "apps/web/src"),
       await project("admin", "./apps/admin", "apps/admin", "apps/admin/src"),
+      await project("worker", "./apps/web", "apps/worker"),
       await project("packages", "./apps/web", "packages"),
     ],
   };

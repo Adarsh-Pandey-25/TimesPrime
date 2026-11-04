@@ -10,16 +10,20 @@ import { listActiveBreakingNews, type BreakingNewsItem } from "@timesprime/serve
 
 // The breaking_news table and its RLS policies: database/schema.sql and database/policies.sql (F-008).
 
-// GET is deliberately public: the homepage banner has no admin session (CR-08), and it is on the
-// public allowlist (PUBLIC_ADMIN_ROUTES, D10) that src/proxy.ts reads. POST and DELETE pass
-// requirePermission, the only gate on this path (service_role bypasses RLS; Panel 0): they need
-// breaking_banner.manage for the whole site, which only an unscoped grant covers.
+// Every method passes requirePermission, the only gate on this path (service_role bypasses RLS;
+// Panel 0). GET is the banner manager's list and needs breaking_banner.manage in any scope; the
+// homepage banner's public read is on the reader site (apps/web, GET /api/news/breaking-news).
+// POST and DELETE need breaking_banner.manage for the whole site, which only an unscoped grant
+// covers.
 const RULES = ADMIN_ROUTE_RULES["/api/admin/breaking-news"];
 
 const MAX_TEXT_LENGTH = 500;
 
 /** Active, unexpired breaking news items, newest first. Returns { items: BreakingNewsItem[] }. */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const gate = await requirePermission(request, RULES.GET);
+  if (!gate.ok) return gate.response;
+
   const { status, body } = await listActiveBreakingNews();
   return NextResponse.json(body, { status });
 }

@@ -12,9 +12,10 @@
   "scripts": {
     "dev": "npm run dev -w @timesprime/web",
     "dev:admin": "npm run dev -w @timesprime/admin",
+    "job": "npm run job -w @timesprime/worker --",
     "build": "npm run build -w @timesprime/web && npm run build -w @timesprime/admin",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit -p apps/web && tsc --noEmit -p apps/admin && tsc --noEmit -p packages/server && tsc --noEmit -p packages/shared && tsc --noEmit -p packages/ui && tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p apps/web && tsc --noEmit -p apps/admin && tsc --noEmit -p apps/worker && tsc --noEmit -p packages/server && tsc --noEmit -p packages/shared && tsc --noEmit -p packages/ui && tsc --noEmit -p tsconfig.json",
     "verify": "npm run typecheck && npm run lint && npm test && npm run build",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -31,7 +32,8 @@
     "lucide-react": "^1.31.0",
     "next": "16.4.3",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -47,6 +49,7 @@
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

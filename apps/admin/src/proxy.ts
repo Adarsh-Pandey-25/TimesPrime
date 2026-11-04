@@ -19,8 +19,8 @@ import { createProxyClient } from "@timesprime/server/auth/supabaseServer";
 //     refreshed cookies go to the browser and on to the route (src/server/auth/supabaseServer.ts).
 //
 // What may pass with no session is one list, shared with the route-walk test: the sign-in page,
-// POST login, POST logout, and GET breaking-news for the homepage banner (owner decision D10,
-// PUBLIC_ADMIN_ROUTES in src/server/auth/adminRoutePolicy.ts).
+// POST login and POST logout (owner decision D10, PUBLIC_ADMIN_ROUTES in
+// packages/server/src/auth/adminRoutePolicy.ts).
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

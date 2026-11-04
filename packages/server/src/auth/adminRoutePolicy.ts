@@ -23,13 +23,14 @@ export interface RouteRule {
 type Method = "GET" | "POST" | "PATCH" | "DELETE";
 
 /**
- * The only admin routes a request may reach with no session (owner decision D10): signing in,
- * signing out, and the homepage banner's read (CR-08). src/proxy.ts reads the same list.
+ * The only admin routes a request may reach with no session (owner decision D10): signing in and
+ * signing out. The homepage banner's public read (CR-08) moved to the reader site
+ * (apps/web, GET /api/news/breaking-news) when the admin became its own app. apps/admin/src/proxy.ts
+ * reads the same list.
  */
 export const PUBLIC_ADMIN_ROUTES: ReadonlyArray<{ path: string; method: Method }> = [
   { path: "/api/admin/login", method: "POST" },
   { path: "/api/admin/logout", method: "POST" },
-  { path: "/api/admin/breaking-news", method: "GET" },
 ];
 
 /**
@@ -61,6 +62,8 @@ export const ADMIN_ROUTE_RULES = {
     DELETE: { permissions: ["article.bulk_action", "article.unpublish"], mode: "act", target: "articles" },
   },
   "/api/admin/breaking-news": {
+    // The banner manager's list; readers get the same items from the reader site.
+    GET: { permissions: ["breaking_banner.manage"], mode: "read", target: "none" },
     POST: { permissions: ["breaking_banner.manage"], mode: "act", target: "site" },
     DELETE: { permissions: ["breaking_banner.manage"], mode: "act", target: "site" },
   },
