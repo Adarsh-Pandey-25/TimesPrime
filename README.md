@@ -28,7 +28,8 @@ src/
   proxy.ts      Admin authorisation: the session check in front of /admin/* and /api/admin/*
   instrumentation*.ts, sentry.*.config.ts   Sentry wiring
 database/       schema.sql, policies.sql, migrations/, bootstrap/, seed/; applied by hand
-docs/           Architecture, decision records, PRD, audit ledger, backlog, handoff, panels
+docs/           The build plan, access rules, architecture, decision records, research, audit ledger,
+                backlog, handoff, panels
 scripts/        generate-access-catalog.mjs: writes the permission catalogue SQL from the plan
 public/         Logos and favicon
 ```
@@ -164,7 +165,8 @@ path must not change. The list for that day is in
 ## Documentation
 
 - [`docs/README.md`](docs/README.md) — the index of `docs/`, and the order to read it in
-- [`docs/PRD.md`](docs/PRD.md) — product requirements, reverse-engineered from the code
+- [`docs/NEWSROOM_PLAN.md`](docs/NEWSROOM_PLAN.md) — the build plan: phases, order, what each delivers
+- [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md) — roles, the permission matrix, four-eyes and MFA rules
 - [`docs/architecture.md`](docs/architecture.md) — structure and import rules
 - [`docs/adr/`](docs/adr/) — architecture decision records
 - [`docs/runbooks/`](docs/runbooks/) — operational procedures

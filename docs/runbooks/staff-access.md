@@ -101,7 +101,7 @@ Then in SQL Editor → New query, run each file whole, in this order:
 1. `database/migrations/2026-11-02-access-1-foundation.sql`: the six tables, their triggers and
    grants.
 2. `database/migrations/2026-11-02-access-2-catalog.sql`: the 15 roles, 39 permissions and the
-   matrix (generated from `docs/PANEL_PLAN.md`).
+   matrix (generated from `docs/PERMISSIONS.md`).
 
 **Check.** The verification queries at the end of each file, each with its expected answer. In short:
 

@@ -69,5 +69,6 @@ so the article page calls it directly instead of fetching its own API over HTTP 
 - Branches started before this one (and `panel-0-access` itself, if it gets more commits) need their
   files moved to the new paths when merged. Git follows the renames; the one-line re-exports were
   deleted, so new routes must be written in the new place.
-- `docs/PANEL_PLAN.md` (not edited, by the owner's rule) still names `app/`, `backend/` and `shared/`
-  in its "How the check flows" section. Read them as `src/app/`, `src/server/` and `src/config/`.
+- The access rules (`docs/PERMISSIONS.md`, from the retired `PANEL_PLAN.md`) name `app/`, `backend/`
+  and `shared/` in their "How the check flows" section. Read them as `src/app/`, `src/server/` and
+  `src/config/`.

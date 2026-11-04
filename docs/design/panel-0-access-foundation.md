@@ -6,7 +6,10 @@ checks, is in [`PANEL_DOCS.md`](../PANEL_DOCS.md); where the build went past thi
 session-only routes and the sign-in flow), PANEL_DOCS is the record.
 The section "Approval: decisions and amendments" below overrides anything later in this file that
 disagrees with it.
-**Plan:** [`PANEL_PLAN.md`](../PANEL_PLAN.md), "The proxy guesses and the backend decides", the
+*Note (4 Nov 2026): `PANEL_PLAN.md` was retired; its matrix and rules are now in
+[`PERMISSIONS.md`](../PERMISSIONS.md). References to it below are kept as written.*
+
+**Plan:** `PANEL_PLAN.md`, "The proxy guesses and the backend decides", the
 matrix, and "Four-eyes, takedown and MFA rules". **Owner decisions folded in:** the twelve answers to
 the Step 1 report (2026-11-02), cited below as D1 to D12.
 **Related:** [ADR 0003](../adr/0003-primary-section-scope.md) (the primary-section rule),

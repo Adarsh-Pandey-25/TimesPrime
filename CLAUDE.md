@@ -2,8 +2,9 @@
 
 ## Back-office panels
 
-- **Plan:** `docs/PANEL_PLAN.md` (roles, permission matrix, four-eyes and MFA rules, data model). It
-  is the reference; do not edit it. Report errors or conflicts with the code instead.
+- **Plan:** `docs/NEWSROOM_PLAN.md` (the phases, their order and what each delivers). **Access rules:**
+  `docs/PERMISSIONS.md` (roles, permission matrix, four-eyes and MFA rules); change it only with the
+  owner's approval. Report errors or conflicts with the code instead of working around them.
 - **Progress and per-panel docs:** `docs/PANEL_DOCS.md`. Its index says which panel is next.
 - **One panel at a time.** Panel 0 (Access foundation) first; no panel starts before the previous
   one is done.

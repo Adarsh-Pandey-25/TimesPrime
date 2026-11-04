@@ -1,8 +1,8 @@
 // The back office's permission catalogue as typed constants, so the backend's checks and the admin
-// UI cannot name a role or permission that does not exist (PANEL_PLAN.md: "The permission-key
+// UI cannot name a role or permission that does not exist (PERMISSIONS.md: "The permission-key
 // catalogue as typed constants, so frontend and backend cannot drift").
 //
-// The source of truth is the roles × permissions matrix in docs/PANEL_PLAN.md (owner decision D2).
+// The source of truth is the roles × permissions matrix in docs/PERMISSIONS.md (owner decision D2).
 // The database holds the same catalogue, generated from that matrix into
 // database/migrations/2026-11-02-access-2-catalog.sql. permissions.test.ts checks all three agree,
 // cell by cell. Which role holds which permission is data in the database, read live on every

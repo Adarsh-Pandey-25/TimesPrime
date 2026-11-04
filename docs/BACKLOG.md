@@ -641,7 +641,7 @@ the same list, so change all three together, and prove the rule with a probe pag
 The reader feed keeps a 7-day rolling window. `purgeOldArticles` (`src/server/repositories/db.ts`)
 deletes every article whose `created_at` is older than 7 days, once per cron run
 (`src/app/api/cron/refresh-news/route.ts`) and when the admin presses purge (`src/app/api/admin/db-stats/route.ts`).
-`docs/PANEL_PLAN.md` reads IT Rules Rule 19 as requiring content records for at least 60 days, and asks
+`docs/PERMISSIONS.md` (from the retired PANEL_PLAN.md) reads IT Rules Rule 19 as requiring content records for at least 60 days, and asks
 for a 60-day purge floor. Today nothing of a purged article survives, so the two conflict.
 
 Proposed direction (owner, 2026-11-02): the feed keeps its 7-day window. A separate `content_records`

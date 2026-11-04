@@ -1,7 +1,8 @@
 # Back-office panels
 
 This file records what the back office can do, panel by panel, and who is allowed to do it. The
-plan behind it is [`PANEL_PLAN.md`](PANEL_PLAN.md): the panels, the 15 roles, the permission
+rules behind it are in [`PERMISSIONS.md`](PERMISSIONS.md), and the order of work in
+[`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md): the panels, the 15 roles, the permission
 matrix, the four-eyes and MFA rules, and the data model. That file says what to build. This file
 says what has been built, and it must match the code.
 
@@ -33,7 +34,7 @@ never marked Done while an owner action it depends on is unrecorded.
 
 | Word | Meaning |
 |---|---|
-| Permission | One action on one kind of thing, written as `object.verb`, for example `article.publish`. The full list is the matrix in `PANEL_PLAN.md` |
+| Permission | One action on one kind of thing, written as `object.verb`, for example `article.publish`. The full list is the matrix in `PERMISSIONS.md` |
 | Role | A named bundle of permissions, for example Desk Editor. Roles are generic: there is no "Hindi sports editor" role |
 | Scope | Where a role applies: a language desk (`en`, `hi`, or all) and a section (one, or all) |
 | Assignment | One person holding one role in one scope, with an expiry date and the name of whoever granted it |
@@ -138,7 +139,7 @@ Every later panel depends on knowing who is acting and what they may do.
 
 #### Roles and responsibilities
 
-Panel 0 defines all 15 roles of the plan's matrix ([PANEL_PLAN.md](PANEL_PLAN.md)). In this panel:
+Panel 0 defines all 15 roles of the plan's matrix ([PERMISSIONS.md](PERMISSIONS.md)). In this panel:
 
 | Role | What they do here |
 |---|---|
@@ -222,7 +223,7 @@ suspension applies to the next request.
 | File | What it does | Rollback | Applied by the owner |
 |---|---|---|---|
 | `database/migrations/2026-11-02-access-1-foundation.sql` | `staff_profiles`, `roles`, `permissions`, `role_permissions`, `role_assignments`, `audit_log`; triggers (two-admin rule, bootstrap only as postgres, assignments are history, audit append-only and hash-chained); RLS on, nothing for `anon`/`authenticated` | At the end of the file, before go-live only | **No** |
-| `database/migrations/2026-11-02-access-2-catalog.sql` | The 15 roles, 39 permissions, 136 matrix rows, generated from `PANEL_PLAN.md` | Re-run the previous version, or the foundation rollback | **No** |
+| `database/migrations/2026-11-02-access-2-catalog.sql` | The 15 roles, 39 permissions, 136 matrix rows, generated from the matrix (then in `PANEL_PLAN.md`, now `PERMISSIONS.md`) | Re-run the previous version, or the foundation rollback | **No** |
 | `database/migrations/2026-11-02-access-3-freeze-admin-logs.sql` | `admin_logs` read-only (after the deploy) | `GRANT ALL ... TO service_role` | **No** |
 | `database/bootstrap/super-admin.sql` | One invited user becomes a Super Admin, audited as `bootstrap` | Revoke, in the file | **No** |
 

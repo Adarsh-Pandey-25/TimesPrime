@@ -62,6 +62,8 @@ listed in [HANDOFF.md](HANDOFF.md) §11, "Before the AWS deployment".
 
 ## Contradictions between the audit and the PRD
 
+*The PRD (`docs/PRD.md`) was retired on 4 Nov 2026; it is in git history.*
+
 Recorded rather than silently resolved, then ruled on by the owner (Phase 0 approval):
 
 - **Severity of F-003.** The audit rates it High; PRD DEF-02 rates it **Critical**.

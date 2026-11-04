@@ -1,13 +1,13 @@
 # TimesPrime newsroom build plan
 
-**Status:** Proposed, 4 November 2026. Awaiting the owner's approval. Nothing in it starts until the
-owner signs off (section 10).
+**Status:** Approved by the owner, 4 November 2026 (section 10). This is the plan every developer
+follows; section 4 starts with where the work stands.
 **For:** the developers who will build it, and the owner who approves it.
-**Based on:** [`PANEL_PLAN.md`](PANEL_PLAN.md) (roles, permission matrix, four-eyes and MFA rules),
+**Based on:** [`PERMISSIONS.md`](PERMISSIONS.md) (roles, permission matrix, four-eyes and MFA rules),
 [`PANEL_DOCS.md`](PANEL_DOCS.md) (what is built), `CLAUDE.md` (the rules every panel follows) and the
 research report [`RESEARCH.md`](RESEARCH.md).
-Where this plan differs from `PANEL_PLAN.md`, the difference is listed in section 9 for the owner to
-decide. `PANEL_PLAN.md` itself is not edited.
+Section 9 records what this plan changed from the earlier plan (`PANEL_PLAN.md`, retired the same
+day; its matrix and rules moved to `PERMISSIONS.md`).
 
 ---
 
@@ -44,7 +44,7 @@ Shared code `packages/` mein rahega. Saare panels ek admin app ke andar honge, h
 | J | Launch checklist | May – Jun 2027 |
 | K | Launch ke baad: Panels 7–8 poore, phir 4 (wire), 5 (AI), 6 (insights), 9 (kamai) | Jun 2027 se |
 
-**Aapko kya approve karna hai** (section 10):
+**Aapne approve kiya** (4 Nov 2026, section 10). Sirf aggregator wala option (a ya b) baaki hai:
 - Tiptap editor
 - Teen apps wala structure
 - Panel order mein badlav (7 aur 8 ka minimum launch se pehle)
@@ -109,9 +109,10 @@ These come from `CLAUDE.md` and `CONTRIBUTING.md`. A phase that breaks one is no
 - **Never run a migration, bootstrap or smoke test against the database `.env.local` points at.**
   Local work uses the local Supabase (Phase A).
 - **Commits:** a move, a deletion or a change, never two in one commit (`CONTRIBUTING.md`).
-- **The permission catalogue is generated from the matrix in `PANEL_PLAN.md`**
-  (`scripts/generate-access-catalog.mjs`). A new permission therefore needs the owner to add its row
-  to that matrix first. Developers do not edit `PANEL_PLAN.md`.
+- **The permission catalogue is generated from the matrix in `PERMISSIONS.md`**
+  (`scripts/generate-access-catalog.mjs`). A new or changed permission is proposed in the panel's
+  design doc; after the owner approves it, the row goes into `PERMISSIONS.md`, the SQL is
+  regenerated and it ships as a new migration.
 
 ## 3. Target structure
 
@@ -247,7 +248,7 @@ stock fallback; verify and CI are green.
 
 **Branch:** `panel-1-administration` · **Estimate:** 2–3 weeks · **Who:** Dev 1
 
-From `PANEL_PLAN.md` and the Panel 0 "not yet built" list:
+From `PERMISSIONS.md` and the Panel 0 "not yet built" list:
 - Invite staff (public sign-up stays off).
 - Grant and revoke role assignments with scope (language, section) and expiry.
 - The two-admin rule for privileged roles, shown in the UI.
@@ -268,7 +269,7 @@ From `PANEL_PLAN.md` and the Panel 0 "not yet built" list:
 This is the end-to-end newsroom. It starts with `docs/design/panel-2-desk.md` for owner approval.
 
 **E1. Story model.** A new `stories` table, kept apart from the aggregator's `articles` table and
-never touched by its 7-day retention. This is decision 4 in section 10: `PANEL_PLAN.md` sketched
+never touched by its 7-day retention. Section 10, item 4; the earlier plan sketched
 extending `articles`.
 
 | Table | Key columns |
@@ -371,8 +372,8 @@ against the local database and in the browser.
   - the cached JSON endpoint;
   - posting to an approved live blog without four-eyes on every update.
 
-  The permission for posting updates is decided in the Panel 3 design. If it needs a new verb, the
-  owner adds it to the `PANEL_PLAN.md` matrix first.
+  The permission for posting updates is decided in the Panel 3 design. If it needs a new verb, it
+  goes into the `PERMISSIONS.md` matrix once the owner approves it.
 
 - **Web push** for breaking news (`push.send`, tightly held, audited), through a vendor's free tier
   (OneSignal or iZooto); RSS per section and language; a "copy for WhatsApp" button.
@@ -531,12 +532,11 @@ From the research (each is marked "Lawyer to confirm" there):
 9. GST after September 2025, and the FDI conditions since 2020.
 10. The trademark search.
 
-## 9. Where this plan differs from PANEL_PLAN.md
+## 9. What this plan changed from the earlier plan
 
-`PANEL_PLAN.md` is the owner's reference and is not edited by developers. These differences need the
-owner's decision:
+These changes from the retired `PANEL_PLAN.md` were approved with this plan on 4 Nov 2026:
 
-| # | `PANEL_PLAN.md` says | This plan proposes | Why |
+| # | `PANEL_PLAN.md` said | This plan | Why |
 |---|---|---|---|
 | 1 | Panels in the order 0–9; Compliance in phase 3 | Panels 7 and 8 launch minimum before launch, right after Panel 3; Panel 4 (Ingestion) after launch | Grievance, corrections and CERT-In apply from the first public day; DPDP core duties start about 13 May 2027, close to launch |
 | 2 | Extend `articles` with workflow columns (data model sketch) | A new `stories` table; `articles` stays the aggregator's | `articles` has a 7-day retention index and no author, state or revision columns; originals must be kept permanently |
@@ -545,19 +545,20 @@ owner's decision:
 
 ## 10. Owner sign-off
 
-Approving this plan approves the items below. Mark each one.
+The owner approved the plan in conversation on 4 Nov 2026 ("is plan ke according hi sab kuch karna
+hai"). Item 6 still needs the owner's choice; until then aggregated items are hidden (option b, the
+safer one).
 
-| # | Item | Approve? |
+| # | Item | Status |
 |---|---|---|
-| 1 | Tiptap as the editor | ☐ |
-| 2 | One repo, three apps (`web`, `admin`, `worker`) and `packages/` (section 3) | ☐ |
-| 3 | Panel order: 0 → 1 → 2 → 3 → 7 (minimum) → 8 (minimum) → launch → 7–8 full → 4 → 5 → 6 → 9 | ☐ |
-| 4 | A new `stories` table for original journalism | ☐ |
-| 5 | Branch prefix `site/<topic>` for reader-site work (to be added to `CLAUDE.md`) | ☐ |
-| 6 | Aggregator items after Phase B: (a) headline + source + link with `noindex`, or (b) hidden entirely | ☐ a  ☐ b |
-| 7 | A staging environment on AWS before the project is complete | ☐ |
-| 8 | Hindi at `/hi/` on the same domain | ☐ |
-| 9 | The phases and their order (section 4) | ☐ |
+| 1 | Tiptap as the editor | Approved |
+| 2 | One repo, three apps (`web`, `admin`, `worker`) and `packages/` (section 3) | Approved |
+| 3 | Panel order: 0 → 1 → 2 → 3 → 7 (minimum) → 8 (minimum) → launch → 7–8 full → 4 → 5 → 6 → 9 | Approved |
+| 4 | A new `stories` table for original journalism | Approved |
+| 5 | Branch prefix `site/<topic>` for reader-site work (to be added to `CLAUDE.md`) | Approved |
+| 6 | Aggregator items after Phase B: (a) headline + source + link with `noindex`, or (b) hidden entirely | **Pending:** owner to choose (a) or (b) |
+| 7 | A staging environment on AWS before the project is complete | Approved |
+| 8 | Hindi at `/hi/` on the same domain | Approved |
+| 9 | The phases and their order (section 4) | Approved |
 
-Once approved, the developers start with Phase A, and each panel still begins with its own design
-doc for the owner's approval.
+Each panel still begins with its own design doc for the owner's approval.

@@ -46,7 +46,7 @@ were done:
 5. Then Panel 1, on `panel-1-administration` (granting roles in the app, the access review,
    retiring the shared password).
 
-The plan is [`PANEL_PLAN.md`](PANEL_PLAN.md); the panels, one at a time, are in
+The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are [`PERMISSIONS.md`](PERMISSIONS.md); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
 
 Read §1 and §3 before touching anything. §3 in particular will save you from false conclusions
@@ -95,10 +95,10 @@ Check `/api/health` before assuming the database is either up or down.
 | `docs/README.md` | **Entry point.** What to read, in what order |
 | `docs/architecture.md` | The flows, the layout (where each kind of code lives), and the import rules |
 | `docs/AUDIT-FINDINGS.md` | The 28 audit findings, each with its status and fixing commit, and the `npm audit` history |
-| `docs/PRD.md` | Full PRD: FR-001..024 with code citations, NFR, CR, data model, defect register |
 | `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..BL-034) |
 | `docs/runbooks/apply-database.md` | Apply the SQL files in order, verify each, roll back each: on a local database now, on production at the AWS deployment |
-| `docs/PANEL_PLAN.md` | **For the back office.** The owner's reference plan: panels, roles, permission matrix, four-eyes and MFA rules, data model. Not edited |
+| `docs/NEWSROOM_PLAN.md` | **The build plan.** The phases from Panel 0 to launch and after, their order, owner tasks and the sign-off |
+| `docs/PERMISSIONS.md` | **For the back office.** Panels, roles, the permission matrix (the catalogue SQL is generated from it), four-eyes and MFA rules, data model |
 | `docs/PANEL_DOCS.md` | Back-office progress (panels 0–9) and each finished panel's record, from one template. **Panel 0 is written up there** |
 | `docs/design/panel-0-access-foundation.md` | Panel 0's design as approved, with the owner's decisions (D1–D12, Q1–Q8) and the amendments |
 | `docs/runbooks/staff-access.md` | **For switching Panel 0 on.** The order (migrations, deploy, bootstrap, staff sign-in, freeze, then the shared password off), each step's check and undo, and how to get back in |
@@ -423,8 +423,9 @@ so they are not rewritten. Client JS and CSS were reported per commit. The two a
 with the causes recorded in their commits (§2).
 
 **Retired:** `docs/TimesPrime-PRD-and-Architecture.pdf` was committed in `ddbcc9f`, then untracked
-and git-ignored at the owner's direction. `docs/PRD.md` is the only canonical spec — do not consult
-the PDF if a copy exists on disk.
+and git-ignored at the owner's direction. Do not consult the PDF if a copy exists on disk. The PRD
+(`docs/PRD.md`) and the owner's `PANEL_PLAN.md` were retired on 4 Nov 2026 for `NEWSROOM_PLAN.md`
+and `PERMISSIONS.md`; both are in git history.
 
 ---
 
@@ -487,7 +488,7 @@ a pure move, and `Header.tsx`.
 
 ## 7. Known defects — current behaviour that is NOT intended
 
-Numbered to match `docs/PRD.md` §11, which now carries a Status column. Of DEF-01..25, all but six
+Numbered to match the retired PRD's §11 (in git history). Of DEF-01..25, all but six
 are resolved:
 
 | ID | What remains | Status |
@@ -528,7 +529,7 @@ BL-027, BL-029.
 
 ## 9. Owner decisions
 
-**Product (2026-10-29), all five answered.** Full rationale in `docs/PRD.md` §12.
+**Product (2026-10-29), all five answered.** Full rationale in the retired PRD's §12 (in git history).
 
 | # | Decision | Where |
 |---|---|---|
@@ -686,7 +687,7 @@ database, then done once more against the production database at deployment, in 
 - **AWS infrastructure as code:** no hand-made production resources.
 - **Alerts:** Sentry, the cron's runs, `/api/health`, the audit chain.
 - **Incident runbook:** including CERT-In's 6-hour report.
-- **Legal pages:** the privacy policy (BL-008), and the grievance officer page (PANEL_PLAN, IT Rules
+- **Legal pages:** the privacy policy (BL-008), and the grievance officer page (NEWSROOM_PLAN Phase H, IT Rules
   Level I).
 
 **Not covered by any audit:** accessibility (axe-core), a scraper replay against the 120-URL
