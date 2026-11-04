@@ -2,7 +2,7 @@ import "server-only";
 
 import dns from "dns/promises";
 import axios from "axios";
-import { validateExternalUrl, type Resolver, type ValidatedAddress } from "@/shared/validation/urlValidation";
+import { validateExternalUrl, type Resolver, type ValidatedAddress } from "@/backend/shared/validation/urlValidation";
 
 /**
  * Fetches a publisher page through the SSRF guard, hop by hop (F-003).

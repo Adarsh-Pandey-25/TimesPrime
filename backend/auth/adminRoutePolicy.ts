@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { PermissionKey } from "@/shared/config/permissions";
+import type { PermissionKey } from "@/backend/shared/config/permissions";
 import type { Mode } from "./decide";
 
 // Every admin route and method, and what it needs (design §4). Route bodies take their rule from

@@ -9,7 +9,7 @@
 import fs from "fs";
 import path from "path";
 
-const read = (file: string) => fs.readFileSync(path.join(process.cwd(), "database", file), "utf8");
+const read = (file: string) => fs.readFileSync(path.join(path.resolve(__dirname, "../.."), "database", file), "utf8");
 const schema = read("schema.sql");
 const policies = read("policies.sql");
 
@@ -92,7 +92,7 @@ describe("database/migrations/2026-11-02-indexes.sql (F-018)", () => {
   });
 
   test("the owner runbook's rollback drops every index the migration creates", () => {
-    const runbook = fs.readFileSync(path.join(process.cwd(), "docs", "runbooks", "apply-database.md"), "utf8");
+    const runbook = fs.readFileSync(path.join(path.resolve(__dirname, "../.."), "docs", "OPERATIONS.md"), "utf8");
     const created = [...migration.matchAll(/CREATE INDEX IF NOT EXISTS (\w+)/g)].map((m) => m[1]);
     expect(created.length).toBe(5);
     for (const name of created) expect(runbook).toContain(`DROP INDEX IF EXISTS public.${name};`);

@@ -21,8 +21,10 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          # Single source of truth: .node-version, so CI cannot drift from local.
-          node-version-file: .node-version
+          # Single source of truth: package.json "engines.node", so CI cannot
+          # drift from local or from Vercel. setup-node reads engines.node from
+          # package.json (docs/advanced-usage.md, node-version-file).
+          node-version-file: package.json
           cache: npm
 
       - name: Install
@@ -34,13 +36,18 @@ jobs:
         run: npm run typecheck
 
       - name: Lint
-        # Includes the import-boundary rules (eslint.boundaries.mjs).
+        # Includes the import-boundary rules (eslint.config.mjs).
         run: npm run lint
 
       - name: Import boundaries
-        # The transitive client-bundle check lint cannot do (architecture.md
-        # rule 6). Reads `git ls-files`, so it needs the checkout above.
+        # The transitive client-bundle check lint cannot do (docs/ARCHITECTURE.md,
+        # import rules). Reads `git ls-files`, so it needs the checkout above.
         run: npm run check:boundaries
+
+      - name: Docs
+        # Four Markdown files, all in docs/, and every link in them resolves
+        # (backend/scripts/check-docs.mjs).
+        run: npm run check:docs
 
       - name: Test
         run: npm run test:ci

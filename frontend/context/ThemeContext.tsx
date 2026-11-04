@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { THEME_BACKGROUND, THEME_STORAGE_KEY } from "@/shared/config/theme";
+import { THEME_BACKGROUND, THEME_STORAGE_KEY } from "@/backend/shared/config/theme";
 
 type Theme = "light" | "dark";
 

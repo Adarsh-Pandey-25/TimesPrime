@@ -5,7 +5,7 @@ import { saveArticlesToDB } from "@/backend/services/news";
 import { ADMIN_ROUTE_RULES } from "@/backend/auth/adminRoutePolicy";
 import { SITE_WIDE } from "@/backend/auth/scope";
 import { auditUnavailable, beginAudit, finishAudit, requirePermission } from "@/backend/auth/requirePermission";
-import type { NewsDataRawArticle } from "@/shared/types";
+import type { NewsDataRawArticle } from "@/backend/shared/types";
 
 // Gated by requirePermission, the only gate on this path (service_role bypasses RLS; Panel 0):
 // sync.run for the whole site. The sync is audited as attempted, then its outcome.

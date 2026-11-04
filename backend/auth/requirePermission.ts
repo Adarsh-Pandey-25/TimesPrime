@@ -5,7 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import { getClientIp } from "@/backend/lib/rateLimit";
 import { recordAudit, type AuditRow } from "@/backend/repositories/auditLog";
 import { loadStaffRecord } from "@/backend/repositories/staff";
-import type { PermissionKey, RoleKey, ScopeLanguage } from "@/shared/config/permissions";
+import type { PermissionKey, RoleKey, ScopeLanguage } from "@/backend/shared/config/permissions";
 import type { RouteRule } from "./adminRoutePolicy";
 import { ANY_SCOPE, decide, decideLegacy, type Aal, type Decision, type DenyCode, type StaffRecord } from "./decide";
 import type { Target } from "./scope";

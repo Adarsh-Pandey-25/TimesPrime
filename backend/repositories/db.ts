@@ -1,7 +1,7 @@
 import "server-only";
 
 import * as Sentry from "@sentry/nextjs";
-import { Article } from "@/shared/types";
+import { Article } from "@/backend/shared/types";
 import { supabase, isSupabaseConfigured } from "@/backend/lib/supabase";
 import {
   containsHindiScript,
@@ -9,7 +9,7 @@ import {
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
-} from "@/shared/config/newsConfig";
+} from "@/backend/shared/config/newsConfig";
 import { classifyCategoryRelevance } from "@/backend/services/classify/categoryClassifier";
 import { throttleReport } from "@/backend/lib/reportFallback";
 import { containsPattern } from "@/backend/lib/likePattern";
@@ -224,7 +224,7 @@ function isFromHardPaywallSource(link: string | undefined): boolean {
  */
 export async function purgeOldArticles(): Promise<number> {
   if (!isSupabaseConfigured()) {
-    console.warn("Supabase credentials not configured in .env.local yet.");
+    console.warn("Supabase credentials not configured in frontend/.env yet.");
     return 0;
   }
 
@@ -350,7 +350,7 @@ export async function saveArticlesToDB(incomingArticles: Article[]): Promise<DBA
     // Article.link and Article.pubDate are required strings, so this mapping
     // silently relies on `any` to paper over unhandled nulls. Fixing it needs
     // a logic change (null coalescing, or a narrower Article), which is out of
-    // scope for a lint-only commit. See docs/BACKLOG.md (BL-001).
+    // scope for a lint-only commit. See the backlog in docs/OPERATIONS.md (BL-001).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (data || []).map((row: any) => ({
       article_id: row.article_id,
@@ -455,7 +455,7 @@ export async function getDBArticles(
     const filtered = kept;
 
     // Same nullable-column vs required-Article-field mismatch as the mapping
-    // in saveArticlesToDB above. See docs/BACKLOG.md (BL-001).
+    // in saveArticlesToDB above. See the backlog in docs/OPERATIONS.md (BL-001).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return filtered.slice(0, FEED_WANTED).map((row: any) => ({
       article_id: row.article_id,
@@ -605,7 +605,7 @@ export async function getDBStats() {
       totalStoredArticles: 0,
       retentionDays: 7,
       databaseType: "Supabase PostgreSQL (Awaiting Credentials)",
-      note: "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local",
+      note: "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to frontend/.env",
     };
   }
 

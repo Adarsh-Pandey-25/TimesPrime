@@ -1,0 +1,58 @@
+/// <reference types="@testing-library/jest-dom" />
+// The reference above gives every test the jest-dom matcher types; the
+// setupFilesAfterEnv entry below registers the matchers at run time.
+import type { Config } from "jest";
+import nextJest from "next/jest.js";
+import { shimFiles } from "../backend/scripts/shims.mjs";
+
+// next/jest handles: SWC-based TS/JSX transform matching the app's own
+// build, .env loading, next.config.ts loading, and mocking CSS/image/font
+// imports — the recommended setup for this Next.js version over ts-jest,
+// which doesn't share Next's own SWC pipeline.
+const createJestConfig = nextJest({
+  dir: "./",
+});
+
+const config: Config = {
+  // The repository root, relative to this file: tests live in frontend/ and backend/.
+  rootDir: "..",
+  coverageProvider: "v8",
+  // Without this, coverage only instruments files a test happens to import,
+  // which reported 91.42% while actually describing 5 of 73 source files.
+  // Measuring the whole tree makes the number mean what it appears to mean.
+  // Exclusions are files with no meaningful runtime branches to cover:
+  // type-only modules, and the Sentry/instrumentation entrypoints, which are
+  // location-pinned Next.js conventions that only call SDK init.
+  // The globs name no folder, so moving code (restructure 2 empties src/)
+  // cannot quietly drop it from the measurement; root tooling is excluded.
+  // So are the route and page shims (backend/scripts/shims.mjs): a one-line
+  // re-export has nothing to cover, and V8 counts each as one uncovered
+  // function and branch. Composition pages and layouts stay measured.
+  collectCoverageFrom: [
+    "**/*.{ts,tsx}",
+    "!**/node_modules/**",
+    "!**/*.d.ts",
+    "!**/*.test.{ts,tsx}",
+    "!**/types/**",
+    "!**/instrumentation.ts",
+    "!**/instrumentation-client.ts",
+    "!**/sentry.*.config.ts",
+    "!frontend/next.config.ts",
+    "!frontend/jest.config.ts",
+    ...shimFiles().map((shim) => `!${shim}`),
+  ],
+  testEnvironment: "jsdom",
+  // jest-dom's entry point registers its matchers (expect.extend) when loaded.
+  setupFilesAfterEnv: ["@testing-library/jest-dom"],
+  moduleNameMapper: {
+    // Mirrors tsconfig "paths", as the Next jest guide recommends: one alias per
+    // layer and no catch-all, so every import names its layer. In practice
+    // next/jest's SWC transform already rewrites those aliases in transformed
+    // files (measured in restructure 1: a probe passed with its mapper line
+    // removed), so this is the fallback for anything that bypasses the transform.
+    "^@/frontend/(.*)$": "<rootDir>/frontend/$1",
+    "^@/backend/(.*)$": "<rootDir>/backend/$1",
+  },
+};
+
+export default createJestConfig(config);

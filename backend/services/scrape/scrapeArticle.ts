@@ -4,11 +4,11 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import * as Sentry from "@sentry/nextjs";
-import { validateExternalUrl } from "@/shared/validation/urlValidation";
+import { validateExternalUrl } from "@/backend/shared/validation/urlValidation";
 import { fetchPage, resolveHostname, UnsafeTargetError } from "@/backend/services/scrape/fetchPage";
 import { cache, CACHE_TTL_SCRAPE_SECONDS } from "@/backend/lib/cache";
-import { urlToHostname } from "@/shared/validation/sentryScrub";
-import type { ScrapeErrorResponse, ScrapeResponse } from "@/shared/types";
+import { urlToHostname } from "@/backend/shared/validation/sentryScrub";
+import type { ScrapeErrorResponse, ScrapeResponse } from "@/backend/shared/types";
 
 interface ScrapeCacheEntry {
   title: string;

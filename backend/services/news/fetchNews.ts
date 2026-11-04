@@ -1,7 +1,7 @@
 import "server-only";
 
 import * as Sentry from "@sentry/nextjs";
-import { Article, NewsDataRawArticle } from "@/shared/types";
+import { Article, NewsDataRawArticle } from "@/backend/shared/types";
 import {
   mapCategory,
   MOCK_ARTICLES,
@@ -10,7 +10,7 @@ import {
   isHoroscopeOrRitualFiller,
   isFromWireSpamSource,
   isFromNonNewsListingSource,
-} from "@/shared/config/newsConfig";
+} from "@/backend/shared/config/newsConfig";
 
 /**
  * Server-side news fetching function.
@@ -38,7 +38,7 @@ export async function fetchInitialNews(
 
     if (!apiKey) {
       console.error(
-        "NEWSDATA_API_KEY is not set — falling back to mock articles. Add it to .env.local."
+        "NEWSDATA_API_KEY is not set — falling back to mock articles. Add it to frontend/.env."
       );
       return MOCK_ARTICLES;
     }

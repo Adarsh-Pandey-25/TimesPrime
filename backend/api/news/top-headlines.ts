@@ -3,7 +3,7 @@ import "server-only";
 import { NextRequest, NextResponse, after } from "next/server";
 import { cache, CACHE_TTL_NEWS_SECONDS } from "@/backend/lib/cache";
 import { reportSupabaseFallback } from "@/backend/services/health/health";
-import { Article, NewsDataRawArticle } from "@/shared/types";
+import { Article, NewsDataRawArticle } from "@/backend/shared/types";
 import {
   saveArticlesToDB,
   getDBArticles,
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
 
     if (!apiKey) {
       console.error(
-        "NEWSDATA_API_KEY is not set — falling back to mock articles. Add it to .env.local."
+        "NEWSDATA_API_KEY is not set — falling back to mock articles. Add it to frontend/.env."
       );
       // Same additive category+query combination as applyArticleFilters in
       // db.ts — not an if/else, so a category-scoped search still stays

@@ -6,16 +6,17 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "typecheck": "tsc --noEmit",
-    "check:boundaries": "node scripts/check-move-map.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run check:boundaries && npm test && npm run build",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:ci": "jest --ci --coverage"
+    "dev": "cd frontend && next dev",
+    "build": "cd frontend && next build",
+    "start": "cd frontend && next start",
+    "lint": "eslint -c frontend/eslint.config.mjs",
+    "typecheck": "tsc --noEmit -p frontend",
+    "check:boundaries": "node backend/scripts/check-boundaries.mjs",
+    "check:docs": "node backend/scripts/check-docs.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run check:boundaries && npm run check:docs && npm test && npm run build",
+    "test": "cd frontend && jest",
+    "test:watch": "cd frontend && jest --watch",
+    "test:ci": "cd frontend && jest --ci --coverage"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

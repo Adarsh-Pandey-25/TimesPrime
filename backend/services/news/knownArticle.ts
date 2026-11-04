@@ -1,7 +1,7 @@
 import "server-only";
 
 import { findArticleByLink } from "@/backend/repositories/db";
-import { MOCK_ARTICLES } from "@/shared/config/newsConfig";
+import { MOCK_ARTICLES } from "@/backend/shared/config/newsConfig";
 
 /**
  * Whether `link` names an article this app serves, and so may be shown as a

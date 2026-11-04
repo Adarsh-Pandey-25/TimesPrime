@@ -13,16 +13,19 @@
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
+# next.js (the Next root is frontend/)
+/frontend/.next/
+/frontend/out/
 
 # production
-/build
+/frontend/build
 
 # misc
 .DS_Store
 *.pem
+
+# SWC's plugin cache, written by next dev in whichever folder it runs (root or frontend/)
+.swc/
 
 # debug
 npm-debug.log*
@@ -30,9 +33,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files: every one is ignored (the owner's real frontend/.env, any
+# .env*.local, .env.production ...) except the two templates that hold no
+# secret: .env.example, and .env.test, which empties every key for the tests.
 .env*
-!.env.local.example
+!.env.example
+!.env.test
 
 # vercel
 .vercel
@@ -41,6 +47,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Retired PRD snapshot. docs/PRD.md is the only canonical spec; the PDF
+# Retired PRD snapshot. The PRD in docs/ARCHITECTURE.md is the only canonical spec; the PDF
 # predates the owner decisions of 2026-10-29 and must not be consulted.
 docs/TimesPrime-PRD-and-Architecture.pdf

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Article } from "@/shared/types";
+import { Article } from "@/backend/shared/types";
 import { Zap } from "lucide-react";
 import { useTheme } from "@/frontend/context/ThemeContext";
 import { useLanguage } from "@/frontend/context/LanguageContext";

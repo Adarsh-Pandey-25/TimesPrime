@@ -4,16 +4,16 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Article } from "@/shared/types";
+import { Article } from "@/backend/shared/types";
 import { Clock, ExternalLink, Bookmark, Layers } from "lucide-react";
-import { Language, TRANSLATIONS } from "@/shared/config/translations";
+import { Language, TRANSLATIONS } from "@/backend/shared/config/translations";
 import { useTheme } from "@/frontend/context/ThemeContext";
 import { isBookmarked, toggleBookmark } from "./bookmarks";
 import { useLanguage } from "@/frontend/context/LanguageContext";
 
-import { getTopicImageUrl } from "@/shared/config/topicImages";
-import { getCategoryColor, getCategoryBadgeBgClass, getCategoryBorderClass } from "@/shared/config/categoryColors";
-import { mapCategory } from "@/shared/config/newsConfig";
+import { getTopicImageUrl } from "@/backend/shared/config/topicImages";
+import { getCategoryColor, getCategoryBadgeBgClass, getCategoryBorderClass } from "@/backend/shared/config/categoryColors";
+import { mapCategory } from "@/backend/shared/config/newsConfig";
 
 // NewsData.io returns this literal string as the description (and
 // sometimes the title) for articles whose full content requires a paid
