@@ -42,7 +42,11 @@ ARG NEXT_PUBLIC_SENTRY_DSN
 # navigation, so a browser holding the last deployment's page reloads instead of mixing versions
 # (bundled docs: next-config-js/deploymentId.md). The cache handler scopes page entries by it.
 ARG NEXT_DEPLOYMENT_ID
+# "1" for a build search engines must not index (staging): robots.txt disallows everything and
+# every response says noindex (packages/shared/src/config/site.ts). Fixed at build, like the rest.
+ARG NEXT_PUBLIC_SITE_NOINDEX
 ENV NEXT_DEPLOYMENT_ID=$NEXT_DEPLOYMENT_ID \
+    NEXT_PUBLIC_SITE_NOINDEX=$NEXT_PUBLIC_SITE_NOINDEX \
     NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \

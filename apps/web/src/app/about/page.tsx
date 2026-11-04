@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "About Us",
+  alternates: { canonical: "/about" },
   description:
     "TimesPrime is India's premier AI-powered bilingual news aggregator, delivering instant, accurate, and categorized headlines from verified publishers.",
 };

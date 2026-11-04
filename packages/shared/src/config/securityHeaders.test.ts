@@ -54,5 +54,6 @@ test.each([
 ])("%s sends them on every path", (app, call) => {
   // Read as text: importing the config would load the root env files into the test process.
   const config = fs.readFileSync(path.join(__dirname, "..", "..", "..", "..", "apps", app, "next.config.ts"), "utf8");
-  expect(config).toContain(`return [{ source: "/(.*)", headers: ${call} }];`);
+  expect(config).toContain(call);
+  expect(config).toMatch(/return \[\{ source: "\/\(\.\*\)", headers/);
 });

@@ -38,9 +38,14 @@ const nextConfig: NextConfig = {
     return [{ source: "/", destination: "/admin", permanent: false }];
   },
   // The security headers on every response (R1-06). ArticlesTable shows admin-entered image URLs
-  // in a plain img, so images may come from any https host here.
+  // in a plain img, so images may come from any https host here. The back office is never
+  // indexed: its pages say so in metadata, and this says it for every response (R1-09).
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders({ dev: process.env.NODE_ENV !== "production", imgSrc: ["https:"] }) }];
+    const headers = [
+      ...securityHeaders({ dev: process.env.NODE_ENV !== "production", imgSrc: ["https:"] }),
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ];
+    return [{ source: "/(.*)", headers }];
   },
 };
 

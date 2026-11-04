@@ -7,13 +7,12 @@ import { findKnownArticle } from "@timesprime/server/services/news";
 import { getTopHeadlines } from "@timesprime/server/services/news/topHeadlines";
 import { scrapeArticle } from "@timesprime/server/services/scrape/scrapeArticle";
 import { safePublisherHref } from "@timesprime/shared/lib/urlValidation";
+import { SITE_URL } from "@timesprime/shared/config/site";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ url?: string; image?: string }>;
 }
-
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://timesprimenews.com";
 
 /**
  * The page's `?url=`, if it names an article this app serves; otherwise

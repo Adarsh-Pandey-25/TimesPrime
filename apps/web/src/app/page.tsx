@@ -1,7 +1,12 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { fetchInitialNews } from "@timesprime/server/services/news";
 import HomeClient from "@/components/home/HomeClient";
 import NewsSkeletonGrid from "@/components/ui/NewsSkeletonGrid";
+
+// The feed's category and search views (?category=, ?search=) are views of the home page, so
+// they point search engines at it (R1-09). Sections get their own URLs in R2.
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 interface HomePageProps {
   searchParams: Promise<{ category?: string; search?: string }>;
