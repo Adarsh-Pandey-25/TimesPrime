@@ -1,17 +1,80 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
-import { boundaries } from "./eslint.boundaries.mjs";
+
+// Every src/server/ module begins with `import "server-only";`, so a client
+// component that reaches one, directly or through another module, fails the build.
+const serverOnlyFirst = {
+  meta: {
+    type: "problem",
+    schema: [],
+    messages: { missing: "The first statement of a src/server/ module must be `import \"server-only\";`." },
+  },
+  create(context) {
+    return {
+      Program(node) {
+        const first = node.body[0];
+        const ok =
+          first?.type === "ImportDeclaration" && first.source.value === "server-only" && first.specifiers.length === 0;
+        if (!ok) context.report({ node: first ?? node, messageId: "missing" });
+      },
+    };
+  },
+};
+
+// Import boundaries (docs/architecture.md, "Import rules"). Paths are resolved,
+// so "@/server/x" and "../server/x" are the same import.
+const CLIENT_SAFE = ["./src/components", "./src/context", "./src/lib", "./src/config", "./src/types"];
+const zones = [
+  {
+    target: CLIENT_SAFE,
+    from: "./src/server",
+    message: "Client-safe code never imports src/server/. Server data reaches the UI through a page (as props) or a route handler.",
+  },
+  {
+    target: "./src/server",
+    from: ["./src/app", "./src/components", "./src/context"],
+    message: "src/server/ never imports UI or routes. What both sides need belongs in src/lib, src/config or src/types.",
+  },
+  {
+    target: ["./src/lib", "./src/config", "./src/types"],
+    from: ["./src/app", "./src/components", "./src/context"],
+    message: "src/lib, src/config and src/types are imported by both sides, so they import no UI or routes.",
+  },
+  {
+    target: ["./src/components", "./src/context"],
+    from: "./src/app",
+    message: "Components never import from src/app/. A page imports its components, not the other way round.",
+  },
+];
 
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  // Import boundaries: docs/architecture.md §5, rule by rule.
-  ...boundaries,
+  {
+    files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+    plugins: { boundaries: { rules: { "server-only-first": serverOnlyFirst } } },
+    rules: { "import/no-restricted-paths": ["error", { zones }] },
+  },
+  {
+    files: ["src/server/**/*.ts"],
+    // A test never ships; next/jest maps server-only to an empty module.
+    ignores: ["**/*.test.ts"],
+    rules: { "boundaries/server-only-first": "error" },
+  },
+  {
+    // next.config.ts evaluates this file at config-load time, where path aliases do not exist.
+    files: ["src/config/imageDomains.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{ regex: ".*", message: "imageDomains.ts imports nothing; next.config.ts evaluates it at config-load time." }],
+      }],
+    },
+  },
   {
     rules: {
       // Downgraded to a warning, deliberately not fixed. The two current
-      // violations (frontend/views/saved/SavedView.tsx, frontend/features/news/ArticleCard.tsx)
+      // violations (src/app/saved/page.tsx, src/components/news/ArticleCard.tsx)
       // would have to become derived state to satisfy this rule, which
       // changes render timing — a behavior change on files that have zero
       // test coverage today. They are scheduled for Phase 6, once
