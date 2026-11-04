@@ -1,7 +1,9 @@
 # TimesPrime newsroom build plan
 
-**Status:** Approved by the owner, 4 November 2026 (section 10). This is the plan every developer
-follows; section 4 starts with where the work stands.
+**Status:** Approved by the owner, 4 November 2026 (section 10). **On hold until `release/v1` ships**
+(owner, 4 Nov 2026): the release Vivek runs on `main` goes first, at the owner's senior's request;
+then this plan resumes, ported onto `main`'s layout (Progress, row 0). Hosting is **AWS** (owner,
+4 Nov 2026), which replaces the release's R0 choice of Vercel.
 **For:** the developers who will build it, and the owner who approves it.
 **Based on:** [`PERMISSIONS.md`](PERMISSIONS.md) (roles, permission matrix, four-eyes and MFA rules),
 [`PANEL_DOCS.md`](PANEL_DOCS.md) (what is built), `CLAUDE.md` (the rules every panel follows) and the
@@ -27,6 +29,8 @@ privacy, kyunki kanoonan ye launch se pehle chahiye.
 | `apps/worker` | Background jobs |
 
 Shared code `packages/` mein rahega. Saare panels ek admin app ke andar honge, har panel ka apna folder aur apni permissions.
+
+**Abhi ka order (owner, 4 Nov 2026):** pehle Vivek ka `release/v1` (`main` pe), hosting **AWS** pe. Uske baad ye plan `main` pe aayega, aur neeche ke steps shuru honge.
 
 **Order (har step pichhla poora hone ke baad):**
 
@@ -71,9 +75,10 @@ first one that is not Done.
 
 | Phase | Status | Where |
 |---|---|---|
-| A. Finish Panel 0, land the restructure | **In progress.** Step 1 done locally (committed on `chore/restructure`, not pushed); steps 2–4 open: local database, Panel 0 items 7–13, the merge | `chore/restructure`, then `panel-0-access` |
+| 0. Release v1 (Vivek, on `main`) | **In progress, goes first.** R0 done; R1 waits on four owner values and now on AWS instead of Vercel. This plan waits for it | `release/v1`, `main` |
+| A. Finish Panel 0, port this plan onto `main` | **After the release.** `main` now has the four-folder layout (`frontend/`, `backend/`, `database/`, `docs/`), so step 1 becomes: bring this plan, `PERMISSIONS.md` and `RESEARCH.md` onto `main`, then steps 2–4 | `chore/restructure` (pushed, reference), then a branch from `main` |
 | B. Make the product safe to be public | Not started | `fix/aggregator-off`, `fix/audit-closeout` |
-| C. Split into apps and packages | **Done** (4 Nov 2026), ahead of A and B | `chore/restructure` |
+| C. Split into apps and packages | **Done on `chore/restructure`** (4 Nov 2026); **to redo on `main`** after the release, from its four-folder layout (the scripts are mechanical) | `chore/restructure`, then `chore/monorepo` from `main` |
 | D. Panel 1, Administration | Not started | `panel-1-administration` |
 | E. Panel 2, Desk | Not started | `panel-2-desk` |
 | F. Reader site for original journalism | Not started | `site/<topic>` |
@@ -94,7 +99,7 @@ Taken by the owner in conversation, or recommended by the research and proposed 
 | 3 | **CMS: build our own** on the existing stack; Quintype is the fallback if the editor fails its checkpoint (Phase E) | Research D3 |
 | 4 | **Aggregator off before any public traffic**: no scraped full text, no unofficial translation, no stock-photo fallbacks | Research D2 |
 | 5 | **Hindi on its own URLs** (`/hi/...`), rendered on the server; written in Hindi or translated by a person | Research D4, D5 |
-| 6 | **Hosting: AWS ap-south-1**, ECS Fargate behind CloudFront's flat-rate plan; worker on EventBridge + SQS | Research D6; `CLAUDE.md` |
+| 6 | **Hosting: AWS ap-south-1**, ECS Fargate behind CloudFront's flat-rate plan; worker on EventBridge + SQS. Confirmed by the owner on 4 Nov 2026 over the release's R0 choice (Vercel Pro, `bom1`), so the release's hosting work (R1) moves to AWS too | Research D6; owner, 4 Nov 2026 |
 | 7 | **Database: Supabase Mumbai**, with a custom domain, server-side reads on reader pages and log drains | Research D7 |
 | 8 | **Logs:** staff actions in Supabase `audit_log`; every system log in AWS Mumbai for 365 days; the audit chain's head hash exported daily to a locked S3 bucket (BL-034) | Research; this conversation |
 | 9 | **Video: YouTube first** (embeds and YouTube Live); no reader comments at launch | Research D9, D10 |

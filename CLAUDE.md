@@ -2,6 +2,10 @@
 
 ## Start here (every session, every developer)
 
+> **This branch (`chore/restructure`) is on hold.** The owner decided on 4 Nov 2026 that the release
+> on `main` (`release/v1`, run by Vivek) goes first. Work on `main` follows `main`'s own
+> `docs/OPERATIONS.md`. After the release, this plan is ported onto `main`. Hosting is AWS.
+
 1. **Read `docs/NEWSROOM_PLAN.md`.** It is the one plan for this project, approved by the owner on
    4 Nov 2026. Its **Progress** table names the current phase: the first one not marked Done. Work
    only on that phase, or on a parallel track the plan names, on the branch the table gives.

@@ -12,7 +12,10 @@
 > `main`, and `main` pushed, only after the owner approves.
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
-**State as of:** 2026-11-04. **Panel 0 (Access foundation) is complete on the branch
+**State as of:** 2026-11-04. **This branch is on hold:** the owner chose to finish `release/v1` on
+`main` first (Vivek), with AWS hosting instead of Vercel; this plan is ported onto `main` after it.
+`main` meanwhile took a different layout (`chore/four-folders`), so this branch is a reference, not a
+merge candidate. **Panel 0 (Access foundation) is complete on the branch
 `panel-0-access`** and awaits the owner's approval to merge; its first half is on `main`
 ([`PANEL_DOCS.md`](PANEL_DOCS.md), §4). None of its SQL is applied yet. **On top of it, the branch
 `chore/restructure`** (local, 8 commits, not pushed) holds:
