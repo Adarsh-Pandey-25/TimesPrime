@@ -3,6 +3,7 @@ import { PT_Serif } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@timesprime/ui/ThemeContext";
 import { THEME_INIT_SCRIPT } from "@timesprime/shared/config/theme";
+import { ADMIN_ASSET_PREFIX } from "@timesprime/shared/config/adminAssets";
 
 const ptSerif = PT_Serif({
   weight: ["400", "700"],
@@ -24,7 +25,8 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: { default: "TimesPrime Admin", template: "%s | TimesPrime Admin" },
   robots: { index: false, follow: false },
-  icons: { icon: "/favicon.png" },
+  // public/admin-assets/favicon.png: at the root, /favicon.png is the reader site's (R1-04).
+  icons: { icon: `${ADMIN_ASSET_PREFIX}/favicon.png` },
 };
 
 export default function AdminRootLayout({

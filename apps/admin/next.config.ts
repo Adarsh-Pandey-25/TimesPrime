@@ -2,6 +2,7 @@ import path from "node:path";
 import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
 import { withSentryConfig } from "@sentry/nextjs/config";
+import { ADMIN_ASSET_PREFIX } from "@timesprime/shared/config/adminAssets";
 
 // One set of env files for every app, at the repository root. Next has already loaded this app's
 // folder (none there) before it evaluates this file, and @next/env returns that cached result to a
@@ -28,6 +29,10 @@ const nextConfig: NextConfig = {
   // (apps/web/next.config.ts). Tailwind reads every word in this folder as a possible class name,
   // so a comment here that names a utility class adds it to the admin's CSS.
   output: "standalone",
+  // Every chunk, CSS and font URL under /admin-assets, so the shared CloudFront distribution can
+  // send them to this service and never to the reader site's (R1-04,
+  // packages/shared/src/config/adminAssets.ts).
+  assetPrefix: ADMIN_ASSET_PREFIX,
   async redirects() {
     return [{ source: "/", destination: "/admin", permanent: false }];
   },
