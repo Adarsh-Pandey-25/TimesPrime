@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { ALLOWED_IMAGE_HOSTNAMES } from "@timesprime/shared/config/imageDomains";
+import { securityHeaders } from "@timesprime/shared/config/securityHeaders";
 
 // One set of env files for every app, at the repository root. Next has already loaded this app's
 // folder (none there) before it evaluates this file, and @next/env returns that cached result to a
@@ -36,6 +37,10 @@ const nextConfig: NextConfig = {
   // the handler and its imports into the standalone output.
   cacheHandler: path.join(__dirname, "cache-handler.mjs"),
   cacheMaxMemorySize: 0,
+  // The security headers on every response (R1-06, packages/shared/src/config/securityHeaders.ts).
+  async headers() {
+    return [{ source: "/(.*)", headers: securityHeaders({ dev: process.env.NODE_ENV !== "production" }) }];
+  },
   images: {
     // https only, explicit hostnames only — kept in sync with topicImages.ts
     // via the shared ALLOWED_IMAGE_HOSTNAMES list (packages/shared/src/config/imageDomains.ts).

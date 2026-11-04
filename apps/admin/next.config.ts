@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { ADMIN_ASSET_PREFIX } from "@timesprime/shared/config/adminAssets";
+import { securityHeaders } from "@timesprime/shared/config/securityHeaders";
 
 // One set of env files for every app, at the repository root. Next has already loaded this app's
 // folder (none there) before it evaluates this file, and @next/env returns that cached result to a
@@ -35,6 +36,11 @@ const nextConfig: NextConfig = {
   assetPrefix: ADMIN_ASSET_PREFIX,
   async redirects() {
     return [{ source: "/", destination: "/admin", permanent: false }];
+  },
+  // The security headers on every response (R1-06). ArticlesTable shows admin-entered image URLs
+  // in a plain img, so images may come from any https host here.
+  async headers() {
+    return [{ source: "/(.*)", headers: securityHeaders({ dev: process.env.NODE_ENV !== "production", imgSrc: ["https:"] }) }];
   },
 };
 
