@@ -1,0 +1,10 @@
+{
+  "name": "@timesprime/shared",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./config/*": "./src/config/*.ts",
+    "./lib/*": "./src/lib/*.ts",
+    "./types": "./src/types/index.ts"
+  }
+}

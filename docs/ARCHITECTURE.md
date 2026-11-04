@@ -1,332 +1,32 @@
 # Architecture
 
-What TimesPrime does, how it is built, and why, in four parts:
-
-1. [Product requirements](#product-requirements): what the product does, requirement by requirement,
-   with code citations, the defect register and the owner's product decisions. The canonical
-   specification.
-2. [System design](#system-design): how a request flows, the framework constraints, the layout, the
-   import rules and how they are enforced, and what each module owns.
-3. [Data model](#data-model): the tables, and where their SQL lives.
-4. [Decisions](#decisions): every decision record, dated, with the alternatives it rejected, and the
-   owner's decisions.
-
-> **Paths in carried records.** The product requirements and the decision records before
-> [ADR 0004](#adr-0004--four-top-level-folders-four-documents) were written before restructure 3
-> (2026-11-03) and keep the paths of their time. Since then `app/` is `frontend/app/`, `shared/` is
-> `backend/shared/`, `scripts/` is `backend/scripts/`, `public/` is `frontend/public/`, and the
-> Next.js files that sat at the root (`proxy.ts`, `next.config.ts`, `instrumentation*.ts`,
-> `sentry.*.config.ts`, `vercel.json`, `tsconfig.json`, `eslint.config.mjs`, `jest.config.ts`,
-> `postcss.config.mjs`) are in `frontend/`. `.env.local` is `frontend/.env`. The system design uses
-> today's paths.
-
-## Product requirements
-
-**Type:** brownfield / reverse-engineered · **Baseline:** commit `506a4ab`, branch `main`, updated
-through `59b875d` to record the owner decisions in §12 · **Updated:** 2026-10-29; code citations
-moved to the restructure-2 layout on 2026-10-30; statuses, §7, §11 and §13 brought up to date at the
-audit Phase 5 close-out on 2026-11-02 (each number re-measured then, or marked as unmeasured)
-
-This document describes what TimesPrime **does**, not what anyone intended it to do. Every
-functional requirement cites the code implementing it; a requirement with no citation is marked
-`Planned` and is a wish, not a description.
-
-> **Why §11 exists.** A reverse-engineered PRD has a known failure mode: it reads the code, finds a
-> behaviour, and writes it down as a requirement — including behaviours that are defects. Once a bug
-> is printed in a requirements document it becomes extremely hard to remove, because every later
-> reader assumes it was intended. Ten such behaviours are quarantined in §11 and are **not**
-> requirements.
+**Structure:** one repository, three apps and three shared packages (npm workspaces). `apps/web` is
+the reader site, `apps/admin` the back office, `apps/worker` the scheduled jobs; `packages/server`
+holds the server-only code, `packages/shared` the client-safe config, types and helpers, and
+`packages/ui` the React both apps share. Lint keeps each side to its own imports, and
+`import "server-only"` keeps server code out of every browser bundle. Decided in
+[ADR 0006](#adr-0006--three-apps-over-shared-packages-2026-11-04), following the owner-approved
+[`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md) (section 3). Where new code goes:
+[where new code goes](README.md#where-new-code-goes).
 
 ---
 
-### 1. Overview
-
-TimesPrime aggregates news from a commercial API, stores it on a rolling seven-day window, and
-serves a bilingual (English / Hindi) reading experience.
-
-It is not a thin API wrapper. Between upstream and reader sit a filtering pipeline, a caching
-strategy, an article scraper, an AI classifier, an on-demand translator, and an editorial admin
-surface. The product's value is that editorial layer.
-
-### 2. Problem and context
-
-Raw news-API output is not a reading experience. The upstream feed carries duplicate headlines,
-horoscope filler tagged as business news, wire-spam accounts republishing the same crop-survey
-article under five categories, articles in scripts the product does not support, and paywalled
-stories whose "content" is a subscription prompt.
-
-TimesPrime removes all of that, then adds the affordances that make a story readable: full text,
-translation, saving, and an assistant that can answer questions about it. The audience is
-bilingual and Indian-market, with English and Hindi as **equal** first-class languages — not a
-primary language plus a translation afterthought.
-
-### 3. Goals and non-goals
-
-| Goals | Explicit non-goals |
-|---|---|
-| A clean, de-duplicated, on-topic feed in two languages | **Not a user-account product** — no registration, no server-side user state |
-| Readable article text without leaving the site | **Not a CMS** — editorial publishing is an escape hatch, not the main path |
-| Serve readers from storage, not upstream, to control cost | **Not a social platform** — no comments, profiles, or sharing beyond the OS share sheet |
-| An operator surface for moderation and breaking news | **Not multi-tenant** — one publication, one admin credential |
-| Degrade visibly rather than fail, on any third-party outage | **Not real-time** — a 30-minute refresh cadence is the design point |
-| Show headlines and article text exactly as the source published them | **Not a rewriting service** — nothing is paraphrased or reworded without human review (owner decision Q1, §12) |
-| | **No languages beyond English and Hindi.** Odia, Bengali, Tamil and other Indic-script articles arrive from upstream and are discarded **by design** — this is scope, not a bug (owner decision Q5, §12) |
-
-### 4. Personas
-
-| Persona | Needs | Implied constraints |
-|---|---|---|
-| **Reader** | A fast, current, relevant feed in their language; full text without hitting a paywall; to save things for later | No login. State is device-local. Must work on a mid-range phone on mobile data |
-| **Operator / editor** | Remove bad articles; push a breaking banner within seconds; confirm the sync is alive; publish an original piece | Single shared credential. Destructive actions logged, and reversible where possible |
-
-### 5. User journeys
-
-1. **Browse the feed.** Land on `/` → server renders the category feed → client hydrates and polls
-   for new stories every 2 minutes → a banner offers a refresh when newer rows exist.
-2. **Read an article.** Tap a card → `/article/[slug]?url=&image=` → server calls the scraper →
-   paywall detection, then `<p>` extraction, then JSON-LD fallback, then junk filtering → full text
-   renders with a link to the publisher.
-3. **Switch language.** Toggle to Hindi → the feed re-queries with a Devanagari script filter; on an
-   article page the scraped text is translated on demand and cached per title.
-4. **Save for later.** Bookmark → written to `localStorage` → a custom DOM event updates the header
-   counter → `/saved` lists them.
-5. **Ask the assistant.** Open the floating assistant, or ask from an article → `/api/chat` streams
-   a Claude Haiku response with the article title and description as context.
-6. **Operate.** Sign in → proxy issues an HMAC session cookie → moderate, publish, set a banner,
-   trigger a sync → each action appended to the activity log.
-
-### 6. Functional requirements
-
-24 requirements. Status reflects **verified behaviour**, not intent. Paths are relative to the repository root; a route or
-page is cited at its body, which the one-line file in `app/` re-exports.
-
-#### Feed and ingestion
-
-| ID | Requirement | Implemented in | Status |
-|---|---|---|---|
-| FR-001 | Fetch headlines by category from NewsData.io | `backend/services/news/newsdata.ts`, `backend/services/news/fetchNews.ts` | Implemented |
-| FR-002 | Refresh all 7 categories on a 30-minute schedule | `backend/api/cron/refresh-news.ts`, `vercel.json` | Implemented |
-| FR-003 | Serve from cache → store → upstream → mock, in that order | `backend/api/news/top-headlines.ts` | Implemented — tier 2 reachable again since 2026-10-30; its production check is pending (DEF-01) |
-| FR-004 | Persist articles on a rolling 7-day window | `backend/repositories/db.ts` → `purgeOldArticles`, run by `backend/api/cron/refresh-news.ts` | Implemented · tested — once per cron run, off the read path (`2f31bad`) |
-| FR-005 | De-duplicate by normalised title | `shared/config/newsConfig.ts` → `dedupeArticlesByTitle` | Implemented · tested |
-| FR-006 | Exclude horoscope/tarot filler, wire-spam and non-news listing sources | `shared/config/newsConfig.ts` | Implemented · tested |
-| FR-007 | Exclude hard-paywalled publishers at write time | `backend/repositories/db.ts` → `HARD_PAYWALL_SOURCE_DOMAINS` | Implemented |
-| FR-008 | Classify and suppress mis-tagged categories via LLM | `backend/services/classify/categoryClassifier.ts` | Implemented — fail-open by design |
-| FR-009 | Notify the reader when newer stories exist | `backend/api/news/check-new.ts`, `frontend/views/home/HomeClient.tsx` | Implemented |
-
-#### Language
-
-| ID | Requirement | Implemented in | Status |
-|---|---|---|---|
-| FR-010 | Restrict each feed to its language by script detection | `shared/config/newsConfig.ts`, `backend/repositories/db.ts` | Implemented · tested |
-| FR-011 | Translate article text on demand | `backend/api/translate.ts`, `backend/services/translate/googleTranslate.ts` | **Partial** — unofficial endpoint; size-capped since `58c7f7d` |
-| FR-012 | Persist the language choice across visits | `frontend/context/LanguageContext.tsx` | Implemented |
-
-#### Article reading
-
-| ID | Requirement | Implemented in | Status |
-|---|---|---|---|
-| FR-013 | Extract readable full text from a publisher page | `backend/services/scrape/scrapeArticle.ts` | Implemented · tested — a failure is a 502/504, not placeholder prose (`b7f6fbc`) |
-| FR-014 | Detect paywalls and show publisher metadata instead of junk | same → `detectPaywall` | Implemented · tested |
-| FR-015 | Strip author bios, nav and app-download boilerplate | same → `isJunkParagraph` | Implemented |
-| FR-016 | Refuse to fetch internal/private network addresses | `shared/validation/urlValidation.ts`, `backend/services/scrape/fetchPage.ts` | Implemented · tested — every redirect hop revalidated, connections pinned (`2e383cb`, `1145bca`) |
-| FR-017 | Always link out to the original publisher | `frontend/views/article/ArticleDetailView.tsx` | Implemented · tested — only a stored article's http(s) link is used (`8d0b775`) |
-
-#### Reader features
-
-| ID | Requirement | Implemented in | Status |
-|---|---|---|---|
-| FR-018 | Save articles device-locally and list them | `frontend/features/news/bookmarks.ts`, `frontend/views/saved/SavedView.tsx` | Implemented · tested |
-| FR-019 | Answer questions about a story, streamed | `backend/api/chat.ts` | Implemented · tested — both chat surfaces report a failure honestly (`86bdf78`) |
-| FR-020 | Provide a themed, topic-appropriate image for every card | `shared/config/topicImages.ts`, `shared/config/imageDomains.ts` | Implemented |
-
-#### Operations
-
-| ID | Requirement | Implemented in | Status |
-|---|---|---|---|
-| FR-021 | Gate every admin surface behind a session | `proxy.ts`, `backend/auth/adminSession.ts` | Implemented · tested — login rate-limited, constant-time compare (`7eb9253`) |
-| FR-022 | List, search, edit, delete and bulk-delete stored articles | `backend/api/admin/articles.ts`, `backend/api/admin/articles-bulk.ts`, `frontend/features/admin/ArticlesTable.tsx` | Implemented |
-| FR-023 | Publish an editorial article directly | `backend/api/admin/publish-article.ts` | Implemented — bypasses the filter pipeline by design |
-| FR-024 | Set a time-boxed breaking-news banner | `backend/api/admin/breaking-news.ts` | Implemented — its table is in `database/schema.sql` since `db28a46`, to be applied by the owner (DEF-07) |
-
-### 7. Non-functional requirements
-
-| ID | Requirement | Current reality |
-|---|---|---|
-| NFR-01 | A reader request should not call the upstream API | **Unmeasured since 2026-10-30.** It was not met while every Supabase call failed (DEF-01); Supabase answers again, and the store is read first. Measure in production with the `X-Data-Source` header |
-| NFR-02 | No third-party outage produces a user-visible error | Met — arguably over-met; see §11 |
-| NFR-03 | Abuse-prone endpoints are rate-limited | **Met in code.** Chat and translate per IP in memory, with eviction; login (10 per 15 min) and the public scraper (30 per min, stored articles only) on Redis with an in-memory fallback. On Redis: a production check |
-| NFR-04 | Request bodies and upstream responses are size-capped | **Met.** Chat 16 KB / 2,000 characters; translate 64 KB, 50 texts, 5,000 characters each and 10,000 in all; scraped pages 5 MB (`58c7f7d`) |
-| NFR-05 | Secrets never reach the browser or an error report | Met — `shared/validation/sentryScrub.ts` redacts nine keys; no secret is read under a `NEXT_PUBLIC_` name (the last fallback went in `45223f0`) |
-| NFR-06 | Stored articles are purged after 7 days | Met — once per cron run (`2f31bad`) |
-| NFR-07 | Usable at 400 px width | Appears met from the breakpoint set; **not verified in a browser** |
-| NFR-08 | Typecheck, lint, test and build pass on every commit | Met, and enforced in CI since `506a4ab` |
-| NFR-09 | No dependency carries a known critical advisory | **Met.** `npm audit` on 2026-11-02: 0 critical, 0 high; 34 moderate and 3 low, all in dev and build tooling (`AUDIT-FINDINGS.md`, npm audit) |
-| NFR-10 | Business logic is covered by tests | **Met for non-UI modules.** On 2026-11-02: 61.51% of statements in `backend/` and `shared/` (3,448 of 5,606, 44 files); 47.01% overall (5,968 of 12,694, 80 files), with `frontend/` at 34.24%. Earlier baseline: 3.62% statements (428 of 11,795) at `73e207f`. It fell 4.41% → 3.50% when the well-covered paraphraser was deleted, not because any test regressed; it has since crept up only because later deletions shrank the denominator — 428 statements have been covered throughout (BL-003) |
-
-### 8. Compatibility requirements
-
-Brownfield constraints. Each one, if broken, breaks something **outside** the codebase. These bind
-the restructure as firmly as any functional requirement.
-
-| ID | Must not change | Why |
-|---|---|---|
-| CR-01 | Every public URL, byte for byte | Existing links, search indexing, any external embed |
-| CR-02 | `/api/cron/refresh-news` | Hard-coded in `vercel.json`; ingestion stops **silently** if moved |
-| CR-03 | The `articles` table shape | Live data exists; no migration tooling in place |
-| CR-04 | Every `process.env` name | Set in the Vercel dashboard, outside version control |
-| CR-05 | `proxy.ts` location and matcher semantics | Framework-pinned, and the sole authorisation boundary |
-| CR-06 | `shared/config/imageDomains.ts` importable from `next.config.ts` | Evaluated at config-load time — must never import React or `server-only` |
-| CR-07 | Sentry and instrumentation file locations | Framework conventions; silently inert if moved |
-| CR-08 | Public GET on `/api/admin/breaking-news` | The homepage banner has no session and reads it directly |
-
-### 9. Data model
-
-| Table | Defined in | Status | Shape |
-|---|---|---|---|
-| `articles` | `database/schema.sql` | Committed | 15 columns. `article_id` unique. `category`/`country`/`category_mismatches` are `TEXT[]`. **Only `id`, `article_id`, `title`, `created_at` are NOT NULL** |
-| `breaking_news` | comment in `backend/api/admin/breaking-news.ts` | **Not committed** | `id`, `text`, `is_active`, `expires_at`, `created_at` |
-| `admin_logs` | comment in `backend/api/admin/logs.ts` | **Not committed** | `id`, `action`, `details`, `metadata` (JSONB), `created_at` |
-
-The nullability of `link` and `pub_date` is the root of **BL-001**: `Article.link` and
-`Article.pubDate` are required strings in TypeScript, so the row mapping relies on `any` to hide
-unhandled nulls.
-
-**Indexes.** Two exist (`created_at`, `article_id`). Queries also filter on `category`/`country`
-(array containment — wants **GIN**) and `title`/`description` with `ILIKE '%…%'` (cannot use a
-B-tree at all — wants **`pg_trgm`**). Not urgent at seven-day volume; a cliff as retention grows.
-
-### 10. Integrations and failure behaviour
-
-| Service | Purpose | On failure | Assessment |
-|---|---|---|---|
-| NewsData.io | Source of all articles | 5 built-in mock articles | Correct; the mock set is obviously synthetic |
-| Supabase | Storage, 7-day window | Serves upstream, and says so | `/api/health` answers 503, and each fallback is reported to Sentry, rate-limited (D5). Was silent: DEF-01 |
-| Upstash Redis | Shared cache | In-process `Map` | Correct, trade-off documented in code |
-| Anthropic | Chat + classification | Chat 503; classifier fails open | Fail-open on classification is the right call |
-| Google Translate | On-demand translation | Returns the original string | Unofficial endpoint — fine at this volume, not a foundation |
-| Sentry | Error reporting | No-op without a DSN | Fine |
-
-### 11. Known defects — NOT requirements
-
-Behaviour that was a defect when found. Listed here so no future reader mistakes it for intent.
-**Do not promote any of these into §6.** The Behaviour column describes the defect as found; Status
-records what happened to it (statuses as in [`AUDIT-FINDINGS.md`](OPERATIONS.md#audit-ledger), 2026-11-02).
-
-| ID | Behaviour | Severity | Status |
-|---|---|---|---|
-| DEF-01 | Every Supabase call fails; app silently serves upstream instead | **Critical** | Pending verification — reachable again; production check (F-002) |
-| DEF-02 | Scraper follows up to 21 redirects, none re-validated — defeats the SSRF guard running immediately before it | **Critical** | Resolved `2e383cb`, `1145bca` |
-| DEF-03 | Two of four publisher links render an unvalidated `targetUrl` from the query string. Branded phishing surface | High | Resolved `8d0b775` |
-| DEF-04 | AI panel prints a canned "Key Takeaway" when the API fails, as if it were a real answer. `Chatbot.tsx` handles the same failure honestly | High | Resolved `86bdf78` |
-| DEF-05 | `purgeOldArticles()` runs a DELETE on the feed read path | Medium | Resolved `2f31bad` |
-| DEF-06 | Admin login unthrottled; password compare returns early on length mismatch, leaking length | High | Resolved `7eb9253` |
-| DEF-07 | `breaking_news` and `admin_logs` exist only as SQL inside route-file comments | High | Pending verification — SQL in `db28a46`, to be applied |
-| DEF-08 | Feed fetches 80 rows, filters in JS, slices to 40 — under-fills exactly when a spam source floods | Medium | Resolved `2e3fa0b` |
-| DEF-09 | ~~Contact form and newsletter show success, send nothing.~~ **Resolved by removal** in `59b875d`: all three forms deleted — the contact form and **two** newsletter forms, footer and article sidebar (owner decision Q4). A real backend is future work, BL-005 | Medium | Resolved `59b875d` |
-| DEF-10 | Scraper returns HTTP 200 with placeholder prose on failure; UI detects errors by string-matching three hard-coded sentences | Medium | Resolved `b7f6fbc` |
-| DEF-11 | `next` 16.3.0 carries 13 advisories, four of them critical unauthenticated RCE; fixed in a non-major release (audit F-001) | **Critical** | Resolved `47e62ae` |
-| DEF-12 | The feed search interpolates the raw query into a PostgREST `.or()` filter string — filter injection (audit F-006) | High | Pending verification — fixed `4b33611`, `614e514`; live probe |
-| DEF-13 | `axios` 1.19.0 carries advisories including redirect-based SSRF and ReDoS (audit F-007) | High | Resolved `56e7509` |
-| DEF-14 | `.env.local.example` documents `ADMIN_SECRET_TOKEN`, which no code reads, and omits `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`, which the code requires (audit F-009; README is already correct) | High | Resolved `10c8b47` |
-| DEF-15 | No input size caps: translate `texts[]` (count and item length), chat `message`, scraper response size (audit F-010) | High | Resolved `58c7f7d` |
-| DEF-16 | The public scraper, which makes arbitrary outbound requests, has no rate limit (audit F-011) | High | Resolved `3b63a37`, `988c7fa` |
-| DEF-17 | Admin purge and sync show a success message from their `catch` blocks, and nothing when `!res.ok` (audit F-014) | Medium | Resolved `5997567` |
-| DEF-18 | Two indexes for seven filtered columns: array `.contains()` wants GIN, `ILIKE '%x%'` wants `pg_trgm` (audit F-018) | Medium | Pending verification — migration in `4898da4`, to be applied |
-| DEF-19 | The in-memory rate limiter never evicts keys — unbounded memory growth (audit F-020) | Medium | Resolved `b44203d` |
-| DEF-20 | The home feed starts overlapping fetches with no `AbortController` or sequence guard; a stale response can overwrite a fresh one (audit F-021) | Medium | Resolved `9ce42bc` |
-| DEF-21 | Article page title is doubled: `… \| TimesPrime News \| TimesPrime News` (audit F-022) | Low | Resolved `ef510f9` |
-| DEF-22 | `translateHeadline()` ignores its `lang` argument yet runs on every card title and description (audit F-024) | Low | Resolved `3de9a1e` |
-| DEF-23 | Node version drift: `.node-version` and CI use 20, the local runtime is 24, `package.json` has no `engines`, Vercel's version is unconfirmed (audit F-026) | Low | Pending verification — Vercel's Node setting (`974b255`) |
-| DEF-24 | The chat drawer has no dark mode (audit F-027) | Low | Resolved `7ead49b` |
-| DEF-25 | Theme flash on load: the theme is read from `localStorage` in an effect, after first paint (audit F-028) | Low | Partial `5ad891a` — `isDark` ternaries remain, BL-028 |
-
-**Audit cross-reference.** The 2026-10-29 audit (F-001..F-028, at commit `0e7f1f7`) maps onto this
-register as: DEF-01 = F-002, DEF-02 = F-003, DEF-03 = F-005, DEF-04 = F-013, DEF-05 = F-015,
-DEF-06 = F-004, DEF-07 = F-008, DEF-08 = F-016, DEF-09 = F-012, DEF-10 = F-017; DEF-11..25 were
-added from the audit and name their F-ID inline. F-019, F-023 and F-025 were resolved before they
-were registered and have no DEF. Status per finding, with today's code locations:
-[`AUDIT-FINDINGS.md`](OPERATIONS.md#audit-ledger). The audit rates F-003 High and F-013 Medium; this register
-rates DEF-02 Critical and DEF-04 High — both ratings are kept, and the ledger notes the difference.
-
-**Refuted — do not re-report.** A `javascript:` URL XSS via `targetUrl` was suspected and
-**disproven**: React 19 blocks it, rendering
-`href="javascript:throw new Error('React has blocked a javascript: URL…')"`. The *phishing* half
-(DEF-03) is real; the XSS half is not.
-
-**Dependencies.** At the audit, `npm audit` reported 2 critical and 9 high, including four critical
-unauthenticated-RCE advisories in `next` 16.3.0. Phase 1 cleared them: `next` 16.4.3 (`47e62ae`), axios
-(`56e7509`), @sentry/nextjs (`31f4a54`) and transitive packages (`5970692`). On 2026-11-02 there are
-0 critical and 0 high: 34 moderate (`glob` and `minimatch`, published since, in dev and build tooling;
-the only fixes are major-version changes) and 3 low (the accepted jest set). The AVIF and SVG RCE
-paths were refuted (`formats` defaults to webp-only, `dangerouslyAllowSVG` is false). Sentry's
-`tunnelRoute` is not set and must never be enabled: all authorization lives in `proxy.ts`.
-
-### 12. Owner decisions (2026-10-29)
-
-The five questions that blocked sign-off, answered. **None remain open.**
-
-| # | Question | Decision | Landed in |
-|---|---|---|---|
-| Q1 | Is the paraphraser deliberate? | **Delete.** Rewriting headlines through a synonym table can change a story's meaning with no human review. Headlines and article text are shown as the source published them | `3805007` |
-| Q2 | Does RSS return? | **Delete.** `rssParser.ts` and the 503 route removed. This changed the route table (27 → 26); `_baseline-routes.txt` was updated in the same commit | `bcd5393` |
-| Q3 | Is editorial publishing a real workflow? | **Keep.** It moves with the admin feature like any other file. The hardcoded `country: ["us"]` and the filter bypass are logged, **not** fixed during the restructure | BL-004 |
-| Q4 | What is the intended contact path? | **Remove both UIs.** Showing "Message Sent!" while sending nothing is worse than no form. The `/contact` page remains, listing email addresses | `59b875d`, BL-005 |
-| Q5 | Languages beyond EN/HI? | **EN/HI is the scope.** Recorded as an explicit non-goal in §3, so nobody treats the discard as a bug | §3 |
-
-None of these were functional requirements: §6 never contained an FR for the paraphraser, RSS, or
-the contact and newsletter forms. They were open questions and, for the forms, defect DEF-09 — so
-recording the decisions required no change to the FR set.
-
-One follow-up the decisions created: removing the newsletter and contact form left the privacy
-policy describing collection that no longer happens. That is legal copy, flagged for owner or legal
-review as BL-008.
-
-### 13. Success metrics
-
-| Metric | Target | Why this number |
-|---|---|---|
-| Reader requests served without an upstream call | ≥ 95% | The storage tier exists for this. ~0% while Supabase failed; unmeasured since (production) |
-| Upstream calls per day | ≤ 350 | 7 categories × 48 cron runs, plus headroom |
-| Feed items surviving the filter pipeline | 30–40 per category | Below 30 suggests over-filtering (DEF-08) |
-| Scrape success (real text, not fallback copy) | ≥ 85% | Measured ~96% in a 120-URL sample |
-| Statement coverage, non-UI modules | ≥ 60% | 61.51% on 2026-11-02 (`backend/` and `shared/`), from 3.62% |
-| Critical/high dependency advisories | 0 | 0 on 2026-11-02, from 2 critical and 9 high |
-
-### 14. Appendix — environment variables
-
-Moved to [Environment variables in OPERATIONS.md](OPERATIONS.md#environment-variables) in
-restructure 3 (2026-11-03), merged with the README's table of the same variables.
-
-## System design
-
-**Structure:** one Next.js app in four top-level folders. `frontend/` is the Next.js root: the UI,
-and `app/`, the routing shell. `backend/` holds the server code, with `backend/shared/` for what
-both sides import; `database/` holds the SQL; `docs/` the four documents. An import boundary
-between them fails CI when it is broken. Decided in restructure 2
-([ADR 0002](ARCHITECTURE.md#adr-0002--frontend-backend-shared-and-database-separation-in-one-nextjs-app-2026-10-30-superseded-in-part-by-0004), 2026-10-30), which superseded the
-feature-first `src/` layout of [ADR 0001](ARCHITECTURE.md#adr-0001--feature-first-structure-with-layer-separation-and-a-ci-enforced-boundary-2026-10-30-superseded-by-0002), and moved into four
-folders in restructure 3 ([ADR 0004](#adr-0004--four-top-level-folders-four-documents),
-2026-11-03). Where new code goes: [the README](README.md#where-new-code-goes).
-
----
-
-### 1. How the system works today
+## 1. How the system works today
 
 Three independent flows, each with its own failure posture.
 
 ```
-INGEST ─ every 30 minutes, Vercel cron
-  /api/cron/refresh-news  [Bearer CRON_SECRET, fails closed if unset]
+INGEST ─ every 30 minutes, a scheduler starts the worker (EventBridge at deployment, Phase I)
+  npm run job -- refresh-news   (apps/worker; exit 0 clean, 1 failed, 2 unknown job)
     → NewsData.io, one request per category, sequential (bursts get throttled)
     → reject: hard-paywall domains · horoscope/tarot filler · wire-spam
               · non-news listing sources
-    → upsert into Supabase on article_id
-    → fire-and-forget: Claude Haiku flags category tags that do not fit
-  code: backend/api/cron/refresh-news.ts → backend/services/news
-        → backend/repositories/db.ts → backend/services/classify
+    → upsert into Supabase on article_id; purge rows older than 7 days
+    → one audit_log row as system:cron
+  code: apps/worker/src/jobs.ts → packages/server/src/services/news/refreshNews.ts
+        → packages/server/src/repositories/db.ts, auditLog.ts
 
-SERVE ─ per reader request
+SERVE ─ per reader request (apps/web)
   /api/news/top-headlines
     1. Redis cache        15 min TTL                 → X-Data-Source: cache
     2. Supabase           newest row < 30 min old    → supabase
@@ -335,365 +35,190 @@ SERVE ─ per reader request
   Each tier degrades to the next without an error to the reader. The header
   says which tier answered; a Supabase → NewsData fallback is also reported
   to Sentry, rate-limited, and /api/health reports whether Supabase answers.
-  code: backend/api/news/top-headlines.ts → backend/lib/cache, backend/services/news
+  /api/news/breaking-news: the homepage banner's public read.
+  code: packages/server/src/services/news/topHeadlines.ts, breakingNews.ts
 
-AUTHORISE ─ every admin request
-  frontend/proxy.ts   matcher: /admin/*, /api/admin/*
-    public:          /admin/login, /api/admin/login, /api/admin/logout
-    public GET only: /api/admin/breaking-news   (homepage banner, no session)
-    otherwise:       HMAC-SHA256 cookie, 12 h, httpOnly, SameSite=Lax
-  No route handler performs its own auth check.
-  code: frontend/proxy.ts → backend/auth/adminSession.ts
+AUTHORISE ─ every admin request (apps/admin, Panel 0)
+  1. apps/admin/src/proxy.ts   matcher: /admin/*, /api/admin/*      OPTIMISTIC: is there a session?
+       public (D10): page /admin/login · POST login · POST logout
+       a session:    a Supabase staff JWT (getClaims verifies it, refreshes it when due)
+                     or the shared password's HMAC cookie, until 2027-01-01 00:00 IST (Q3)
+       neither:      401 for /api/admin/*, redirect to /admin/login for pages. No database call.
+  2. the route body → requirePermission(rule, target)       DECIDES
+       session (getClaims + getUser) → staff record, read live (no cache) → decide()
+       live assignment · cell code (F S R M; Own and A refused) · scope (language, category[0])
+       · aal2 where the role or the profile requires it
+       401 · 403 { error, code, required } (audited as denied) · 503 if the record cannot be read
+  3. a change: audit_log 'attempted' (refused with 503 if it cannot be written) → the change →
+     'succeeded' or 'failed'. audit_log is append-only and hash-chained, in the database.
+  code: apps/admin/src/proxy.ts → packages/server/src/auth/{adminRoutePolicy, adminSession, supabaseServer}
+        apps/admin/src/app/api/admin/* → packages/server/src/auth/requirePermission → staffSession, decide, scope
+                                       → packages/server/src/repositories/{staff, auditLog}
 ```
 
-**Authorisation is a single choke point.** That is a good design — one place to audit, one place to
-change — but it means any route added outside the proxy matcher is silently public, and the matcher
-has no test. Keep this property visible; do not scatter it.
+**The backend check is the only gate on the data.** The apps read Supabase as `service_role`,
+which bypasses RLS, so `requirePermission` in each admin route body is all that stands between a
+request and the data. The proxy only filters out requests with no session, as Next's docs advise
+(it "should not be your only line of defense"). RLS protects only direct access with a user's own
+token (none of the access tables grant `anon` or `authenticated` anything). Two tests keep this
+honest:
+- `apps/admin/src/app/api/admin/access.test.ts` walks every admin route file on disk and fails on a
+  route or method that is not public, session-only or guarded by a rule;
+- the same file runs every guarded method through the real gate as allowed, no session, no grants,
+  expired, wrong scope, no MFA, and the shared password.
 
-### 2. Framework constraints
+The access rules are [the access rules](PANEL_DOCS.md#access-rules); the Panel 0 design is
+[Panel 0's design](PANEL_DOCS.md#panel-0-design-the-access-foundation); what the panel does
+is in [`PANEL_DOCS.md`](PANEL_DOCS.md).
+
+## 2. Framework constraints
 
 Fixed by Next.js 16. These are not design choices, and three of them have already caused wrong
 conclusions (see [the gotchas](OPERATIONS.md#3-gotchas-that-have-already-burned-time)).
 
-- Files under `frontend/app/**` named `page`, `layout`, `route`, `loading` or `error` **are** the routing
-  table. Their path **is** the URL. Route groups `(name)` reorganise without changing a URL;
-  private folders `_name` opt out of routing entirely. This is why `app/` stays a shell (§4).
-- `frontend/proxy.ts`, at the Next.js root beside `app/`, is the Proxy entrypoint — Next 16's rename of Middleware.
-  Location-pinned.
-- `instrumentation.ts`, `instrumentation-client.ts`, `sentry.server.config.ts` and
-  `sentry.edge.config.ts`, also at the Next.js root (`frontend/`), are location-pinned conventions. Silently inert if
-  moved.
-- `next.config.ts` imports `ALLOWED_IMAGE_HOSTNAMES` from `backend/shared/config/imageDomains.ts` and
-  evaluates it at **config-load time**. That module imports nothing (CR-06).
+- In each app, files under `src/app/**` named `page`, `layout`, `route`, `loading` or `error`
+  **are** the routing table. Their path **is** the URL. Any other file there (a component, a test)
+  is colocated safely and never routable.
+- With a `src/` folder, `proxy.ts` (Next 16's rename of Middleware) and the instrumentation files
+  must sit in the app's `src/`, beside `app/`. Silently inert anywhere else (`src-folder.md`).
+- Next reads `.env*` only from the app's own folder. Both `next.config.ts` files load the files at
+  the repository root with `@next/env` (with `forceReload`: Next has already loaded and cached
+  the app's own folder, gotcha 3.25), so one `.env` serves every app; the worker passes
+  `--env-file-if-exists=../../.env`.
+- `apps/web/next.config.ts` imports `ALLOWED_IMAGE_HOSTNAMES` from
+  `@timesprime/shared/config/imageDomains` at **config-load time**. Next's config loader resolves a
+  relative import from the working directory, not from the config file, so the import uses the
+  package name, and `imageDomains.ts` imports nothing (CR-06).
 - `images.remotePatterns` hostnames are matched with **picomatch globs**, not string equality, and
   the array is capped at **50 entries**. 49 are used.
-- `frontend/vercel.json` pins the cron to `/api/cron/refresh-news`.
-- `frontend/` is the Next.js root, and Next and Jest run there: the `next.config.ts` loader
-  resolves the config's relative imports against the working directory
-  ([gotcha 3.20](OPERATIONS.md#320-nextjs-and-jest-run-in-frontend-not-at-the-root)). Turbopack's
-  root and the tracing root are the repository root, so `app/` can import `backend/`.
+- Turbopack compiles the workspace packages without `transpilePackages`, and finds the repository
+  root from the single `package-lock.json`.
+- Nothing is deployed until the project is complete; the target is AWS (`ap-south-1`).
+  `vercel.json` is gone: the worker's scheduler replaces it ([`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md),
+  Phase I).
 
-> Next.js is explicitly **unopinionated** about project organisation. Its own documentation presents
-> three strategies and concludes: *"choose a strategy that works for you and your team and be
-> consistent across the project."* The structure below is a team decision, not a framework mandate.
+## 3. How the structure got here
 
-### 3. How the structure got here
+Four restructures, each recorded in an ADR with the alternatives it rejected.
 
-Three restructures, each recorded in an ADR with the alternatives it rejected.
+- **Restructure 1** ([ADR 0001](#adr-0001--feature-first-structure-with-layer-separation-and-a-ci-enforced-boundary-2026-10-30-superseded-by-0002)). A catch-all `src/lib/` let a
+  client component import the audit logger and pull the whole Supabase SDK into `/admin`'s browser
+  bundle (fixed in `b01d528`). Code was grouped by feature and the import rules made to fail CI.
+- **Restructure 2** ([ADR 0002](#adr-0002--frontend-backend-shared-and-database-separation-in-one-nextjs-app-2026-10-30-superseded-by-0004-in-part-and-by-0005)). Five top-level folders
+  (`app/`, `frontend/`, `backend/`, `shared/`, `database/`), every route a one-line re-export, held
+  in place by ~1,400 lines of custom tooling.
+- **Restructure 4** ([ADR 0005](#adr-0005--the-standard-nextjs-src-layout-2026-11-02-superseded-by-0006), 2 Nov 2026). The standard single
+  `src/` app: routes with their code, no re-exports or barrels, `server-only` plus lint zones.
+- **Restructure 5** ([ADR 0006](#adr-0006--three-apps-over-shared-packages-2026-11-04), 4 Nov 2026). The owner-approved
+  plan separates the reader site, the back office and the jobs into apps over shared packages, so an
+  admin deploy cannot reset the reader's cache, the editor's code never reaches readers, the admin can
+  sit behind a stricter firewall, and election-night reader load cannot starve the editors. `/admin`'s
+  client JS halved (163,762 → 80,206 bytes) once it stopped carrying the reader's header and ticker.
 
-- **Restructure 1** (Phases A–E, [ADR 0001](ARCHITECTURE.md#adr-0001--feature-first-structure-with-layer-separation-and-a-ci-enforced-boundary-2026-10-30-superseded-by-0002)). `src/lib/` was
-  a folder named after the absence of a decision: data access, security primitives, infrastructure,
-  domain logic, static data and i18n side by side, and nothing stopped a React component from
-  importing a Supabase client. One did. `ActivityLog.tsx`, a client component, imported the audit
-  logger for two constants and pulled the whole Supabase SDK into `/admin`'s browser bundle (fixed
-  in `b01d528`). Restructure 1 grouped code by feature under `src/features/`, defined the shared
-  layers, and made the import rules fail CI.
-- **Restructure 2** (S0–S5, [ADR 0002](ARCHITECTURE.md#adr-0002--frontend-backend-shared-and-database-separation-in-one-nextjs-app-2026-10-30-superseded-in-part-by-0004)). The owner's
-  reviewer asked for frontend, backend, database and documentation to be visibly separate. The App
-  Router fixes where route files live (§2), so `app/` became a shell. Its route and page files
-  re-export bodies that live in `backend/api/` and `frontend/views/`. Dead code went first (S1), so
-  only code in use moved: 95 files in 11 slices. Every slice was gated on an identical route table
-  and byte-identical CSS. Client JS changed by 35 bytes in total (974,032 → 974,067; `/` +50). The
-  import rules were rewritten for the new layers in S4.
-
-- **Restructure 3** (S0–S3, [ADR 0004](#adr-0004--four-top-level-folders-four-documents),
-  2026-11-03). The owner asked for four top-level folders and four documents. `frontend/` became
-  the Next.js root, holding `app/` and the framework's root files; `shared/` and `scripts/` moved
-  into `backend/`; thirteen Markdown files were merged into four. Every slice was gated on an
-  identical route table and segment config, byte-identical CSS and +0 bytes of client JS on every
-  route.
-
-### 4. Layout
+## 4. Layout
 
 ```
-frontend/                  the Next.js root, and the UI
-  app/                     the routing shell: URLs, the root layout, and re-exports
-    api/**/route.ts        one line each, e.g.  export { GET } from "@/backend/api/health";
-    <page>/page.tsx        one line each, e.g.  export { default, metadata } from "@/frontend/views/about/AboutView";
-    page.tsx               composition: fetches the first page of the feed, renders HomeClient
-    article/[slug]/page.tsx  composition: fetches the article and suggestions, renders ArticleDetailView
-    layout.tsx, loading.tsx
-  views/<page>/            page bodies: home, article, saved, admin, about, contact, privacy, terms
-  features/<feature>/      UI a feature owns: news, admin, chat, each behind its index.ts
-  components/ui/           presentational primitives: ThemeSpinner, NewsSkeletonGrid
-  context/                 app-wide state providers: ThemeContext, LanguageContext
-  styles/                  globals.css (Tailwind v4)
-  public/                  favicon and logos
-  proxy.ts                 admin authorisation, the first gate (§1)
-  instrumentation.ts · instrumentation-client.ts · sentry.*.config.ts    Sentry wiring, pinned beside app/
-  next.config.ts · vercel.json · tsconfig.json · eslint.config.mjs · jest.config.ts · postcss.config.mjs
-  .env.example · .env.test (committed) · .env (the owner's, git-ignored)
-backend/                   server-only: every module opens with import "server-only"
-  api/                     route bodies, one per route: parse, check the permission, delegate, serialise
-  services/<service>/      domain logic: news (behind its index.ts), classify, health, scrape, translate
-  repositories/            data access: db.ts (articles), auditLog.ts (audit_log), staff.ts (staff records)
-  auth/                    the admin session, the staff session and the server-side permission check
-  lib/                     domain-free infrastructure: cache, likePattern, rateLimit, readJsonBody,
-                           reportFallback, supabase
-  shared/                  imported by both sides; imports neither; not server-only
-    config/                static data and the editorial rules both sides apply: imageDomains,
-                           categoryColors, topicImages, translations, newsConfig, permissions, theme
-    types/                 types both sides use (Article, …)
-    validation/            urlValidation, sentryScrub: checks every runtime runs
-  scripts/                 repo tooling, run by Node: check-boundaries, check-docs, shims,
-                           generate-access-catalog, baseline-routes.txt (the built route table)
-database/                  schema.sql, policies.sql, migrations/, bootstrap/, seed/: applied by hand, imported by nothing
-docs/                      the four documents
+apps/
+  web/                     the reader site (Next.js 16)
+    src/app/               home, article, about, contact, privacy, terms, saved; public APIs:
+                           /api/news/{top-headlines, breaking-news, check-new, scrape-article},
+                           /api/chat, /api/translate, /api/health
+    src/components/        news/ (cards, masthead, footer, menu, ticker, banner), home/, article/,
+                           chat/, ui/
+    src/context/           LanguageContext
+    src/lib/               bookmarks (saved articles, in the browser)
+  admin/                   the back office (Next.js 16); keeps the /admin and /api/admin paths
+    src/proxy.ts           the optimistic session check (§1)
+    src/app/admin/         the dashboard and the staff sign-in; panels arrive as route folders
+    src/app/api/admin/     every admin route handler, each gated by requirePermission
+    src/components/        the dashboard widgets and AdminTopBar
+  worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
+    src/jobs.ts            the jobs by name: refresh-news
+packages/
+  server/                  @timesprime/server: server-only, every module opens with import "server-only"
+    src/auth/              the access foundation (Panel 0): requirePermission (the gate), decide, scope,
+                           adminRoutePolicy, staffSession, supabaseServer, mfa, adminSession
+    src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts
+    src/services/          news (feed read path, breaking news, refresh), scrape, translate, classify, health
+    src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase, …
+  shared/                  @timesprime/shared: client-safe config, types and lib (urlValidation, sentryScrub)
+  ui/                      @timesprime/ui: React shared by both apps (ThemeContext)
+database/                  schema.sql, policies.sql, migrations/, bootstrap/, seed/: applied by hand
+scripts/                   generate-access-catalog.mjs: the permission catalogue SQL from docs/PANEL_DOCS.md
+docs/
 ```
 
-`frontend/` is the Next.js root: `app/`, `public/`, `proxy.ts`, the instrumentation files and the
-env files must sit together there (§2). `backend/shared/` is the old top-level `shared/`, moved in
-restructure 3 so that the repository has four top-level folders; its rules did not change (S1, R7,
-CR-06).
+Each package exposes its modules through `exports` in its `package.json`
+(`@timesprime/server/auth/requirePermission`, `@timesprime/shared/config/newsConfig`,
+`@timesprime/ui/ThemeContext`). Each app imports its own files as `@/…`. All dependencies are
+declared once, in the root `package.json`.
 
-#### Why `app/` is a shell
+A route handler holds only HTTP: it reads the request, calls `packages/server`, and turns the result
+into a response. A server page that needs the same data calls the same function, never its own API
+over HTTP (`getTopHeadlines` serves both `/api/news/top-headlines` and the article page's
+suggestions). *Target state:* `apps/web/src/app/api/news/scrape-article/route.ts` still carries some
+logic inline; moving it out is behaviour-preserving work for later, behind characterization tests.
 
-In the App Router a route file's path is its URL, so route and page files cannot move into
-`backend/` or `frontend/` without breaking every public URL (CR-01), the cron contract (CR-02) and
-the proxy matcher (CR-05). Restructure 1 concluded from this that a top-level `backend/` folder would
-take a rewrite. Restructure 2 kept every URL a different way: the route file stays where it is,
-holds a single re-export, and its body moves. `frontend/app/api/health/route.ts` is one line,
-`export { GET } from "@/backend/api/health";`. The route table and segment config came out
-identical, and the client JS within 35 bytes.
+## 5. Import rules
 
-Two pages stay in `app/` as composition, because they combine backend data with a view, and
-splitting the fetch from the markup would be a logic change (the page rule, ADR 0002):
+Lint enforces these (`eslint.config.mjs`, part of `npm run verify` and CI). The zones use
+`import/no-restricted-paths`, which judges the resolved path, so `@timesprime/server/x` and a
+relative path to the same file are the same import.
 
-- `frontend/app/page.tsx` calls `fetchInitialNews` and renders `HomeClient`.
-- `frontend/app/article/[slug]/page.tsx` fetches the scraped article and the suggestions, over HTTP from its
-  own API (BL-016), and renders `ArticleDetailView`.
+| Rule | Why |
+|---|---|
+| Client-safe code (each app's `components`, `context`, `lib`; `packages/shared`; `packages/ui`) never imports `packages/server` | A client bundle that reaches server code ships it to every reader. Server data reaches the UI as props from a page, or through a route handler |
+| Every `packages/server` module starts with `import "server-only"` (`boundaries/server-only-first`) | Turns any client import of server code, direct or through another module, into a `next build` error. This is the check lint alone cannot do: it catches the transitive case |
+| Packages never import an app; `packages/server` and `packages/shared` import no React UI (`packages/ui`) | Both apps depend on the packages, so the packages depend on neither |
+| No app imports another app (web, admin, worker) | What two apps need belongs in a package |
+| Components never import an app's `src/app` | A page imports its components, not the other way round |
+| `packages/shared/src/config/imageDomains.ts` imports nothing | `apps/web/next.config.ts` evaluates it at config-load time (CR-06) |
 
-A two-app split, with a separate API service, was rejected (ADR 0002). Every API URL, the Vercel
-cron and the proxy's cookie auth would change, and deployments would double.
+Every zone and `server-only-first` were proven when they were written: a deliberate violation
+failed lint with its message, then passed once removed. `apps/admin/src/proxy.ts` imports the
+server-only `packages/server/src/auth/adminSession.ts`, which is valid: Proxy runs on the Node.js
+runtime by default (`proxy.md`, "Runtime").
 
-### 5. Import rules
+The worker runs outside Next, so `import "server-only"` would throw there; its `job` script runs
+Node with the `react-server` condition, under which the package resolves to its empty module.
 
-These are the rules a reviewer may cite in a pull request, by ID. Every rule an import can break
-fails both `npm run lint` (`frontend/eslint.config.mjs`) and `npm run check:boundaries`
-(`backend/scripts/check-boundaries.mjs`), both part of `npm run verify` and CI, with the rule's ID
-at the start of the message. Lint uses `import/no-restricted-paths` zones, which judge the resolved
-path, so a relative import is caught like an alias, plus three local rules. Each rule was proven in
-restructure 2 (S4) by a deliberate violation that failed with its message, then passed once removed,
-and proven again for the new paths in restructure 3.
-
-| ID | Rule | Lint | `check:boundaries` |
-|---|---|---|---|
-| F1 | `frontend/` outside `app/` never imports `backend/`, except `backend/shared/`; the client bundle never reaches `backend/` | zone; `boundaries/no-server-in-client` for a `"use client"` module in `frontend/app/`; `boundaries/server-only-first`: every `backend/` module (not `backend/shared/`) opens with `import "server-only"`, so a client import of it fails `next build` | direct imports, and the client-bundle closure (transitive) |
-| B1 | `backend/` never imports `frontend/` | zone | yes |
-| S1 | `backend/shared/` imports nothing from `frontend/`, the rest of `backend/`, or `app/` | zone (`app/` reports as A1) | yes |
-| A1 | `frontend/app/` is the only place frontend and backend meet. It may import `frontend/`, `backend/shared/`, `backend/api/` and the two entry points the composition pages fetch through (`backend/services/news`, `backend/services/scrape/scrapeArticle`), and nothing else in `backend/`. Nothing outside `frontend/app/` imports it; `instrumentation-client.ts` (browser) never imports `backend/` (except `backend/shared/`); `instrumentation.ts` and `sentry.*.config.ts` (server) never import the UI in `frontend/` | zones | yes |
-| A2 | Every `frontend/app/**/route.ts`, and every `page.tsx` except the composition pages (`COMPOSITION_PAGES` in `backend/scripts/shims.mjs`), holds only re-exports and literal segment config | `boundaries/shim-only` | yes; and every URL in the built route table (`backend/scripts/baseline-routes.txt`) still has its `page.tsx` or `route.ts`, which lint cannot see |
-| P1 | `frontend/proxy.ts` imports only `backend/auth` and `backend/shared/` | zones | yes |
-| D1 | Nothing imports `database/` | zone | yes |
-| X1 | No imports between features (`frontend/features/*`) or between services (`backend/services/*`). From outside, a feature is reached only through its `index.ts`, and so is a service that has one (`news`) | zones, generated from the folders on disk | yes |
-| V1 | `frontend/features/**` never imports `frontend/views/**` | zone | yes |
-
-Carried over from restructure 1, for the new paths:
-
-| ID | Rule | Lint | `check:boundaries` |
-|---|---|---|---|
-| R3 | `frontend/components/ui` and `frontend/context` never import features or views | zone | yes |
-| R5 | `ui` imports only `ui/`, `backend/shared/types`, `backend/shared/validation` and `ThemeContext` | zones | yes |
-| R9 | `frontend/context` imports only `backend/shared/config` and `backend/shared/types` | zone | yes |
-| R7 | `backend/shared/config` imports only `backend/shared/config` and `backend/shared/types`, with no React and no `server-only`; `backend/shared/types` imports only `backend/shared/types` | zones, and `no-restricted-imports` for the packages | yes, for project imports |
-| LIB | `backend/lib` imports no project module | zone | yes |
-| CR-06 | `frontend/next.config.ts` imports only `backend/shared/config`; `backend/shared/config/imageDomains.ts` imports nothing | zones, and `no-restricted-imports` | yes |
-
-Both tools exempt colocated tests from the X1 entry points, R5, R9, R7 and LIB: a test may import
-its own subject. Where two rules match one import, both report the first in this order: D1, A1,
-F1, B1, S1, P1, CR-06, X1, V1, R3, R5, R9, R7, LIB.
-
-**What restructure 3 changed** ([ADR 0004](#adr-0004--four-top-level-folders-four-documents)).
-`shared/` became `backend/shared/`: the zones that bar `backend/` (F1, A1's browser file, S1, P1,
-CR-06) except `backend/shared/`, so it keeps its meaning. A1 now names what `app/` may take from
-`backend/` instead of allowing all of it. A2 is read from disk, every page but the listed
-composition pages, so a new page is held to it the day it is created (BL-032); before, it covered
-only the pages restructure 2 had moved. `backend/scripts/shims.mjs` is the one list: lint, the
-checker and Jest's coverage exclusions read it.
-
-#### Why each rule exists
-
-- **F1, B1, S1: the two sides stay apart.** A client bundle that reaches backend code ships server
-  code to every reader. In restructure 1 that is how the Supabase SDK reached `/admin`'s browser
-  chunk: `supabase.ts` calls `createClient()` at module scope, and no bundler can tree-shake that.
-  F1 is therefore checked three ways: lint on each import, `check:boundaries` on the transitive
-  client-bundle closure, and `import "server-only"` at the top of every backend module, which turns
-  a client import into a build error (Next.js 16 docs, "Preventing environment poisoning"). *Seen to
-  work* (`19d255c`): a temporary `import "@/backend/lib/cache"` in a client component failed
-  `next build` with "'server-only' cannot be imported from a Client Component module"; without the
-  guard the same build passed. `frontend/proxy.ts` imports the server-only `backend/auth/adminSession.ts`,
-  which is valid: Proxy runs on the Node.js runtime by default (`proxy.md`, "Runtime"). Shared code
-  is imported by both sides, so it can depend on neither (S1).
-- **A1, A2: `app/` is the shell.** Frontend and backend meet only in `app/`, the top of the graph.
-  If anything else imported `app/`, it would reach both sides through it. The root files Next pins
-  in place keep to the side of the runtime they load in. A route file, and a page whose body moved,
-  holds only re-exports and literal segment config, so no logic hides in the URL contract.
-- **P1: one choke point.** Authorisation lives in `proxy.ts` (§1). What it needs lives in
-  `backend/auth`, and it needs nothing else.
-- **D1: the database folder is for people.** `database/` holds the SQL and the seed script, which
-  the owner applies by hand. No code depends on them.
-- **X1: features and services stay independent.** Nothing imports sideways. If two features (or two
-  services) need the same thing, it moves down a layer; it does not get imported sideways. Sideways
-  imports are how a layered structure collapses back into the thing it replaced, usually within a
-  quarter and always one reasonable-looking import at a time. Documentation does not prevent this;
-  a linter does. Entry points are covered below.
-- **V1: features never import views.** A view composes features through their entry points, so a
-  feature that imports or re-exports a view closes a cycle. Slice 9 found one (view → news entry →
-  view), removed in `4460a40`.
-- **R3, R5, R9: the frontend's lower layers.** `components/ui` and `context` sit below features and
-  views. A UI primitive must not know what an `Article` is. It may read the theme, because light
-  and dark are appearance, which is exactly what a primitive owns. Language, UI strings and
-  category data are app state or product knowledge, so `LanguageContext` and `backend/shared/config` are
-  off-limits (owner decision, Phase D; confirmed in S4). Footer is why the rule exists: it read
-  both and rendered category links, which a plain "downward is fine" rule could not catch. The
-  providers in `context` import only the config and types they hold (see §6).
-- **R7, CR-06: static data.** `backend/shared/config` holds static data and the editorial rules both sides
-  apply. It may import other config and types, but no React, no `server-only`, and no code from
-  either side. `imageDomains.ts` imports nothing at all, because `next.config.ts` evaluates it at
-  config-load time. *Refined in restructure 1:* the first draft said "config imports nothing",
-  which `topicImages.ts → imageDomains.ts` already contradicted.
-- **LIB: `backend/lib` is domain-free** (§6).
-
-#### Feature entry points and `sideEffects`
-
-Each `frontend/features/<feature>/` folder has an `index.ts`, its entry point, and a `package.json`
-with `"sideEffects": false`. Without that field a barrel is not free. When a server component (the
-root layout, any server page) imports one export from a barrel of client components, every client
-component the barrel re-exports becomes a client entry of that route. Restructure 1 measured +46 KB
-on `/` (+36%) when the root layout imported one banner from an unmarked barrel. Restructure 2
-measured it again, with the field removed: every route got heavier, by +457 bytes to +84,579 bytes.
-Marking the folder side-effect-free lets the bundler drop unused re-exports. So nothing in a feature
-may rely on an import made only for its side effects (a CSS file, a polyfill); those belong in
-`app/`. The Next 16 docs make the same point from the other side: barrels slow builds, so import
-from specific files where possible (`local-development.md`, "Barrel files"). Routing views through
-the entry point cost 109 bytes of client JS on `/`, which the owner accepted (ADR 0002).
-
-#### What lint cannot see, and what covers it
-
-- **F1, transitively.** Lint checks each import as written. A client module that imports a plain
-  module that imports `backend/` is caught twice more: `import "server-only"` fails `next build`,
-  and `check:boundaries` walks the client-bundle closure before the build runs.
-- **A shim that has gone missing.** A file that does not exist cannot be linted.
-  `check:boundaries` reports a route-table URL whose `frontend/app/` file is gone.
-- **What code does.** Route bodies in `backend/api/` parse input, delegate and serialise output;
-  extraction heuristics, SQL and filter logic belong in a service or a repository, where they can be
-  tested without constructing an HTTP request. Review enforces this. *Target state:* today
-  `backend/api/news/scrape-article.ts` and `backend/api/news/top-headlines.ts` still carry logic
-  inline. Extracting it is behaviour-preserving work for later, behind characterization tests.
-
-#### Path aliases
-
-`@/frontend/*` and `@/backend/*` (`frontend/tsconfig.json`), one per side and no catch-all, so
-every import names its side (the `@/*` catch-all was removed in `d6bd8b5`, and `@/shared/*` in
-restructure 3: `backend/shared/` is `@/backend/shared/*`). `database/` has no alias, because nothing
-may import it (D1); nothing outside `frontend/app/` may import that folder either (A1). Jest mirrors
-the two in `moduleNameMapper`; `check:boundaries` reads them from `frontend/tsconfig.json`.
-
-### 6. Module responsibilities
+## 6. Module responsibilities
 
 | Module | Owns | Must never |
 |---|---|---|
-| `frontend/app/` | URLs; the root layout and loading UI; one-line re-exports; the two composition pages | Hold logic in a route file (A2); be imported (A1) |
-| `frontend/views/` | One page body per page | Be imported by a feature (V1) |
-| `frontend/features/news/` | Feed cards, masthead and footer, category menu, ticker, breaking-news banner, saved-article store | Import another feature or a view; be reached past its `index.ts` (X1, V1) |
-| `frontend/features/admin/` | The operator dashboard: articles table, breaking-news manager, sync controls, stats, activity log | The same |
-| `frontend/features/chat/` | The assistant: the chat widget and the floating panel | Import from the news feature (X1); article context reaches it as data, not as an import |
-| `frontend/components/ui/` | Presentational primitives; may read the theme, no other app state | Import a feature, a view, `backend/shared/config` or `LanguageContext` (R3, R5) |
-| `frontend/context/` | App-wide providers: theme (light/dark) and language (EN/HI), each persisted to `localStorage` | Import anything but `backend/shared/config` and `backend/shared/types` (R9); hold feature state |
-| `backend/api/` | One route body per route: parse, delegate, serialise | Be imported by frontend code (F1) |
-| `backend/services/` | Domain logic: news ingestion and the feed (`news`, behind `index.ts`), category classification, health, translation | Import another service (X1) |
-| `backend/repositories/` | Supabase queries: articles (`db.ts`) and the audit log (`auditLog.ts`) | Be imported by frontend code (F1) |
-| `backend/auth/` | Issuing and verifying the admin session cookie | Be imported by frontend code (F1) |
-| `backend/lib/` | Domain-free infrastructure | Import any project module (LIB) |
-| `backend/shared/config/` | Static data: allowlists, colour maps, topic images, UI strings, the editorial filters | Import anything but config and types, or React, or `server-only` (R7); `imageDomains.ts` imports nothing (CR-06) |
-| `backend/shared/types/` | Types both sides use | Import anything but types (R7) |
-| `backend/shared/validation/` | Checks every runtime runs: `sentryScrub` | Import `frontend/`, `backend/` or `app/` (S1) |
-| `database/` | The schema, the RLS policies and the seed script, applied by hand | Be imported by code (D1) |
-
-#### What `backend/lib/` means
-
-`backend/lib/` is **cross-cutting and domain-free**: a module belongs there only if it knows no
-product concept — no `Article`, no category, no editorial rule, no UI string. Restructure 1 kept the
-definition rather than loosening it to fit what happened to live in `lib/`: `bookmarks.ts`, which
-stores `Article` objects, went to the news feature, and `translations.ts`, which holds product copy,
-went to config.
-
-**Checkable**, and enforced as LIB: `backend/lib/` holds `cache`, `rateLimit`, `reportFallback`,
-`supabase` and `urlValidation`, and **none of them imports a project module**. `cache` imports
-`@upstash/redis`, `reportFallback` imports `@sentry/nextjs`, `supabase` imports
-`@supabase/supabase-js`, `urlValidation` imports `dns/promises` and `net`, and `rateLimit` imports
-nothing. A `lib/` module that needs a project import has picked up a domain and belongs in a service
-or a repository. `urlValidation` moves to `backend/shared/validation/` with audit finding F-005, split at
-its DNS step, which cannot run in the browser ([BACKLOG](OPERATIONS.md#backlog) BL-015).
-
-#### What `frontend/context/` means
-
-`frontend/components/ui/` is presentational primitives with no domain knowledge. A provider that
-owns app state does not fit it, so **both providers live in `frontend/context/`**, a layer of
-app-wide state providers importing only `backend/shared/config` and `backend/shared/types` (R9). `LanguageContext`
-holds the `"en" | "hi"` choice and imports the `Language` type from `backend/shared/config/translations.ts`;
-`ThemeContext` holds light/dark, persists it, and sets classes on `document`. Both stay together,
-because the same objection applies to both.
-
-### 7. Decision records
-
-Every decision record, with the alternatives it rejected, is in [Decisions](#decisions) below: ADR
-0004 (accepted: this layout), ADR 0003 (accepted), ADR 0002 (accepted; its layout superseded by
-0004, its rules carried over) and ADR 0001 (superseded by 0002).
-
-## Data model
-
-The tables, what they hold, and where their SQL lives. The product view of the same model, with the
-requirements that read and write each column, is [§9 of the product requirements](ARCHITECTURE.md#9-data-model);
-the Panel 0 tables (staff, roles, permissions, assignments, the audit log) are designed in
-[Panel 0's design](PANEL_DOCS.md#1-data-model) and created by
-`database/migrations/2026-11-02-access-1-foundation.sql` and `-access-2-catalog.sql`.
-
-None of the SQL is applied by the app or its tooling. The owner applies each file from
-[the runbook](OPERATIONS.md#runbook-apply-the-database-files), and verifies it there; each file has a rollback.
-
-### Tables and files
-
-`database/schema.sql` defines all three tables, `IF NOT EXISTS`, with RLS enabled:
-- `articles`: 15 columns, `article_id` unique, `category`/`country`/`category_mismatches` are `TEXT[]`.
-  Only `id`, `article_id`, `title` and `created_at` are NOT NULL (the root of BL-001).
-- `breaking_news` and `admin_logs`, committed in `db28a46` (F-008); their nullable columns are BL-024.
-
-Policies and grants are in `database/policies.sql`. Indexes: `created_at` and `article_id` in the
-schema; GIN on `category`/`country`, trigram on `title`/`description`, and `link` in
-`database/migrations/2026-11-02-indexes.sql`. None of it is applied by the app: the owner applies it
-([the go-live checklist](OPERATIONS.md#go-live-checklist)).
+| `apps/web` | The reader site: pages, public route handlers, the reader UI | Import the admin app or the worker; hold business logic in a route handler |
+| `apps/admin` | The back office: `/admin` pages, `/api/admin` handlers, the proxy, the panels | Serve reader pages; import the reader site |
+| `apps/worker` | Scheduled and queued jobs, each a function in `packages/server` called by name | Serve HTTP; import an app |
+| `packages/server/src/auth` | Who is asking and what they may do: the session, the permission rule, the gate every admin route passes, the route policy, MFA, the shared password until it is retired | Trust an identity from a header, body or query |
+| `packages/server/src/repositories` | Supabase queries | Cache the staff record (revocation applies to the next request) |
+| `packages/server/src/services` | Domain logic: the feed read path, breaking news, the refresh, scraping, translation, classification, health | Return HTTP responses; that is the route handler's job |
+| `packages/server/src/lib` | Domain-free infrastructure: no `Article`, no category, no UI string | Import a product module |
+| `packages/shared` | Static data, editorial rules, types and helpers that run in every runtime | Import React, `server-only` or either side's code |
+| `packages/ui` | React shared by the apps (providers, later primitives) | Import `packages/server` |
+| `database/` | The schema, the RLS policies, the migrations, the bootstrap and seed scripts, applied by hand | Be imported by code |
 
 ## Decisions
 
-One record per significant structural decision, numbered and dated. A record is not edited once
-accepted: a superseded record keeps its text, is marked in its heading, and a later record links
-back, so the reasoning trail survives. Until 2026-11-03 each record was its own file in
-`docs/adr/`; restructure 3 brought them here, unchanged but for their heading level and links.
+One record per significant decision, never edited once merged. A superseded record is not edited or
+deleted: a later one supersedes it and links back, so the reasoning survives. Each carries its
+**status**, the **context** (including the constraints that were not chosen), the **decision**, the
+**alternatives rejected**, and why, and the **consequences**. Until 2026-11-03 each was a file in
+`docs/adr/`; `main` merged them here, and the apps/packages merge carried this branch's two in after
+them.
 
-Each record carries:
-
-- **Status**: Proposed · Accepted · Superseded by NNNN
-- **Context**: the forces in play, including constraints that were not chosen
-- **Decision**: what was decided, in the active voice
-- **Alternatives rejected**, and specifically why. This is the part future readers come back for; a
-  decision without its discarded options reads as arbitrary.
-- **Consequences**: what this makes easy, and what it makes harder
-
-| Record | Decision | Date | Status |
-|---|---|---|---|
-| [ADR 0001](#adr-0001--feature-first-structure-with-layer-separation-and-a-ci-enforced-boundary-2026-10-30-superseded-by-0002) | Feature-first `src/` layout with layer separation and a CI-enforced boundary (restructure 1) | 2026-10-30 | Superseded by 0002 |
-| [ADR 0002](#adr-0002--frontend-backend-shared-and-database-separation-in-one-nextjs-app-2026-10-30-superseded-in-part-by-0004) | One Next.js app split into `app/`, `frontend/`, `backend/`, `shared/` and `database/`, with rules F1–X1 and V1 (restructure 2) | 2026-10-30 | Accepted; its layout superseded by 0004, its rules carried over |
-| [ADR 0003](#adr-0003--an-articles-section-for-permission-scope-is-its-first-category-2026-11-02) | For permission scope, an article's section is `category[0]` (Panel 0) | 2026-11-02 | Accepted |
-| [ADR 0004](#adr-0004--four-top-level-folders-four-documents) | Four top-level folders (`frontend/` as the Next.js root, `backend/` with `shared/` inside), four Markdown files, `.env` (restructure 3) | 2026-11-03 | Accepted |
-
-The owner's product, structure and audit decisions are recorded in [Owner decisions](#owner-decisions)
-below, and the product decisions of 2026-10-29 in full in
-[§12 of the product requirements](ARCHITECTURE.md#12-owner-decisions-2026-10-29).
+| Record | Decision | Status |
+|---|---|---|
+| [Owner decisions](#owner-decisions) | The owner's product, scope and process decisions, with where each landed | Standing |
+| [ADR 0001](#adr-0001--feature-first-structure-with-layer-separation-and-a-ci-enforced-boundary-2026-10-30-superseded-by-0002) | Feature-first `src/` layout with layer separation and a CI-enforced boundary (restructure 1) | Superseded by 0002 |
+| [ADR 0002](#adr-0002--frontend-backend-shared-and-database-separation-in-one-nextjs-app-2026-10-30-superseded-by-0004-in-part-and-by-0005) | One Next.js app split into `app/`, `frontend/`, `backend/`, `shared/` and `database/`, with rules F1–X1 and V1 (restructure 2) | Superseded by 0004 in part (on `main`), and by 0005 (on `chore/restructure`) |
+| [ADR 0003](#adr-0003--an-articles-section-for-permission-scope-is-its-first-category-2026-11-02) | For permission scope, an article's section is `category[0]` (Panel 0) | Accepted |
+| [ADR 0004](#adr-0004--four-top-level-folders-four-documents-2026-11-03-superseded-in-part-by-0006) | Four top-level folders and four documents (restructure 3, on `main`) | Superseded in part by 0006 |
+| [ADR 0005](#adr-0005--the-standard-nextjs-src-layout-2026-11-02-superseded-by-0006) | The standard Next.js `src/` layout: routes with their code, `server-only` and four lint zones as the boundary (restructure 4, on `chore/restructure`) | Superseded by 0006 |
+| [ADR 0006](#adr-0006--three-apps-over-shared-packages-2026-11-04) | Three apps (`web`, `admin`, `worker`) over shared packages (`server`, `shared`, `ui`) in npm workspaces (restructure 5, the plan's Phase C) | Accepted |
 
 ### Owner decisions
 
-**Product (2026-10-29), all five answered.** Full rationale in `docs/PRD.md` §12.
+**Product (2026-10-29), all five answered.** Full rationale in the retired PRD's §12 (in git history).
 
 | # | Decision | Where |
 |---|---|---|
@@ -703,10 +228,14 @@ below, and the product decisions of 2026-10-29 in full in
 | Q4 | **Contact form and newsletter: UIs removed.** `/contact` page kept, listing emails | `59b875d`, BL-005 |
 | Q5 | **EN/HI is the scope.** An explicit non-goal in the PRD, so the discard is not treated as a bug | PRD §3 |
 
-**Structure (restructure 2):** one app with a separated layout, not a two-app split (ADR 0002).
-Pages that combine backend data with a view stay in `app/`. Views reach features only through their
-entry points, at a measured 109 bytes. Features never import views (V1). R5 keeps `shared/config`
-out of UI primitives. Each decision is in ADR 0002 and in the commit that applied it.
+**Plan (2026-11-04):** `NEWSROOM_PLAN.md` approved as the one plan every developer follows; sign-off
+item 6 (how aggregated items show) is pending, and until then they stay hidden. `PANEL_PLAN.md` and
+the PRD retired; the access rules moved to the access rules (`PANEL_DOCS.md`).
+
+**Structure (restructure 5, 2026-11-04):** three apps over shared packages (ADR 0006, superseding ADR
+0004's single app, which superseded ADR 0002's five-folder split). Routes hold their own code;
+components are imported from their own files, with no barrels; `server-only` and lint zones keep
+server code out of the browser and the apps apart.
 
 **Audit (Phases 0–5).** Each one is recorded in the ledger row or backlog entry it governs:
 - **Severity:** the higher rating governs (F-003 Critical, F-013 High). The jest lows are accepted;
@@ -719,24 +248,64 @@ out of UI primitives. Each decision is in ADR 0002 and in the commit that applie
 - **F-017:** external callers of the public scraper see 502/504. **F-021:** the feed's effect runs on
   language only. **F-027:** the growth is accepted. **F-028:** Partial.
 - **Refuted, never "fixed":** the `javascript:` XSS, `preload` on `next/image`, AVIF/SVG. Sentry's
-  `tunnelRoute` must never be enabled: all authorization lives in `proxy.ts`.
+  `tunnelRoute` must never be enabled (D12): it would add a route the proxy does not see.
+
+**Process and hosting (2026-11-02):**
+- **Branches:** all work happens on a branch (`panel-N-<name>`, `fix/<topic>`, `chore/<topic>`), and
+  only that branch is pushed. Nothing reaches `main` without the owner's approval.
+- **A production-level standard:** a panel is done only with items 7–13 of CLAUDE.md's definition
+  of done as well:
+  - real-database tests against the local Supabase (the local database was dropped since: see §2);
+  - end-to-end browser tests, including a refused-access flow;
+  - loading, error and empty states;
+  - accessibility;
+  - failures in Sentry and privileged actions audited;
+  - a JS size budget per route in CI;
+  - a runbook for when the main flow breaks.
+- **The audit's remaining items** wait for Panel 0's merge, then go on `fix/audit-closeout` (§ "Next").
+- **Deployment:** none until the whole project is complete. Ignore the earlier Vercel deployment.
+  The target is AWS, `ap-south-1`. All verification is local.
+- **The real database (later the same day):** `.env.local` holds its credentials and the app uses
+  them; the local database was dropped. Never write to it yourself; browser tests are read-only (§2).
+
+**Panel 0 (2026-11-02).** All recorded in the design's "Approval" section and in
+[`PANEL_DOCS.md`](PANEL_DOCS.md):
+- **The matrix is canonical (D2).**
+- **Who is privileged, and who needs MFA (D3):** two admins to grant Super Admin, Managing Editor,
+  Legal or Privacy Officer; `aal2` for those four, Desk Editor, Security Lead and Ingestion Ops;
+  MFA for all staff by default (Q1).
+- **Bootstrap by SQL only (D4).**
+- **Scope (D5, D6, ADR 0003):** `en`/`hi` mapped from `english`/`hindi`; the section is `category[0]`.
+- **One public list (D10), and the cron as `system:cron` (D11).**
+- **Audit fail-closed (Q2):** "attempted", then the outcome.
+- **The shared password (Q3):** ends 2027-01-01 IST in code, with a fixed permission list and no
+  admin, audit or settings permission.
+- **Dependencies (Q4):** `@supabase/ssr` 0.12.7 with `supabase-js` 2.116.0.
+- **Removed or refused:** the purge until Panel 4 (Q5); clearing the log (Q6).
+- **`admin_logs` (Q7):** frozen and readable.
+- **`database/bootstrap/` (Q8).**
+- **Approved at the midway STOP:**
+  - no staff-record cache;
+  - the banner for unscoped grants only, until Panel 3;
+  - the three behaviour changes;
+  - the bulk audit as one pair, with the 100-article limit.
 
 **Follow-up the product decisions created:** the privacy policy still describes newsletter and
 contact-form collection that no longer happens. Legal copy, for the owner or legal review (BL-008).
 
 ### ADR 0001 — Feature-first structure with layer separation and a CI-enforced boundary (2026-10-30, superseded by 0002)
 
-**Status:** **Superseded by [ADR 0002](ARCHITECTURE.md#adr-0002--frontend-backend-shared-and-database-separation-in-one-nextjs-app-2026-10-30-superseded-in-part-by-0004)** — 2026-10-30.
+**Status:** **Superseded by [ADR 0002](#adr-0002--frontend-backend-shared-and-database-separation-in-one-nextjs-app-2026-10-30-superseded-by-0004-in-part-and-by-0005)** — 2026-10-30.
 Restructure 2 replaced this layout with `app/`, `frontend/`, `backend/`, `shared/` and `database/`.
 The lessons listed in ADR 0002's "Carried over from ADR 0001" still apply. The text below is kept as
 it was written, so its paths are restructure 1's (`src/…`). The import rules it refers to
 (architecture.md rules 1–8, and their Phase E enforcement table) were last in
-[`architecture.md` at `623b918`](https://github.com/Adarsh-Pandey-25/TimesPrime/blob/623b918/docs/architecture.md#5-import-rules).
+[`ARCHITECTURE.md` at `623b918`](https://github.com/Adarsh-Pandey-25/TimesPrime/blob/623b918/docs/architecture.md#5-import-rules).
 Before that: **Accepted** — 2026-10-30, owner approval of Phase C, with conditions applied: a split
 criterion for `features/news`, route groups recorded as deferred, `lib/` kept domain-free, and a
 `server-only` guard on every `server.ts`.
-**Supersedes:** nothing. **Related:** [`architecture.md`](ARCHITECTURE.md#system-design),
-`scripts/move-map.mjs`.
+**Supersedes:** nothing. **Related:** [`ARCHITECTURE.md`](#architecture),
+`scripts/move-map.mjs` (deleted in restructure 4).
 
 #### Context
 
@@ -785,7 +354,7 @@ with a lint rule rather than with documentation.
   import of it fails the build (Next.js 16 docs, "Preventing environment poisoning").
 - `lib/` stays **domain-free**. Modules that know a product concept live in a feature or in
   `config/` — the definition is not loosened to fit what happens to be in the folder.
-- The rules are written in [`architecture.md`](ARCHITECTURE.md#system-design) §5 and enforced in CI in Phase E.
+- The rules are written in [`ARCHITECTURE.md`](#architecture) §5 and enforced in CI in Phase E.
 
 #### How the structure was arrived at — by measurement
 
@@ -917,14 +486,17 @@ layout can own the shared Header and Footer — which is a code change, so Phase
 **Done before Phase D.**
 - The `adminLogger` split (MOVE-MAP SC-1), `b01d528` — the one boundary violation, fixed.
 
-### ADR 0002 — Frontend, backend, shared and database separation in one Next.js app (2026-10-30, superseded in part by 0004)
+### ADR 0002 — Frontend, backend, shared and database separation in one Next.js app (2026-10-30, superseded by 0004 in part and by 0005)
 
-**Status:** **Accepted** — 2026-10-30, owner approval at the S4 review. Written as a draft during
-restructure 2, recording each decision as it was taken, and finalized in S5.
-**Supersedes:** [ADR 0001](ARCHITECTURE.md#adr-0001--feature-first-structure-with-layer-separation-and-a-ci-enforced-boundary-2026-10-30-superseded-by-0002)'s layout; its other lessons carry over
-(below). **Related:** [`architecture.md`](ARCHITECTURE.md#system-design) (the layout and the rules, in prose),
+**Status:** **Superseded by [ADR 0005](#adr-0005--the-standard-nextjs-src-layout-2026-11-02-superseded-by-0006)** — 2026-11-02 (proposed on
+`chore/restructure`). Restructure 4 moved the code to the standard `src/` layout. The text below is
+kept as it was written, so its paths are restructure 2's, and the scripts it links to are in git
+history only. Before that: **Accepted** — 2026-10-30, owner approval at the S4 review. Written as a
+draft during restructure 2, recording each decision as it was taken, and finalized in S5.
+**Supersedes:** [ADR 0001](#adr-0001--feature-first-structure-with-layer-separation-and-a-ci-enforced-boundary-2026-10-30-superseded-by-0002)'s layout; its other lessons carry over
+(below). **Related:** [`ARCHITECTURE.md`](#architecture) (the layout and the rules, in prose),
 `scripts/move-map.mjs` (where every file went, and each slice's
-checklist), `scripts/check-move-map.mjs` (the rules below).
+checklist; deleted in restructure 4), `scripts/check-move-map.mjs` (the rules below; deleted with it).
 
 #### Context
 
@@ -952,7 +524,7 @@ One Next.js app, organised as:
   them.
 
 The rules, as `check:boundaries` and, from S4, lint enforce them
-([`architecture.md`](ARCHITECTURE.md#system-design) §5 says where each is enforced):
+([`ARCHITECTURE.md`](#architecture) §5 says where each is enforced):
 
 | Rule | What it says |
 |---|---|
@@ -1038,7 +610,7 @@ in 11 slices (`b0fe915`..`2b9cb94`), each a gated commit.
 
 **Harder.**
 - A route, or a moved page, is two files: a one-line shim in `app/` and its body.
-  [`CONTRIBUTING.md`](README.md#where-new-code-goes) says which file goes where.
+  [where new code goes](README.md#where-new-code-goes) says which file goes where.
 - A2 checks route files and the moved pages, not a new page's file, which may compose server data.
 - The two composition pages stay in `app/`, and the article page fetches its own API over HTTP
   (BL-016).
@@ -1053,8 +625,8 @@ in 11 slices (`b0fe915`..`2b9cb94`), each a gated commit.
 
 **Status:** **Accepted**: 2026-11-02, with the owner's approval of the Panel 0 design. Drafted the
 same day from owner decision D6 on the Step 1 report.
-**Related:** [`PANEL_PLAN.md`](PANEL_DOCS.md#panel-plan) ("Generic roles, scoped by language desk and
-section"), [`design/panel-0-access-foundation.md`](PANEL_DOCS.md#panel-0-design-the-access-foundation-approved-2026-11-02) §3,
+**Related:** [the access rules](PANEL_DOCS.md#generic-roles-scoped-by-language-desk-and-section), from the retired `PANEL_PLAN.md` ("Generic roles, scoped by language desk and
+section"), [Panel 0's design](PANEL_DOCS.md#panel-0-design-the-access-foundation) §3,
 [`database/schema.sql`](../database/schema.sql) (`articles.category`).
 
 #### Context
@@ -1116,11 +688,17 @@ mapping (`english` ↔ `en`, `hindi` ↔ `hi`, decision D5). Tests cover it ther
 - An article whose `language` is neither `english` nor `hindi` has no language scope, and only
   all-language assignments cover it (deny by default).
 
-### ADR 0004 — Four top-level folders, four documents
+### ADR 0004 — Four top-level folders, four documents (2026-11-03, superseded in part by 0006)
 
 **Status:** **Accepted** — 2026-11-03, owner approval of the restructure-3 design (S0), with seven
 decisions. Built on `chore/four-folders`, branched from `release/v1`.
-**Supersedes in part:** [ADR 0002](#adr-0002--frontend-backend-shared-and-database-separation-in-one-nextjs-app-2026-10-30-superseded-in-part-by-0004)'s
+**Superseded in part by [ADR 0006](#adr-0006--three-apps-over-shared-packages-2026-11-04)** (2026-11-04), when `main` was
+merged into the apps/packages layout: the code layout (`frontend/`, `backend/`) gave way to `apps/`
+and `packages/`, and `check-boundaries.mjs` to the lint zones and `server-only`. Carried over:
+the env-file rules (the file is the root `.env`), `agentRules: false`, the Turbopack and tracing
+roots, `.claude/settings.json`, and `check:docs`, whose list now also holds the plan, its research
+and the root `CLAUDE.md` (the owner asked for that file on 4 Nov 2026, after this decision).
+**Supersedes in part:** [ADR 0002](#adr-0002--frontend-backend-shared-and-database-separation-in-one-nextjs-app-2026-10-30-superseded-by-0004-in-part-and-by-0005)'s
 five top-level parts. Its rules carry over, for the new paths ([the import rules](#5-import-rules)).
 
 #### Context
@@ -1200,3 +778,140 @@ root and output tracing includes none outside its own (`turbopack.md`, `output.m
   carries its edited files to the new paths; its new files (`e2e/`, `playwright.config.ts`, the
   budget files, the `me` and `mfa` routes) move in a follow-up move commit, and its doc edits are
   merged by hand into the four documents.
+
+### ADR 0005 — The standard Next.js `src/` layout (2026-11-02, superseded by 0006)
+
+**Status:** **Superseded by [ADR 0006](#adr-0006--three-apps-over-shared-packages-2026-11-04)** — 4 Nov 2026: the single app split
+into `apps/` and `packages/`. The text below is kept as it was written, so its paths are the single
+app's. Before that: **Accepted** — 4 Nov 2026, with the owner's approval of `NEWSROOM_PLAN.md`.
+**Supersedes:** [ADR 0002](#adr-0002--frontend-backend-shared-and-database-separation-in-one-nextjs-app-2026-10-30-superseded-by-0004-in-part-and-by-0005)'s layout. **Related:**
+[`ARCHITECTURE.md`](#architecture) (the layout and the rules, in prose).
+
+#### Context
+
+Restructure 2 split the app into `app/`, `frontend/`, `backend/`, `shared/` and `database/`. Because
+the App Router fixes where route files live, every route and most pages in `app/` became a one-line
+re-export of a body in `backend/api/` or `frontend/views/`: 25 files that held nothing, and every
+route existed twice. Holding that shape took ~1,400 lines of custom tooling (`scripts/move-map.mjs`,
+`scripts/check-move-map.mjs`, `scripts/generate-codemap.mjs`, `eslint.boundaries.mjs`) and a
+generated 829-line `docs/CODEMAP.md`. The move plan the tooling was built around had finished, but it
+still ran in every `npm run verify`.
+
+The owner asked for the industry-standard structure for a high-traffic news site, with nothing kept
+that does not earn its place. A new Next.js developer should find the code where the framework's own
+documentation says it lives.
+
+#### Decision
+
+The `src/` layout from the Next.js docs (`src-folder.md`, `project-structure.md`):
+
+- `src/app/` holds routes with their code. A route handler's body is its `route.ts`; a page's body is
+  its `page.tsx`. Tests sit beside what they test.
+- `src/components/` holds React UI by area (`news`, `admin`, `chat`, `ui`, and the two page bodies
+  that take server data as props). No barrel files: each component is imported from its own file.
+- `src/server/` holds server-only code (`auth`, `repositories`, `services`, `lib`). Every module
+  opens with `import "server-only"`.
+- `src/lib/`, `src/config/` and `src/types/` hold what both sides import.
+- `src/proxy.ts` and the instrumentation files move into `src/`, as Next requires with a `src/` folder.
+- `database/`, `docs/`, `scripts/` and `public/` stay at the root.
+- One alias, `@/*` → `src/*`.
+
+The client/server boundary is held by `import "server-only"` (a client import of server code fails
+`next build`, transitively) and four `import/no-restricted-paths` zones plus one local rule in
+`eslint.config.mjs`. That replaces the 15 rule IDs (F1–X1, V1, R3–R9, LIB, CR-06) and the separate
+`check:boundaries` step.
+
+The feed's read path moved out of its route into `src/server/services/news/topHeadlines.ts`, unchanged,
+so the article page calls it directly instead of fetching its own API over HTTP (BL-016).
+
+#### Alternatives rejected
+
+- **Keep ADR 0002's layout.** It shows the split at the top level, but at the cost of two files per
+  route, a custom checker, and a layout no Next.js developer expects. The separation that matters,
+  server code out of the browser, is enforced by `server-only`, not by folder names.
+- **No `src/` folder** (`app/`, `components/`, `lib/` at the root). Also standard, but it puts
+  application code beside a dozen config files. The owner asked for fewer top-level folders.
+- **Page bodies in `src/app/_components/`.** Private folders are a valid convention, but the
+  components are shared across pages (Header, Footer, ArticleCard), so `src/components/` is the
+  clearer home.
+- **Move `database/` to `supabase/migrations/`.** The Supabase CLI convention needs timestamped file
+  names and a `config.toml`. Two migrations are waiting for the owner to apply them by their current
+  paths, so the folder stays until the local-database work adopts the CLI.
+
+#### Consequences
+
+- Every route is one file; finding the code for a URL is reading its folder.
+- Measured on one machine, this branch against `panel-0-access` (the method in the current status, §2): route table
+  identical (30 routes and the proxy), CSS byte-identical (93,939 bytes), client JS 981,592 → 980,692
+  bytes (−900), and every route smaller or equal: `/` −435, `/admin` −339, `/contact` and `/saved`
+  −243, `/article/[slug]` −186, `/about`, `/privacy` and `/terms` −136. 47 test suites, 736 tests,
+  before and after.
+- `docs/CODEMAP.md` and `docs/_baseline-routes.txt` are gone. An editor's "find references" answers
+  what CODEMAP did; the route table is compared from `next build` output.
+- Branches started before this one (and `panel-0-access` itself, if it gets more commits) need their
+  files moved to the new paths when merged. Git follows the renames; the one-line re-exports were
+  deleted, so new routes must be written in the new place.
+- The access rules (the access rules (`docs/PANEL_DOCS.md`), from the retired `PANEL_PLAN.md`) name `app/`, `backend/`
+  and `shared/` in their "How the check flows" section. Read them as `src/app/`, `src/server/` and
+  `src/config/`.
+
+### ADR 0006 — Three apps over shared packages (2026-11-04)
+
+**Status:** **Accepted** — 4 Nov 2026, with the owner's approval of
+[`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md) (sign-off item 2) and the instruction to restructure the
+code to it. **Supersedes:** [ADR 0005](#adr-0005--the-standard-nextjs-src-layout-2026-11-02-superseded-by-0006)'s single app.
+**Related:** [`ARCHITECTURE.md`](#architecture) (the layout and the rules, in prose).
+
+#### Context
+
+ADR 0005 put the reader site, the back office and the scheduled refresh in one Next.js app. The
+research behind the plan ([`RESEARCH.md`](RESEARCH.md), section 2) found four costs of that for
+a news site: an admin deploy resets the reader's cache; the newsroom editor (Tiptap, Panel 2) would
+ship in shared bundles; the admin sits on the public origin and cannot get a stricter firewall or an
+IP allowlist; and a reader surge on election night competes with the editors for the same servers.
+The owner chose to separate them now, before the desk panel brings the editor.
+
+#### Decision
+
+npm workspaces, with all dependencies in the root `package.json` and one lockfile:
+
+- `apps/web` — the reader site; `apps/admin` — the back office, keeping the `/admin` and
+  `/api/admin` paths (so the proxy matcher and every route rule stay as they were); `apps/worker`
+  — scheduled jobs as plain Node, run with `tsx` under the `react-server` condition.
+- `packages/server` (server-only), `packages/shared` (client-safe config, types, helpers) and
+  `packages/ui` (React both apps use), each exposing modules through `package.json` `exports`.
+- The admin no longer renders the reader's header, ticker and footer (they fetch the public feed);
+  it has its own top bar and layout, and is `noindex`.
+- The homepage banner reads the reader site's own `GET /api/news/breaking-news`; the admin's GET
+  needs `breaking_banner.manage`, so the admin API has no public read left besides sign-in and
+  sign-out.
+- The 30-minute refresh is a worker job, not an HTTP route; `vercel.json` and `CRON_SECRET` go.
+- Jest runs one project per app plus the packages; ESLint's zones keep apps from importing each
+  other and packages from importing apps.
+
+`packages/editor` (the Tiptap schema shared by admin and web, plan section 3) is created with
+Panel 2, when there is code to put in it.
+
+#### Alternatives rejected
+
+- **Keep one app until the triggers fire** (the research's first suggestion). Cheaper today, but the
+  owner wants the separation in place before the desk panel, and doing it later would collide with
+  more panel work.
+- **Turborepo or Nx.** Build caching and task graphs pay off with many apps and a CI bill; with three
+  apps and two developers, npm workspaces and plain scripts are enough. Adding Turborepo later does
+  not change the folder layout.
+- **A separate API service** (web and admin calling a backend over HTTP). No publisher evidence
+  supports it, it adds a network hop and a second auth surface, and it gives up server components
+  reading the data directly.
+- **One app per panel.** The panels share the staff session, the permission check, the audit log
+  and the layout; separate apps would mean separate sign-ins and duplicated code.
+
+#### Consequences
+
+- Measured: `/admin` client JS 163,762 → 80,206 bytes and `/admin/login` 35,541 → 23,705; every
+  reader route equal or smaller; the reader's CSS 93,939 → 83,122 bytes (admin-only classes left it).
+  50 test suites, 753 tests.
+- Local development runs two servers (`npm run dev` on 3000, `npm run dev:admin` on 3001).
+- Deployment has three units (Phase I): two ECS services and a scheduled worker task.
+- `globals.css` exists in both apps; moving the shared base styles into `packages/ui` is a later
+  cleanup.

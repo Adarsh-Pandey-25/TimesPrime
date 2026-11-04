@@ -12,7 +12,7 @@
 -- cannot take this path. There is no single-admin mode anywhere: until a second Super Admin exists,
 -- privileged roles cannot be granted in the app.
 --
--- Verification and rollback: at the end of this file, and the staff-access runbook (docs/OPERATIONS.md, with Panel 0).
+-- Verification and rollback: at the end of this file, and the staff-access runbook (docs/OPERATIONS.md, Runbooks).
 
 BEGIN;
 

@@ -1,35 +1,41 @@
 # Back-office panels
 
-This file records the back office: the owner's plan for it, and what has been built, panel by
-panel, with who is allowed to do what. The [panel plan](#panel-plan) says what to build: the panels,
-the 15 roles, the permission matrix, the four-eyes and MFA rules, and the data model. The
-[index](#index) and the [panels](#panels) say what has been built, and they must match the code.
+This file records the back office: the rules it follows, and what has been built, panel by panel,
+with who is allowed to do what. The [definition of done](#definition-of-done) says when a panel is
+finished. The [access rules](#access-rules) say who may do what: the panels, the 15 roles, the
+permission matrix, the four-eyes and MFA rules, and the data model. The order of work is in
+[`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md). The [index](#index) and the [panels](#panels) say what has
+been built, and they must match the code. Each panel's design, approved before its code, is the
+last part of this file.
 
 The panels are built **one at a time**. A panel is finished (backend, screens, permissions, tests
 and docs) before the next one starts. Panel 0 comes first because every other panel depends on it.
 When a panel is done, its section below is filled in from the template and the index is updated in
-the same piece of work. **Panel work is paused** during the release (`release/v1`); Panel 0's second
-half waits on `panel-0-access`.
+the same piece of work.
 
 ## Definition of done
 
-The owner's rules for the back office (they were `CLAUDE.md`, "Back-office panels").
+The owner's rules for the back office (until 2026-11-04 in `CLAUDE.md`, "Back-office panels";
+`CLAUDE.md` now points here).
 
-- **Plan:** the [panel plan](#panel-plan) below (roles, permission matrix, four-eyes and MFA rules,
-  data model). It is the reference; do not edit it. Report errors or conflicts with the code
-  instead.
-- **Progress and per-panel docs:** this file. Its [index](#index) says which panel is next.
-- **One panel at a time.** Panel 0 (Access foundation) first; no panel starts before the previous
-  one is done.
+- **Plan:** [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md): the phases, their order and what each delivers.
+- **Access rules:** the [access rules](#access-rules) below (roles, the permission matrix, the
+  four-eyes and MFA rules, the data model). Change them only with the owner's approval.
+- **Progress and per-panel records:** this file. Its [index](#index) says which panel is next.
+- **One panel at a time,** in the plan's order: 0 → 1 → 2 → 3 → 7 (launch minimum) → 8 (launch
+  minimum) → launch → 7 and 8 in full → 4 → 5 → 6 → 9. No panel starts before the previous one is
+  done.
+- **Every panel starts with a design**, a section of this file ("Panel N design"), approved by the
+  owner before code. Panel 0's is [below](#panel-0-design-the-access-foundation).
 - **A panel is done only when:**
   1. Every feature in its entry in this file works, and the entry matches the code.
   2. Every route and action it adds checks a permission server-side; tests prove allowed and denied.
   3. Privileged actions are audited and need MFA where the plan says so.
   4. `npm run verify` and CI are green; routes, JS and CSS reported.
   5. SQL is in migration files with a rollback, listed as an owner action.
-  6. This file and the current status in `docs/OPERATIONS.md` are updated. (Until 2026-11-03 this
-     item named `docs/PANEL_DOCS.md`, `docs/HANDOFF.md` and `docs/CODEMAP.md`; HANDOFF became the
-     current status in OPERATIONS.md, and CODEMAP was retired.)
+  6. This file, the current status in `docs/OPERATIONS.md` and `docs/ARCHITECTURE.md` are updated.
+     (Until 2026-11-04 this item named `docs/PANEL_DOCS.md`, `docs/HANDOFF.md` and
+     `docs/ARCHITECTURE.md`; HANDOFF became the current status in OPERATIONS.md.)
   7. Database tests against the real database are read-only. The database's own rules (triggers,
      audit hash chain, bootstrap) are verified by the owner via the runbook.
   8. End-to-end browser tests cover the critical flows, including a refused-access flow.
@@ -39,86 +45,47 @@ The owner's rules for the back office (they were `CLAUDE.md`, "Back-office panel
   12. A JS size budget per route is enforced in CI.
   13. A runbook covers what to do when the main flow breaks.
 
-## Panel plan
+## Access rules
 
-The owner's reference plan, exactly as written: it is **not edited**. Everything between the two
-markers below is byte-identical to `docs/PANEL_PLAN.md` at `239e701` (git blob
-`4552f1913a71b1e8cbb6656869e9d774e1670295`), and a test in
-`backend/shared/config/permissions.test.ts` fails if a byte changes. The permission catalogue,
-`database/migrations/2026-11-02-access-2-catalog.sql`, is generated from its matrix by
-`backend/scripts/generate-access-catalog.mjs`, and the same test checks the catalogue against the
-matrix cell by cell.
+The access specification every back-office panel follows. Change it only with the owner's approval:
+propose the change in the panel's design (below, or a new design section), then regenerate the
+catalogue SQL. Report errors or conflicts with the code instead of working around them. The
+generator and `packages/shared/src/config/permissions.test.ts` read the matrix between the two
+markers below.
 
-<!-- BEGIN:panel-plan -->
-# Build TimesPrime's back office around verbs and scopes
+<!-- BEGIN:access-rules -->
 
-None of the five publishers (The Hindu, India Today Group, The Times of India / Times Internet, NDTV, The Indian Express) publishes its internal dashboards or permission matrices. Their back offices can still be reconstructed from vendor case studies, job postings and the admin documentation of the tools they run. Each one runs **five separate back-office surfaces rather than one admin panel**: an editorial CMS, an ad server (Google Ad Manager wherever it is documented), a subscription or paywall engine, a CRM or engagement tool, and analytics. Legal and compliance functions sit on top, and Indian law now requires some of them by name. Every serious system in this space shares the same permission design, from Google Ad Manager's roles and teams to Quintype's `story-approve` and `story-retract` and Arc XP's squads. Permissions are verbs on objects. Roles are bundles of those verbs that an administrator composes. Scope (site, language, section, advertiser) is a separate dimension from role. For TimesPrime, this means replacing the single shared admin password with named Supabase Auth staff accounts and a small verb catalogue. Role assignments should be scoped by language desk (en/hi) and section. Authority stays server-side: `proxy.ts` makes only optimistic checks, and a `server-only` permission check runs in the backend. Build in four phases. First come accounts, roles, MFA and an append-only audit log. Then the editorial workflow with four-eyes approval. Then the compliance queues (grievance, legal orders, corrections). The CRM, subscription and ads panels come only once those businesses exist. Unless a citation is given, statements about which role at a given publisher can publish, push or unpublish are inference from industry norms, and the report labels them that way throughout.
+**What this is:** the access rules every back-office panel follows: the roles, the permission matrix,
+the four-eyes, takedown and MFA rules, and the data model behind them. The build order is in
+[`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); what is built is in `PANEL_DOCS.md`.
 
-## Two of five have a confirmed CMS, and none publish a permission matrix
+**Where it came from:** the owner's `PANEL_PLAN.md` (2 Nov 2026), retired on 4 Nov 2026 when the
+owner approved `NEWSROOM_PLAN.md`. The sections below are copied from it unchanged, except where
+a note says otherwise. The supporting publisher research is in [`RESEARCH.md`](RESEARCH.md) and in
+git history (`git log --all -- docs/PANEL_PLAN.md`).
 
-The evidence base is uneven, and it needs to be stated plainly before any recommendation. **The Hindu runs Stibo DX's Cue platform**: Cue Dam for more than 80 million assets, the Cue Content Store editorial CMS, and Cue Print. Its asset metadata treats embargoes, expiry dates and usage restrictions as first-class fields ([Stibo DX](https://www.stibodx.com/resources/wan-ifra-digital-media-india-2022); [Stibo DX](https://stibodx.com/resources/hindu-goes-digital-first-with-cue)). **The Indian Express runs WordPress VIP** with Full-Site Editing, built with rtCamp. Editors control layouts without developers, and custom Gutenberg blocks power IPL live scores and election-results dashboards ([rtCamp](https://rtcamp.com/?p=208148)). **India Today Group** has an unnamed CMS. On top of it sits "Pragya", an AI workflow platform built with Google. Pragya has a Journalist App for field filing, a dashboard that tracks story status "from inception to publication", and a mandatory "human-led audit and pre-publishing review" of AI output ([Google News Initiative](https://newsinitiative.withgoogle.com/resources/stories/india-today-group/)). For **Times Internet and NDTV, no public source names the web CMS**. NDTV Profit's broadcast newsroom system runs on Nutanix ([Nutanix](https://www.nutanix.com/company/customers/ndtv-profit)). TV-led groups therefore appear to run a broadcast newsroom system alongside a separate web CMS, and a digital-only product does not need to copy the broadcast side.
+**The matrix is canonical.** `scripts/generate-access-catalog.mjs` turns the matrix below into
+`database/migrations/2026-11-02-access-2-catalog.sql`, and `packages/shared/src/config/permissions.test.ts` checks
+the result cell by cell. To add or change a permission: propose it in the panel's design, get the
+owner's approval, edit the row here, regenerate the SQL (`node scripts/generate-access-catalog.mjs`),
+and ship it as a new migration.
 
-| Publisher | Editorial (documented) | Ads (documented) | Reader revenue / CRM (documented) | Analytics / other |
-|---|---|---|---|---|
-| The Hindu | Stibo DX Cue (DAM, CMS, print); Digital Editor; Social Media Sub Editor | Google Ad Manager named in Ad Ops Manager posting; Taboola Feed | Piano "subscription engine", metered paywall since Oct 2019; CleverTap | Google Analytics, Botify; comments on Vuukle since Feb 2026 |
-| The Indian Express | WordPress VIP + Gutenberg/FSE (rtCamp) | Not found | Evolok paywall/identity (announced 2021); MoEngage lifecycle | Not found |
-| Times of India / Times Internet | CMS unnamed; editors hold top two homepage slots over algorithm | DFP/GAM, PubMatic OpenWrap, in-house Colombia; DFP-to-SAP order automation | TOI+; CleverTap used by retention team | Chartbeat (2016) |
-| NDTV | Web CMS unnamed; broadcast newsroom on Nutanix | GAM with Programmatic Guaranteed; consolidated on OpenWrap | No paywall product found | Not found |
-| India Today Group | CMS unnamed; Pragya AI workflow layer | SelectMedia outstream unit; ad server not found | Ad-led; magazines via Magzter | Comscore No. 1 in News (295M, Jul 2025); Grievance Officer is Group General Counsel |
+### Panels
 
-Sources for the table: [IPP/WAN-IFRA](https://indianprinterpublisher.com/?p=79194), [INMA](https://www.inma.org/blogs/Generative-AI-Initiative/post.cfm/ai-gives-times-internet-a-twitter-feel-while-ht-focuses-on-content-automation), [foundit.in](https://www.foundit.in/job/54106825), [PubMatic TIL](https://pubmatic.com/wp-content/uploads/2017/08/CaseStudy_OpenWrap_Times-Internet-August2017.pdf), [ExchangeWire](https://www.exchangewire.com/blog/2014/12/07/times-of-india-investing-in-ad-tech-stack-to-ensure-continued-growth/), [Google Ad Manager NDTV](https://admanager.google.com/home/success-stories/new-delhi-television-increases-revenue-with-programmatic/), [PubMatic NDTV](https://pubmatic.com/wp-content/uploads/2021/10/Case-Study-NDTV-OpenWrap.pdf), [Adgully](https://archive.adgully.com/evolok-partners-with-the-indian-express-107466.html), [MoEngage](https://moengage.com/casestudy/how-the-indian-express-witnessed-a-2x-uplift-in-paid-subscribers/), [CleverTap](https://clevertap.com/case-study/how-times-of-india-achieves-a-100-growth-in-subscribers-through-personalization-at-scale/), [GlobeNewswire](https://www.globenewswire.com/news-release/2016/05/10/1078589/0/en/Chartbeat-Partners-With-Times-Internet-to-Command-Newsroom-Analytics.html), [SelectMedia](https://www.selectmedia.asia/?p=6417), [Bestmediainfo](https://bestmediainfo.com/mediainfo/mediainfo-digital/india-today-group-is-the-digital-news-leader-comscores-july-2025-data-9764520), [aajtak.in](https://aajtak.in/complain-redressal), [Let's Data Science](https://letsdatascience.com/news/the-hindu-migrates-comments-to-vuukle-platform-f1383a35).
+Each panel is gated by permission. The order they are built in is `NEWSROOM_PLAN.md` section 4
+(the Phase column of the original table is dropped for that reason).
 
-Two things are missing from every source: a job ad that states CMS permission levels such as "can publish directly", and any published org chart for a digital desk. The research environment also blocked fetching the publishers' ads.txt files and page source, so ad-stack and payment-gateway claims rest on vendor material and should be checked by hand. All five run separate language brands with their own desks on a shared platform. Indian Express's single VIP network covers Jansatta and Loksatta ([rtCamp](https://rtcamp.com/?p=208148)), and The Hindu's Cue Dam serves its English, Tamil and business editions ([Stibo DX](https://www.stibodx.com/resources/wan-ifra-digital-media-india-2022)). This is the strongest precedent for running TimesPrime's en and hi desks as scopes on one system rather than as two systems.
-
-## Every panel family splits action from scope
-
-### Editorial: the CMS and its workflow verbs
-
-Documented practice at these publishers covers human review before publishing (ITG), editor-controlled homepage slots above a personalised feed (**TOI editors keep the top two slots and can override the algorithm** ([INMA](https://www.inma.org/blogs/Generative-AI-Initiative/post.cfm/ai-gives-times-internet-a-twitter-feel-while-ht-focuses-on-content-automation))), AI-personalised push notifications at TOI ([INMA](https://www.inma.org/blogs/Generative-AI-Initiative/post.cfm/times-of-india-uses-genai-as-an-engine-for-new-products-and-revenue)), and a public corrections column at The Hindu ([inkl](https://www.inkl.com/news/corrections-and-clarifications-december-25-2020)). Documented role titles include The Hindu's Social Media Sub Editor, who coordinates with reporters on breaking news and schedules posts ([Weekday](https://jobs.weekday.works/job-opening-for-social-media-sub-editor-at-the-hindu-wkdynwxjh5)). Others are NDTV's AI Editor and Executive Editor ([exchange4media](https://www.exchange4media.com/media-tv-news/ndtv-is-reshaping-newsroom-around-multimedia-and-editorial-plurality-rahul-kanwal-157413.html)) and Indian Express's Editor, New Media ([afaqs](https://www.afaqs.com/news/digital/39211_the-indian-express-appoints-nandagopal-rajan-as-editor-new-media)). The full ladder from reporter through sub-editor, chief sub, news editor, section editor and digital editor to editor-in-chief is the industry norm, not something any of the five has documented.
-
-The permission models of the CMSs these newsrooms use, or could use, are documented, and they agree with one another. WordPress separates `publish_posts` (Author and up) from `edit_others_posts` (Editor and up). It keeps the risky `unfiltered_html` as its own capability and tells code to check capabilities, never role names ([WordPress.org](https://wordpress.org/documentation/article/roles-and-capabilities/)). Automattic's VIP Workflow adds Pitch, Assigned, In Progress and Pending Review statuses, plus a **Publish Guard that hides Publish until the final review status** ([VIP Workflow](https://awesome.ecosyste.ms/projects/github.com%2Fautomattic%2Fvip-workflow-plugin)). Quintype, the Bengaluru CMS used by Indian publishers, has the most newsroom-shaped vocabulary: `story-submit`, `story-approve`, `story-reject`, `story-publish`, `story-retract`, `breaking-news-save`, `story-schedule` and `story-close` for live blogs. Its roles inherit additively ([Quintype](https://help.quintype.com/users-and-profile/getting-started)). Drupal creates **one permission per workflow transition** and models unpublishing as a permissioned Archive transition ([Drupal.org](https://www.drupal.org/docs/8/core/modules/content-moderation/overview)). Arc XP binds roles to **squads** that limit users to particular sites ([Arc XP](https://docs.arcxp.com/en/products/arc-xp-administration/permissions/managing-roles.html)). Contentstack can require approval before publish *or* unpublish, scoped by language, with a "Prevent self-approval" rule that needs two distinct users ([Contentstack](https://www.contentstack.com/docs/headless-cms/add-a-publish-rule)). These systems share three conclusions: takedown is a separate permission from publish, breaking-news alerts get their own tightly held permission, and language or site is a scope rather than part of a role name.
-
-### Ads: Google Ad Manager's roles-plus-teams is the template
-
-GAM is the documented ad server at The Hindu, NDTV and Times Internet. It is probably also used at the other two, but that is not confirmed. Its access model is the clearest public blueprint for any revenue panel. **"Teams control access to entities... Roles control features and functions"**, and a user needs both a team that contains the object and a role that permits the action ([GAM Help: Teams](https://support.google.com/admanager/answer/2445375?hl=en)). Teams also filter reports, so two users running the same report see different revenue. GAM's role catalogue has **no dedicated "view revenue" permission**: revenue visibility comes from the Reports permission combined with team scope. "Approve" is separate from "Edit unapproved", which gives a native flow where a salesperson drafts and a manager approves ([GAM Help: Roles](https://support.google.com/admanager/answer/9154293?hl=en)). Only Administrators can edit users, roles and teams ([Clickio](https://docs.clickio.com/books/google-ad-manager-guide/page/users-settings-in-google-ad-manager)).
-
-The roles themselves are partly documented. The Hindu's Ad Operations Manager owns setup, trafficking, pacing, creatives and third-party tags against approved insertion orders. The same role handles delivery reporting and monthly billing reconciliation, and enforces brand safety and "editorial standards" ([foundit.in](https://www.foundit.in/job/54106825)). NDTV merged programmatic specialists and direct sellers into one cross-channel sales team ([Google Ad Manager](https://admanager.google.com/home/success-stories/new-delhi-television-increases-revenue-with-programmatic/)). TIL ran a 30-plus-engineer ad-tech team and wired DFP into SAP for discount approval and revenue recognition ([ExchangeWire](https://www.exchangewire.com/blog/2014/12/07/times-of-india-investing-in-ad-tech-stack-to-ensure-continued-growth/)). The usual split, inferred from industry practice, gives traffickers edit rights on orders and creatives without network revenue. Yield managers get pricing rules, deals and full revenue. Salespeople get their own accounts only. Brand-safety reviewers get protections and blocking. Finance gets network revenue with no trafficking. Branded content follows its own rules. ASCI's Clause 1.8 (Aug 2025) requires media companies to put a clear "Sponsored"/"Ad"/"Partnership" label at the very start of paid posts on their own social handles, and the Norms of Journalistic Conduct already require ads to be kept separate from editorial ([ASCI](https://www.ascionline.in/wp-content/uploads/2025/08/ASCI_Code_Update_Media_Paid_Posts_Aug2025_PressRelease.pdf)). Under the CCPA's 2022 guidelines, undisclosed material connections can draw penalties of up to **₹10 lakh, rising to ₹50 lakh for repeat violations** ([AZB & Partners](https://www.azbpartners.com/bank/looks-like-content-acts-like-ads-the-legal-risk-in-e-commerces-influencer-economy/)).
-
-### CRM and reader revenue: two panels, both holding personal data
-
-Where reader revenue is documented, the CRM team works in **two tools: a subscription engine and an engagement platform**. The Hindu calls Piano its "subscription engine". Acquisition data flows into it for a single ROI view, CleverTap runs alongside, and payment is by card, UPI, bank transfer and in-app purchase ([IPP/WAN-IFRA](https://indianprinterpublisher.com/?p=79194)). Indian Express chose Evolok for paywall, segmentation, profiles and single login ([Adgully](https://archive.adgully.com/evolok-partners-with-the-indian-express-107466.html)), and it credits MoEngage churn prediction with a **2x uplift in paid subscribers**. Marketing runs MoEngage with "zero dependency on tech teams" ([MoEngage](https://moengage.com/casestudy/how-the-indian-express-witnessed-a-2x-uplift-in-paid-subscribers/)). TOI's Retention Manager watches CleverTap dashboards against intraday conversion targets and launches a live campaign if conversion is behind by 2–4 pm. Renewal journeys there start 30 days before expiry, and campaigns fire through an API the moment a story goes live ([CleverTap](https://clevertap.com/case-study/how-times-of-india-achieves-a-100-growth-in-subscribers-through-personalization-at-scale/)). Other documented roles are Times of India's Head of SEO, who owns technical audits and Core Web Vitals ([Weekday](https://jobs.weekday.works/times-internet-head-of-seo)), and The Hindu's data analysts running A/B tests ([IPP/WAN-IFRA](https://indianprinterpublisher.com/?p=79194)).
-
-Nothing public describes how any of the five restricts staff access to reader data. The inferred pattern follows from the tools. An engagement platform is effectively a customer data platform, so access to it is access to reader personal data. Support agents need masked subscriber records and transaction IDs, never card numbers, because gateways tokenise cards. Refunds belong to a small finance or CRM lead group. Analysts should work on pseudonymised data. Support, newsletter-editor and comment-moderator roles appeared in no job posting found.
-
-### Compliance: grievance is a legal function, not a support queue
-
-The one compliance role documented by name is at India Today Group. Its **Grievance Officer is the Group General Counsel**, and digital complaints are handled under Rule 11(2)(a) with escalation to NBDSA ([aajtak.in](https://aajtak.in/complain-redressal)). This suggests content grievances and subscription complaints run through separate queues with separate owners, which is the right shape for TimesPrime too.
-
-## Indian law turns four back-office roles into obligations
-
-Part III of the IT Rules 2021 explicitly lists **"news aggregator"** among publishers of news and current affairs content ([LiveLaw](https://www.livelaw.in/amp/news-updates/how-centres-new-it-rules-apply-to-online-news-portals-170411)). It defines an aggregator as an entity "performing a significant role in determining" the news it makes available ([Cyril Amarchand Mangaldas](https://www.cyrilshroff.com/wp-content/uploads/2021/02/Client-Alert-Information-Technology.pdf)). TimesPrime curates categories and a breaking banner and runs an editorial publish endpoint, so it should assume it is in scope. Level I requires an India-based grievance officer who **acknowledges complaints within 24 hours and decides them within 15 days**. Rule 18 requires a monthly compliance report, and **Rule 19 requires monthly public disclosure and content records kept for at least 60 days** ([Cyril Amarchand Mangaldas](https://corporate.cyrilamarchandblogs.com/2021/09/from-harbour-to-hardships-understanding-the-information-technology-intermediary-guidelines-and-digital-media-ethics-code-rules-2021-part-iii/)). Rules 9(1) and 9(3) have been stayed since the Bombay HC order of August 2021. The challenges moved to the Delhi HC in March 2024, and no final ruling was found ([MediaNama](https://www.medianama.com/2024/03/223-supreme-court-transfers-petitions-against-it-rules-to-delhi-hc/)). Rule 16 emergency blocking was not stayed, and MIB has sent notices despite the stay ([exchange4media](https://www.exchange4media.com/media-others-news/mib-issued-notice-to-digital-news-publishers-despite-stay-from-bombay-madras-hcs-118105.html)). The stay lowers enforcement risk. It does not remove the case for running Level I. If TimesPrime ever hosts user comments or uploads, it may also count as an intermediary. The February 2026 amendment cut intermediary takedown on actual knowledge to **3 hours** and grievance resolution to 7 days, and added labelling of synthetically generated information ([Argus Partners](https://www.argus-p.com/updates/updates/update-overview-of-the-it-intermediary-amendment-rules-2026/)). That labelling duty is worth watching given the AI assistant. Whether it applies to a publisher's own AI chat is not established.
-
-**DPDP Rules were notified on 13 Nov 2025 with phased dates.** Board provisions took effect immediately, consent managers start on **13 Nov 2026**, and the core fiduciary duties start on **13 May 2027** ([Khaitan & Co](https://www.khaitanco.com/sites/default/files/2025-11/ERGO%20-%20Digital%20Personal%20%20Data%20Protection%20Rules%20-%2015%20November%202025.pdf)). The dates are not settled. MeitY floated a shorter 12-month timeline in early 2026 ([Storyboard18](https://www.storyboard18.com/digital/meity-seeks-industry-views-on-fast-tracking-dpdp-act-rollout-proposes-12-month-compliance-timeline-88332.htm)), and an October 2026 analysis says Sections 9–10 start on **13 Mar 2027** ([India Briefing](https://www.india-briefing.com/news/dpdp-removal-of-difficulties-order-2026-consent-data-audit-47274.html/)). Plan for March 2027 and verify against the gazette. The duties that matter for panels are access controls, monitoring and logging, with **logs kept for at least one year**. Breaches must be reported to the Board with a detailed report within 72 hours and notified to affected users. Rights requests must be resolved within 90 days, and users must get 48 hours' notice before their data is erased. Verifiable parental consent is required for anyone under 18 ([Khaitan & Co](https://www.khaitanco.com/sites/default/files/2025-11/ERGO%20-%20Digital%20Personal%20%20Data%20Protection%20Rules%20-%2015%20November%202025.pdf)). **CERT-In's 2022 Directions** apply to any body corporate. They require listed incidents, including unauthorised access and website defacement, to be reported within **6 hours**, logs to be kept for a rolling **180 days within India**, clocks to be synced to NIC/NPL time, and a named point of contact ([TCSA](https://www.tcsa.in/learn/cert-in-directions-2022-explained)). An unauthorised publish on a news site is itself a reportable defacement. That makes the publish permission a security control as well as an editorial one.
-
-Two more regimes shape TimesPrime's specific operations. Section 69A blocking requests are confidential under the 2009 Blocking Rules ([Verfassungsblog](https://verfassungsblog.de/blocked-without-explanation/)), so a legal-orders register should be hidden from general editorial staff, who see only a "withheld – legal" state on the item. On copyright, India has no snippet or neighbouring-right regime, and aggregators rely on Section 52 fair dealing. The Delhi HC declined interim relief to ANI against OpenAI in July 2026 ([Bar & Bench](https://www.barandbench.com/news/litigation/openai-did-not-violate-copyright-laws-by-using-ani-news-to-train-chatgpt-delhi-high-court-declines-interim-relief)), and an appeal is pending. TimesPrime scrapes full article text, so whoever controls source configuration and full-text display controls its main legal exposure. That needs its own permission and a per-source kill switch.
-
-## TimesPrime's recommended panels, roles and matrix
-
-### Eight panels mapped to today's /admin features
-
-The panel structure below reorganises the existing single /admin into functional areas. Each is gated by permission rather than by a shared password. "Exists" marks features already built.
-
-| Panel | Purpose | Features (exists / new) | Primary roles | Phase |
-|---|---|---|---|---|
-| Desk (Articles) | Review, edit, publish, unpublish aggregated and editorial items | Articles table, search, bulk actions, publish endpoint (exists); workflow states, revision history, approve queue, desk filter en/hi + section (new) | Writer, Sub-editor, Desk Editor, Managing Editor | 1–2 |
-| Front page | Curate what readers see first | Breaking-news banner (exists); pinned slots above algorithmic order, scheduled expiry (new) | Desk Editor, Managing Editor | 1–2 |
-| Ingestion | Control sources and sync | NewsData sync dashboard, purge (exists); source registry with licence status, snippet/full-text flag, kill switch, 60-day purge floor (new) | Ingestion Ops, Rights/Legal | 1–2 |
-| AI assistant | Configure and monitor the chat assistant | Prompt/config versions, disabled topics, usage metrics; transcript access only if stored and gated as reader data (new) | Super Admin, Managing Editor (read) | 2 |
-| Insights | Read-only numbers | Category stats, DB stats (exists); traffic and sync KPIs (new) | Analyst, all editors | 1 |
-| Compliance | Statutory queues | Grievances with 24h/15-day SLA clocks and monthly Rule 18/19 export; corrections log; legal-orders register (restricted); content snapshot export (new) | Grievance Officer, Legal/Compliance, Standards Editor | 3 |
-| Privacy & security | Reader data and incidents | Rights-request queue (90-day ceiling), consent ledger, incident clock (6h CERT-In / 72h DPDP), audit log viewer (new) | Privacy Officer, Security Lead | 1 (audit), 3 (rest) |
-| Administration | People and access | Health page (exists); staff accounts, role assignments with scope and expiry, MFA status, break-glass grants, access review (new) | Super Admin | 1 |
-| Commercial (later) | Reader revenue and ads | Subscriber lookup (masked), offers, refunds; sponsored-content queue with label lock; ad ops (GAM itself, not rebuilt) | CRM Manager, Support Agent, Brand Studio, Ad Ops, Finance | 4 |
+| Panel | Purpose | Features (exists / new) | Primary roles |
+|---|---|---|---|
+| Desk (Articles) | Review, edit, publish, unpublish aggregated and editorial items | Articles table, search, bulk actions, publish endpoint (exists); workflow states, revision history, approve queue, desk filter en/hi + section (new) | Writer, Sub-editor, Desk Editor, Managing Editor |
+| Front page | Curate what readers see first | Breaking-news banner (exists); pinned slots above algorithmic order, scheduled expiry (new) | Desk Editor, Managing Editor |
+| Ingestion | Control sources and sync | NewsData sync dashboard, purge (exists); source registry with licence status, snippet/full-text flag, kill switch, 60-day purge floor (new) | Ingestion Ops, Rights/Legal |
+| AI assistant | Configure and monitor the chat assistant | Prompt/config versions, disabled topics, usage metrics; transcript access only if stored and gated as reader data (new) | Super Admin, Managing Editor (read) |
+| Insights | Read-only numbers | Category stats, DB stats (exists); traffic and sync KPIs (new) | Analyst, all editors |
+| Compliance | Statutory queues | Grievances with 24h/15-day SLA clocks and monthly Rule 18/19 export; corrections log; legal-orders register (restricted); content snapshot export (new) | Grievance Officer, Legal/Compliance, Standards Editor |
+| Privacy & security | Reader data and incidents | Rights-request queue (90-day ceiling), consent ledger, incident clock (6h CERT-In / 72h DPDP), audit log viewer (new) | Privacy Officer, Security Lead |
+| Administration | People and access | Health page (exists); staff accounts, role assignments with scope and expiry, MFA status, break-glass grants, access review (new) | Super Admin |
+| Commercial (later) | Reader revenue and ads | Subscriber lookup (masked), offers, refunds; sponsored-content queue with label lock; ad ops (GAM itself, not rebuilt) | CRM Manager, Support Agent, Brand Studio, Ad Ops, Finance |
 
 The commercial panel should be thin. The publishers studied run GAM, Piano or Evolok, and CleverTap or MoEngage as separate SaaS consoles with their own role systems. TimesPrime should do the same and not rebuild ad trafficking or a CDP. Its own panel then only needs a sponsored-content workflow, a masked subscriber view for support, and links out to vendor consoles whose user lists are reviewed alongside internal roles.
 
@@ -168,9 +135,12 @@ Two design choices in the matrix need explaining. Super Admin holds no editorial
 
 The approval rules borrow directly from documented products. Publishing requires an approval by someone other than the author and the last editor, enforced per object (Contentstack's self-approval block). The Publish action stays hidden until the item is in the Approved state (VIP's Publish Guard). Breaking news gets a narrow escape hatch: `article.publish_direct` held by Desk Editors in scope, which publishes immediately and automatically opens a post-hoc review item. Unpublish and takedown should be **single-actor for speed**, because legal and defamation exposure grows by the hour and intermediary timelines are now measured in hours. They still require a reason code, MFA and an immediate notification to the Managing Editor and Legal. **Restore needs a second approver**, because a wrongful restore is the riskier error. Granting any privileged role (Super Admin, Managing Editor, Legal, Privacy Officer) needs two admins. Bulk purge needs two people and must refuse to delete anything published or aggregated within 60 days, to protect Rule 19(3) records. Every privileged role (Super Admin, Managing Editor, Desk Editor, Legal, Privacy Officer, Security Lead, Ingestion Ops) must sign in at Supabase's **`aal2` assurance level, which is issued only after a verified second factor**. The permission check refuses privileged verbs at `aal1` ([Supabase MFA](https://supabase.com/docs/guides/auth/auth-mfa.md)). Break-glass access is a time-boxed (for example 2-hour) grant with a mandatory reason and an alert. It replaces the habit of sharing the old password. Break-glass is standard practice, but no source here prescribes a specific procedure.
 
-## The proxy guesses and the backend decides
+### Data model
 
-### Data model sketch
+*Note (4 Nov 2026):* the access tables (`staff_profiles` to `audit_log`) are built in Panel 0. The
+`articles (extend)` and `article_revisions` rows are superseded: original journalism gets a new
+`stories` table with `story_revisions` (`NEWSROOM_PLAN.md`, Phase E1), and `articles` stays the
+aggregator's. The `sources` row becomes Panel 4's licensed wire basket.
 
 The tables below extend Supabase's documented RBAC pattern, which uses `user_roles`, `role_permissions` and a `security definer authorize()` function called from RLS ([Supabase RBAC](https://supabase.com/docs/guides/database/postgres/custom-claims-and-role-based-access-control-rbac)). They add scope, expiry and live lookups. The official example puts a single role into the JWT, which cannot express "Desk Editor for hi/politics plus Writer for en/sports". Scope must therefore come from the table, not the token.
 
@@ -190,7 +160,10 @@ The tables below extend Supabase's documented RBAC pattern, which uses `user_rol
 
 The core check is one `security definer` function, conceptually `has_permission(user, permission, language, section)`. It returns true when an unexpired, unrevoked assignment exists for an active staff profile whose role carries that permission and whose scope is null or matches. Object-level checks (four-eyes, own-items-only) are separate helpers that read `workflow_transitions` and `created_by`. `audit_log` is append-only: revoke UPDATE and DELETE from every application role, and chain each row to the previous one with `prev_hash` so tampering is evident. Supabase's supa_audit trigger is useful for row diffs, but it does **not** record the acting user ([Supabase blog](https://supabase.com/blog/2022/03/08/audit)). The backend must therefore write the actor-aware `audit_log` row in the same transaction as the change.
 
-### How the check flows through proxy.ts and backend/
+### How the check flows: the proxy guesses, the backend decides
+
+*Note (4 Nov 2026):* the layer names below are the original plan's. In today's code they are
+`src/app` (routes), `apps/admin/src/proxy.ts`, `packages/server/src/auth`, `packages/server/src` and `packages/shared/src/config`.
 
 Next.js's guidance is explicit. Middleware (now `proxy.ts`) runs on every request including prefetches, so it should do only **optimistic, cookie-based checks** and "should not be your only line of defense". Secure checks belong in a `server-only` Data Access Layer, and Server Actions and Route Handlers should be treated like public API endpoints ([Next.js](https://nextjs.org/docs/15/app/guides/authentication)). The fetched guide is the v15 version, and the guidance carries over to the Next 16 rename. Today TimesPrime checks only in `proxy.ts`, which is exactly the single line of defence the docs warn against.
 
@@ -206,29 +179,17 @@ Next.js's guidance is explicit. Middleware (now `proxy.ts`) runs on every reques
 
 Live table lookups matter because JWT claims refresh only when the token refreshes. Supabase notes that even an MFA downgrade takes effect only at the next refresh ([Supabase MFA](https://supabase.com/docs/guides/auth/auth-mfa.md)). A revoked editor must lose publish rights immediately, not when their token rolls over. The ingestion cron should keep using the service-role key inside `backend/` only. Staff actions should migrate to a user-context Supabase client so RLS applies as a second check. Phase 1 can ship with DAL enforcement alone and add RLS in Phase 2.
 
-### Four phases sized for a small team
-
-| Phase | Build | Why first |
-|---|---|---|
-| 1 – Identity and audit (weeks) | Invite-only staff accounts in Supabase Auth (public signup off), MFA enrolment, roles/permissions/assignments tables, `requirePermission` on every existing admin route, `audit_log` replacing admin_logs, retire the shared password (keep one sealed break-glass admin) | Removes the shared-secret risk; every later feature depends on knowing *who* acted |
-| 2 – Editorial workflow | Workflow states and revisions, approve queue with self-approval block, publish_direct with post-hoc review, scoped en/hi desks, source registry with licence flags and kill switch, purge floor, AI config versioning, RLS policies | Turns the publish endpoint into a four-eyes process and addresses scraping exposure |
-| 3 – Compliance | Grievance queue (24h/15-day clocks, monthly export), corrections log, restricted legal-orders register, content-record export, incident clock (6h/72h), rights-request queue and consent ledger ready before the DPDP core date | Publish the grievance officer before traffic grows; DPDP duties land March–May 2027 |
-| 4 – Commercial | Sponsored-content workflow with locked labels, masked subscriber view, refund approvals, vendor-console access reviews, `revenue.view_all` | Only when ads or subscriptions exist; reuse vendor consoles |
+### Retention
 
 Retention settings follow from the statutes. Audit and access logs should be kept for **at least one year**, which covers both DPDP's one-year floor and CERT-In's 180 days. Content snapshots are kept for at least 60 days, and orders, takedowns and corrections much longer for litigation holds. Run the Supabase project in an Indian region, or export logs to Indian storage. Whether a cloud region in India satisfies "Indian jurisdiction" was not confirmed. A quarterly access review (who holds what, which assignments are expired, which vendor seats are unused) is the cheapest control against the privilege creep OWASP warns about ([OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)).
 
-## Conclusion
-
-Studying these five publishers mainly shows that their real authorization model sits in their vendors' documentation, not in anything they publish. GAM's roles plus teams, Quintype's verb list, Arc's squads and Contentstack's self-approval rule are, in practice, the industry standard. A small team can adopt that model without adopting the vendors: a verb catalogue, generic roles, language/section scope, expiry on every grant, and a live server-side check. The less obvious finding is that TimesPrime's biggest authorization risks are not editorial. They are the ingestion permissions that decide which scraped full text goes live, the purge job that could destroy statutorily required records, and the unpublish button that is both a legal-response tool and, if misused, a CERT-In incident. Those three verbs deserve the strictest controls in Phase 1 and 2, ahead of any CRM or ads panel.
-
-The regulatory calendar sets the order of work more than feature demand does. The IT Rules Level I grievance mechanism and CERT-In logging apply now. DPDP's core duties arrive in March or May 2027 depending on which reading holds, and the rights-request and consent panels must exist before then, even though TimesPrime holds little reader data today. Any future reader accounts, newsletter or AI-chat transcript storage will immediately turn masked-view and reveal-with-reason permissions from hypothetical into required. Designing `reader_pii.*` verbs now, while they are unused, is far cheaper than adding them later.
-<!-- END:panel-plan -->
+<!-- END:access-rules -->
 
 ## Index
 
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
-| 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | Planned | — | — |
+| 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
 | 1 | Administration: users, role assignments with scope and expiry, access review | Planned | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | Planned | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
@@ -247,7 +208,7 @@ never marked Done while an owner action it depends on is unrecorded.
 
 | Word | Meaning |
 |---|---|
-| Permission | One action on one kind of thing, written as `object.verb`, for example `article.publish`. The full list is the matrix in the [panel plan](#panel-plan) |
+| Permission | One action on one kind of thing, written as `object.verb`, for example `article.publish`. The full list is the matrix in the access rules (`PANEL_DOCS.md`) |
 | Role | A named bundle of permissions, for example Desk Editor. Roles are generic: there is no "Hindi sports editor" role |
 | Scope | Where a role applies: a language desk (`en`, `hi`, or all) and a section (one, or all) |
 | Assignment | One person holding one role in one scope, with an expiry date and the name of whoever granted it |
@@ -268,7 +229,7 @@ order. Write for someone who has not seen the code: a new developer, or the seni
 - **Name:** *the panel's name, as in the index*
 - **URLs:** *every page and API route it adds or uses, for example `/admin/desk` and
   `/api/admin/articles`*
-- **Code:** *where its code lives: the view in `frontend/views/`, the route bodies in `backend/api/`,
+- **Code:** *where its code lives: the view in `src/app/`, the route bodies in `apps/web/src/app/api/`,
   services, repositories, and the SQL in `database/migrations/`*
 
 #### Purpose
@@ -313,7 +274,7 @@ that needs a reason code.*
 
 | Test file | What it proves | Denied case covered |
 |---|---|---|
-| *`backend/api/admin/…test.ts`* | *A Desk Editor in `hi` can publish a `hi` article* | *A Desk Editor in `en` gets 403 for the same article; an expired assignment gets 403* |
+| *`apps/admin/src/app/api/admin/…test.ts`* | *A Desk Editor in `hi` can publish a `hi` article* | *A Desk Editor in `en` gets 403 for the same article; an expired assignment gets 403* |
 
 *Every permission check needs an allowed test and a denied test. Add what was checked by hand, and
 the `npm run verify` and CI result at the time the panel was marked Done.*
@@ -325,20 +286,220 @@ backlog entry (`docs/OPERATIONS.md`) or to the later panel that will do it.*
 
 ## Panels
 
-No panel is done yet. Each panel's section goes here, copied from the template, when its work
-starts.
+### Panel 0: Access foundation
 
-### Panel 0 design: the access foundation (approved 2026-11-02)
+#### Panel
 
-> Carried from `docs/design/panel-0-access-foundation.md` in restructure 3 (2026-11-03), unchanged
-> but for heading levels and links. Its paths are those of 2026-11-02: `shared/` is now
-> `backend/shared/`, `scripts/` is `backend/scripts/`, `.env.local` is `frontend/.env`, and the plan
-> it cites is the [panel plan](#panel-plan) in this file.
+- **Name:** Access foundation.
+- **URLs:** `/admin/login` (staff sign-in and the second factor), `/admin` (shows only what the user
+  holds), `POST /api/admin/login`, `POST /api/admin/logout`, `GET /api/admin/me` and
+  `POST /api/admin/mfa` (new). Every other `/api/admin/*` route now checks a permission.
+- **Code:**
+  - `packages/server/src/auth/`: `requirePermission.ts` (the gate), `decide.ts` (the rule), `scope.ts`,
+    `adminRoutePolicy.ts` (every route's rule), `staffSession.ts`, `supabaseServer.ts`, `mfa.ts`, and
+    `adminSession.ts` (the shared password, with its end date);
+  - `packages/server/src/repositories/staff.ts` and `auditLog.ts`; `apps/admin/src/app/api/admin/me/route.ts` and `mfa.ts`;
+  - `packages/shared/src/config/permissions.ts`, `apps/admin/src/proxy.ts`;
+  - `apps/admin/src/app/admin/login/page.tsx` and `apps/admin/src/app/admin/page.tsx` (the dashboard);
+  - the SQL in `database/migrations/2026-11-02-access-*.sql` and `database/bootstrap/super-admin.sql`.
+- **Design:** [Panel 0's design](#panel-0-design-the-access-foundation), and
+  [ADR 0003](ARCHITECTURE.md#adr-0003--an-articles-section-for-permission-scope-is-its-first-category-2026-11-02) for the section rule.
 
-**Status:** **Approved with conditions** by the owner on 2026-11-02 (STEP 2). Being built (STEP 3).
+#### Purpose
+
+It replaces the one shared admin password with named staff accounts. Each account holds roles in a
+language and section, signs in with a second factor, and leaves a record of every change it makes.
+Every later panel depends on knowing who is acting and what they may do.
+
+#### Roles and responsibilities
+
+Panel 0 defines all 15 roles of the plan's matrix ([the access rules](#access-rules)). In this panel:
+
+| Role | What they do here |
+|---|---|
+| Super Admin | Signs in with a second factor. Sees sync, stats, health, the activity log and the articles list. Holds no editorial verbs (by the plan's design). Granting roles in the app is Panel 1 |
+| Managing Editor | Everything editorial in every scope: edit, unpublish, bulk delete, publish, the breaking banner |
+| Desk Editor | The same within their language and section. Not the banner: it is site-wide and needs an unscoped grant (Panel 3 gives banners a language) |
+| Sub-editor, Writer | Read the articles list and stats; a Sub-editor edits within scope. Writer's "Own" waits for Panel 2 (no `created_by` yet) |
+| Ingestion Ops | Runs the full NewsData sync, reads health and stats |
+| Legal/Compliance | Unpublishes an article in any scope (takedown, F); reads the articles list and the activity log |
+| Analyst, Security Lead, Privacy Officer | Read what their cells allow (stats, sync status, health, the activity log) |
+| The owner | Applies the SQL, creates the first Super Admins by SQL, and is the way back in ([runbook](OPERATIONS.md#staff-access-switching-on-panel-0-and-getting-back-in)) |
+| The shared password | During the cut-over only: a fixed list of today's editorial and sync work, recorded as `legacy:shared-password` |
+
+#### Features and functionality
+
+- Sign-in with email and password for staff, then a second factor. The first time, the user scans a
+  QR code (or types the key) and enters one code; every time after, they enter a code. The shared
+  password stays one click away until it is retired.
+- `/admin` says who is signed in, shows only the widgets and buttons the user's permissions allow,
+  and sends a session that still owes its code back to finish signing in.
+- Every admin route checks a permission on the server, in the target's scope.
+- Every change is written to an append-only, hash-chained audit log, before and after it happens.
+- The activity log reads that audit log; it cannot be cleared. The shared-password era's
+  `admin_logs` stays readable at `?source=legacy`.
+- The cron's runs are logged as `system:cron`.
+- The shared password ends by itself at 00:00 IST on 1 January 2027; `ADMIN_LEGACY_LOGIN=off` ends
+  it sooner.
+
+#### Access permissions and authorization rules
+
+**The backend check is the only gate.** The app reads Supabase as `service_role`, which bypasses
+RLS, so `requirePermission` in each route body is all that stands between a request and the data.
+The proxy only checks that a session exists. RLS protects only direct access with a user's own
+token: the access tables grant `anon` and `authenticated` nothing.
+
+How a check is decided (`decide.ts`). The answer is "no" unless all of these hold:
+1. The staff profile is active.
+2. The assignment is not revoked and not expired. This is checked on every decision.
+3. The role grants the permission with a code that allows the action: F, S, R or M for a read; F or
+   S for a change. Own and A are refused until their panels.
+4. The assignment's scope covers the target. The language is `en`/`hi` (articles store
+   `english`/`hindi`). The section is the article's `category[0]`. A NULL target field needs an
+   unscoped grant.
+5. The session is `aal2` where the role or the profile requires it.
+
+The staff record is read from the database on every request, with no cache, so a revocation or
+suspension applies to the next request.
+
+| Route | Permission | Who holds it (scope) | Four-eyes | MFA (`aal2`) | Audited |
+|---|---|---|---|---|---|
+| `GET /api/admin/articles` | `article.view_admin` (read, any scope) | Super Admin, Managing Editor F; Desk Editor, Sub-editor, Writer S; Ingestion Ops, Analyst, Grievance Officer, Legal R | — | per role/profile | denials |
+| `PATCH /api/admin/articles` | `article.edit` in the article's scope, and in the new scope if the edit moves it | Managing Editor F; Desk Editor, Sub-editor S | — | yes for these roles | attempted + outcome, before/after |
+| `DELETE /api/admin/articles` | `article.unpublish` in the article's scope | Managing Editor, Legal F; Desk Editor S; Super Admin only as break-glass | — | yes | attempted + outcome |
+| `DELETE /api/admin/articles/bulk` | `article.bulk_action` and `article.unpublish`, for every article (at most 100) | Managing Editor F; Desk Editor S | — | yes | one pair naming every article |
+| `GET /api/admin/breaking-news` | `breaking_banner.manage` (read, any scope); the banner manager's list. Readers get the items from `apps/web`'s public `GET /api/news/breaking-news` (since 4 Nov 2026) | Managing Editor F; Desk Editor S | — | yes for these roles | denials |
+| `POST`, `DELETE /api/admin/breaking-news` | `breaking_banner.manage`, site-wide | Managing Editor (unscoped grants only) | — | yes | attempted + outcome |
+| `POST /api/admin/publish-article` | `article.publish_direct` and `article.create`, in en + the category | Managing Editor F; Desk Editor S | post-hoc review is Panel 2 | yes | attempted + outcome |
+| `POST /api/admin/seed-supabase` | `sync.run`, site-wide | Super Admin, Ingestion Ops F | — | yes | attempted + outcome |
+| `POST /api/admin/db-stats` (purge) | `content.purge` | Super Admin, Ingestion Ops A: **refused for everyone** until Panel 4's approval flow | needs two people | — | denials |
+| `GET /api/admin/db-stats`, `/stats` | `stats.view` (read, any scope) | many (matrix) | — | per role/profile | denials |
+| `GET /api/admin/health` | `health.view` (read) | Super Admin, Security Lead F; Managing Editor, Ingestion Ops R | — | per role/profile | denials |
+| `GET /api/admin/logs` | `audit.read` (read; a scoped holder sees only their scope) | Super Admin, Legal, Privacy Officer, Security Lead F; Managing Editor S (own desk) | — | yes | denials |
+| `GET /api/admin/me`, `POST /api/admin/mfa` | none: session-only | any staff session, `aal1` included | — | — | sign-in and MFA events |
+| `POST /api/admin/login`, `/logout` | none: public (D10; the banner's GET left this list on 4 Nov 2026) | — | — | — | sign-in, sign-out |
+
+- **MFA:** `staff_profiles.mfa_required` defaults to true (Q1), so every staff member uses TOTP.
+  The roles marked `requires_aal2` (Super Admin, Managing Editor, Desk Editor, Legal/Compliance,
+  Privacy Officer, Security Lead, Ingestion Ops) cannot have it switched off.
+- **Two admins:** a privileged role (Super Admin, Managing Editor, Legal/Compliance, Privacy
+  Officer) is granted only by two different active Super Admins. The database trigger enforces
+  this. The only exception is the owner's bootstrap script, as `postgres`.
+- **The shared password:** it may use only `article.view_admin`, `article.create`, `article.edit`,
+  `article.unpublish`, `article.bulk_action`, `article.publish_direct`, `breaking_banner.manage`,
+  `sync.run`, `sync.view` and `stats.view`. It never holds `user.manage`, `role.assign`, an audit or
+  settings permission, or the purge.
+- **Refusals:** 401 with no session. 403 `{ error, code, required }`, where `code` is `not_staff`,
+  `suspended`, `forbidden`, `mfa_required` or `needs_approval`. 503 when the staff record or the
+  "attempted" audit row cannot be written; nothing is changed then.
+
+#### Database changes
+
+| File | What it does | Rollback | Applied by the owner |
+|---|---|---|---|
+| `database/migrations/2026-11-02-access-1-foundation.sql` | `staff_profiles`, `roles`, `permissions`, `role_permissions`, `role_assignments`, `audit_log`; triggers (two-admin rule, bootstrap only as postgres, assignments are history, audit append-only and hash-chained); RLS on, nothing for `anon`/`authenticated` | At the end of the file, before go-live only | **No** |
+| `database/migrations/2026-11-02-access-2-catalog.sql` | The 15 roles, 39 permissions, 136 matrix rows, generated from the matrix (then in `PANEL_PLAN.md`, now the access rules (`PANEL_DOCS.md`)) | Re-run the previous version, or the foundation rollback | **No** |
+| `database/migrations/2026-11-02-access-3-freeze-admin-logs.sql` | `admin_logs` read-only (after the deploy) | `GRANT ALL ... TO service_role` | **No** |
+| `database/bootstrap/super-admin.sql` | One invited user becomes a Super Admin, audited as `bootstrap` | Revoke, in the file | **No** |
+
+The order (migrations, deploy, bootstrap, staff sign-in, freeze, then the shared password off) is
+in [the staff-access runbook](OPERATIONS.md#staff-access-switching-on-panel-0-and-getting-back-in). `admin_logs` changes meaning: it is
+history, no longer written.
+
+#### Tests and verification
+
+| Test file | What it proves | Denied cases covered |
+|---|---|---|
+| `apps/admin/src/app/api/admin/access.test.ts` | **The route walk** (every admin route file on disk is public, session-only or ruled, and every rule is tested) and **the access matrix**: every guarded route and method through its real handler and the real gate, with grants read from the catalogue SQL | No session (401), no grants, expired, wrong scope, no MFA, the shared password where not allowed, the purge for every holder; nothing written in any of them. Also: moves out of scope, one out-of-scope article in a bulk delete, Sub-editor publish and bulk, an unwritable audit row (503), the 100-article limit |
+| `packages/server/src/auth/decide.test.ts` | The rule: each code, scope, expiry, MFA, break-glass, the legacy list | Every "no" path has an allowed twin |
+| `packages/server/src/auth/requirePermission.test.ts` | The gate, the audit pair, the denial audit | Revoked or suspended between two requests is refused on the second |
+| `packages/server/src/auth/staffSession.test.ts`, `apps/admin/src/proxy.test.ts` | Who is asking; the proxy accepts both sessions; cookie flags | Forged or signed-out JWTs, errors, the legacy end date |
+| `apps/admin/src/app/api/admin/login/route.test.ts`, `logout.test.ts`, `me.test.ts`, `mfa.test.ts` | Sign-in, sign-out, `/me`, the second factor | Wrong credentials, not staff, suspended, wrong code, rate limits, the legacy end date and kill switch |
+| `packages/shared/src/config/permissions.test.ts`, `packages/server/src/repositories/accessSchema.test.ts` | The catalogue equals the matrix cell for cell; the SQL's guarantees | — |
+| `apps/admin/src/app/admin/page.test.tsx`, `apps/admin/src/app/admin/login/page.test.tsx`, `apps/admin/src/components/ActivityLog.test.tsx` | What the UI shows for each user; the sign-in steps; no clear button; each screen's loading, error and empty state | Hidden widgets for missing permissions |
+| `apps/admin/src/components/labels.test.tsx` | Every select on `/admin` has an accessible name | — |
+| `e2e/admin-access.spec.ts` (Playwright) | Signed out: `/admin` redirects to sign-in | Five admin routes answer 401 |
+| `e2e/accessibility.spec.ts` (Playwright, axe) | The sign-in page meets WCAG 2.1 AA (the site chrome excluded, BL-037) and works by keyboard | — |
+| `e2e/reader.spec.ts` (Playwright) | The front page lists stories that link to their pages | — |
+| `scripts/check-js-budget.test.ts` | The per-route JS budget's rules | Over budget, no budget, a stale budget |
+
+The browser tests are **read-only** (owner rule, 2026-11-02): locally the app uses the real
+database, so no test signs in or writes. Staff sign-in, MFA and the audited actions are covered by
+the unit tests with Supabase stubbed, and by the owner's check by hand.
+
+At the pause (`1a215a0`): `npm run verify` exits 0: 49 suites and 757 tests, lint 0 errors and 13
+warnings, 0 boundary violations, the build with the route table at 30 URLs, identical to the
+baseline, and every route within its JS budget. `npm run test:e2e`: 10 passed.
+
+**Unverified: the database-level checks.** The two-admin trigger, the audit log's append-only
+triggers and hash chain (`audit_verify_chain()`, and its failure after a tamper), and the
+bootstrap's checks 1–4 have not run against a database. jest cannot run them. A local database was
+set up to run them, then dropped by the owner (2026-11-02) before its results were kept. The owner
+verifies them against the real database with the verification queries in each SQL file and
+[the staff-access runbook](OPERATIONS.md#staff-access-switching-on-panel-0-and-getting-back-in), Part B, when panels resume.
+
+Definition of done (CLAUDE.md), at the pause:
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Features work; this entry matches the code | Built; the staff flows are proven with stubbed Supabase only |
+| 2 | Server-side permission on every route and action; allowed and denied tests | Done (`access.test.ts`, the route walk) |
+| 3 | Privileged actions audited; MFA where the plan says | In the code and unit-tested; the database side unverified |
+| 4 | `npm run verify` and CI green; routes, JS and CSS reported | Verify green; CI on the pushed branch |
+| 5 | SQL in migrations with a rollback, listed as an owner action | Done (Database changes, above) |
+| 6 | PANEL_DOCS, the current status and ARCHITECTURE updated | PANEL_DOCS and the current status at the pause and at the merge into `main` (4 Nov 2026); CODEMAP was retired on `main` |
+| 7 | Real-database tests | **Not done**: the local database was dropped; the owner's check by hand instead |
+| 8 | End-to-end tests of the critical flows, with a refused-access flow | Partly: read-only (refused access, the sign-in page, the reader); sign-in and MFA in a browser cannot be read-only |
+| 9 | Loading, error and empty states | Done, with tests |
+| 10 | Accessibility (keyboard, labels) | Done for the sign-in page (axe, keyboard) and the labels on `/admin`; the signed-in dashboard is not checked by axe (it needs a sign-in) |
+| 11 | Failures reach Sentry; privileged actions audited | Done in the code, with tests |
+| 12 | A JS budget per route in CI | Done (`scripts/check-js-budget.mjs`, in verify and CI) |
+| 13 | A runbook for when the main flow breaks | Done ([the sign-in runbook](OPERATIONS.md#staff-sign-in-or-an-admin-action-is-failing)) |
+
+#### Known limits and not yet built
+
+- **Not applied:** none of the SQL is applied yet, and the back office is not deployable until it is (the current status, `docs/OPERATIONS.md`).
+- **Not verified against a database:** the triggers, the hash chain and the bootstrap (above).
+- **Panel 1:**
+  - granting and revoking roles in the app (until then, only the owner's bootstrap and SQL);
+  - break-glass grants with their alert;
+  - resetting a lost factor in the app;
+  - the access review;
+  - removing the shared password, after which `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` go.
+- **Panel 2:**
+  - Own (no `created_by` yet);
+  - the reviewed publish path and post-hoc review of direct publishes;
+  - reason codes and notifications on takedown;
+  - the desk filter on the articles list.
+- **Panel 3:** the banner gets a language, so a scoped Desk Editor can manage it.
+- **Panel 4:** the purge's approval flow (A), the 60-day purge floor and content records (BL-033).
+- **Panel 6:** per-desk stats.
+- **Panel 8:** the audit viewer shows an attempt with no outcome as its own state (Q2);
+  `audit_verify_chain()` in the app.
+- **Phase 2:** RLS policies for a user-context client and a SQL `has_permission()`.
+- **Backlog:** exporting the chain's head hash elsewhere (BL-034).
+- **By design, not a gap:** a staff-record cache. The record is read on every request so that a
+  revocation applies at once.
+
+#### Commits
+
+On `main` (the design and the first half): `e9bce19`, `6bcfb4e`, `38ac276`, `b69a866`, `28f31e3`,
+`78e58b6`, `690631e`, `b48998e`, `dfcaf80`, `260bebf`, `7b6d102`, `f0e102d`, `5ba4fd6`, `27b19c7`,
+`6eb0b8e`, `16175b1`, `0bb4fbb`, `bb0bd2c`, `0b3d09f`, `f357d71`, `c35637f`. On `panel-0-access` (the
+second half): `d1bff91` through this entry, listed in the current status (`docs/OPERATIONS.md`), section 4.
+
+## Panel 0 design: the access foundation
+
+**Status:** **Approved with conditions** by the owner on 2026-11-02 (STEP 2), and **built** (STEP 3):
+complete on the branch `panel-0-access`, awaiting the owner's merge. What was built, and how it
+checks, is in `PANEL_DOCS.md`; where the build went past this file (the
+session-only routes and the sign-in flow), PANEL_DOCS is the record.
 The section "Approval: decisions and amendments" below overrides anything later in this file that
 disagrees with it.
-**Plan:** [`PANEL_PLAN.md`](PANEL_DOCS.md#panel-plan), "The proxy guesses and the backend decides", the
+*Note (4 Nov 2026): `PANEL_PLAN.md` was retired; its matrix and rules are now in
+[the access rules](#access-rules). References to it below are kept as written.*
+
+**Plan:** `PANEL_PLAN.md`, "The proxy guesses and the backend decides", the
 matrix, and "Four-eyes, takedown and MFA rules". **Owner decisions folded in:** the twelve answers to
 the Step 1 report (2026-11-02), cited below as D1 to D12.
 **Related:** [ADR 0003](ARCHITECTURE.md#adr-0003--an-articles-section-for-permission-scope-is-its-first-category-2026-11-02) (the primary-section rule),
@@ -349,7 +510,7 @@ permission on the server, privileged staff sign in with a second factor, and eve
 lands in an append-only audit log. It adds no new admin screens beyond sign-in and MFA. Managing
 people and roles in the app is Panel 1.
 
-#### Approval: decisions and amendments (2026-11-02)
+### Approval: decisions and amendments (2026-11-02)
 
 **Answers to §10.**
 - **Q1:** MFA is required for all staff (`mfa_required` defaults to true).
@@ -395,7 +556,7 @@ on the next request. `expires_at` is checked on every decision.
   matters, a cache keyed by a database-maintained version number can come back. A test proves that
   an assignment revoked between two requests is refused on the second.
 
-#### 0. What the docs say, and what it changes
+### 0. What the docs say, and what it changes
 
 Read before designing (D9):
 
@@ -429,11 +590,11 @@ Read before designing (D9):
   express "Desk Editor for hi plus Writer for en", and a JWT claim lives until the token expires.
   As the plan says, scope comes from the tables, read live.
 
-#### 1. Data model
+### 1. Data model
 
 Everything below is SQL in files that the owner applies. The app never runs DDL.
 
-##### Files
+#### Files
 
 | File | What it does | When the owner applies it |
 |---|---|---|
@@ -444,11 +605,11 @@ Everything below is SQL in files that the owner applies. The app never runs DDL.
 
 All are idempotent (`IF NOT EXISTS`, `ON CONFLICT`, `DROP POLICY IF EXISTS`). Each ends with a
 rollback section and verification queries, in the style of
-[`runbooks/apply-database.md`](OPERATIONS.md#runbook-apply-the-database-files). That runbook gains the new steps.
+[the database runbook](OPERATIONS.md#applying-the-database-files). That runbook gains the new steps.
 **Deviation, stated:** the bootstrap script goes in `database/bootstrap/`, not `migrations/`. It is
 not a schema change: it takes an email as input and is run by hand once per account.
 
-##### Tables
+#### Tables
 
 **`staff_profiles`**: a row here is what makes an auth user staff (never `user_metadata`, which
 users can edit).
@@ -573,11 +734,11 @@ one by SQL (D4).
 - **Retention.** The app never deletes. Rows are kept at least one year (DPDP's floor, more than
   CERT-In's 180 days). Archiving after that is a future owner procedure, not built here.
 
-##### RLS and grants
+#### RLS and grants
 
 - RLS is enabled on all six tables. No policy is created for `anon` or `authenticated`, and
   `REVOKE ALL ... FROM anon, authenticated` on each, so both get nothing.
-- The app reads and writes them as `service_role` through `backend/` only (plan: "Phase 1 can ship
+- The app reads and writes them as `service_role` through `packages/server/src/` only (plan: "Phase 1 can ship
   with DAL enforcement alone and add RLS in Phase 2"). A SQL `has_permission()` function and
   `aal2` restrictive policies come with the user-context client in Phase 2. Writing it now would
   mean two copies of the same rule, in SQL and TypeScript, with nothing yet calling the SQL one.
@@ -587,7 +748,7 @@ one by SQL (D4).
   `breaking_news` (public data) and nothing on `admin_logs`; the new tables add nothing. A test
   reads the SQL files and fails if any grant to `authenticated` appears on a staff table.
 
-##### `admin_logs`
+#### `admin_logs`
 
 Recommended: **read-only, not migrated.** After the deploy, nothing writes it. The step C SQL
 revokes `INSERT`/`UPDATE`/`DELETE` from `service_role`, so it becomes a frozen record of the
@@ -596,12 +757,12 @@ shared-password era, queryable in SQL and kept for at least one year. Copying it
 chain as if the new system had recorded them. The activity log in `/admin` reads `audit_log` from
 the deploy on.
 
-#### 2. Permission catalogue
+### 2. Permission catalogue
 
 `database/migrations/<date>-access-catalog.sql` seeds the 15 roles, 39 permissions and the
 `role_permissions` rows, generated from the matrix by a script kept in `scripts/`. A test parses the
 matrix out of `docs/PANEL_PLAN.md` and the inserts out of the SQL file and requires them to agree
-cell for cell, in both directions. `shared/config/permissions.ts` holds the 39 keys as a typed
+cell for cell, in both directions. `packages/shared/src/config/permissions.ts` holds the 39 keys as a typed
 constant (plan: "so frontend and backend cannot drift"). A test checks it against the SQL too.
 
 **How the cell codes are enforced** in Panel 0. Each check asks for `act` (change something) or
@@ -635,15 +796,15 @@ Who holds what is exactly the matrix. Panel 0 routes use these rows:
 | `settings.manage` / `health.view` | Super Admin F · Managing Editor R · Ingestion Ops R · Security Lead F |
 | `user.manage` / `role.assign` | Super Admin A · Managing Editor S (assign ≤ Desk Editor in own scope). Seeded now; used in Panel 1 |
 
-#### 3. How a request is checked
+### 3. How a request is checked
 
 ```
-browser ──cookie sb-<ref>-auth-token──▶ proxy.ts (matcher unchanged: /admin/:path*, /api/admin/:path*)
+browser ──cookie sb-<ref>-auth-token──▶ apps/admin/src/proxy.ts (matcher unchanged: /admin/:path*, /api/admin/:path*)
    public allowlist? ──yes──▶ next
    getClaims(): valid, unexpired JWT?  (refreshes the token if due, sets cookies, no DB call)
    or a valid legacy cookie, before the cut-off date (§7)?
    neither ──▶ 401 JSON for /api/admin/*, redirect to /admin/login for pages
-   ──▶ route body in backend/api/admin/*
+   ──▶ route body in apps/admin/src/app/api/admin/*
          requirePermission(request, "article.unpublish", { mode: "act", target })
            1. staff session: getClaims() for sub, aal, session_id; getUser() to confirm the
               session still exists (a signed-out JWT stays valid until expiry; getUser catches it)
@@ -663,7 +824,7 @@ necessary". For an admin session it is cheap protection against a script reading
 nothing in the browser needs to read it. Route bodies get the identity only from
 `requirePermission`'s return value, never from a header, a body field or a query parameter.
 
-**Modules** (all `backend/auth/`, all `import "server-only"`; `proxy.ts` may import them, P1):
+**Modules** (all `packages/server/src/auth/`, all `import "server-only"`; `apps/admin/src/proxy.ts` may import them, P1):
 
 | Module | Job |
 |---|---|
@@ -694,7 +855,7 @@ nothing in the browser needs to read it. Route bodies get the identity only from
 
 Any failure while loading the staff record (Supabase down, a malformed row) is a "no": 503 "Could
 not check your permissions. Nothing was changed." An unknown permission key cannot be written,
-because the key parameter is the typed union from `shared/config/permissions.ts`. At runtime it
+because the key parameter is the typed union from `packages/shared/src/config/permissions.ts`. At runtime it
 finds no matching row anyway.
 
 **Caching.** *Superseded by the approval: there is no cache in Panel 0, and the record is read live
@@ -709,7 +870,7 @@ never turn into "allowed".
 optimistic check, the redirect to `/admin/login`, and the refresh of the Supabase token. The
 matcher does not change (CR-05). The Sentry `tunnelRoute` stays off (D12).
 
-#### 4. Today's admin routes and what each will require
+### 4. Today's admin routes and what each will require
 
 | Route | Method | Today | Permission | Mode, target |
 |---|---|---|---|---|
@@ -744,7 +905,7 @@ then a code on each sign-in). While the cut-over runs it keeps a "shared passwor
 its end date. The admin view reads `/api/admin/me` to show who is signed in and to hide controls the
 user lacks.
 
-#### 5. MFA
+### 5. MFA
 
 - **Factor.** TOTP (authenticator app): free, on by default. Phone/SMS is not used.
 - **Who needs `aal2`.** Every assignment of a role with `requires_aal2` (D3) counts only in an
@@ -771,7 +932,7 @@ user lacks.
 - **Database side.** Restrictive `aal2` RLS policies need the user-context client, so they come in
   Phase 2 (§1, RLS).
 
-#### 6. Audit log
+### 6. Audit log
 
 **What is recorded.** For every staff action that changes something, two rows: `attempted` before
 the change, then `succeeded` or `failed`. Each carries actor, actor's roles (snapshot), `aal`,
@@ -793,7 +954,7 @@ its outcome row leaves an `attempted` row with no outcome, which is visible, rat
 with no record. New actions built in Panels 2–4 can be Postgres functions that do both in one
 transaction. **Owner decision needed (Q2).**
 
-**Writers.** `backend/repositories/auditLog.ts` gets `recordStaffAudit()`, which throws on failure
+**Writers.** `packages/server/src/repositories/auditLog.ts` gets `recordStaffAudit()`, which throws on failure
 (the caller refuses the action), and `recordSystemAudit()` for the cron, which logs and reports to
 Sentry but never stops a run: the same contract `logAdminAction` has today. `logAdminAction` and its
 callers move to the new writers.
@@ -801,7 +962,7 @@ callers move to the new writers.
 **Append-only and retention.** §1: no `UPDATE`/`DELETE`/`TRUNCATE` for any app role, triggers that
 raise, a hash chain, and at least one year.
 
-#### 7. Cut-over from the shared password
+### 7. Cut-over from the shared password
 
 | Step | Who | What | The way back in |
 |---|---|---|---|
@@ -810,7 +971,7 @@ raise, a hash chain, and at least one year.
 | B | Owner | Invite two Super Admins (Dashboard → Authentication → Invite user). Each accepts and sets a password. Run `database/bootstrap/super-admin.sql` once per account. Each signs in and enrols MFA | The shared password; and the SQL editor |
 | C | Owner | Verify the step B checks; apply the `admin_logs` freeze | As above |
 | Run | Everyone | Editorial work continues on the shared password, now audited as `legacy:shared-password`. Super Admins work on their accounts | As above |
-| Removal | Me, then owner | When the conditions below hold, one deletion commit removes the legacy path; the owner deletes `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from Vercel | The SQL editor (below) |
+| Removal | Me, then owner | When the conditions below hold, one deletion commit removes the legacy path; the owner deletes `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from the hosting environment | The SQL editor (below) |
 
 **What a legacy session may do during the run** (amended by the approval, Q3). A fixed list, in
 code (`LEGACY_PERMISSIONS`), with every scope:
@@ -832,12 +993,12 @@ person, and it never needs MFA.
 
 **How long.** Until Panel 1 is done. Panel 0 has no screen for granting roles, so without the shared
 password nobody could edit, publish or set the banner: Super Admin holds no editorial verbs (plan).
-A **hard end date** is a constant in `backend/auth/legacySession.ts`. After it, the legacy cookie and
+A **hard end date** is a constant in `packages/server/src/auth/legacySession.ts`. After it, the legacy cookie and
 login are refused even if the code is never changed. Proposed: **2026-12-31**. An env switch,
 `ADMIN_LEGACY_LOGIN=off`, ends it earlier with no deploy. **Owner decision needed (Q3).**
 
 **The exact removal step.** One deletion commit:
-- deletes `legacySession.ts` and the legacy branches in `proxy.ts` and `backend/api/admin/login.ts`;
+- deletes `legacySession.ts` and the legacy branches in `apps/admin/src/proxy.ts` and `apps/admin/src/app/api/admin/login/route.ts`;
 - removes `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from `.env.local.example` and its sync test;
 - removes the "shared password" option from the login view.
 
@@ -847,10 +1008,10 @@ and the owner says go.
 **No lockout, ever.** The owner's own way in does not depend on the app: the Supabase dashboard
 (reset a password, delete a lost factor, invite a user) plus the SQL editor (the bootstrap script,
 which works as `postgres` and nothing else). That is the sealed break-glass. It is written up as an
-owner runbook, `docs/runbooks/staff-access.md`: bootstrap, lost MFA device, locked-out last Super
+owner runbook, the staff-access runbook (`docs/OPERATIONS.md`): bootstrap, lost MFA device, locked-out last Super
 Admin, suspected stolen session (sign out all sessions from the dashboard).
 
-#### 8. Owner actions
+### 8. Owner actions
 
 1. Approve the `@supabase/ssr` version (below).
 2. Supabase dashboard: turn off "Allow new users to sign up"; confirm TOTP MFA is enabled
@@ -862,13 +1023,13 @@ Admin, suspected stolen session (sign out all sessions from the dashboard).
 6. Apply `<date>-freeze-admin-logs.sql` once step 5 checks out.
 7. Run `select public.audit_verify_chain();` once a week, or on any doubt; it returns NULL when the
    chain is intact.
-8. At the end of the cut-over: delete `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from Vercel and
-   from `.env.local`. Also `ADMIN_SECRET_TOKEN`, which nothing reads (HANDOFF §3.9).
+8. At the end of the cut-over: delete `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from the hosting
+   environment and from `.env.local`. Also `ADMIN_SECRET_TOKEN`, which nothing reads (gotcha 3.9).
 
 No new secret is needed. `@supabase/ssr` uses `NEXT_PUBLIC_SUPABASE_URL` and
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, which are already set.
 
-##### The new dependency (D8)
+#### The new dependency (D8)
 
 The docs say it is needed (§0). The official package is `@supabase/ssr`, published by Supabase.
 
@@ -882,29 +1043,29 @@ pinned exact and the package sits on the authentication path, where the newest p
 than the smallest diff. `@supabase/ssr` adds one dependency, `cookie` (`^1.0.2`). It runs on the
 server only, so no client bundle grows from it. **Owner decision needed (Q4).**
 
-#### 9. Test plan
+### 9. Test plan
 
 Tests come first for every authorization module (master prompt rule 4).
 
 | Test | Proves |
 |---|---|
-| `backend/auth/decide.test.ts` | Each code: `F`, `S`, `R`, `M`, `Own`, `A`, break-glass, both `read` and `act`. Expired, revoked and future assignments. Suspended profile. Unknown role. A role without the permission. Language and section match and mismatch, NULL scope, NULL target fields. `aal1` vs `aal2` for `requires_aal2` roles and for `mfa_required` profiles. Every "no" path, and the allowed path for each |
-| `shared/config/permissions.test.ts` | The matrix parsed out of `docs/PANEL_PLAN.md` (31 rows × 15 roles) equals the catalogue SQL's `role_permissions`, and the 39 keys equal the typed constant |
-| `backend/auth/scope.test.ts` | `english ↔ en`, `hindi ↔ hi`, anything else → NULL; `category[0]`, empty and NULL categories (D5, D6) |
-| `backend/auth/requirePermission.test.ts` | Session errors → 401; staff-record lookup failure → 503 and no handler call; Redis down → falls back to Supabase, never to "allowed"; a denial writes a `denied` row |
-| `backend/api/admin/accessWalk.test.ts` | **The route walk.** It lists every `app/api/admin/**/route.ts` from disk and each method the backend module exports. Each must appear either in `publicAdminRoutes.ts` or in the §4 mapping table (also data in that module). The test fails on a route or method that is in neither, so a new route cannot ship unguarded. For every guarded method it calls the handler with (1) no session → 401, (2) a signed-in staff member with no assignments → 403, and (3) an `aal1` session holding the right role → 403 `mfa_required`. The Supabase mock asserts the handler wrote nothing |
+| `packages/server/src/auth/decide.test.ts` | Each code: `F`, `S`, `R`, `M`, `Own`, `A`, break-glass, both `read` and `act`. Expired, revoked and future assignments. Suspended profile. Unknown role. A role without the permission. Language and section match and mismatch, NULL scope, NULL target fields. `aal1` vs `aal2` for `requires_aal2` roles and for `mfa_required` profiles. Every "no" path, and the allowed path for each |
+| `packages/shared/src/config/permissions.test.ts` | The matrix parsed out of `docs/PANEL_PLAN.md` (31 rows × 15 roles) equals the catalogue SQL's `role_permissions`, and the 39 keys equal the typed constant |
+| `packages/server/src/auth/scope.test.ts` | `english ↔ en`, `hindi ↔ hi`, anything else → NULL; `category[0]`, empty and NULL categories (D5, D6) |
+| `packages/server/src/auth/requirePermission.test.ts` | Session errors → 401; staff-record lookup failure → 503 and no handler call; Redis down → falls back to Supabase, never to "allowed"; a denial writes a `denied` row |
+| `apps/admin/src/app/api/admin/accessWalk.test.ts` | **The route walk.** It lists every `apps/admin/src/app/api/admin/**/route.ts` from disk and each method the backend module exports. Each must appear either in `publicAdminRoutes.ts` or in the §4 mapping table (also data in that module). The test fails on a route or method that is in neither, so a new route cannot ship unguarded. For every guarded method it calls the handler with (1) no session → 401, (2) a signed-in staff member with no assignments → 403, and (3) an `aal1` session holding the right role → 403 `mfa_required`. The Supabase mock asserts the handler wrote nothing |
 | One allowed test per route | The least-privileged role in the matrix gets 2xx, e.g. a Desk Editor `hi` + `sports` can edit a `hindi` article whose `category[0]` is `sports`, and gets 403 on an `english` one |
-| `proxy.test.ts` | Characterization first (proxy is at 0% today): public paths, method-aware breaking-news, 401 vs redirect. Then the Supabase session, the legacy cookie before and after the end date, the allowlist read from the shared module |
-| `backend/api/admin/login.test.ts`, `mfa.test.ts`, `me.test.ts` | Staff sign-in, MFA enrol and verify, rate limits, legacy cut-off, cookie flags (`HttpOnly`, `SameSite=Lax`) |
-| `backend/repositories/auditLog.test.ts` | Staff writer throws on failure; system writer never throws; a privileged route whose `attempted` write fails returns 503 and does not act |
-| `backend/repositories/schema.test.ts` (extended) | The SQL files: `REVOKE UPDATE, DELETE, TRUNCATE` on `audit_log`; the append-only triggers; no grant to `anon`/`authenticated` on the new tables; the bootstrap path tied to `current_user = 'postgres'`; every rollback drops what its file creates |
+| `apps/admin/src/proxy.test.ts` | Characterization first (proxy is at 0% today): public paths, method-aware breaking-news, 401 vs redirect. Then the Supabase session, the legacy cookie before and after the end date, the allowlist read from the shared module |
+| `apps/admin/src/app/api/admin/login/route.test.ts`, `mfa.test.ts`, `me.test.ts` | Staff sign-in, MFA enrol and verify, rate limits, legacy cut-off, cookie flags (`HttpOnly`, `SameSite=Lax`) |
+| `packages/server/src/repositories/auditLog.test.ts` | Staff writer throws on failure; system writer never throws; a privileged route whose `attempted` write fails returns 503 and does not act |
+| `packages/server/src/repositories/schema.test.ts` (extended) | The SQL files: `REVOKE UPDATE, DELETE, TRUNCATE` on `audit_log`; the append-only triggers; no grant to `anon`/`authenticated` on the new tables; the bootstrap path tied to `current_user = 'postgres'`; every rollback drops what its file creates |
 | UI | Characterization tests before changing `AdminLoginView` and `ActivityLog` (no tests today), then the MFA steps and the removed clear button |
 
 Database behaviour (triggers, the chain, the two-admin rule) cannot run in jest, which has no
 database. It is proven by the verification queries the owner runs, including negative ones that
 must fail (Appendix A).
 
-##### Build order for Step 3, after approval
+#### Build order for Step 3, after approval
 
 Small commits, tests first, each through the full gate:
 1. `@supabase/supabase-js` upgrade alone (option A only).
@@ -923,7 +1084,7 @@ Small commits, tests first, each through the full gate:
 
 Then PANEL_DOCS, HANDOFF, CODEMAP, architecture.
 
-#### 10. Questions for the owner
+### 10. Questions for the owner
 
 | # | Question | Recommendation |
 |---|---|---|
@@ -936,7 +1097,7 @@ Then PANEL_DOCS, HANDOFF, CODEMAP, architecture.
 | Q7 | `admin_logs` is frozen and kept, not copied into `audit_log`? | Yes |
 | Q8 | The bootstrap script lives in `database/bootstrap/`, not `database/migrations/`? | Yes |
 
-#### Appendix A: the bootstrap script
+### Appendix A: the bootstrap script
 
 `database/bootstrap/super-admin.sql`. The owner runs it in the SQL editor (as `postgres`), once per
 account, after inviting the user and after they accept the invite. It changes nothing unless both

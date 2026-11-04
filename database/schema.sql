@@ -35,7 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_articles_article_id ON public.articles (article_i
 -- Further indexes (the feed's filters, the article-link lookup): database/migrations/.
 
 -- The homepage breaking-news banner. Written by the admin panel
--- (backend/api/admin/breaking-news.ts); read publicly by its GET, which the
+-- (apps/admin/src/app/api/admin/breaking-news/route.ts); read publicly by its GET, which the
 -- proxy leaves open for the banner (CR-08). Its DDL lived only in a comment
 -- in that file until F-008.
 CREATE TABLE IF NOT EXISTS public.breaking_news (
@@ -46,8 +46,8 @@ CREATE TABLE IF NOT EXISTS public.breaking_news (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
--- The admin activity log. Written by backend/repositories/auditLog.ts, read
--- and cleared by backend/api/admin/logs.ts; never public. Its DDL lived only
+-- The admin activity log. Written by packages/server/src/repositories/auditLog.ts, read
+-- and cleared by apps/admin/src/app/api/admin/logs/route.ts; never public. Its DDL lived only
 -- in a comment in logs.ts until F-008.
 CREATE TABLE IF NOT EXISTS public.admin_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

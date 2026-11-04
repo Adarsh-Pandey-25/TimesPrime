@@ -13,18 +13,18 @@
 # testing
 /coverage
 
-# next.js (the Next root is frontend/)
-/frontend/.next/
-/frontend/out/
+# next.js
+.next/
+out/
 
 # production
-/frontend/build
+build/
 
 # misc
 .DS_Store
 *.pem
 
-# SWC's plugin cache, written by next dev in whichever folder it runs (root or frontend/)
+# SWC's plugin cache, written by next dev in whichever folder it runs
 .swc/
 
 # debug
@@ -33,12 +33,16 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files: every one is ignored (the owner's real frontend/.env, any
+# env files: every one is ignored (the owner's real .env at the root, any
 # .env*.local, .env.production ...) except the two templates that hold no
 # secret: .env.example, and .env.test, which empties every key for the tests.
 .env*
 !.env.example
 !.env.test
+
+# Playwright (npm run test:e2e)
+/test-results/
+/playwright-report/
 
 # vercel
 .vercel
@@ -47,6 +51,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Retired PRD snapshot. The PRD in docs/ARCHITECTURE.md is the only canonical spec; the PDF
+# Retired 2026-10-29 PRD snapshot; never consult it (docs/NEWSROOM_PLAN.md is the plan). The PDF
 # predates the owner decisions of 2026-10-29 and must not be consulted.
 docs/TimesPrime-PRD-and-Architecture.pdf

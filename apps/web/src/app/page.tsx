@@ -1,0 +1,38 @@
+import { Suspense } from "react";
+import { fetchInitialNews } from "@timesprime/server/services/news";
+import HomeClient from "@/components/home/HomeClient";
+import NewsSkeletonGrid from "@/components/ui/NewsSkeletonGrid";
+
+interface HomePageProps {
+  searchParams: Promise<{ category?: string; search?: string }>;
+}
+
+async function ArticlesFeed({
+  category,
+  search,
+}: {
+  category: string;
+  search: string;
+}) {
+  const initialArticles = await fetchInitialNews(category, "en", search);
+
+  return (
+    <HomeClient
+      initialArticles={initialArticles}
+      initialCategory={category}
+      initialSearch={search}
+    />
+  );
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const params = await searchParams;
+  const category = params.category || "general";
+  const search = params.search || "";
+
+  return (
+    <Suspense fallback={<NewsSkeletonGrid />}>
+      <ArticlesFeed category={category} search={search} />
+    </Suspense>
+  );
+}

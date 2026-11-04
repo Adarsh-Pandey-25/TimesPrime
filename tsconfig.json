@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "jest.config.ts",
+    "jest.setup.ts",
+    "playwright.config.ts",
+    "e2e/**/*.ts",
+    "scripts/**/*.ts"
+  ]
+}
