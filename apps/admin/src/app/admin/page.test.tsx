@@ -229,3 +229,30 @@ describe("what the dashboard shows depends on /api/admin/me (Panel 0)", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("This staff account is suspended.");
   });
 });
+
+describe("the access check's states", () => {
+  const shown = () => document.body.textContent ?? "";
+
+  test("loading: 'Checking your access…', announced as a status, and nothing else yet", async () => {
+    global.fetch = jest.fn(() => new Promise(() => {})) as unknown as typeof fetch;
+    render(
+      <ThemeProvider>
+        <AdminDashboardPage />
+      </ThemeProvider>
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Checking your access…");
+    expect(shown()).not.toContain("[ActivityLog]");
+  });
+
+  test("a network failure: its own message, as an alert, and nothing shown", async () => {
+    answers["GET /api/admin/me"] = new TypeError("fetch failed") as never;
+    await renderDashboard();
+    expect(screen.getByRole("alert")).toHaveTextContent("Network error while loading your access.");
+    expect(shown()).not.toContain("[ActivityLog]");
+  });
+});
+
+test("the publish form's Category ID label names its select (Definition of done, item 10)", async () => {
+  await renderDashboard();
+  expect(screen.getByRole("combobox", { name: "Category ID" })).toBeInTheDocument();
+});

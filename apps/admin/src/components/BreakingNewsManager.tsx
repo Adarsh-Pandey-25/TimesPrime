@@ -258,6 +258,7 @@ export default function BreakingNewsManager() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <select
+              aria-label="Banner expiry"
               value={expiryHours === null ? "never" : String(expiryHours)}
               onChange={(e) => setExpiryHours(e.target.value === "never" ? null : Number(e.target.value))}
               className={`rounded-xl border px-3 py-2.5 text-sm font-medium focus:outline-none transition-colors ${

@@ -225,8 +225,9 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelClasses()}>Category</label>
+              <label htmlFor="edit-category" className={labelClasses()}>Category</label>
               <select
+                id="edit-category"
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                 className={fieldClasses(isDark)}
@@ -239,8 +240,9 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
               </select>
             </div>
             <div>
-              <label className={labelClasses()}>Language</label>
+              <label htmlFor="edit-language" className={labelClasses()}>Language</label>
               <select
+                id="edit-language"
                 value={form.language}
                 onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
                 className={fieldClasses(isDark)}
@@ -560,6 +562,7 @@ export default function ArticlesTable() {
           </div>
 
           <select
+            aria-label="Filter by category"
             value={category}
             onChange={(e) => handleCategoryChange(e.target.value)}
             className={`rounded-xl border py-2 px-3 text-xs font-medium focus:outline-none transition-colors ${

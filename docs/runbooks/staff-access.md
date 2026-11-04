@@ -5,11 +5,11 @@ second factor ([design](../design/panel-0-access-foundation.md), [PANEL_DOCS](..
 Nothing in the app applies SQL or changes settings: every step below is yours. Each step says how to
 check it and how to undo it.
 
-**Where.** Nothing is deployed until the whole project is complete (owner decision, 2026-11-02).
-- **[Part A](#part-a--locally-now)** is now: the six steps against a **local** Supabase. Never
-  against the database `.env.local` points at, which may be production.
-- **[Part B](#part-b--at-the-aws-deployment)** is for the day of the AWS deployment: the same six
-  steps against the production database ([HANDOFF](../HANDOFF.md) §11).
+**Where.** Against the real database, the one in `.env.local` (owner decision, 2026-11-02): the
+six steps in [Part B](#part-b--at-the-aws-deployment), when panels resume, with the app run locally
+on that database for step 2. Nothing is deployed until the whole project is complete; on the day of
+the AWS deployment the same steps apply there ([HANDOFF](../HANDOFF.md) §11). These steps are
+yours: no session and no test writes to that database.
 
 ## The order
 
@@ -29,64 +29,18 @@ staff accounts up. It stops by itself at 00:00 IST on 1 January 2027, whatever i
 
 ---
 
-## Part A — locally, now
+## Part A — dropped
 
-Against the local Supabase stack (Docker), once it is set up as [HANDOFF](../HANDOFF.md) §2
-describes. That setup is proposed to the owner and not in place yet, so these steps wait for it.
-Step C of the Panel 0 plan runs them and records the output, and `npm run test:db` then repeats
-steps 1–5 automatically.
-
-Locally, nothing can reach production. The worst outcome is a local database to reset.
-
-| Hosted dashboard | Local stack |
-|---|---|
-| SQL Editor | Studio's SQL editor, `http://127.0.0.1:54323`, or `psql` on `127.0.0.1:54322` (user and password `postgres`) |
-| Authentication → Users → Invite user | Studio → Authentication → Add user. Invite emails go to Mailpit, `http://127.0.0.1:54324` |
-| Sign-ups off, TOTP on | `supabase/config.toml`: `[auth] enable_signup = false`; `[auth.mfa.totp] enroll_enabled = true` and `verify_enabled = true`. **Both TOTP settings default to `false` locally** |
-| Deployment | `npm run dev` (or a `next start` build) with the local env file; the guard refuses any other Supabase URL |
-
-**A1. Apply the SQL.**
-- First the base the access files sit on: `database/schema.sql`, `database/policies.sql`,
-  `database/migrations/2026-11-02-indexes.sql`.
-- Then `2026-11-02-access-1-foundation.sql` and `2026-11-02-access-2-catalog.sql`.
-- **Check:** the verification queries at the end of each file, as in [B1](#b1-apply-the-sql-migrations).
-- **Undo:** `supabase db reset`, which recreates the local database empty, then apply again.
-
-**A2. Run the code.**
-- Start the app with the local env file; the guard confirms the target is local before it starts.
-- **Check:** the shared password signs in, and one admin change writes two `audit_log` rows
-  (`attempted`, `succeeded`).
-- **Undo:** stop the app.
-
-**A3. Bootstrap two Super Admins.**
-- Add two users in local Studio (any email: Mailpit catches the mail).
-- Run `database/bootstrap/super-admin.sql` for each in Studio's SQL editor, which runs as
-  `postgres`.
-- **Check:** its checks 1–4. Checks 3 and 4 must fail.
-- **Undo:** the file's revoke, or reset.
-
-**A4. Sign in with a staff account.**
-- Email and password, then enrol TOTP with any authenticator app (it works offline), then sign in
-  again with a code.
-- **Check:** a session without its code is refused on a privileged route (403 `mfa_required`), and
-  the `auth.*` audit rows.
-- **Undo:** nothing to undo.
-
-**A5. Freeze `admin_logs`.**
-- **Check:** the file's checks, and old rows still readable at `GET /api/admin/logs?source=legacy`.
-- **Undo:** the file's grant.
-
-**A6. The shared password off.**
-- `ADMIN_LEGACY_LOGIN=off` in the local env file, then restart.
-- **Check:** 403 "retired".
-- **Undo:** remove the line and restart.
+Part A ran the same steps against a local Supabase stack. The owner dropped the local database
+(2026-11-02), so the database-level checks (the two-admin trigger, the audit hash chain, the
+bootstrap's checks 1–4) wait for Part B against the real database.
 
 ---
 
 ## Part B — at the AWS deployment
 
-Only when the whole project is complete, against the production database. The detail below is for
-that day.
+Against the real database: when panels resume (then "deploy" in B2 means running the app locally
+on `.env.local`), and again at the AWS deployment.
 
 ### B1. Apply the SQL migrations
 

@@ -1,34 +1,35 @@
 # TimesPrime — Session Handoff
 
-> **⚠ Nothing is deployed until the whole project is complete (owner decision, 2026-11-02).** Ignore
-> any earlier Vercel deployment; the target is AWS (`ap-south-1`), at the end. All verification is
-> local, and **never against the database `.env.local` points at**, which may be production: Panel 0's
-> migrations, bootstrap and smoke tests wait for a local database (§2). Since `78e58b6` every admin
-> change writes `audit_log` first and refuses with 503 without it, so the app needs Panel 0's
-> migrations wherever it runs.
+> **⚠ Superseded (owner, 2026-11-02, later):** the owner's senior asked for a deployment now. The
+> release is prepared on `release/v1` (hosting chosen in its R0); panel work is paused until then.
+>
+> **The real database (owner decision, 2026-11-02).** `.env.local` holds the real database's
+> credentials, and the app uses them. The local database was dropped. **Never read, print or edit
+> `.env.local`.** You never write to the real database yourself: no SQL, no migrations, no
+> bootstrap, no test users, no destructive or tamper tests. The app's normal behaviour (reading news,
+> ingesting articles, caching scraped content) is fine. Browser tests are read-only. A schema change
+> is an owner action in a runbook. Since `78e58b6` every admin change writes `audit_log` first and
+> refuses with 503 without it, so the admin needs Panel 0's migrations wherever it runs.
 >
 > **Branch rule:** all work happens on a branch (`panel-N-<name>`, `fix/<topic>`, `chore/<topic>`),
 > and only that branch is pushed. Nothing is pushed to `main` directly: a branch is merged into
 > `main`, and `main` pushed, only after the owner approves.
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
-**State as of:** 2026-11-04. **This branch is on hold:** the owner chose to finish `release/v1` on
-`main` first (Vivek), with AWS hosting instead of Vercel; this plan is ported onto `main` after it.
-`main` meanwhile took a different layout (`chore/four-folders`), so this branch is a reference, not a
-merge candidate. **Panel 0 (Access foundation) is complete on the branch
-`panel-0-access`** and awaits the owner's approval to merge; its first half is on `main`
-([`PANEL_DOCS.md`](PANEL_DOCS.md), §4). None of its SQL is applied yet. **On top of it, the branch
-`chore/restructure`** (local, 8 commits, not pushed) holds:
-- restructure 3, the standard `src/` layout and the cleanup (ADR 0004);
-- the owner-approved build plan [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md) and its research
-  ([`RESEARCH.md`](RESEARCH.md)), with `PANEL_PLAN.md` and the PRD retired (the matrix lives on in
-  [`PERMISSIONS.md`](PERMISSIONS.md));
-- **restructure 4**, the plan's Phase C: `apps/web`, `apps/admin`, `apps/worker` over
-  `packages/server`, `packages/shared` and `packages/ui` ([ADR 0005](adr/0005-apps-and-packages.md)).
-
-It merges into `panel-0-access` once the owner approves, so Panel 0 finishes in the new layout.
-50 suites, 753 tests passing; every old route present across the two apps. Before it, two
+**State as of:** 2026-11-04. The branch `chore/integrate` brings three lines of work into `main` in
+one pull request: `main` itself (`release/v1`), Panel 0's second half (`panel-0-access`), and
+`chore/restructure` (the owner-approved plan [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md), its research
+[`RESEARCH.md`](RESEARCH.md), the access rules in [`PERMISSIONS.md`](PERMISSIONS.md), and the
+apps/packages split, [ADR 0005](adr/0005-apps-and-packages.md)). **Panel 0 (Access foundation) is
+complete in code** ([`PANEL_DOCS.md`](PANEL_DOCS.md), §4) and paused for `release/v1`. None of its
+SQL is applied. Its database-level checks (the two-admin trigger, the audit hash chain, the
+bootstrap) are **unverified**: the owner verifies them against the real database with
+[`runbooks/staff-access.md`](runbooks/staff-access.md), Part B, when panels resume. Before it, four
 restructures and all five audit phases were done:
+- **Restructure 4** (the plan's Phase C, ADR 0005): `apps/web`, `apps/admin` and `apps/worker` over
+  `packages/server`, `packages/shared` and `packages/ui`.
+- **Restructure 3** ([ADR 0004](adr/0004-standard-src-layout.md), superseded by ADR 0005): the
+  standard `src/` layout and the cleanup.
 - **Audit Phases 1–5** fixed the 28 audit findings. None is open: 22 are resolved, 5 await a check
   that needs production or the owner, and 1 (F-028) is partial. Status per finding:
   [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md).
@@ -37,19 +38,22 @@ restructures and all five audit phases were done:
 - **Restructure 1** (Phases A–E, [ADR 0001](adr/0001-feature-first-structure.md), now superseded)
   came before it.
 
-**Next:** the first phase in the Progress table of [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md) that is not
-Done. Today that is **Phase A**:
-1. The owner approves `chore/restructure`; it is pushed and merged into `panel-0-access`.
-2. **A local database** (Supabase CLI stack in Docker; not set up yet). Until it runs, no Panel 0
-   migration, bootstrap or staff sign-in is run anywhere.
-3. **Finish Panel 0 locally:**
-   - `staff-access.md` step by step against the local database;
-   - definition-of-done items 7–13 (real-database tests in `npm run test:db`, end-to-end browser
-     tests, states, accessibility, Sentry, the JS budget in CI, a runbook).
-4. The owner approves; `panel-0-access` is merged into `main`.
-
-Then Phase B (`fix/aggregator-off`, then `fix/audit-closeout`: F-028/BL-028, the local SQL checks for
-F-006/F-008/F-018, the F-002 check, BL-030), then Panel 1.
+**Next:**
+1. **`release/v1`** on `main`, in the apps/packages layout. Panels are paused meanwhile.
+2. **When panels resume, finish Panel 0** (the plan's Phase A):
+   - the owner applies the SQL and runs `staff-access.md` Part B against the real database, which
+     verifies the two-admin trigger, the audit hash chain and the bootstrap;
+   - what is done of definition-of-done items 7–13, and what is not, is in PANEL_DOCS (Panel 0,
+     "Tests and verification").
+3. The owner approves Panel 0 as Done.
+4. **Phase B:** `fix/aggregator-off`, then `fix/audit-closeout`:
+   - F-028 / BL-028 (theme ternaries);
+   - the local SQL checks for F-006, F-008 and F-018;
+   - the F-002 fallback check;
+   - BL-030 (lazy-load the chatbot);
+   - BL-032 (A2 for new pages).
+5. Then Panel 1, on `panel-1-administration` (granting roles in the app, the access review,
+   retiring the shared password).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are [`PERMISSIONS.md`](PERMISSIONS.md); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
@@ -100,8 +104,8 @@ Check `/api/health` before assuming the database is either up or down.
 | `docs/README.md` | **Entry point.** What to read, in what order |
 | `docs/architecture.md` | The flows, the layout (where each kind of code lives), and the import rules |
 | `docs/AUDIT-FINDINGS.md` | The 28 audit findings, each with its status and fixing commit, and the `npm audit` history |
-| `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..BL-034) |
-| `docs/runbooks/apply-database.md` | Apply the SQL files in order, verify each, roll back each: on a local database now, on production at the AWS deployment |
+| `docs/BACKLOG.md` | Deferred debt with the reason for each deferral (BL-001..BL-037) |
+| `docs/runbooks/apply-database.md` | Apply the SQL files in order, verify each, roll back each (an owner action) |
 | `docs/NEWSROOM_PLAN.md` | **The build plan.** The phases from Panel 0 to launch and after, their order, owner tasks and the sign-off |
 | `docs/PERMISSIONS.md` | **For the back office.** Panels, roles, the permission matrix (the catalogue SQL is generated from it), four-eyes and MFA rules, data model |
 | `docs/PANEL_DOCS.md` | Back-office progress (panels 0–9) and each finished panel's record, from one template. **Panel 0 is written up there** |
@@ -124,7 +128,7 @@ There is also a published audit artifact (28 findings, severity-filterable):
 | Node / npm | v24.19.0 / 11.17.0. **Node 24 everywhere** since `974b255`: `.node-version`, `engines` `24.x`, CI |
 | Dependencies | Installed via `npm ci` |
 | Dev server | **Stopped** during both restructures (its Turbopack watcher can lock files during `git mv`). `npm run dev` to start |
-| Local database | **None yet.** `.env.local` may point at production, so nothing that writes (Panel 0's SQL, the bootstrap, a smoke test that signs in or changes data) may run with it. A local Supabase is proposed to the owner (Docker stack, or a separate dev project), with a guard that refuses any run whose Supabase URL is not the local one |
+| Database | **The real one, in `.env.local`** (owner, 2026-11-02; the local database was proposed, set up, and dropped: `d587e56`, reverted in `67359e6`). Never read, print or edit `.env.local`. Never write to the database yourself; the app's normal reads, ingestion and caching are fine. Browser tests are read-only |
 | Deployment | **None until the project is complete.** Then AWS, `ap-south-1` (§11) |
 | Line endings | **CRLF** in a Windows working tree (`core.autocrlf=true`); LF on the owner's macOS checkout. The index is LF |
 | Git identity | Set locally for this repo: `Vivek Singh <vivektech.dev25@gmail.com>`. Not global |
@@ -133,22 +137,24 @@ There is also a published audit artifact (28 findings, severity-filterable):
 npm run dev               # the reader site (apps/web), http://localhost:3000
 npm run dev:admin         # the back office (apps/admin), http://localhost:3001/admin
 npm run job -- <name>     # a worker job (apps/worker); refresh-news writes to the configured database
-npm run verify            # THE GATE: typecheck -> lint -> test -> build. All four
+npm run verify            # THE GATE: typecheck -> lint -> test -> build -> check:js-budget
+npm run test:e2e          # Playwright (Chromium), read-only, against production builds of both apps
+npm run check:js-budget   # each route's client JS against scripts/js-budget.json (needs a build)
 npm run typecheck         # tsc --noEmit, for every app, every package and the root
 npm run lint              # eslint, including the boundary rules (eslint.config.mjs)
 npm test                  # jest
 npm run test:ci           # jest with coverage
 ```
 
-**Baselines at the end of Panel 0, on the branch `panel-0-access` (2026-11-02).** Compare against these after any change:
+**Baselines at the pause of Panel 0, on the branch `panel-0-access` (`1a215a0`, 2026-11-02).** Compare against these after any change:
 
 | Measure | Value |
 |---|---|
-| Routes | **30** in `next build`'s route table (Panel 0 added `/api/admin/me` and `/api/admin/mfa`). Compare a structural change's table against the one before it |
-| Client JS | **981,592 bytes** in 18 chunks (976,061 at the audit close-out). Per route: `/admin` 164,101 · `/article/[slug]` 141,655 · `/` 125,795 · `/saved` 113,333 · `/contact` 100,601 · `/about`, `/privacy`, `/terms` 97,443 each · `/admin/login` 35,623 · `/_not-found` 28,259. Panel 0 changed only the two admin pages: `/admin` +1,658 (the clear button out, `/me` and the permission checks in), `/admin/login` +3,873 (staff sign-in and the MFA steps) |
+| Routes | **30**, identical to `_baseline-routes.txt` (Panel 0 added `/api/admin/me` and `/api/admin/mfa`) |
+| Client JS | **981,876 bytes** in 18 chunks (976,061 at the audit close-out). Per route (entry chunks only): `/admin` 164,372 · `/article/[slug]` 141,655 · `/` 125,795 · `/saved` 113,333 · `/contact` 100,601 · `/about`, `/privacy`, `/terms` 97,443 each · `/admin/login` 35,636 · `/_not-found` 28,259. Panel 0 changed only the two admin pages: `/admin` +1,929 (the clear button out, `/me` and the permission checks in; then +271 for the role, id and aria-label attributes), `/admin/login` +3,886 (staff sign-in and the MFA steps; then +13 for `role="alert"`). The JS budget (`scripts/js-budget.json`) counts each route with the shared framework chunks: `/admin` 753,710 of 791,552, `/admin/login` 624,974 of 656,384 |
 | CSS | **93,942 bytes**, one file, 927 selectors (+6 in Panel 0, for the notices and the code field) |
-| Tests | **47 suites, 736 tests**, all passing |
-| Coverage | **93 files**, measured before restructure 3 removed the shims: 60.07% of statements (8,635 of 14,374), 74.98% of branches, 74.35% of functions. `backend/` + `shared/`: 78.02% (5,514 of 7,067). `apps/admin/src/proxy.ts`: 100% (it was 0%) |
+| Tests | **49 suites, 757 tests**, all passing. Browser tests: **10**, read-only (`npm run test:e2e`) |
+| Coverage | **93 files** (the shims excluded): 60.07% of statements (8,635 of 14,374), 74.98% of branches, 74.35% of functions. `backend/` + `shared/`: 78.02% (5,514 of 7,067). `proxy.ts`: 100% (it was 0%) |
 | Lint | **0 errors, 13 warnings** (all in source; BL-002 accounts for two) |
 | Boundaries | Lint zones (`eslint.config.mjs`) and `import "server-only"` on every `packages/server/src/` module; `check:boundaries` was removed in restructure 3 |
 | `npm audit` | **37: 0 critical, 0 high, 34 moderate, 3 low**. The moderates are dev and build tooling (BL-031); the lows are the accepted jest set |
@@ -167,6 +173,12 @@ each · `/admin/login` 35,541 · `/_not-found` 28,175; CSS **93,939 bytes**, byt
 **23,705** (was 35,541). CSS: web 83,122 bytes, admin 47,737. 50 suites, 753 tests; lint 0 errors,
 13 warnings. Measure each app from its own folder (`apps/<app>/.next`).
 
+**After Panel 0's second half joined the split (`chore/integrate`):** 52 suites, 774 tests; 10
+browser tests (web runs `reader.spec`, admin `admin-access` and `accessibility`). The JS budget
+counts each route with the shared framework chunks, per app: web `/` 713,895 · `/article/[slug]`
+730,152 · `/saved` 701,733 · `/contact` 689,029 · `/about`, `/privacy`, `/terms` 685,592 each;
+admin `/admin` **668,614** (was 753,710 in one app) · `/admin/login` **611,836** (was 624,974).
+
 Client JS is the sum of `.next/static/chunks/**/*.js`. A route's JS is the chunks listed in
 `entryJSFiles` of its `.next/server/app/**/page_client-reference-manifest.js`. Chunk bytes move
 when module ids do (§3.17).
@@ -174,8 +186,10 @@ when module ids do (§3.17).
 ```
 tsc --noEmit             exit 0
 eslint                   exit 0   (0 errors, 13 warnings)
-jest --ci                47 suites, 736 tests passed
-next build               exit 0   (30 routes)
+jest --ci                52 suites, 774 tests passed
+next build               exit 0   (web 15 routes, admin 16 plus the proxy)
+check:js-budget          exit 0   (13 routes in 2 apps within budget)
+playwright test          10 passed (read-only)
 ```
 
 ---
@@ -428,7 +442,10 @@ Tests first for authorization code; characterization first for untested UI and t
 | Step 2, design | `e9bce19`, `6bcfb4e` | BL-033; the design and ADR 0003 |
 | First half, on `main` | `38ac276`..`f357d71` | The approval; BL-034; supabase-js 2.116.0; the access SQL; `decide` and `scope`; the shared password's end date; `requirePermission` with `@supabase/ssr` 0.12.7; every admin route wired, one per commit; the route walk; the cron as `system:cron`; `logAdminAction` deleted |
 | Warning on `main` | `c35637f` | `main` is not deployable until the migrations are applied |
-| Second half, branch `panel-0-access` | `d1bff91`..this file | The bulk limit test; the proxy (characterized, then both sessions); `/me` and `/mfa`; staff sign-in and sign-out; the activity log read-only; the dashboard by `/me`; the sign-in page with MFA; CODEMAP; the runbooks; architecture; PANEL_DOCS; this file |
+| Second half, branch `panel-0-access` | `d1bff91`..`e7bb6a8` | The bulk limit test; the proxy (characterized, then both sessions); `/me` and `/mfa`; staff sign-in and sign-out; the activity log read-only; the dashboard by `/me`; the sign-in page with MFA; CODEMAP; the runbooks; architecture; PANEL_DOCS; this file |
+| Decisions and the local database, `panel-0-access` | `1462892`..`4de377c`, `d587e56` | The branch rule, no deployment until the end, the definition of done 7–13; the dev dependencies; the local database setup |
+| The local database dropped, `panel-0-access` | `67359e6`, `ca21217` | `d587e56` reverted; `supabase` and `pg` removed |
+| Paused for `release/v1`, `panel-0-access` | `1a215a0`, then this file | Read-only browser tests, Sentry captures, states and labels, the JS budget, the sign-in runbook (WIP); HANDOFF and PANEL_DOCS |
 
 Every commit passed `npm run verify` before it was made, except `ebb7049`, whose tree failed
 `check:boundaries` (§3.23). It was reverted, not patched. Six second-half commit messages state the
@@ -581,7 +598,7 @@ server code out of the browser and the apps apart.
   only that branch is pushed. Nothing reaches `main` without the owner's approval.
 - **A production-level standard:** a panel is done only with items 7–13 of CLAUDE.md's definition
   of done as well:
-  - real-database tests against the local Supabase;
+  - real-database tests against the local Supabase (the local database was dropped since: see §2);
   - end-to-end browser tests, including a refused-access flow;
   - loading, error and empty states;
   - accessibility;
@@ -590,7 +607,9 @@ server code out of the browser and the apps apart.
   - a runbook for when the main flow breaks.
 - **The audit's remaining items** wait for Panel 0's merge, then go on `fix/audit-closeout` (§ "Next").
 - **Deployment:** none until the whole project is complete. Ignore the earlier Vercel deployment.
-  The target is AWS, `ap-south-1`. All verification is local, against a local database.
+  The target is AWS, `ap-south-1`. All verification is local.
+- **The real database (later the same day):** `.env.local` holds its credentials and the app uses
+  them; the local database was dropped. Never write to it yourself; browser tests are read-only (§2).
 
 **Panel 0 (2026-11-02).** All recorded in the design's "Approval" section and in
 [`PANEL_DOCS.md`](PANEL_DOCS.md):
@@ -642,7 +661,7 @@ contact-form collection that no longer happens. Legal copy, for the owner or leg
 ## 11. Before the AWS deployment
 
 Nothing is deployed until the whole project is complete (owner decision, 2026-11-02). This list is
-for that day. Until then every check is made locally, against a local database (§2).
+for that day. Until then every check is made locally (§2).
 
 **AWS.**
 - **Region:** `ap-south-1` (Mumbai), for the app and for its logs. CERT-In's directions keep logs for
@@ -681,8 +700,7 @@ database, then done once more against the production database at deployment, in 
 5. Re-run the F-006 injection probe, and an RLS check, against the live database.
 
 **Environment:**
-- `.env.local` names the Supabase project `yhjotyxrdaqtcgsxigok`, which may be production. Until the
-  local database exists, no local run may write (§2, §3.18).
+- `.env.local` holds the real database (§2). The app uses it; nothing else writes to it.
 - On AWS: Node 24 (F-026), `NEXT_PUBLIC_SENTRY_DSN`, the Upstash variables, and the worker's
   scheduler. No production cron entry has ever been seen in the database.
 - Owner's `.env.local`: `ADMIN_SECRET_TOKEN` and `MEDIASTACK_API_KEY` can go; nothing reads them.

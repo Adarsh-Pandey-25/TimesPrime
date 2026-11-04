@@ -15,7 +15,7 @@ the same piece of work.
 
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
-| 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress** on `panel-0-access`: built and tested with mocks; the local-database run and definition-of-done items 7–13 remain | — | `e9bce19`..`f357d71` on `main`, the rest on the branch; [list](#commits) |
+| 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1` on `panel-0-access`: built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71` on `main`, the rest on the branch; [list](#commits) |
 | 1 | Administration: users, role assignments with scope and expiry, access review | Planned | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | Planned | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
@@ -242,16 +242,50 @@ history, no longer written.
 | `packages/server/src/auth/staffSession.test.ts`, `apps/admin/src/proxy.test.ts` | Who is asking; the proxy accepts both sessions; cookie flags | Forged or signed-out JWTs, errors, the legacy end date |
 | `apps/admin/src/app/api/admin/login/route.test.ts`, `logout.test.ts`, `me.test.ts`, `mfa.test.ts` | Sign-in, sign-out, `/me`, the second factor | Wrong credentials, not staff, suspended, wrong code, rate limits, the legacy end date and kill switch |
 | `packages/shared/src/config/permissions.test.ts`, `packages/server/src/repositories/accessSchema.test.ts` | The catalogue equals the matrix cell for cell; the SQL's guarantees | — |
-| `apps/admin/src/app/admin/page.test.tsx`, `apps/admin/src/app/admin/login/page.test.tsx`, `apps/admin/src/components/ActivityLog.test.tsx` | What the UI shows for each user; the sign-in steps; no clear button | Hidden widgets for missing permissions |
+| `apps/admin/src/app/admin/page.test.tsx`, `apps/admin/src/app/admin/login/page.test.tsx`, `apps/admin/src/components/ActivityLog.test.tsx` | What the UI shows for each user; the sign-in steps; no clear button; each screen's loading, error and empty state | Hidden widgets for missing permissions |
+| `apps/admin/src/components/labels.test.tsx` | Every select on `/admin` has an accessible name | — |
+| `e2e/admin-access.spec.ts` (Playwright) | Signed out: `/admin` redirects to sign-in | Five admin routes answer 401 |
+| `e2e/accessibility.spec.ts` (Playwright, axe) | The sign-in page meets WCAG 2.1 AA (the site chrome excluded, BL-037) and works by keyboard | — |
+| `e2e/reader.spec.ts` (Playwright) | The front page lists stories that link to their pages | — |
+| `scripts/check-js-budget.test.ts` | The per-route JS budget's rules | Over budget, no budget, a stale budget |
 
-At the branch's last code commit: `npm run verify` exits 0. That is 47 suites and 736 tests, lint 0
-errors and 13 warnings, 0 boundary violations, and the build, with the route table at 30 URLs,
-identical to the baseline. CI is green on the branch. The database behaviour (triggers, the chain)
-cannot run in jest; the owner's verification queries prove it, including two that must fail.
+The browser tests are **read-only** (owner rule, 2026-11-02): locally the app uses the real
+database, so no test signs in or writes. Staff sign-in, MFA and the audited actions are covered by
+the unit tests with Supabase stubbed, and by the owner's check by hand.
+
+At the pause (`1a215a0`): `npm run verify` exits 0: 49 suites and 757 tests, lint 0 errors and 13
+warnings, 0 boundary violations, the build with the route table at 30 URLs, identical to the
+baseline, and every route within its JS budget. `npm run test:e2e`: 10 passed.
+
+**Unverified: the database-level checks.** The two-admin trigger, the audit log's append-only
+triggers and hash chain (`audit_verify_chain()`, and its failure after a tamper), and the
+bootstrap's checks 1–4 have not run against a database. jest cannot run them. A local database was
+set up to run them, then dropped by the owner (2026-11-02) before its results were kept. The owner
+verifies them against the real database with the verification queries in each SQL file and
+[`runbooks/staff-access.md`](runbooks/staff-access.md), Part B, when panels resume.
+
+Definition of done (CLAUDE.md), at the pause:
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Features work; this entry matches the code | Built; the staff flows are proven with stubbed Supabase only |
+| 2 | Server-side permission on every route and action; allowed and denied tests | Done (`access.test.ts`, the route walk) |
+| 3 | Privileged actions audited; MFA where the plan says | In the code and unit-tested; the database side unverified |
+| 4 | `npm run verify` and CI green; routes, JS and CSS reported | Verify green; CI on the pushed branch |
+| 5 | SQL in migrations with a rollback, listed as an owner action | Done (Database changes, above) |
+| 6 | PANEL_DOCS, HANDOFF, CODEMAP updated | PANEL_DOCS and HANDOFF at the pause; CODEMAP not regenerated since |
+| 7 | Real-database tests | **Not done**: the local database was dropped; the owner's check by hand instead |
+| 8 | End-to-end tests of the critical flows, with a refused-access flow | Partly: read-only (refused access, the sign-in page, the reader); sign-in and MFA in a browser cannot be read-only |
+| 9 | Loading, error and empty states | Done, with tests |
+| 10 | Accessibility (keyboard, labels) | Done for the sign-in page (axe, keyboard) and the labels on `/admin`; the signed-in dashboard is not checked by axe (it needs a sign-in) |
+| 11 | Failures reach Sentry; privileged actions audited | Done in the code, with tests |
+| 12 | A JS budget per route in CI | Done (`scripts/check-js-budget.mjs`, in verify and CI) |
+| 13 | A runbook for when the main flow breaks | Done ([`runbooks/sign-in-broken.md`](runbooks/sign-in-broken.md)) |
 
 #### Known limits and not yet built
 
 - **Not applied:** none of the SQL is applied yet, and `main` is not deployable until it is (HANDOFF).
+- **Not verified against a database:** the triggers, the hash chain and the bootstrap (above).
 - **Panel 1:**
   - granting and revoking roles in the app (until then, only the owner's bootstrap and SQL);
   - break-glass grants with their alert;

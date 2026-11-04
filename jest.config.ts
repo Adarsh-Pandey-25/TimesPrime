@@ -18,6 +18,8 @@ async function project(name: string, nextDir: string, root: string, alias?: stri
     displayName: name,
     rootDir: process.cwd(),
     roots: [`<rootDir>/${root}`],
+    // e2e/ is Playwright's (npm run test:e2e), not the unit suite.
+    testPathIgnorePatterns: ["/node_modules/", "/.next/", "<rootDir>/e2e/"],
     testEnvironment: "jsdom",
     setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
     moduleNameMapper: { ...(alias ? { "^@/(.*)$": `<rootDir>/${alias}/$1` } : {}), ...PACKAGES },
@@ -45,6 +47,7 @@ export default async function config(): Promise<Config> {
       await project("admin", "./apps/admin", "apps/admin", "apps/admin/src"),
       await project("worker", "./apps/web", "apps/worker"),
       await project("packages", "./apps/web", "packages"),
+      await project("scripts", "./apps/web", "scripts"),
     ],
   };
 }

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import {
   ADMIN_SESSION_COOKIE,
   createSessionToken,
@@ -116,6 +117,7 @@ async function staffSignIn(request: NextRequest, email: unknown, password: unkno
     record = await loadStaffRecord(userId);
   } catch (err) {
     console.error("Staff record lookup failed at sign-in:", err);
+    Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "loadStaffRecord", at: "sign-in" } });
     await client.auth.signOut({ scope: "local" });
     return NextResponse.json({ error: "Could not check your account. Try again." }, { status: 503 });
   }

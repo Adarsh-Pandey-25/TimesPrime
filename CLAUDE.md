@@ -50,7 +50,8 @@
   4. `npm run verify` and CI are green; routes, JS and CSS reported.
   5. SQL is in migration files with a rollback, listed as an owner action.
   6. `docs/PANEL_DOCS.md`, `docs/HANDOFF.md` and `docs/architecture.md` are updated.
-  7. Real-database tests run against the local Supabase, not only mocks.
+  7. Database tests against the real database are read-only. The database's own rules (triggers,
+     audit hash chain, bootstrap) are verified by the owner via the runbook.
   8. End-to-end browser tests cover the critical flows, including a refused-access flow.
   9. Every screen has loading, error and empty states.
   10. Accessibility is checked (keyboard, labels).
@@ -70,13 +71,14 @@
 - **Never push to `main` directly.** A branch reaches `main` only after the owner approves: then merge
   it into `main` and push `main`.
 
-## Deployment: none until the project is complete
+## Deployment and the database
 
-- **Nothing is deployed** until the whole project is done (owner decision, 2026-11-02). All
-  verification is local. A staging environment on AWS is allowed before that (owner sign-off,
-  4 Nov 2026; plan Phase I).
-- **The target is AWS**, region `ap-south-1` (CERT-In: logs kept in India): the two apps on ECS, and
-  the worker as a task EventBridge starts every 30 minutes. Vercel is not used.
-- **Never run a migration, bootstrap, smoke test or worker job against the database `.env.local`
-  points at**: it may be production. Local runs use a local database
-  ([`docs/HANDOFF.md`](docs/HANDOFF.md) §2).
+- **A deployment now** (owner, 2026-11-02): the owner's senior asked for one; it is built as the
+  release (`release/v1`, phases R0–R4). **Hosting is AWS**, region `ap-south-1` (owner, 4 Nov 2026,
+  replacing R0's Vercel): the two apps on ECS, and the worker as a task EventBridge starts every
+  30 minutes.
+- **The real database:** the env file holds its credentials and the app uses them. Never read,
+  print or edit an env file. Never write to the database yourself: no SQL, migrations, bootstrap,
+  test users, destructive tests or worker jobs. Schema changes are owner actions in a runbook. The
+  app's normal behaviour (reading, ingesting, caching scraped content) is fine. End-to-end tests are
+  read-only.

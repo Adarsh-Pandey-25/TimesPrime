@@ -27,3 +27,4 @@ Written:
 
 - [`apply-database.md`](apply-database.md) — apply the SQL files in `database/` in order, and verify each. Restoring the schema follows the same steps.
 - [`staff-access.md`](staff-access.md) — switch on Panel 0 in order (migrations, deploy, bootstrap Super Admins, staff sign-in, freeze `admin_logs`, and only then the shared password off), and get back in when locked out.
+- [`sign-in-broken.md`](sign-in-broken.md) — staff sign-in or an admin action is failing: by what the person sees, the cause, how to confirm it and what to do, with the Sentry operation each failure reports.

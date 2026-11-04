@@ -177,7 +177,7 @@ export default function AdminLoginPage() {
         </div>
 
         {error && (
-          <div className="flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 dark:border-red-900/50 dark:bg-red-950/40 p-3 text-xs font-semibold text-red-700 dark:text-red-300">
+          <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 dark:border-red-900/50 dark:bg-red-950/40 p-3 text-xs font-semibold text-red-700 dark:text-red-300">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {error}
           </div>

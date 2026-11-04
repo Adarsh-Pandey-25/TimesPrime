@@ -48,3 +48,35 @@ test("there is no way to clear the log, and nothing ever sends a DELETE (Q6)", a
   const methods = (global.fetch as jest.Mock).mock.calls.map(([, init]) => (init as RequestInit | undefined)?.method ?? "GET");
   expect(methods.every((m) => m === "GET")).toBe(true);
 });
+
+describe("its states", () => {
+  test("loading: announced as a status, not only grey boxes", async () => {
+    global.fetch = jest.fn(() => new Promise(() => {})) as unknown as typeof fetch;
+    render(
+      <ThemeProvider>
+        <ActivityLog />
+      </ThemeProvider>
+    );
+    expect(screen.getByRole("status", { name: "Loading activity" })).toBeInTheDocument();
+  });
+
+  test("empty: says there is nothing yet", async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ logs: [], total: 0, page: 1, totalPages: 1 }) })) as unknown as typeof fetch;
+    await renderLog();
+    expect(screen.getByText("No activity recorded yet")).toBeInTheDocument();
+  });
+
+  test("a refusal or a server error: the server's message, as an alert", async () => {
+    global.fetch = jest.fn(async () => ({ ok: false, status: 403, json: async () => ({ error: "You don't have permission for this action." }) })) as unknown as typeof fetch;
+    await renderLog();
+    expect(screen.getByRole("alert")).toHaveTextContent("You don't have permission for this action.");
+  });
+
+  test("a network failure: its own message, as an alert", async () => {
+    global.fetch = jest.fn(async () => {
+      throw new TypeError("fetch failed");
+    }) as unknown as typeof fetch;
+    await renderLog();
+    expect(screen.getByRole("alert")).toHaveTextContent("Network error while loading activity log.");
+  });
+});

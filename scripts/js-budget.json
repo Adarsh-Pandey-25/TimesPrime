@@ -1,0 +1,20 @@
+{
+  "$comment": "Raw client JS bytes per page route, per app (scripts/check-js-budget.mjs). Each budget is the size measured on 2026-11-04, after the apps/packages split, plus 5%, rounded up to the next KiB. Raise one only with an evidenced cause.",
+  "web": {
+    "/_global-error/page": 633856,
+    "/_not-found/page": 648192,
+    "/about/page": 719872,
+    "/article/[slug]/page": 766976,
+    "/contact/page": 723968,
+    "/page": 750592,
+    "/privacy/page": 719872,
+    "/saved/page": 737280,
+    "/terms/page": 719872
+  },
+  "admin": {
+    "/_global-error/page": 632832,
+    "/_not-found/page": 633856,
+    "/admin/login/page": 643072,
+    "/admin/page": 702464
+  }
+}
