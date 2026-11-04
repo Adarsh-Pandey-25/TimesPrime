@@ -3,6 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "job": "tsx --conditions=react-server --env-file-if-exists=../../.env.local src/index.ts"
+    "job": "tsx --conditions=react-server --env-file-if-exists=../../.env src/index.ts"
   }
 }

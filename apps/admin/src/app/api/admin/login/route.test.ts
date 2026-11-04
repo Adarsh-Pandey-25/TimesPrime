@@ -94,7 +94,10 @@ describe("POST /api/admin/login — unchanged behaviour", () => {
 
   test("503 when login is not configured", async () => {
     delete process.env.ADMIN_PASSWORD;
-    expect((await attempt("anything", nextIp())).status).toBe(503);
+    const res = await attempt("anything", nextIp());
+    expect(res.status).toBe(503);
+    // It names the env file the owner actually has (BL-036): the root .env.
+    expect((await res.json()).error).toBe("Admin login is not configured. Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in .env.");
   });
 });
 

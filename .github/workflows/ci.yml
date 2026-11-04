@@ -64,7 +64,7 @@ jobs:
   e2e:
     name: browser tests (read-only)
     # Definition of done, item 8: the browser tests against a production build. They are read-only
-    # (owner rule, 2026-11-02), and the runner has no .env.local, so the apps run without Supabase.
+    # (owner rule, 2026-11-02), and the runner has no .env, so the apps run without Supabase.
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -87,7 +87,6 @@ jobs:
         # The build evaluates next.config.ts, which reads these (see the verify job's Build step).
         env:
           NEXT_PUBLIC_APP_URL: https://example.com
-          NEXT_PUBLIC_BASE_URL: http://localhost:3100
         run: npm run test:e2e
 
       - name: Upload the Playwright report

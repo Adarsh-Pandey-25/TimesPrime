@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
 const legacyNotConfigured = () =>
   NextResponse.json(
-    { error: "Admin login is not configured. Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in .env.local." },
+    { error: "Admin login is not configured. Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in .env." },
     { status: 503 }
   );
 
