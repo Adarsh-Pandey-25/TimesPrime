@@ -1,8 +1,8 @@
 -- TimesPrime: Panel 0, the access foundation. Staff accounts, roles, permissions, role assignments,
--- and the append-only audit log. Design: docs/design/panel-0-access-foundation.md §1 and §6.
+-- and the append-only audit log. Design: Panel 0's design in docs/PANEL_DOCS.md, §1 and §6.
 --
 -- The owner applies this in Dashboard -> SQL Editor (as postgres), BEFORE deploying Panel 0, then
--- 2026-11-02-access-2-catalog.sql. Steps, checks and rollback: docs/runbooks/apply-database.md.
+-- 2026-11-02-access-2-catalog.sql. Steps, checks and rollback: docs/OPERATIONS.md, Runbooks.
 -- Idempotent: tables and indexes are IF NOT EXISTS, functions are CREATE OR REPLACE, triggers are
 -- dropped before they are created, and the grants are restated in full. Safe to re-run.
 --

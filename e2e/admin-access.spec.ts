@@ -1,6 +1,6 @@
 // The refused-access flow, read-only: nothing here signs in, so nothing is written to the database
 // (owner rule, 2026-11-02: e2e tests against the real database are read-only). The staff sign-in,
-// MFA and audit flows are verified by the owner with docs/runbooks/staff-access.md.
+// MFA and audit flows are verified by the owner with the staff-access runbook (docs/OPERATIONS.md).
 
 import { expect, test } from "@playwright/test";
 

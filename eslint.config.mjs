@@ -22,7 +22,7 @@ const serverOnlyFirst = {
   },
 };
 
-// Import boundaries (docs/architecture.md, "Import rules"). Paths are resolved, so
+// Import boundaries (docs/ARCHITECTURE.md, "Import rules"). Paths are resolved, so
 // "@timesprime/server/x" and "../../packages/server/src/x" are the same import.
 const CLIENT_SAFE = [
   "./apps/web/src/components",
@@ -116,7 +116,7 @@ const eslintConfig = defineConfig([
       // changes render timing — a behavior change on files that have zero
       // test coverage today. They are scheduled for Phase 6, once
       // characterization tests exist to prove the rewrite is equivalent.
-      // Do not re-enable as "error" before then. See docs/BACKLOG.md (BL-002).
+      // Do not re-enable as "error" before then. See docs/OPERATIONS.md, Backlog (BL-002).
       "react-hooks/set-state-in-effect": "warn",
     },
   },

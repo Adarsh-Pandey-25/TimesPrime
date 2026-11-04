@@ -4,7 +4,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-// Nothing is excluded: since the split (ADR 0005) the sign-in page is in the back office, which does
+// Nothing is excluded: since the split (ADR 0006) the sign-in page is in the back office, which does
 // not render the public site's chrome and its contrast defects (BL-037).
 const violations = async (page: Page) => {
   const { violations } = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
