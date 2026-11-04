@@ -1,7 +1,10 @@
 # ADR 0002 — Frontend, backend, shared and database separation in one Next.js app
 
-**Status:** **Accepted** — 2026-10-30, owner approval at the S4 review. Written as a draft during
-restructure 2, recording each decision as it was taken, and finalized in S5.
+**Status:** **Superseded by [ADR 0004](0004-standard-src-layout.md)** — 2026-11-02 (proposed on
+`chore/restructure`). Restructure 3 moved the code to the standard `src/` layout. The text below is
+kept as it was written, so its paths are restructure 2's, and the scripts it links to are in git
+history only. Before that: **Accepted** — 2026-10-30, owner approval at the S4 review. Written as a
+draft during restructure 2, recording each decision as it was taken, and finalized in S5.
 **Supersedes:** [ADR 0001](0001-feature-first-structure.md)'s layout; its other lessons carry over
 (below). **Related:** [`architecture.md`](../architecture.md) (the layout and the rules, in prose),
 [`scripts/move-map.mjs`](../../scripts/move-map.mjs) (where every file went, and each slice's

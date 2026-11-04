@@ -21,5 +21,6 @@ Each record carries:
 | ADR | Decision | Status |
 |---|---|---|
 | [0001](0001-feature-first-structure.md) | Feature-first `src/` layout with layer separation and a CI-enforced boundary (restructure 1) | Superseded by 0002 |
-| [0002](0002-frontend-backend-separation.md) | One Next.js app split into `app/`, `frontend/`, `backend/`, `shared/` and `database/`, with rules F1–X1 and V1 (restructure 2) | Accepted |
+| [0002](0002-frontend-backend-separation.md) | One Next.js app split into `app/`, `frontend/`, `backend/`, `shared/` and `database/`, with rules F1–X1 and V1 (restructure 2) | Superseded by 0004 |
 | [0003](0003-primary-section-scope.md) | For permission scope, an article's section is `category[0]` (Panel 0) | Accepted |
+| [0004](0004-standard-src-layout.md) | The standard Next.js `src/` layout: routes with their code, `server-only` and four lint zones as the boundary (restructure 3) | Proposed |

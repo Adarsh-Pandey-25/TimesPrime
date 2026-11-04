@@ -76,56 +76,56 @@ primary language plus a translation afterthought.
 ## 6. Functional requirements
 
 24 requirements. Status reflects **verified behaviour**, not intent. Paths are relative to the repository root; a route or
-page is cited at its body, which the one-line file in `app/` re-exports.
+page is cited at its own `route.ts` or `page.tsx`.
 
 ### Feed and ingestion
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-001 | Fetch headlines by category from NewsData.io | `backend/services/news/newsdata.ts`, `backend/services/news/fetchNews.ts` | Implemented |
-| FR-002 | Refresh all 7 categories on a 30-minute schedule | `backend/api/cron/refresh-news.ts`, `vercel.json` | Implemented |
-| FR-003 | Serve from cache → store → upstream → mock, in that order | `backend/api/news/top-headlines.ts` | Implemented — tier 2 reachable again since 2026-10-30; its production check is pending (DEF-01) |
-| FR-004 | Persist articles on a rolling 7-day window | `backend/repositories/db.ts` → `purgeOldArticles`, run by `backend/api/cron/refresh-news.ts` | Implemented · tested — once per cron run, off the read path (`2f31bad`) |
-| FR-005 | De-duplicate by normalised title | `shared/config/newsConfig.ts` → `dedupeArticlesByTitle` | Implemented · tested |
-| FR-006 | Exclude horoscope/tarot filler, wire-spam and non-news listing sources | `shared/config/newsConfig.ts` | Implemented · tested |
-| FR-007 | Exclude hard-paywalled publishers at write time | `backend/repositories/db.ts` → `HARD_PAYWALL_SOURCE_DOMAINS` | Implemented |
-| FR-008 | Classify and suppress mis-tagged categories via LLM | `backend/services/classify/categoryClassifier.ts` | Implemented — fail-open by design |
-| FR-009 | Notify the reader when newer stories exist | `backend/api/news/check-new.ts`, `frontend/views/home/HomeClient.tsx` | Implemented |
+| FR-001 | Fetch headlines by category from NewsData.io | `src/server/services/news/newsdata.ts`, `src/server/services/news/fetchNews.ts` | Implemented |
+| FR-002 | Refresh all 7 categories on a 30-minute schedule | `src/app/api/cron/refresh-news/route.ts`, `vercel.json` | Implemented |
+| FR-003 | Serve from cache → store → upstream → mock, in that order | `src/server/services/news/topHeadlines.ts` | Implemented — tier 2 reachable again since 2026-10-30; its production check is pending (DEF-01) |
+| FR-004 | Persist articles on a rolling 7-day window | `src/server/repositories/db.ts` → `purgeOldArticles`, run by `src/app/api/cron/refresh-news/route.ts` | Implemented · tested — once per cron run, off the read path (`2f31bad`) |
+| FR-005 | De-duplicate by normalised title | `src/config/newsConfig.ts` → `dedupeArticlesByTitle` | Implemented · tested |
+| FR-006 | Exclude horoscope/tarot filler, wire-spam and non-news listing sources | `src/config/newsConfig.ts` | Implemented · tested |
+| FR-007 | Exclude hard-paywalled publishers at write time | `src/server/repositories/db.ts` → `HARD_PAYWALL_SOURCE_DOMAINS` | Implemented |
+| FR-008 | Classify and suppress mis-tagged categories via LLM | `src/server/services/classify/categoryClassifier.ts` | Implemented — fail-open by design |
+| FR-009 | Notify the reader when newer stories exist | `src/app/api/news/check-new/route.ts`, `src/components/home/HomeClient.tsx` | Implemented |
 
 ### Language
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-010 | Restrict each feed to its language by script detection | `shared/config/newsConfig.ts`, `backend/repositories/db.ts` | Implemented · tested |
-| FR-011 | Translate article text on demand | `backend/api/translate.ts`, `backend/services/translate/googleTranslate.ts` | **Partial** — unofficial endpoint; size-capped since `58c7f7d` |
-| FR-012 | Persist the language choice across visits | `frontend/context/LanguageContext.tsx` | Implemented |
+| FR-010 | Restrict each feed to its language by script detection | `src/config/newsConfig.ts`, `src/server/repositories/db.ts` | Implemented · tested |
+| FR-011 | Translate article text on demand | `src/app/api/translate/route.ts`, `src/server/services/translate/googleTranslate.ts` | **Partial** — unofficial endpoint; size-capped since `58c7f7d` |
+| FR-012 | Persist the language choice across visits | `src/context/LanguageContext.tsx` | Implemented |
 
 ### Article reading
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-013 | Extract readable full text from a publisher page | `backend/services/scrape/scrapeArticle.ts` | Implemented · tested — a failure is a 502/504, not placeholder prose (`b7f6fbc`) |
+| FR-013 | Extract readable full text from a publisher page | `src/server/services/scrape/scrapeArticle.ts` | Implemented · tested — a failure is a 502/504, not placeholder prose (`b7f6fbc`) |
 | FR-014 | Detect paywalls and show publisher metadata instead of junk | same → `detectPaywall` | Implemented · tested |
 | FR-015 | Strip author bios, nav and app-download boilerplate | same → `isJunkParagraph` | Implemented |
-| FR-016 | Refuse to fetch internal/private network addresses | `shared/validation/urlValidation.ts`, `backend/services/scrape/fetchPage.ts` | Implemented · tested — every redirect hop revalidated, connections pinned (`2e383cb`, `1145bca`) |
-| FR-017 | Always link out to the original publisher | `frontend/views/article/ArticleDetailView.tsx` | Implemented · tested — only a stored article's http(s) link is used (`8d0b775`) |
+| FR-016 | Refuse to fetch internal/private network addresses | `src/lib/urlValidation.ts`, `src/server/services/scrape/fetchPage.ts` | Implemented · tested — every redirect hop revalidated, connections pinned (`2e383cb`, `1145bca`) |
+| FR-017 | Always link out to the original publisher | `src/components/article/ArticleDetailView.tsx` | Implemented · tested — only a stored article's http(s) link is used (`8d0b775`) |
 
 ### Reader features
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-018 | Save articles device-locally and list them | `frontend/features/news/bookmarks.ts`, `frontend/views/saved/SavedView.tsx` | Implemented · tested |
-| FR-019 | Answer questions about a story, streamed | `backend/api/chat.ts` | Implemented · tested — both chat surfaces report a failure honestly (`86bdf78`) |
-| FR-020 | Provide a themed, topic-appropriate image for every card | `shared/config/topicImages.ts`, `shared/config/imageDomains.ts` | Implemented |
+| FR-018 | Save articles device-locally and list them | `src/lib/bookmarks.ts`, `src/app/saved/page.tsx` | Implemented · tested |
+| FR-019 | Answer questions about a story, streamed | `src/app/api/chat/route.ts` | Implemented · tested — both chat surfaces report a failure honestly (`86bdf78`) |
+| FR-020 | Provide a themed, topic-appropriate image for every card | `src/config/topicImages.ts`, `src/config/imageDomains.ts` | Implemented |
 
 ### Operations
 
 | ID | Requirement | Implemented in | Status |
 |---|---|---|---|
-| FR-021 | Gate every admin surface behind a session | `proxy.ts`, `backend/auth/adminSession.ts` | Implemented · tested — login rate-limited, constant-time compare (`7eb9253`) |
-| FR-022 | List, search, edit, delete and bulk-delete stored articles | `backend/api/admin/articles.ts`, `backend/api/admin/articles-bulk.ts`, `frontend/features/admin/ArticlesTable.tsx` | Implemented |
-| FR-023 | Publish an editorial article directly | `backend/api/admin/publish-article.ts` | Implemented — bypasses the filter pipeline by design |
-| FR-024 | Set a time-boxed breaking-news banner | `backend/api/admin/breaking-news.ts` | Implemented — its table is in `database/schema.sql` since `db28a46`, to be applied by the owner (DEF-07) |
+| FR-021 | Gate every admin surface behind a session | `src/proxy.ts`, `src/server/auth/adminSession.ts` | Implemented · tested — login rate-limited, constant-time compare (`7eb9253`) |
+| FR-022 | List, search, edit, delete and bulk-delete stored articles | `src/app/api/admin/articles/route.ts`, `src/app/api/admin/articles/bulk/route.ts`, `src/components/admin/ArticlesTable.tsx` | Implemented |
+| FR-023 | Publish an editorial article directly | `src/app/api/admin/publish-article/route.ts` | Implemented — bypasses the filter pipeline by design |
+| FR-024 | Set a time-boxed breaking-news banner | `src/app/api/admin/breaking-news/route.ts` | Implemented — its table is in `database/schema.sql` since `db28a46`, to be applied by the owner (DEF-07) |
 
 ## 7. Non-functional requirements
 
@@ -135,7 +135,7 @@ page is cited at its body, which the one-line file in `app/` re-exports.
 | NFR-02 | No third-party outage produces a user-visible error | Met — arguably over-met; see §11 |
 | NFR-03 | Abuse-prone endpoints are rate-limited | **Met in code.** Chat and translate per IP in memory, with eviction; login (10 per 15 min) and the public scraper (30 per min, stored articles only) on Redis with an in-memory fallback. On Redis: a production check |
 | NFR-04 | Request bodies and upstream responses are size-capped | **Met.** Chat 16 KB / 2,000 characters; translate 64 KB, 50 texts, 5,000 characters each and 10,000 in all; scraped pages 5 MB (`58c7f7d`) |
-| NFR-05 | Secrets never reach the browser or an error report | Met — `shared/validation/sentryScrub.ts` redacts nine keys; no secret is read under a `NEXT_PUBLIC_` name (the last fallback went in `45223f0`) |
+| NFR-05 | Secrets never reach the browser or an error report | Met — `src/lib/sentryScrub.ts` redacts nine keys; no secret is read under a `NEXT_PUBLIC_` name (the last fallback went in `45223f0`) |
 | NFR-06 | Stored articles are purged after 7 days | Met — once per cron run (`2f31bad`) |
 | NFR-07 | Usable at 400 px width | Appears met from the breakpoint set; **not verified in a browser** |
 | NFR-08 | Typecheck, lint, test and build pass on every commit | Met, and enforced in CI since `506a4ab` |
@@ -153,8 +153,8 @@ the restructure as firmly as any functional requirement.
 | CR-02 | `/api/cron/refresh-news` | Hard-coded in `vercel.json` today, and in the AWS scheduler at deployment; ingestion stops **silently** if moved |
 | CR-03 | The `articles` table shape | Live data exists; no migration tooling in place |
 | CR-04 | Every `process.env` name | Set in the hosting environment (AWS, at deployment), outside version control |
-| CR-05 | `proxy.ts` location and matcher semantics | Framework-pinned, and the sole authorisation boundary |
-| CR-06 | `shared/config/imageDomains.ts` importable from `next.config.ts` | Evaluated at config-load time — must never import React or `server-only` |
+| CR-05 | `src/proxy.ts` location and matcher semantics | Framework-pinned, and the sole authorisation boundary |
+| CR-06 | `src/config/imageDomains.ts` importable from `next.config.ts` | Evaluated at config-load time — must never import React or `server-only` |
 | CR-07 | Sentry and instrumentation file locations | Framework conventions; silently inert if moved |
 | CR-08 | Public GET on `/api/admin/breaking-news` | The homepage banner has no session and reads it directly |
 
@@ -163,8 +163,8 @@ the restructure as firmly as any functional requirement.
 | Table | Defined in | Status | Shape |
 |---|---|---|---|
 | `articles` | `database/schema.sql` | Committed | 15 columns. `article_id` unique. `category`/`country`/`category_mismatches` are `TEXT[]`. **Only `id`, `article_id`, `title`, `created_at` are NOT NULL** |
-| `breaking_news` | comment in `backend/api/admin/breaking-news.ts` | **Not committed** | `id`, `text`, `is_active`, `expires_at`, `created_at` |
-| `admin_logs` | comment in `backend/api/admin/logs.ts` | **Not committed** | `id`, `action`, `details`, `metadata` (JSONB), `created_at` |
+| `breaking_news` | comment in `src/app/api/admin/breaking-news/route.ts` | **Not committed** | `id`, `text`, `is_active`, `expires_at`, `created_at` |
+| `admin_logs` | comment in `src/app/api/admin/logs/route.ts` | **Not committed** | `id`, `action`, `details`, `metadata` (JSONB), `created_at` |
 
 The nullability of `link` and `pub_date` is the root of **BL-001**: `Article.link` and
 `Article.pubDate` are required strings in TypeScript, so the row mapping relies on `any` to hide
@@ -291,7 +291,6 @@ Set in `.env.local` locally, and in the AWS environment at deployment (none unti
 | `NEXT_PUBLIC_SENTRY_DSN` | optional | Error reporting; not a secret |
 | `SENTRY_AUTH_TOKEN` / `SENTRY_ORG` / `SENTRY_PROJECT` | build | Source-map upload only |
 | `NEXT_PUBLIC_APP_URL` | prod | Public origin; CORS and OpenGraph |
-| `NEXT_PUBLIC_BASE_URL` | optional | Base URL for the server's own internal fetches |
 
 `.env.local.example` lists exactly these variables, and a test keeps it in step with the code (F-009,
 `10c8b47`). `ADMIN_SECRET_TOKEN` and `MEDIASTACK_API_KEY` appear in some older `.env.local` files

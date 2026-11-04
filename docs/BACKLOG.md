@@ -10,12 +10,12 @@ commit that found it.
 ## BL-001 — `db.ts` row mapping relies on `any` to hide unhandled nulls
 
 **Found:** Phase 0b (lint baseline)
-**Files:** `backend/repositories/db.ts` — the two `.map()` calls in `saveArticlesToDB` and `getDBArticles`
+**Files:** `src/server/repositories/db.ts` — the two `.map()` calls in `saveArticlesToDB` and `getDBArticles`
 **Status:** Open · two `eslint-disable-next-line @typescript-eslint/no-explicit-any` in place
 
 `database/schema.sql` declares `link`, `pub_date`, `description`, `content`,
 `image_url`, `source_id`, `source_name`, `category`, `country` and `language` as
-nullable. `Article` (in `shared/types/index.ts`) declares `link: string` and
+nullable. `Article` (in `src/types/index.ts`) declares `link: string` and
 `pubDate: string` as required.
 
 The accurate row type (`ArticleRow`, now defined in `db.ts` and checked against
@@ -42,7 +42,7 @@ null.
 ## BL-002 — `react-hooks/set-state-in-effect` downgraded to a warning
 
 **Found:** Phase 0b (lint baseline)
-**Files:** `frontend/views/saved/SavedView.tsx:21`, `frontend/features/news/ArticleCard.tsx:83` (the two warnings `npm run lint` reports)
+**Files:** `src/app/saved/page.tsx:21`, `src/components/news/ArticleCard.tsx:83` (the two warnings `npm run lint` reports)
 **Status:** Open · rule set to `"warn"` in `eslint.config.mjs`
 
 Both call `setState` synchronously inside an effect body. Satisfying the rule
@@ -68,7 +68,7 @@ the rule to `"error"` in the same commit that fixes the last violation.
 Before Phase 0c, `collectCoverageFrom` was unset, so coverage instrumented only
 the five modules the four test suites import. The reported 91.42% described
 5 of 73 source files. The number is now measured against the whole source tree (since restructure 2,
-less the one-line `app/` shims) and is correspondingly, accurately, much lower.
+less the one-line `src/app/` shims) and is correspondingly, accurately, much lower.
 
 Kept here as the reason the coverage number dropped sharply in one commit
 without any test being deleted.
@@ -98,7 +98,7 @@ not, by itself, evidence of progress — check the covered count.
 ## BL-004 — Editorial publishing hardcodes `country: ["us"]` and bypasses the filters
 
 **Found:** Phase A review · **Owner decision (Q3):** keep the feature, fix later
-**Files:** `backend/api/admin/publish-article.ts`
+**Files:** `src/app/api/admin/publish-article/route.ts`
 **Status:** Open · **do not fix during the restructure**
 
 Editorial publishing stays, and moves with the admin feature like any other
@@ -169,8 +169,8 @@ imports the old path, and fails:
 
 The source is fine. Clearing `.next/types` and re-running turns the gate green
 with no source change. CI is unaffected (a fresh checkout has no `.next/`), but
-every local change that moves or deletes a route under `app/` will hit it. Every restructure-2 slice
-that touched `app/` did, and cleared `.next/types` first.
+every local change that moves or deletes a route under `src/app/` will hit it. Every restructure-2 slice
+that touched `src/app/` did, and cleared `.next/types` first.
 
 **Workaround until fixed:** `rm -rf .next/types` before `npm run verify` on any
 slice that moves or deletes a route file.
@@ -189,7 +189,7 @@ made here because it was outside the item that found it.
 
 **Found:** `59b875d` (form removal) · **Status:** Open · **needs owner or legal
 review — not a code decision**
-**Files:** `frontend/views/privacy/PrivacyView.tsx` (`app/privacy/page.tsx` re-exports it)
+**Files:** `src/app/privacy/page.tsx`
 
 The policy still says email addresses are collected "when you subscribe to our
 newsletter or submit the contact form", that updates are sent "if you've opted
@@ -218,7 +218,7 @@ feature:
   `newsletterStripTagline`, `subscribedSuccess`, `newsletterEmailPlaceholder`)
   plus `subscribe`, which this list missed, removed from the interface and both
   languages. Sixteen more unread keys are BL-017.
-- **`"use client"` on the contact page (`frontend/views/contact/ContactView.tsx`)** — no longer needed now the
+- **`"use client"` on the contact page (`src/app/contact/page.tsx`)** — no longer needed now the
   form's state is gone. Removing it changes the page's rendering mode, which is
   a behaviour change, not a cleanup.
 
@@ -297,16 +297,16 @@ same rate limiting as `reportFallback`, or demote them to breadcrumbs and let D5
 event. Owner decision; it changes how errors are reported, not behaviour. The double purge in the
 same trace is F-015, Phase 3.
 
-## BL-015 — `urlValidation` goes to `backend/lib/` now, to `shared/validation/` with F-005
+## BL-015 — `urlValidation` goes to `src/server/lib/` now, to `src/lib/` with F-005
 
 **Found:** restructure 2, S0 judgement call 3 (owner, at the S0 approval) · **Status:** **Resolved** in
-`2cd04c9` (moved to `shared/validation/`, browser-safe; its DNS step is injected by
-`backend/services/scrape/fetchPage.ts`), with F-005 as planned
+`2cd04c9` (moved to `src/lib/`, browser-safe; its DNS step is injected by
+`src/server/services/scrape/fetchPage.ts`), with F-005 as planned
 
-Move map v2 put `urlValidation.ts` in `backend/lib/` because its only importer is the scraper,
-`backend/api/news/scrape-article.ts`. The F-005 fix needs URL validation
+Move map v2 put `urlValidation.ts` in `src/server/lib/` because its only importer is the scraper,
+`src/app/api/news/scrape-article/route.ts`. The F-005 fix needs URL validation
 on the frontend link sinks (`ArticleDetailView.tsx`'s `href={targetUrl}`); the module moves to
-`shared/validation/` then (owner decision).
+`src/lib/` then (owner decision).
 
 One constraint for that move: `validateExternalUrl()` imports Node's `dns/promises` and `net` — it
 resolves the hostname so it can reject private addresses (the SSRF guard) — and neither runs in the
@@ -316,17 +316,21 @@ whole.
 
 ## BL-016 — The article page fetches its own API over HTTP
 
-**Found:** restructure 2, S0 (the F1 list) · **Status:** **Resolved for the scrape** in `65d3337`
-(owner, Phase 2 follow-up, to fix BL-021): the page calls `scrapeArticle`
-(`backend/services/scrape/scrapeArticle.ts`) directly. **Still over HTTP:** the suggestions fetch
+**Found:** restructure 2, S0 (the F1 list) · **Status:** **Resolved** (the cleanup on
+`chore/restructure`, 2026-11-02): the suggestions now call `getTopHeadlines`
+(`src/server/services/news/topHeadlines.ts`, the read path moved out of the route unchanged), so the
+page makes no HTTP request to itself and `NEXT_PUBLIC_BASE_URL` is gone. The suggestions' cache is
+now the feed's own 15-minute cache, not a 15-minute fetch cache over HTTP. Earlier: **resolved for
+the scrape** in `65d3337` (owner, Phase 2 follow-up, to fix BL-021): the page calls `scrapeArticle`
+(`src/server/services/scrape/scrapeArticle.ts`) directly. **Still over HTTP:** the suggestions fetch
 of `/api/news/top-headlines`, which has no per-IP limit and was not part of the fix. Re-checked
-after Phase 3 (owner): neither the handler nor `proxy.ts` (matcher: admin paths only) limits that
+after Phase 3 (owner): neither the handler nor `src/proxy.ts` (matcher: admin paths only) limits that
 route, so it has no shared bucket like BL-021's. **If a per-IP limit is ever added to
 `top-headlines`, move this fetch to a direct call first**, or every reader shares the server's
 bucket. The fetch also reads `NEXT_PUBLIC_BASE_URL`, not the `NEXT_PUBLIC_APP_URL` the rest of the
 page uses
 
-`app/article/[slug]/page.tsx` is a server component, yet it reaches the scraper and the feed
+`src/app/article/[slug]/page.tsx` is a server component, yet it reaches the scraper and the feed
 over HTTP to its own deployment: `getArticleContent()` fetches `/api/news/scrape-article`
 (`:38–42`, `revalidate: 3600`) and `getSuggestedArticles()` fetches `/api/news/top-headlines`
 (`:58–62`, `revalidate: 900`), both at `NEXT_PUBLIC_BASE_URL`, falling back to
@@ -336,7 +340,7 @@ text and no suggestions.
 
 Calling the backend code directly would remove the hop, but it also changes which caching and error
 handling apply — and, once F-011 gives the scraper a limiter, which rate limit applies. That makes
-it a behaviour change, not a move, so restructure 2 keeps the page as composition in `app/` and
+it a behaviour change, not a move, so restructure 2 keeps the page as composition in `src/app/` and
 leaves both fetches alone.
 
 ## BL-017 — Data nothing reads, left after the S1 cleanup
@@ -388,7 +392,7 @@ Fix: exclude the non-code folders in `globals.css` with `@source not "<path>"` (
 installed Tailwind 4.3.3; the path resolves from the stylesheet), or use `source(none)` and list
 the code folders. Either is a CSS configuration change, so it waits for the owner.
 
-**Outside the approved list, so still scanned:** the code (`app/`, `frontend/`, `backend/`, `shared/`), comments and tests included,
+**Outside the approved list, so still scanned:** the code (`src/app/`, `frontend/`, `backend/`, `shared/`), comments and tests included,
 and root tooling. Two cases so far: while `4ff0167` was being written, a test comment saying a
 scan could not "shrink" emitted `.shrink` until it was reworded; and `.transform` is in the CSS
 only because three `jest.config.ts` comments say "transform". Excluding test files or root
@@ -406,7 +410,7 @@ image error:
     ⨯ upstream image response timed out for https://kubrick.htvapps.com/htv-prod/images/53baa842-b42a-46f7-96af-373e09efe30a.jpg
 
 - **Host:** `kubrick.htvapps.com`. **It is in `imageDomains`**: `ALLOWED_IMAGE_HOSTNAMES` in
-  `shared/config/imageDomains.ts:34`. So `isAllowedImageUrl` handed the URL to `<Image>`, and
+  `src/config/imageDomains.ts:34`. So `isAllowedImageUrl` handed the URL to `<Image>`, and
   `remotePatterns` (`{,*.}kubrick.htvapps.com`) let `/_next/image` fetch it. The allowlist is not
   the cause, and no slot is needed: `remotePatterns` holds 49 entries against the cap of 50.
 - **What failed:** the optimizer's fetch from the publisher. `next/dist/server/image-optimizer.js:474`
@@ -431,7 +435,7 @@ The slice-1 smoke test's `next start` log:
     ⨯ upstream image response failed for https://images.unsplash.com/photo-1540747913346-19212a729b62?w=1200&auto=format&fit=crop&q=80 404
 
 That URL is the "Cricket" image, second of the four in the Sports bucket of `TOPIC_IMAGE_MAP`
-(`shared/config/topicImages.ts:75`). It still returned 404 when re-checked in S4. The other 44 of
+(`src/config/topicImages.ts:75`). It still returned 404 when re-checked in S4. The other 44 of
 the file's 45 Unsplash URLs (43 distinct, `GENERIC_NEWS_FALLBACK` included) returned 200.
 
 Unlike BL-019, this one fails every time. Take an article whose own image is missing or not
@@ -449,7 +453,7 @@ limit now sees only external callers
 
 F-011 limits `/api/news/scrape-article` to 30 uncached scrapes a minute per client IP (owner
 decision D1). The route's only caller today is the article page's server-side fetch of it
-(`app/article/[slug]/page.tsx:38–42`, BL-016). That request carries no reader IP, so every
+(`src/app/article/[slug]/page.tsx:38–42`, BL-016). That request carries no reader IP, so every
 reader's uncached article counts against one key: the server's own address in production, or
 `unknown` locally. Next's data cache (`revalidate: 3600` per URL) and the 1-hour scrape cache keep
 that traffic low, but a burst of distinct new articles could pass 30 a minute, and the page would
@@ -471,12 +475,12 @@ articles, so it writes only to our own rows
 
 Every uncached scrape that extracts an article also runs
 `supabase.from("articles").update({ content }).eq("link", targetUrl)` in the background
-(`backend/api/news/scrape-article.ts:537`). So a public GET writes to the database, and the row it
+(`src/app/api/news/scrape-article/route.ts:537`). So a public GET writes to the database, and the row it
 updates is chosen by the caller's `url` parameter. The value written is what the server scraped
 from that very URL, so a caller can only make a stored article's content match its own link. Still
 worth deciding: a local run writes to whatever project `.env.local` names, which may be production
 (HANDOFF §3.18), and a public endpoint that writes is one more thing to rate-limit and audit. The
-feed does return `content` with each row (`backend/repositories/db.ts:429`), so check its readers
+feed does return `content` with each row (`src/server/repositories/db.ts:429`), so check its readers
 before dropping the write.
 
 Options: keep it, drop it, or move it behind the cron. Not changed in Phase 2: it is not part of any
@@ -520,7 +524,7 @@ written only by `logAdminAction`, whose parameter type already restricts it.
 
 **Found:** audit Phase 3, owner check of RLS against the live app · **Status:** Open
 
-`backend/lib/supabase.ts` uses `SUPABASE_SERVICE_ROLE_KEY` when set and falls back to
+`src/server/lib/supabase.ts` uses `SUPABASE_SERVICE_ROLE_KEY` when set and falls back to
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `isSupabaseConfigured()` is true with the anon key alone. With
 RLS on, the anon key can only read `articles` and `breaking_news`. The cron's ingest and purge,
 every admin write and the audit log all fail. Where anon still holds Supabase's default table
@@ -536,11 +540,11 @@ covers it.
 
 **Found:** audit F-024 · **Status:** Open — feature, not a defect (owner decision D3)
 
-`translateHeadline(text, lang)` in `shared/config/translations.ts` returned `text` unchanged. It
+`translateHeadline(text, lang)` in `src/config/translations.ts` returned `text` unchanged. It
 ran on every card title and description (`ArticleCard`) and on the mega-menu titles
 (`CategoryMegaMenu`), so it looked like translation without doing any. F-024 removed it. Cards
 and the mega menu show each article in the language its publisher wrote it in; the Hindi feed is
-already chosen by script (`matchesLanguageScript` in `backend/repositories/db.ts`).
+already chosen by script (`matchesLanguageScript` in `src/server/repositories/db.ts`).
 
 The only real translation is on the article page: `ArticleDetailView` translates the article's
 title, description and paragraphs through `/api/translate` when the UI is in Hindi, cached per
@@ -553,7 +557,7 @@ translated titles stored at ingest. Either costs translate-API quota on every ne
 **Found:** audit Phase 4, writing the F-021 characterization (`675ce1d`) · **Status:** **Resolved** in `96f192d`
 (owner: fix now; while searching the grids start at index 0)
 
-In `frontend/views/home/HomeClient.tsx` the featured slot shows `articles[0]` only when no search is
+In `src/components/home/HomeClient.tsx` the featured slot shows `articles[0]` only when no search is
 active (`featuredArticle && !searchQuery`, `:424`), while Top Stories and Latest start at
 `articles.slice(1, …)` (`:319`). So during a search the best match is filtered in and then never
 rendered. `HomeClient.test.tsx` pins the current behaviour ("Budget passes" is dropped). Fix: start
@@ -575,7 +579,7 @@ file by file. Check the CSS budget, since most of the colours are already in the
 **Found:** audit F-009 (ledger note) · **Status:** **Resolved** in `45223f0` (owner: remove; the Sentry
 scrub list keeps the name, for an environment that still sets it)
 
-`backend/api/admin/seed-supabase.ts:15` reads `NEWSDATA_API_KEY || NEXT_PUBLIC_NEWSDATA_API_KEY`.
+`src/app/api/admin/seed-supabase/route.ts:15` reads `NEWSDATA_API_KEY || NEXT_PUBLIC_NEWSDATA_API_KEY`.
 It runs on the server, so nothing leaks today. But the fallback invites putting a secret under a
 `NEXT_PUBLIC_` name, and Next inlines such a name into any client bundle that reads it. F-009 lists
 it in `.env.local.example` as "do not set it". Removing the fallback is a one-line change; it breaks
@@ -585,7 +589,7 @@ the seed route only for an environment that sets the public name alone.
 
 **Found:** audit Phase 4, F-027 (`7ead49b`) · **Status:** Open — proposal, not started (owner)
 
-`app/layout.tsx` renders `FloatingAiAssistant` (`frontend/features/chat`), which imports
+`src/app/layout.tsx` renders `FloatingAiAssistant` (`src/components/chat`), which imports
 `Chatbot` statically. So the chatbot's code is in a chunk every route loads, even though it is closed
 until the reader clicks its button: `/admin/login` and `/_not-found` too. F-027 showed it. 418 bytes
 of dark-mode class strings grew all 10 page bundles by the same amount: +1.40% on `/_not-found` and
@@ -617,14 +621,16 @@ recheck then. CI does not run `npm audit`, so it is unaffected either way.
 
 ## BL-032 — A2 for new pages
 
-**Found:** audit master prompt, Phase 5 · **Status:** Open — proposal
+**Found:** audit master prompt, Phase 5 · **Status:** **Moot** — restructure 3 (ADR 0004,
+`chore/restructure`) removed the shims, A2, `SHIMS` and `check:boundaries`: every page holds its own
+code, as the framework intends. The text below is kept as it was written.
 
 A2 (`eslint.boundaries.mjs`, `boundaries/shim-only`) holds two kinds of file to re-exports and
-literal segment config: every `app/**/route.ts`, and the pages whose bodies moved to
-`frontend/views/` in restructure 2. Those pages are `SHIMS` in `scripts/move-map.mjs`, derived from
+literal segment config: every `src/app/**/route.ts`, and the pages whose bodies moved to
+`src/app/` in restructure 2. Those pages are `SHIMS` in `scripts/move-map.mjs`, derived from
 the move map. A `page.tsx` added later is in no move map, so A2 never sees it. Its logic can then grow
-in `app/`, which is the routing shell. Proposal: apply A2 to every `app/**/page.tsx`, with the two
-composition pages allowlisted by name (`app/page.tsx` and `app/article/[slug]/page.tsx`, which
+in `src/app/`, which is the routing shell. Proposal: apply A2 to every `src/app/**/page.tsx`, with the two
+composition pages allowlisted by name (`src/app/page.tsx` and `src/app/article/[slug]/page.tsx`, which
 combine backend data with a view, ADR 0002). `check:boundaries` and the jest coverage exclusion read
 the same list, so change all three together, and prove the rule with a probe page.
 
@@ -632,9 +638,9 @@ the same list, so change all three together, and prove the rule with a probe pag
 
 **Found:** panel work, Step 1 report (2026-11-02), point 7 · **Status:** Open — decided in Panel 4/7
 
-The reader feed keeps a 7-day rolling window. `purgeOldArticles` (`backend/repositories/db.ts`)
+The reader feed keeps a 7-day rolling window. `purgeOldArticles` (`src/server/repositories/db.ts`)
 deletes every article whose `created_at` is older than 7 days, once per cron run
-(`backend/api/cron/refresh-news.ts`) and when the admin presses purge (`backend/api/admin/db-stats.ts`).
+(`src/app/api/cron/refresh-news/route.ts`) and when the admin presses purge (`src/app/api/admin/db-stats/route.ts`).
 `docs/PANEL_PLAN.md` reads IT Rules Rule 19 as requiring content records for at least 60 days, and asks
 for a 60-day purge floor. Today nothing of a purged article survives, so the two conflict.
 

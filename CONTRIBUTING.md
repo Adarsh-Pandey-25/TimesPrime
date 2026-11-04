@@ -2,51 +2,52 @@
 
 ## Where does new code go?
 
-Rule IDs are defined in [`docs/architecture.md` §5](docs/architecture.md#5-import-rules). Each one
-fails `npm run lint` and `npm run check:boundaries`, naming the rule.
+The import rules are in [`docs/architecture.md` §5](docs/architecture.md#5-import-rules); `npm run
+lint` fails an import that breaks one, naming why.
 
-| Adding | Code goes in | Others import it from | File in `app/` | Fails if wrong |
-|---|---|---|---|---|
-| A page, e.g. `/faq` | `frontend/views/faq/FaqView.tsx`: a default export, plus `metadata` | — | `app/faq/page.tsx`, one line, like `app/about/page.tsx`: `export { default, metadata } from "@/frontend/views/faq/FaqView";` | F1 if the view imports `backend/`; V1 if a feature imports the view |
-| A page that needs server data | The view, as above. The fetch stays in the page | — | `app/<path>/page.tsx` fetches and passes props, like `app/page.tsx` (`fetchInitialNews` → `HomeClient`) | F1 if the view fetches through `backend/` itself |
-| An API route, e.g. `GET /api/news/trending` | `backend/api/news/trending.ts`, opening with `import "server-only";` | — | `app/api/news/trending/route.ts`, one line: `export { GET } from "@/backend/api/news/trending";`, plus literal segment config if needed | A2 if the route file holds code; F1 if the guard is missing; B1 if it imports `frontend/` |
-| A frontend feature, e.g. polls | `frontend/features/polls/`, with an `index.ts` and a `package.json` of `{ "sideEffects": false }` | `@/frontend/features/polls`, its `index.ts`, and nothing deeper | — (views and `app/` import the entry point) | X1 if anything imports past `index.ts`, or one feature imports another; V1 if it imports a view |
-| A backend service, e.g. digest | `backend/services/digest/`, each module opening with `import "server-only";` | an `index.ts` once others use more than one module, like `@/backend/services/news` | — (route bodies in `backend/api/` import it) | X1 if one service imports another, or anything imports past an `index.ts` |
-| A database query | `backend/repositories/` (`db.ts` holds the article queries), using `supabase` from `@/backend/lib/supabase` | the owning service's `index.ts`, as `services/news/index.ts` re-exports `getDBStats` | — | F1 if a component queries Supabase; LIB if the query goes in `backend/lib/` |
-| A schema change | An SQL file in `database/`, which the owner applies by hand | — (nothing imports it) | — | D1 if code imports it |
-| A type both sides use | `shared/types/index.ts` | `@/shared/types` | — | R7 if it imports anything but types |
-| A config value both sides use | `shared/config/<name>.ts`. An image host goes in `ALLOWED_IMAGE_HOSTNAMES` (`shared/config/imageDomains.ts`; 49 of the 50 slots are used) | `@/shared/config/<name>` | — | R7 if it imports React, `server-only` or code; CR-06 if `imageDomains.ts` imports anything; R5 if a UI primitive imports it |
+| Adding | Where | Example to copy |
+|---|---|---|
+| A page, e.g. `/faq` | `src/app/faq/page.tsx`: the page's code, a default export, plus `metadata` | `src/app/about/page.tsx` |
+| A page that needs server data | `src/app/<path>/page.tsx` fetches by calling `src/server/` directly (never its own API over HTTP) and passes props to a component in `src/components/` | `src/app/page.tsx` (`fetchInitialNews` → `HomeClient`) |
+| An API route, e.g. `GET /api/news/trending` | `src/app/api/news/trending/route.ts`: parse the request, call `src/server/`, return the response. Logic goes in a service | `src/app/api/news/top-headlines/route.ts` |
+| A component | `src/components/<area>/<Name>.tsx`, imported from its own file (no `index.ts` barrels) | `src/components/news/ArticleCard.tsx` |
+| Server logic, e.g. a digest | `src/server/services/digest/`, each file opening with `import "server-only";` | `src/server/services/news/topHeadlines.ts` |
+| A database query | `src/server/repositories/` (`db.ts` holds the article queries), using `supabase` from `@/server/lib/supabase` | `getDBStats` in `db.ts` |
+| A schema change | A migration in `database/migrations/` with its rollback, which the owner applies by hand | `database/migrations/2026-11-02-indexes.sql` |
+| A helper both sides use | `src/lib/<name>.ts`; it must not import `src/server/` | `src/lib/urlValidation.ts` |
+| A type both sides use | `src/types/index.ts` | — |
+| A config value both sides use | `src/config/<name>.ts`. An image host goes in `ALLOWED_IMAGE_HOSTNAMES` (`src/config/imageDomains.ts`; 49 of the 50 slots are used) | `src/config/newsConfig.ts` |
 
-Three things no check catches:
+Tests sit beside what they test: `route.test.ts` next to `route.ts`, `page.test.tsx` next to
+`page.tsx`.
 
-- **Admin routes go under `/api/admin/`, admin pages under `/admin/`.** `proxy.ts` gates exactly
+Two things no check catches:
+
+- **Admin routes go under `/api/admin/`, admin pages under `/admin/`.** `src/proxy.ts` gates exactly
   those paths, and anything outside them is public ([`docs/architecture.md`](docs/architecture.md)
-  §1). Each admin route body calls `requirePermission` first, with its rule from
-  `backend/auth/adminRoutePolicy.ts` (the only gate on the data: the app reads Supabase as
+  §1). Each admin route calls `requirePermission` first, with its rule from
+  `src/server/auth/adminRoutePolicy.ts` (the only gate on the data: the app reads Supabase as
   service_role). A new route or method that is not in that file fails the route walk in
-  `backend/api/admin/access.test.ts`, and needs its row in that test's access matrix.
-- **Code that one side uses stays on that side.** `shared/` is for what both sides import. A
-  backend-only constant lives in its service.
-- **A2 does not check a new page's file.** A2 covers every `route.ts` and the pages that moved in
-  restructure 2. Keep a new page file to its one-line re-export unless it composes server data.
+  `src/app/api/admin/access.test.ts`, and needs its row in that test's access matrix.
+- **Code that one side uses stays on that side.** `src/lib`, `src/config` and `src/types` are for
+  what both sides import. A server-only constant lives in its service.
 
 ## The verify gate
 
 Every commit must leave the tree green:
 
 ```bash
-npm run verify     # typecheck -> lint -> check:boundaries -> test -> build
+npm run verify     # typecheck -> lint -> test -> build
 ```
 
-All five, not a subset. They catch different classes of problem:
+All four, not a subset. They catch different classes of problem:
 
 | Command | What it alone catches |
 |---|---|
 | `tsc --noEmit` | Unresolved imports after a file move; type regressions |
-| `eslint` | Imports left **behind** after a move — unused, still referenced, now dead — and every import that breaks a boundary rule (`eslint.boundaries.mjs`, `docs/architecture.md` §5) |
-| `check:boundaries` | A client module reaching `backend/` **transitively**, through modules that look harmless — which lint, checking one import at a time, cannot see |
-| `jest` | Behaviour changes in the thin slice that has coverage |
-| `next build` | Route resolution, config evaluation, server/client boundary violations |
+| `eslint` | Imports left **behind** after a move — unused, still referenced, now dead — and every import that breaks a boundary rule (`eslint.config.mjs`, `docs/architecture.md` §5) |
+| `jest` | Behaviour changes in the slice that has coverage |
+| `next build` | Route resolution, config evaluation, and a client module reaching `src/server/` **transitively** (the `server-only` guard), which lint, checking one import at a time, cannot see |
 
 If a change cannot go green, revert it and report why. Do not stack fixes on a
 red tree — the second fix hides what the first one broke.
@@ -107,7 +108,7 @@ either write a characterization test first, or defer that file and say so.
 ## Framework caveat
 
 Next.js 16 differs from earlier versions in ways that trip up assumptions:
-Middleware is now **Proxy** (`proxy.ts`, at the repository root), `next/image` uses `preload` rather
+Middleware is now **Proxy** (`src/proxy.ts`, beside `src/app/`), `next/image` uses `preload` rather
 than the deprecated `priority`, and `images.remotePatterns` hostnames are
 matched as globs. Check `node_modules/next/dist/docs/` before asserting that any
 framework usage is wrong. See `AGENTS.md`.

@@ -15,7 +15,7 @@ run again. Every step has a rollback, which relies on the snapshot you take in s
 
 ## Which key the app uses, and what RLS does to it
 
-Every database call is made by the server, through one client (`backend/lib/supabase.ts`). The
+Every database call is made by the server, through one client (`src/server/lib/supabase.ts`). The
 browser never talks to Supabase. That client uses `SUPABASE_SERVICE_ROLE_KEY` when it is set, and
 falls back to `NEXT_PUBLIC_SUPABASE_ANON_KEY` otherwise.
 
@@ -35,14 +35,14 @@ anon would let anyone write.
 
 | Table | What the app does | Where | Service key | Anon fallback: the policy that allows it |
 |---|---|---|---|---|
-| `articles` | SELECT: the feed, the freshness check, the new-story count, the row count, the link lookup (F-005) | `backend/repositories/db.ts` | ✅ bypass | ✅ "Public read access" |
+| `articles` | SELECT: the feed, the freshness check, the new-story count, the row count, the link lookup (F-005) | `src/server/repositories/db.ts` | ✅ bypass | ✅ "Public read access" |
 | `articles` | SELECT: health probe, admin list and stats, classifier column probe | `services/health`, `api/admin/articles.ts`, `api/admin/stats.ts`, `services/classify` | ✅ bypass | ✅ "Public read access" |
 | `articles` | UPSERT: cron ingest, admin publish | `db.ts` `saveArticlesToDB`, `api/admin/publish-article.ts` | ✅ bypass | ❌ none |
 | `articles` | UPDATE: admin edit, `category_mismatches`, scraped `content` | `api/admin/articles.ts`, `services/classify`, `services/scrape` | ✅ bypass | ❌ none |
 | `articles` | DELETE: the 7-day purge, admin delete and bulk delete | `db.ts` `purgeOldArticles`, `api/admin/articles*.ts` | ✅ bypass | ❌ none |
 | `breaking_news` | SELECT: the homepage banner (public `GET /api/admin/breaking-news`, CR-08) | `api/admin/breaking-news.ts` | ✅ bypass | ✅ "Public read access" |
 | `breaking_news` | INSERT, UPDATE (`is_active = false`): admin set and remove | `api/admin/breaking-news.ts` | ✅ bypass | ❌ none |
-| `admin_logs` | INSERT: every admin action and cron run | `backend/repositories/auditLog.ts` | ✅ bypass | ❌ none |
+| `admin_logs` | INSERT: every admin action and cron run | `src/server/repositories/auditLog.ts` | ✅ bypass | ❌ none |
 | `admin_logs` | SELECT, DELETE: the activity log and its clear button | `api/admin/logs.ts` | ✅ bypass | ❌ none |
 
 Before the F-008 files existed, `articles` already had RLS enabled and the same policies through

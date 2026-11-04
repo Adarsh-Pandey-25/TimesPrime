@@ -12,35 +12,40 @@ breaking-news banners, sync controls and an activity log.
 
 ## Project structure
 
-One Next.js app, split by where code runs. Lint and CI fail any import that crosses the split the
-wrong way: the frontend never imports the backend, shared code imports neither side, and only
-`app/` brings the two together ([the rules](docs/architecture.md#5-import-rules)).
+The standard Next.js `src/` layout ([ADR 0004](docs/adr/0004-standard-src-layout.md)).
 
 ```
-app/         The URLs. Each route, and most pages, is one line re-exporting its body
-frontend/    The UI: page bodies (views/), feature components (features/), primitives,
-             providers, styles
-backend/     Server-only: route bodies (api/), domain logic (services/), Supabase queries
-             (repositories/), the admin session (auth/), infrastructure (lib/)
-shared/      What both sides import: config and static data, types, Sentry scrubbing
-database/    schema.sql, policies.sql and the seed script; applied by hand, imported by nothing
-docs/        Architecture, decision records, PRD, audit ledger, backlog, handoff
-scripts/     Repo tooling: the import-boundary check and the CODEMAP generator
-public/      Logos and favicon
-proxy.ts     Admin authorisation: the one gate in front of /admin/* and /api/admin/*
+src/
+  app/          The URLs. Each page.tsx and route.ts holds its own code; tests sit beside it
+  components/   React UI by area: news/, admin/, chat/, home/, article/, ui/
+  context/      Theme and language providers
+  server/       Server-only (every file imports "server-only"): auth/, repositories/ (Supabase
+                queries), services/ (news, scrape, translate, classify, health), lib/ (cache,
+                rate limit, …)
+  lib/          Helpers both sides use: URL validation, Sentry scrubbing, saved articles
+  config/       Static data and editorial rules: news filters, permissions, UI strings, …
+  types/        Shared TypeScript types
+  proxy.ts      Admin authorisation: the session check in front of /admin/* and /api/admin/*
+  instrumentation*.ts, sentry.*.config.ts   Sentry wiring
+database/       schema.sql, policies.sql, migrations/, bootstrap/, seed/; applied by hand
+docs/           Architecture, decision records, PRD, audit ledger, backlog, handoff, panels
+scripts/        generate-access-catalog.mjs: writes the permission catalogue SQL from the plan
+public/         Logos and favicon
 ```
 
-The other root files are Next.js, Sentry, ESLint, Jest and TypeScript configuration. Next requires
-`instrumentation*.ts` and `sentry.*.config.ts` to sit at the root.
+The root holds only configuration: Next.js, ESLint, Jest, TypeScript, PostCSS.
 
-**Following a request:** `GET /api/news/top-headlines` reaches `app/api/news/top-headlines/route.ts`,
-which is one line re-exporting `backend/api/news/top-headlines.ts`; that body reads the cache in
-`backend/lib/` and the feed from `backend/services/news`. The page `/about` reaches
-`app/about/page.tsx`, which re-exports `frontend/views/about/AboutView.tsx`.
+**Following a request:** `GET /api/news/top-headlines` reaches
+`src/app/api/news/top-headlines/route.ts`, which calls `getTopHeadlines` in
+`src/server/services/news/topHeadlines.ts`; that reads the cache in `src/server/lib/` and the feed
+from Supabase. The page `/about` is `src/app/about/page.tsx`.
+
+**Lint keeps server code out of the browser:** components, context, `lib`, `config` and `types`
+never import `src/server/`, and every `src/server/` file starts with `import "server-only"`, so a
+client import of it fails the build ([the rules](docs/architecture.md#5-import-rules)).
 
 **Adding code?** [Where does new code go?](CONTRIBUTING.md#where-does-new-code-go) answers it in one
-table: the folder, the entry point, the file to create in `app/`, and the rule that fails if it is
-wrong. Every module, with its importers and imports, is in [`docs/CODEMAP.md`](docs/CODEMAP.md).
+table.
 
 ## Stack
 
@@ -58,7 +63,7 @@ wrong. Every module, with its importers and imports, is in [`docs/CODEMAP.md`](d
 | Hosting | **Not deployed** until the project is complete; then AWS, `ap-south-1`. The cron schedule is in `vercel.json` today and needs an AWS scheduler then |
 
 > **This is not stock Next.js.** Version 16 renamed Middleware to **Proxy**
-> (`proxy.ts`), deprecated the `priority` image prop in favour of `preload`,
+> (`src/proxy.ts`), deprecated the `priority` image prop in favour of `preload`,
 > and matches `images.remotePatterns` hostnames with globs rather than string
 > equality. Read `node_modules/next/dist/docs/` before relying on any framework
 > convention from memory. See `AGENTS.md`.
@@ -83,8 +88,8 @@ Supabase SQL editor, then `database/policies.sql`.
 
 > `database/schema.sql` currently defines the `articles` table only. The
 > `breaking_news` and `admin_logs` tables exist as SQL inside comments in
-> `backend/api/admin/breaking-news.ts` and
-> `backend/api/admin/logs.ts`. Until those are promoted into
+> `src/app/api/admin/breaking-news/route.ts` and
+> `src/app/api/admin/logs/route.ts`. Until those are promoted into
 > `database/schema.sql`, breaking news and the activity log will not work on a fresh
 > project.
 
@@ -109,8 +114,7 @@ Copy `.env.local.example` to `.env.local`. Never commit `.env.local`.
 | `SENTRY_AUTH_TOKEN` | build | Source-map upload at build time only |
 | `SENTRY_ORG` | build | Sentry org slug |
 | `SENTRY_PROJECT` | build | Sentry project slug |
-| `NEXT_PUBLIC_APP_URL` | prod | Public origin; restricts CORS and fills OpenGraph metadata |
-| `NEXT_PUBLIC_BASE_URL` | optional | Base URL the server uses for its own internal fetches. Defaults to `http://localhost:3000` |
+| `NEXT_PUBLIC_APP_URL` | prod | Public origin; fills OpenGraph metadata |
 
 Generate the two secrets with:
 
@@ -126,12 +130,11 @@ node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
 | `npm run build` | Production build |
 | `npm start` | Serve a production build |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run lint` | ESLint, including the import-boundary rules (`eslint.boundaries.mjs`) |
-| `npm run check:boundaries` | The same rules over the whole import graph, including what the client bundle reaches transitively |
+| `npm run lint` | ESLint, including the import-boundary rules (`eslint.config.mjs`) |
 | `npm test` | Jest |
 | `npm run test:watch` | Jest in watch mode |
 | `npm run test:ci` | Jest with coverage, CI reporter |
-| `npm run verify` | typecheck → lint → check:boundaries → test → build. **The gate every commit must pass** |
+| `npm run verify` | typecheck → lint → test → build. **The gate every commit must pass** |
 
 ## Architecture in one paragraph
 
@@ -142,7 +145,7 @@ non-news sources, and upserts into Supabase. Reads go through
 newest row is under 30 minutes old, then NewsData.io, and finally built-in mock
 articles. The `X-Data-Source` response header says which tier answered — useful
 when diagnosing whether a given response touched the database at all. Admin
-routes are gated twice: `proxy.ts` lets only a session through to `/admin/*` and
+routes are gated twice: `src/proxy.ts` lets only a session through to `/admin/*` and
 `/api/admin/*`, and each route body checks the staff member's permissions
 (`requirePermission`, Panel 0).
 
@@ -163,7 +166,6 @@ path must not change. The list for that day is in
 - [`docs/README.md`](docs/README.md) — the index of `docs/`, and the order to read it in
 - [`docs/PRD.md`](docs/PRD.md) — product requirements, reverse-engineered from the code
 - [`docs/architecture.md`](docs/architecture.md) — structure and import rules
-- [`docs/CODEMAP.md`](docs/CODEMAP.md) — every module, with what imports it and what it imports
 - [`docs/adr/`](docs/adr/) — architecture decision records
 - [`docs/runbooks/`](docs/runbooks/) — operational procedures
 - [`docs/BACKLOG.md`](docs/BACKLOG.md) — deferred debt, with the reason for each deferral

@@ -54,7 +54,7 @@ order. Write for someone who has not seen the code: a new developer, or the seni
 - **Name:** *the panel's name, as in the index*
 - **URLs:** *every page and API route it adds or uses, for example `/admin/desk` and
   `/api/admin/articles`*
-- **Code:** *where its code lives: the view in `frontend/views/`, the route bodies in `backend/api/`,
+- **Code:** *where its code lives: the view in `src/app/`, the route bodies in `src/app/api/`,
   services, repositories, and the SQL in `database/migrations/`*
 
 #### Purpose
@@ -99,7 +99,7 @@ that needs a reason code.*
 
 | Test file | What it proves | Denied case covered |
 |---|---|---|
-| *`backend/api/admin/…test.ts`* | *A Desk Editor in `hi` can publish a `hi` article* | *A Desk Editor in `en` gets 403 for the same article; an expired assignment gets 403* |
+| *`src/app/api/admin/…test.ts`* | *A Desk Editor in `hi` can publish a `hi` article* | *A Desk Editor in `en` gets 403 for the same article; an expired assignment gets 403* |
 
 *Every permission check needs an allowed test and a denied test. Add what was checked by hand, and
 the `npm run verify` and CI result at the time the panel was marked Done.*
@@ -120,12 +120,12 @@ the `npm run verify` and CI result at the time the panel was marked Done.*
   holds), `POST /api/admin/login`, `POST /api/admin/logout`, `GET /api/admin/me` and
   `POST /api/admin/mfa` (new). Every other `/api/admin/*` route now checks a permission.
 - **Code:**
-  - `backend/auth/`: `requirePermission.ts` (the gate), `decide.ts` (the rule), `scope.ts`,
+  - `src/server/auth/`: `requirePermission.ts` (the gate), `decide.ts` (the rule), `scope.ts`,
     `adminRoutePolicy.ts` (every route's rule), `staffSession.ts`, `supabaseServer.ts`, `mfa.ts`, and
     `adminSession.ts` (the shared password, with its end date);
-  - `backend/repositories/staff.ts` and `auditLog.ts`; `backend/api/admin/me.ts` and `mfa.ts`;
-  - `shared/config/permissions.ts`, `proxy.ts`;
-  - `frontend/views/admin/AdminLoginView.tsx` and `AdminView.tsx`;
+  - `src/server/repositories/staff.ts` and `auditLog.ts`; `src/app/api/admin/me/route.ts` and `mfa.ts`;
+  - `src/config/permissions.ts`, `src/proxy.ts`;
+  - `src/app/admin/login/page.tsx` and `AdminView.tsx`;
   - the SQL in `database/migrations/2026-11-02-access-*.sql` and `database/bootstrap/super-admin.sql`.
 - **Design:** [`design/panel-0-access-foundation.md`](design/panel-0-access-foundation.md), and
   [ADR 0003](adr/0003-primary-section-scope.md) for the section rule.
@@ -234,13 +234,13 @@ history, no longer written.
 
 | Test file | What it proves | Denied cases covered |
 |---|---|---|
-| `backend/api/admin/access.test.ts` | **The route walk** (every admin route file on disk is public, session-only or ruled, and every rule is tested) and **the access matrix**: every guarded route and method through its real handler and the real gate, with grants read from the catalogue SQL | No session (401), no grants, expired, wrong scope, no MFA, the shared password where not allowed, the purge for every holder; nothing written in any of them. Also: moves out of scope, one out-of-scope article in a bulk delete, Sub-editor publish and bulk, an unwritable audit row (503), the 100-article limit |
-| `backend/auth/decide.test.ts` | The rule: each code, scope, expiry, MFA, break-glass, the legacy list | Every "no" path has an allowed twin |
-| `backend/auth/requirePermission.test.ts` | The gate, the audit pair, the denial audit | Revoked or suspended between two requests is refused on the second |
-| `backend/auth/staffSession.test.ts`, `proxy.test.ts` | Who is asking; the proxy accepts both sessions; cookie flags | Forged or signed-out JWTs, errors, the legacy end date |
-| `backend/api/admin/login.test.ts`, `logout.test.ts`, `me.test.ts`, `mfa.test.ts` | Sign-in, sign-out, `/me`, the second factor | Wrong credentials, not staff, suspended, wrong code, rate limits, the legacy end date and kill switch |
-| `shared/config/permissions.test.ts`, `backend/repositories/accessSchema.test.ts` | The catalogue equals the matrix cell for cell; the SQL's guarantees | — |
-| `frontend/views/admin/AdminView.test.tsx`, `AdminLoginView.test.tsx`, `ActivityLog.test.tsx` | What the UI shows for each user; the sign-in steps; no clear button | Hidden widgets for missing permissions |
+| `src/app/api/admin/access.test.ts` | **The route walk** (every admin route file on disk is public, session-only or ruled, and every rule is tested) and **the access matrix**: every guarded route and method through its real handler and the real gate, with grants read from the catalogue SQL | No session (401), no grants, expired, wrong scope, no MFA, the shared password where not allowed, the purge for every holder; nothing written in any of them. Also: moves out of scope, one out-of-scope article in a bulk delete, Sub-editor publish and bulk, an unwritable audit row (503), the 100-article limit |
+| `src/server/auth/decide.test.ts` | The rule: each code, scope, expiry, MFA, break-glass, the legacy list | Every "no" path has an allowed twin |
+| `src/server/auth/requirePermission.test.ts` | The gate, the audit pair, the denial audit | Revoked or suspended between two requests is refused on the second |
+| `src/server/auth/staffSession.test.ts`, `src/proxy.test.ts` | Who is asking; the proxy accepts both sessions; cookie flags | Forged or signed-out JWTs, errors, the legacy end date |
+| `src/app/api/admin/login/route.test.ts`, `logout.test.ts`, `me.test.ts`, `mfa.test.ts` | Sign-in, sign-out, `/me`, the second factor | Wrong credentials, not staff, suspended, wrong code, rate limits, the legacy end date and kill switch |
+| `src/config/permissions.test.ts`, `src/server/repositories/accessSchema.test.ts` | The catalogue equals the matrix cell for cell; the SQL's guarantees | — |
+| `src/app/admin/page.test.tsx`, `AdminLoginView.test.tsx`, `ActivityLog.test.tsx` | What the UI shows for each user; the sign-in steps; no clear button | Hidden widgets for missing permissions |
 
 At the branch's last code commit: `npm run verify` exits 0. That is 47 suites and 736 tests, lint 0
 errors and 13 warnings, 0 boundary violations, and the build, with the route table at 30 URLs,

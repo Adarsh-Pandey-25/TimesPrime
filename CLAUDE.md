@@ -13,7 +13,7 @@
   3. Privileged actions are audited and need MFA where the plan says so.
   4. `npm run verify` and CI are green; routes, JS and CSS reported.
   5. SQL is in migration files with a rollback, listed as an owner action.
-  6. `docs/PANEL_DOCS.md`, `docs/HANDOFF.md` and `docs/CODEMAP.md` are updated.
+  6. `docs/PANEL_DOCS.md`, `docs/HANDOFF.md` and `docs/architecture.md` are updated.
   7. Real-database tests run against the local Supabase, not only mocks.
   8. End-to-end browser tests cover the critical flows, including a refused-access flow.
   9. Every screen has loading, error and empty states.
