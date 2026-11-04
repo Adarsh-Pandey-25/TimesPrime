@@ -37,6 +37,11 @@ jobs:
         # Includes the import-boundary rules (eslint.config.mjs).
         run: npm run lint
 
+      - name: Docs
+        # The seven Markdown files and no others, and every relative link and anchor in them
+        # resolves (scripts/check-docs.mjs).
+        run: npm run check:docs
+
       - name: Test
         run: npm run test:ci
 
