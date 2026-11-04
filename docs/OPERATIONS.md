@@ -45,7 +45,23 @@ the root on this branch, and `frontend/.env` on `main`.)
 | `SENTRY_AUTH_TOKEN` | build | Source-map upload at build time only |
 | `SENTRY_ORG` | build | Sentry org slug |
 | `SENTRY_PROJECT` | build | Sentry project slug |
-| `NEXT_PUBLIC_APP_URL` | prod | The site's public origin: OpenGraph's `og:url` |
+| `NEXT_PUBLIC_APP_URL` | prod | The site's public origin: `metadataBase`, canonical links, `robots.txt`, the sitemap and `og:url` (`packages/shared/src/config/site.ts`). Fixed at build |
+| `NEXT_PUBLIC_SITE_NOINDEX` | staging | `1` builds a copy search engines must not index: `robots.txt` disallows everything, every response says `X-Robots-Tag: noindex`. Unset for the public site. Fixed at build (gotcha 3.26) |
+| `TRUSTED_PROXY_HOPS` | prod | Proxies in front of the app that append to `X-Forwarded-For`: `2` on AWS (CloudFront, then the ALB), `0` locally. The client IP for rate limits and the audit log is the entry this many from the right (R1-05) |
+
+**Where each is set on AWS** ([the runbook](#the-aws-resources-in-order)):
+- **Build arguments** (`docker build --build-arg`, so the image is built per environment): every
+  `NEXT_PUBLIC_` variable, which Next inlines at build, and `NEXT_DEPLOYMENT_ID` (the git SHA; Next's
+  `deploymentId`, read from the environment by Next itself, so no code names it). Never a secret:
+  `scripts/container.test.ts` fails a build argument that is not one of these.
+- **Secrets Manager**, injected by the task definition: `SUPABASE_SERVICE_ROLE_KEY`,
+  `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`,
+  `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`. Also the CloudFront origin header's value
+  (runbook step 6), which no app reads.
+- **Task-definition environment** (not secret): `TRUSTED_PROXY_HOPS=2`, `ADMIN_LEGACY_LOGIN`.
+- **Not needed:** `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`. The app has no Server Function, so nothing
+  is encrypted across instances. Set it, the same on every instance, the day one is added
+  (bundled docs: guides/self-hosting.md "Server Functions encryption key").
 
 Gone since the apps/packages split: `CRON_SECRET` (the refresh is the worker's `refresh-news` job,
 started by the scheduler, not an HTTP route) and `NEXT_PUBLIC_BASE_URL` (the article page no longer
@@ -63,28 +79,156 @@ node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
 ## Deployment
 
 **A deployment now** (owner, 2026-11-02): the owner's senior asked for one, and it is built as the
-release (`release/v1`, phases R0–R4). **Hosting is AWS**, region `ap-south-1` (owner, 4 Nov 2026,
-replacing R0's Vercel Pro `bom1`). Set every variable from the [table above](#environment-variables)
-in the AWS environment. Three units deploy: the reader site and the back office as ECS services, and
-the worker as a task that EventBridge starts every 30 minutes (`npm run job -- refresh-news`). The
-plan's Phase I ([`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md)) covers the full launch; the list below is
-what must hold on the day.
+release (phases R0–R4). **Hosting is AWS**, region `ap-south-1` (owner, 4 Nov 2026, replacing R0's
+Vercel Pro `bom1`): ECS Fargate (Arm) behind CloudFront's flat-rate plan, the refresh on EventBridge
+Scheduler, logs in Mumbai for 365 days ([`RESEARCH.md`](RESEARCH.md) §3). **R1** (branch
+`chore/r1-aws`) built what the code needs; the AWS resources are made by hand from the runbook
+below (owner decision, 4 Nov 2026: a console or CLI runbook, no infrastructure-as-code tool for the
+release). The plan's Phase I ([`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md)) covers the full launch.
 
-The list below must hold on the day the apps first serve the public. Until then every check is
+| Unit | Image (`Dockerfile` target) | Runs as | Port | Health check |
+|---|---|---|---|---|
+| Reader site | `web` | ECS service, 2+ tasks across 2 availability zones | 3000 | `GET /about` (liveness) |
+| Back office | `admin` | ECS service, 1–2 tasks | 3001 | `GET /admin/login` (liveness) |
+| Worker | `worker` | ECS task, started by EventBridge Scheduler | — | the task's exit code |
+
+Both health checks are prerendered pages that call neither Supabase nor Redis. `/api/health` is
+not one: it answers 503 whenever a dependency is down, and an ALB health check on it would have
+ECS replace every reader task during a Supabase outage. It is for the uptime monitor (step 10).
+
+### Building the images
+
+One `Dockerfile`, three targets, over one `npm ci`. For Fargate Arm:
+
+```bash
+docker buildx build --platform linux/arm64 --target web \
+  --build-arg NEXT_DEPLOYMENT_ID="$(git rev-parse --short HEAD)" \
+  --build-arg NEXT_PUBLIC_APP_URL=https://<domain> \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL=<url> \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key> \
+  --build-arg NEXT_PUBLIC_SENTRY_DSN=<dsn> \
+  -t <account>.dkr.ecr.ap-south-1.amazonaws.com/timesprime-web:<sha> .
+```
+
+The `admin` target takes the same arguments; the `worker` target takes none. The `NEXT_PUBLIC_`
+values are inlined at build, so each environment has its own image; staging adds
+`NEXT_PUBLIC_SITE_NOINDEX=1` and its own `NEXT_PUBLIC_APP_URL`. Never pass a secret as a build
+argument (`scripts/container.test.ts`). `.dockerignore` keeps every env file out of the build
+context. Under emulation on an x86 machine an Arm build of `web` took 13 minutes (R1-01); a native
+Arm builder is faster.
+
+### The AWS resources, in order
+
+1. **Upstash.** Put the Redis database in AWS `ap-south-1` (Mumbai): the shared Next cache
+   (`apps/web/cache-handler.mjs`) and every rate limit read it on each request. Check the region
+   in the Upstash console.
+2. **Secrets Manager** (`ap-south-1`): one secret per value in the
+   [list above](#environment-variables), and the CloudFront origin header's value (step 6). Values
+   live there only: never in code, docs, tickets, tests or logs.
+3. **ECR:** three repositories; push the three images.
+4. **ECS** (Fargate, `ARM64`), one task definition per unit:
+   - **all three:** the secrets each reads; logs with the `awslogs` driver to
+     `/timesprime/web`, `/timesprime/admin` and `/timesprime/worker`;
+   - **web and admin:** `TRUSTED_PROXY_HOPS=2` (back office also `ADMIN_LEGACY_LOGIN`);
+     `stopTimeout` 30 s (Next closes the listener and finishes in-flight requests on SIGTERM); the
+     container health check repeated from the `Dockerfile`'s `HEALTHCHECK`, which ECS ignores;
+   - **web:** at least two tasks across two availability zones, autoscaling on CPU and request
+     count.
+   - **worker:** the image's default command, `refresh-news`.
+5. **ALB** (target type `ip`). Target groups:
+   - web on port 3000, health path `/about`;
+   - admin on port 3001, health path `/admin/login`.
+
+   Listener rules send `/admin*`, `/api/admin/*` and `/admin-assets/*` to admin, and everything
+   else to web.
+6. **The ALB accepts traffic only from CloudFront** (approved R1-05). Otherwise anyone can reach the
+   ALB directly and write their own `X-Forwarded-For`, and the client IP that rate limits and the
+   audit log trust is forged. Either:
+   - **(preferred)** a CloudFront VPC origin, with the ALB internal; or
+   - a public ALB whose security group allows inbound only from the managed prefix list
+     `com.amazonaws.global.cloudfront.origin-facing`, **and** whose listener answers a fixed 403
+     unless the request carries the secret origin header that CloudFront adds (a custom origin
+     header).
+
+   The header's value lives only in Secrets Manager. To rotate it, add the new value to the
+   listener rule, then to CloudFront, then remove the old one.
+7. **CloudFront:** one distribution (one flat-rate plan covers one distribution), flat-rate
+   **Business** to start ($200/month; RESEARCH.md §3), its ACM certificate in `us-east-1`, and the
+   plan's WAF. Behaviours, in this order:
+
+   | Path | Origin | Cache |
+   |---|---|---|
+   | `/admin-assets/*` | admin | one year (hashed, immutable files) |
+   | `/admin*`, `/api/admin/*` | admin | none; all headers, cookies and query strings forwarded; stricter WAF rules |
+   | `/_next/static/*` | web | one year |
+   | `/api/*` | web | none; query strings forwarded |
+   | default (`*`) | web | the origin's `Cache-Control`; query strings forwarded (the feed's `?category=`) |
+
+   Keep `X-Forwarded-For` in the origin request: CloudFront appends the viewer's address, and
+   `TRUSTED_PROXY_HOPS=2` counts CloudFront and the ALB. Streamed responses pass through
+   CloudFront and an ALB with ECS targets (bundled docs: guides/self-hosting.md "Streaming and
+   Suspense").
+8. **EventBridge Scheduler** for the refresh:
+   - **schedule:** `rate(30 minutes)`, the one value `NEWS_REFRESH_SCHEDULE` in
+     `packages/shared/src/config/newsRefresh.ts` (change both together; `refreshNews.test.ts`
+     pins 7 NewsData calls a run, 336 a day);
+   - **target:** ECS RunTask of the worker task definition, with a retry policy (2 retries) and an
+     SQS dead-letter queue;
+   - **alarms (CloudWatch):** a worker task that stops with a non-zero exit code (the job exits 1
+     when any category fails), and no run in two intervals.
+9. **Logs, in `ap-south-1`, for 365 days** (CERT-In: 180 days within India; DPDP: one year;
+   RESEARCH.md §3):
+   - the three CloudWatch log groups, with 365-day retention;
+   - CloudFront standard logs, WAF logs and ALB access logs to one S3 bucket in `ap-south-1`, with
+     a lifecycle rule that deletes after 365 days;
+   - a CloudTrail trail to the same bucket;
+   - a Supabase log drain to it (a Supabase Pro add-on).
+
+   Sentry keeps only a scrubbed copy, outside India (`sendDefaultPii: false`, `scrubSentryEvent`).
+   It is never the record.
+10. **Health and alarms:**
+    - a Route 53 health check on `https://<domain>/api/health` (200 ok, 503 degraded);
+    - an external uptime monitor that checks from India;
+    - CloudWatch alarms on the ALB's 5xx rate and response time, and on CloudFront's 5xx rate and
+      cache-hit ratio;
+    - an AWS Budgets alarm on the monthly spend.
+11. **DNS:** a Route 53 alias record for the domain to the distribution.
+
+### Staging (needs owner confirmation)
+
+Built only if the owner approves (`NEWSROOM_PLAN.md`, row 10). The same runbook, with:
+- its own images: `NEXT_PUBLIC_SITE_NOINDEX=1` and its own `NEXT_PUBLIC_APP_URL`;
+- a WAF IP allowlist on its distribution.
+
+There is one database, the real one, so staging writes what production writes:
+- **No scheduler:** the refresh would double the NewsData spend.
+- **No admin changes made from staging.**
+
+### Values the release still needs
+
+The four owner values were set aside for now on 4 Nov 2026 (the owner's senior):
+- **The Supabase project's region:** if it is not `ap-south-1`, note the latency in the go-live
+  checks.
+- **The NewsData plan and its daily limit:** the scheduled job spends 336 calls a day at 30
+  minutes. The reader paths that still call NewsData (the home page's server render, and the feed
+  when the database is older than the window) come on top. Keep the total under 70% of the limit
+  (owner decision 7 of R0 v2), or raise the interval.
+- **The brand colour** (R2) and **the grievance officer's details** (R3).
+
+### On the day
+
+The lists below must hold on the day the apps first serve the public. Until then every check is
 made locally ([environment](#2-environment-and-commands)).
 
 **AWS.**
-- **Region:** `ap-south-1` (Mumbai), for the app and for its logs. CERT-In's directions keep logs for
-  180 days within India; the plan also asks for the Supabase project in an Indian region, or logs
-  exported to Indian storage.
-- **The refresh:** the worker's `refresh-news` job, started every 30 minutes by EventBridge
-  Scheduler (an ECS task running `npm run job -- refresh-news`). It has no HTTP path and needs no
-  secret; without the scheduler, ingestion stops silently, so alarm on the task's exit code.
-- **Runtime:** Node 24 (F-026). The proxy runs on Next's Node runtime. Audit rows take their
-  `request_id` from `x-vercel-id`, and fall back to a random UUID where that header is absent, as it
-  will be on AWS.
-- **Configuration:** every variable in `.env.example`, set in the AWS environment, never in
-  the repository.
+- **Region:** `ap-south-1` (Mumbai), for the apps and their logs (step 9).
+- **Runtime:** Node 24 (F-026), in the images. The proxy runs on Next's Node runtime. Audit rows take
+  their `request_id` from CloudFront's `X-Amz-Cf-Id`, else the ALB's `X-Amzn-Trace-Id`, else a
+  random UUID (R1-05), so a row can be found in the CloudFront and ALB logs.
+- **Configuration:** every variable in `.env.example`, set as the
+  [list above](#environment-variables) says, never in the repository.
+- **Spend limits:** a monthly spend limit on the Anthropic account; the NewsData plan checked
+  against the calls above; the CloudFront plan's request allowance.
 
 **Panel 0** ([the staff-access runbook](#staff-access-switching-on-panel-0-and-getting-back-in)). It is rehearsed first on the local
 database, then done once more against the production database at deployment, in this order:
@@ -122,7 +266,15 @@ database, then done once more against the production database at deployment, in 
 - The scheduler starts the worker's refresh, and its `audit_log` row (`system:cron`, `cron.refresh_news`) carries
   the purge count (F-015).
 - The Redis limiter: the 11th login attempt in 15 minutes and the 31st uncached scrape in a minute
-  answer 429 across instances (F-004, F-011).
+  answer 429 across instances (F-004, F-011). Repeat the login case with a different forged
+  `X-Forwarded-For` on every attempt: it must still answer 429 (R1-05). The 11th chat or translate
+  request in a minute answers 429 too, whichever task serves it.
+- An admin action's `audit_log` row carries an `X-Amz-Cf-Id` that the CloudFront log has (R1-05).
+- Every response has the six security headers, and the browser console shows no
+  `Content-Security-Policy-Report-Only` report on `/`, an article page and `/admin/login` (R1-06).
+- The back office's files load from `/admin-assets/` and its favicon shows (R1-04).
+- `https://<domain>/robots.txt` names the sitemap and `/sitemap.xml` lists the domain's pages; an
+  unknown URL answers 404 with the not-found page (R1-07, R1-09).
 - BL-019 (publisher image timeouts) under real traffic.
 
 **Before production.** A list only; no work is planned on it yet (owner, 2026-11-02):
@@ -725,9 +877,10 @@ owner's, by hand: [`staff-access.md`](#staff-access-switching-on-panel-0-and-get
 
 ## Current status
 
-> **A deployment now (owner, 2026-11-02):** the owner's senior asked for one. The release is
-> prepared on `release/v1` (R0–R4), hosted on AWS `ap-south-1` (owner, 4 Nov 2026, replacing R0's
-> Vercel); panel work is paused until then.
+> **A deployment now (owner, 2026-11-02):** the owner's senior asked for one. The release (R0–R4)
+> is hosted on AWS `ap-south-1` (owner, 4 Nov 2026, replacing R0's Vercel); panel work is paused
+> until then. **R1 is built** on `chore/r1-aws`, from `main` (`f595ae0`), and waits at STOP R1 for
+> the owner: the code for the containers and AWS, and [the runbook](#deployment) for the resources.
 >
 > **The real database (owner decision, 2026-11-02).** The env file (the root `.env`; `.env.local`
 > until 2026-11-04) holds the real database's credentials, and the app uses them. The local database
@@ -768,7 +921,22 @@ restructures and all five audit phases were done:
   came before it.
 
 **Next:**
-1. **`release/v1`** on `main`, in the apps/packages layout. Panels are paused meanwhile.
+1. **The release**, on `main`'s apps/packages layout; panels are paused meanwhile.
+   - **R1 (AWS foundations), built on `chore/r1-aws`, at STOP R1:**
+     - R1-01: the container images;
+     - R1-02: the shared Next cache, and the deployment ID;
+     - R1-03: the refresh interval as one value;
+     - R1-04: the back office's assets under `/admin-assets`;
+     - R1-05: the client IP and request ID, and chat and translate in the shared limiter;
+     - R1-06: the security headers;
+     - R1-07: the error pages;
+     - R1-08: the health checks (runbook only);
+     - R1-09: robots.txt, the sitemap, canonical links and noindex for staging;
+     - R1-10 and R1-11: the variables and the logs (docs, and `sendDefaultPii`).
+
+     The four owner values are still open ([Deployment](#values-the-release-still-needs)).
+   - **Then R2:** the reader UI, the new article and section URLs, and the structured data that
+     waits for them.
 2. **When panels resume, finish Panel 0** (the plan's Phase A):
    - the owner applies the SQL and runs Part B of the staff-access runbook against the real database, which
      verifies the two-admin trigger, the audit hash chain and the bootstrap;
@@ -1146,6 +1314,50 @@ jest, and nothing reported it: the apps fell back to mock articles and the in-me
 with a fake `.env` in a scratch folder. `envExample.test.ts` now proves the root `.env.test` reaches
 the tests, which only happens through that call.
 
+#### 3.26 With the shared cache handler, a prerendered page renders again on its first request
+
+The reader site's `cacheHandler` (`apps/web/cache-handler.mjs`, R1-02) is never asked for the
+build's prerendered files (bundled docs: next-config-js/incrementalCacheHandlerPath.md), so `/about`,
+`robots.txt` and the rest render once more, at run time, on their first request after a deploy.
+Anything such a page reads from a plain environment variable set only for the build is gone by
+then: the first R1-09 build sent staging's noindex header (fixed at build) but served
+`Allow: /` from `robots.txt`. A value a page needs both at build and at run time is a
+`NEXT_PUBLIC_` variable, which Next inlines, or is set in the task definition too.
+
+#### 3.27 The root `error.tsx` and `not-found.tsx` load on every page, with their own copies
+
+Every page route loads the root error and not-found components, and Turbopack gives each one's
+chunk its own copy of what it imports, even when the page's chunk has it already. In R1-07,
+`next/link` in the message component added 9 KB per copy, and `@sentry/nextjs` 12 KB a route (as
+a dynamic `import()`, 20 KB). The boundaries report through `clientErrorReport.ts` instead, and
+link with a plain `<a>`. Before a root special file imports anything, compare
+`node scripts/check-js-budget.mjs --print` before and after.
+
+#### 3.28 Tailwind turns words in comments into CSS
+
+§3.16 and §3.22 again, for comments under `apps/` and `packages/`: in R1, "container" in a
+config comment added 287 bytes of admin CSS, and "grow" 18 bytes of reader CSS. Before a commit,
+check that the CSS bytes per app did not move. `table`, `inline`, `static`, `block`, `hidden` and
+`contents` are utility names too.
+
+#### 3.29 A `route.ts` may export only the route's own names
+
+Next type-checks a route file's exports (`GET`, `POST`, `config` and the like). A helper constant
+there, such as R1-05's rate-limit rules, stays unexported; a test reaches it through the route's
+behaviour.
+
+#### 3.30 `next.config.ts` imports packages, never a relative path into `src/`
+
+Next's config loader, and next/jest's load of the same file, resolve a relative import from the
+working directory, not the config file (§2 of ARCHITECTURE.md). `import "./src/..."` failed under
+Jest with "Cannot find module"; R1-04's prefix lives in `@timesprime/shared/config/adminAssets`.
+
+#### 3.31 An error boundary named `Error` shadows the global
+
+The bundled docs' example names its `error.tsx` component `Error`. Inside it that name is the
+function itself, so `error instanceof Error` is always false: R1-07's digest never showed until
+the test caught it. The boundaries are named `RouteError`.
+
 ### 4. Commits — restructure 2, then audit Phases 2–5
 
 `f260d3e` closed audit Phase 1. Everything after it is restructure 2. Restructure 1 and Phase 1 are
@@ -1290,7 +1502,7 @@ are resolved:
   head hash outside the database).
 
 **Resolved:** BL-003, BL-010, BL-011, BL-012, BL-013, BL-014, BL-015, BL-017, BL-018, BL-020, BL-021,
-BL-027, BL-029.
+BL-027, BL-029, BL-038 (R1-05).
 
 ### 12. Quick reference
 
@@ -2079,7 +2291,9 @@ pulse only under `prefers-reduced-motion: no-preference`.
 
 ### BL-038 — The login limit trusts the first `X-Forwarded-For` address
 
-**Found:** Panel 0's browser tests (2026-11-02) · **Status:** Open — before the AWS deployment
+**Found:** Panel 0's browser tests (2026-11-02) · **Status:** **Resolved** in R1-05 (`0f92d3e`):
+`getClientIp` takes the entry `TRUSTED_PROXY_HOPS` from the right (2 on AWS), tested with a forged
+header, and the runbook makes the ALB accept traffic only from CloudFront.
 
 `getClientIp` (`packages/server/src/lib/rateLimit.ts`) takes the first address in `X-Forwarded-For`, then
 `X-Real-IP`. The sign-in limit (10 per 15 minutes) is counted per that address. On Vercel the
