@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
   // `next start` still works locally and for the e2e builds; it only warns that server.js is the
   // production path.
   output: "standalone",
+  // One cache for every instance, in Upstash (R1-02, cache-handler.mjs), and no per-process copy
+  // in front of it (bundled docs: next-config-js/incrementalCacheHandlerPath.md). The build traces
+  // the handler and its imports into the standalone output.
+  cacheHandler: path.join(__dirname, "cache-handler.mjs"),
+  cacheMaxMemorySize: 0,
   images: {
     // https only, explicit hostnames only — kept in sync with topicImages.ts
     // via the shared ALLOWED_IMAGE_HOSTNAMES list (packages/shared/src/config/imageDomains.ts).

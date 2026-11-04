@@ -29,10 +29,10 @@ describe(".dockerignore", () => {
 describe("Dockerfile", () => {
   const instructions = lines("Dockerfile");
 
-  test("its build arguments are the base image and NEXT_PUBLIC_ values only: secrets are set at run time", () => {
+  test("its build arguments are the base image, the deployment ID and NEXT_PUBLIC_ values only: secrets are set at run time", () => {
     const args = instructions.filter((l) => /^ARG\s/i.test(l)).map((l) => l.split(/\s+/)[1].split("=")[0]);
-    expect(args.length).toBeGreaterThan(1);
-    expect(args.filter((name) => name !== "NODE_IMAGE" && !name.startsWith("NEXT_PUBLIC_"))).toEqual([]);
+    expect(args).toContain("NEXT_DEPLOYMENT_ID");
+    expect(args.filter((name) => !["NODE_IMAGE", "NEXT_DEPLOYMENT_ID"].includes(name) && !name.startsWith("NEXT_PUBLIC_"))).toEqual([]);
   });
 
   test("no COPY names an env file", () => {

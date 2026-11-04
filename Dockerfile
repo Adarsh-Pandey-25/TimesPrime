@@ -10,11 +10,11 @@
 # AWS runs them on ECS Fargate (Arm): add `--platform linux/arm64`. The lockfile holds the
 # linux-arm64 builds of the native packages (sharp), so `npm ci` picks them inside the build.
 #
-# Build arguments are the NEXT_PUBLIC_ values only. Next inlines them into the server and browser
-# bundles at build time (bundled docs: guides/environment-variables.md), so they cannot be set at
-# run time, and an image is built per environment. They are public by design: the browser receives
-# them. Every secret is set at run time by the ECS task definition, from Secrets Manager, never
-# here; .dockerignore keeps every env file out of the build context.
+# Build arguments are the deployment ID and the NEXT_PUBLIC_ values. Next inlines the latter into
+# the server and browser bundles at build time (bundled docs: guides/environment-variables.md), so
+# they cannot be set at run time, and an image is built per environment. They are public by
+# design: the browser receives them. Every secret is set at run time by the ECS task definition,
+# from Secrets Manager, never here; .dockerignore keeps every env file out of the build context.
 
 ARG NODE_IMAGE=node:24.19.0-bookworm-slim
 
@@ -38,7 +38,12 @@ ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_SENTRY_DSN
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+# One value per deployment (the git SHA): Next appends it to asset URLs and compares it on
+# navigation, so a browser holding the last deployment's page reloads instead of mixing versions
+# (bundled docs: next-config-js/deploymentId.md). The cache handler scopes page entries by it.
+ARG NEXT_DEPLOYMENT_ID
+ENV NEXT_DEPLOYMENT_ID=$NEXT_DEPLOYMENT_ID \
+    NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
