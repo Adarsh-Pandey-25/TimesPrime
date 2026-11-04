@@ -6,15 +6,15 @@
  *
  * Kept deliberately small: article images come from hundreds of arbitrary
  * publisher domains via NewsData.io, which isn't a viable allowlist target
- * (same reasoning as the scraper's SSRF guard — see src/lib/urlValidation.ts).
+ * (same reasoning as the scraper's SSRF guard — see packages/shared/src/lib/urlValidation.ts).
  * Anything not on this list falls back to the curated Unsplash topic image
  * instead of being rejected outright.
  */
 /**
  * RSS publisher CDN domains were removed in August 2026, and RSS ingestion
  * itself was deleted outright by owner decision on 2026-10-29. The publisher
- * licensing contacts that lived in src/lib/rssParser.ts survive in git
- * history:  git log --diff-filter=D -- src/lib/rssParser.ts
+ * licensing contacts that lived in packages/shared/src/lib/rssParser.ts survive in git
+ * history:  git log --diff-filter=D -- packages/shared/src/lib/rssParser.ts
  */
 export const ALLOWED_IMAGE_HOSTNAMES = [
   "images.unsplash.com",

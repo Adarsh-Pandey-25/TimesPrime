@@ -17,7 +17,7 @@
 --
 -- The app reads and writes these tables as service_role, which bypasses RLS. RLS is enabled here so
 -- that nothing else gets in; it is not the app's gate. The app's gate is requirePermission
--- (src/server/auth), tested on every admin route (design, "Approval").
+-- (packages/server/src/auth), tested on every admin route (design, "Approval").
 
 BEGIN;
 

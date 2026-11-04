@@ -12,15 +12,20 @@
 > `main`, and `main` pushed, only after the owner approves.
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
-**State as of:** 2026-11-02. **Panel 0 (Access foundation) is complete on the branch
+**State as of:** 2026-11-04. **Panel 0 (Access foundation) is complete on the branch
 `panel-0-access`** and awaits the owner's approval to merge; its first half is on `main`
 ([`PANEL_DOCS.md`](PANEL_DOCS.md), §4). None of its SQL is applied yet. **On top of it, the branch
-`chore/restructure` moves the code to the standard Next.js `src/` layout** (restructure 3,
-[ADR 0004](adr/0004-standard-src-layout.md), proposed): routes hold their own code, the one-line
-re-exports, feature barrels, `check:boundaries`, CODEMAP and their scripts are gone, and ngrok/CORS
-config is removed. Route table identical, CSS byte-identical, client JS 900 bytes smaller, 736 tests
-passing. It merges after `panel-0-access`. Before it, two restructures and all five audit phases
-were done:
+`chore/restructure`** (local, 8 commits, not pushed) holds:
+- restructure 3, the standard `src/` layout and the cleanup (ADR 0004);
+- the owner-approved build plan [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md) and its research
+  ([`RESEARCH.md`](RESEARCH.md)), with `PANEL_PLAN.md` and the PRD retired (the matrix lives on in
+  [`PERMISSIONS.md`](PERMISSIONS.md));
+- **restructure 4**, the plan's Phase C: `apps/web`, `apps/admin`, `apps/worker` over
+  `packages/server`, `packages/shared` and `packages/ui` ([ADR 0005](adr/0005-apps-and-packages.md)).
+
+It merges into `panel-0-access` once the owner approves, so Panel 0 finishes in the new layout.
+50 suites, 753 tests passing; every old route present across the two apps. Before it, two
+restructures and all five audit phases were done:
 - **Audit Phases 1–5** fixed the 28 audit findings. None is open: 22 are resolved, 5 await a check
   that needs production or the owner, and 1 (F-028) is partial. Status per finding:
   [`AUDIT-FINDINGS.md`](AUDIT-FINDINGS.md).
@@ -29,22 +34,19 @@ were done:
 - **Restructure 1** (Phases A–E, [ADR 0001](adr/0001-feature-first-structure.md), now superseded)
   came before it.
 
-**Next:**
-1. **A local database** (Supabase CLI stack in Docker, proposed to the owner; not set up yet). Until
-   it runs, no Panel 0 migration, bootstrap or staff sign-in is run anywhere.
-2. **Finish Panel 0 locally**, on `panel-0-access`:
+**Next:** the first phase in the Progress table of [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md) that is not
+Done. Today that is **Phase A**:
+1. The owner approves `chore/restructure`; it is pushed and merged into `panel-0-access`.
+2. **A local database** (Supabase CLI stack in Docker; not set up yet). Until it runs, no Panel 0
+   migration, bootstrap or staff sign-in is run anywhere.
+3. **Finish Panel 0 locally:**
    - `staff-access.md` step by step against the local database;
-   - the new definition-of-done items 7–13 (real-database tests in `npm run test:db`, end-to-end
-     browser tests, states, accessibility, Sentry, the JS budget in CI, a runbook).
-3. The owner approves; `panel-0-access` is merged into `main`, and `main` pushed.
-4. **The audit's remaining items**, on `fix/audit-closeout`, after that merge:
-   - F-028 / BL-028 (theme ternaries);
-   - the local SQL checks for F-006, F-008 and F-018;
-   - the F-002 fallback check;
-   - BL-030 (lazy-load the chatbot);
-   - ~~BL-032 (A2 for new pages)~~: moot since restructure 3; pages hold their own code.
-5. Then Panel 1, on `panel-1-administration` (granting roles in the app, the access review,
-   retiring the shared password).
+   - definition-of-done items 7–13 (real-database tests in `npm run test:db`, end-to-end browser
+     tests, states, accessibility, Sentry, the JS budget in CI, a runbook).
+4. The owner approves; `panel-0-access` is merged into `main`.
+
+Then Phase B (`fix/aggregator-off`, then `fix/audit-closeout`: F-028/BL-028, the local SQL checks for
+F-006/F-008/F-018, the F-002 check, BL-030), then Panel 1.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are [`PERMISSIONS.md`](PERMISSIONS.md); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
@@ -125,9 +127,11 @@ There is also a published audit artifact (28 findings, severity-filterable):
 | Git identity | Set locally for this repo: `Vivek Singh <vivektech.dev25@gmail.com>`. Not global |
 
 ```bash
-npm run dev               # dev server (Turbopack)
+npm run dev               # the reader site (apps/web), http://localhost:3000
+npm run dev:admin         # the back office (apps/admin), http://localhost:3001/admin
+npm run job -- <name>     # a worker job (apps/worker); refresh-news writes to the configured database
 npm run verify            # THE GATE: typecheck -> lint -> test -> build. All four
-npm run typecheck         # tsc --noEmit
+npm run typecheck         # tsc --noEmit, for every app, every package and the root
 npm run lint              # eslint, including the boundary rules (eslint.config.mjs)
 npm test                  # jest
 npm run test:ci           # jest with coverage
@@ -141,9 +145,9 @@ npm run test:ci           # jest with coverage
 | Client JS | **981,592 bytes** in 18 chunks (976,061 at the audit close-out). Per route: `/admin` 164,101 · `/article/[slug]` 141,655 · `/` 125,795 · `/saved` 113,333 · `/contact` 100,601 · `/about`, `/privacy`, `/terms` 97,443 each · `/admin/login` 35,623 · `/_not-found` 28,259. Panel 0 changed only the two admin pages: `/admin` +1,658 (the clear button out, `/me` and the permission checks in), `/admin/login` +3,873 (staff sign-in and the MFA steps) |
 | CSS | **93,942 bytes**, one file, 927 selectors (+6 in Panel 0, for the notices and the code field) |
 | Tests | **47 suites, 736 tests**, all passing |
-| Coverage | **93 files**, measured before restructure 3 removed the shims: 60.07% of statements (8,635 of 14,374), 74.98% of branches, 74.35% of functions. `backend/` + `shared/`: 78.02% (5,514 of 7,067). `src/proxy.ts`: 100% (it was 0%) |
+| Coverage | **93 files**, measured before restructure 3 removed the shims: 60.07% of statements (8,635 of 14,374), 74.98% of branches, 74.35% of functions. `backend/` + `shared/`: 78.02% (5,514 of 7,067). `apps/admin/src/proxy.ts`: 100% (it was 0%) |
 | Lint | **0 errors, 13 warnings** (all in source; BL-002 accounts for two) |
-| Boundaries | Lint zones (`eslint.config.mjs`) and `import "server-only"` on every `src/server/` module; `check:boundaries` was removed in restructure 3 |
+| Boundaries | Lint zones (`eslint.config.mjs`) and `import "server-only"` on every `packages/server/src/` module; `check:boundaries` was removed in restructure 3 |
 | `npm audit` | **37: 0 critical, 0 high, 34 moderate, 3 low**. The moderates are dev and build tooling (BL-031); the lows are the accepted jest set |
 
 **After restructure 3 (`chore/restructure`, same machine as a fresh build of `panel-0-access`):**
@@ -151,6 +155,14 @@ routes identical (30); client JS **980,692 bytes** (−900): `/` 125,360 · `/ar
 `/admin` 163,762 · `/saved` 113,090 · `/contact` 100,358 · `/about`, `/privacy`, `/terms` 97,307
 each · `/admin/login` 35,541 · `/_not-found` 28,175; CSS **93,939 bytes**, byte-identical (the
 93,942 above was measured on Windows); 47 suites, 736 tests; lint 0 errors, 13 warnings.
+
+**After restructure 4 (the apps/packages split, same machine):** `apps/web` 15 routes, `apps/admin`
+16 routes plus the proxy; every old route present (the cron route became the worker's
+`refresh-news` job; `/api/news/breaking-news` is new). Client JS, web: `/` 125,071 ·
+`/article/[slug]` 141,328 · `/saved` 112,909 · `/contact` 100,205 · `/about`, `/privacy`, `/terms`
+96,768 each · `/_not-found` 28,135. Admin: `/admin` **80,206** (was 163,762) · `/admin/login`
+**23,705** (was 35,541). CSS: web 83,122 bytes, admin 47,737. 50 suites, 753 tests; lint 0 errors,
+13 warnings. Measure each app from its own folder (`apps/<app>/.next`).
 
 Client JS is the sum of `.next/static/chunks/**/*.js`. A route's JS is the chunks listed in
 `entryJSFiles` of its `.next/server/app/**/page_client-reference-manifest.js`. Chunk bytes move
@@ -177,12 +189,12 @@ Next 16.4 postdates most published material. **`AGENTS.md` requires reading
 
 | Looks wrong | Actually correct |
 |---|---|
-| `src/proxy.ts` instead of `middleware.ts` | Next 16 **renamed Middleware to Proxy**. Correct as-is, in `src/` beside `app/` (required with a `src/` folder) |
+| `apps/admin/src/proxy.ts` instead of `middleware.ts` | Next 16 **renamed Middleware to Proxy**. Correct as-is, in `src/` beside `app/` (required with a `src/` folder) |
 | `preload` prop on `next/image` | Correct. **`priority` is deprecated as of v16.0.0** — the familiar prop is the wrong one |
 | `remotePatterns` hostnames using `{,*.}host` glob | Correct. Hostnames are matched with **picomatch**, not string equality (`next/dist/shared/lib/match-remote-pattern.js`) |
 
 `remotePatterns` is capped at **50 entries** (zod `.max(50)` in `next/dist/server/config-schema.js`).
-The list in `src/config/imageDomains.ts` holds 49. One slot free.
+The list in `packages/shared/src/config/imageDomains.ts` holds 49. One slot free.
 
 > A previous pass flagged `preload` as a bug. It was wrong, and the bundled docs settled it.
 > **When docs and memory disagree, the bundled docs win.**
@@ -281,7 +293,7 @@ how S5 confirmed a same-length image URL change actually shipped.
 
 ### 3.12 A barrel imported by a server component ships every client component it re-exports
 
-Measured in restructure 1, slice 5: `src/app/layout.tsx` importing `BreakingNewsBanner` from the admin
+Measured in restructure 1, slice 5: `apps/web/src/app/layout.tsx` importing `BreakingNewsBanner` from the admin
 feature's barrel put all five admin dashboard components on **every** route (+46 KB on `/`).
 `"use client"` on the barrel does not help — the module count drops but the bytes stay. What fixes
 it was a `package.json` of `{ "sideEffects": false }` in each feature folder (`bae6f8a`; restructure
@@ -300,8 +312,8 @@ script that detects and restores `\r\n`, and check with `git ls-files --eol <fil
 
 A policy list that tolerates a stale path reports success while checking nothing. The scripts this
 was written about (`generate-codemap.mjs`, `move-map.mjs`) were deleted in restructure 3. What is
-left that walks paths: the route walk in `src/app/api/admin/access.test.ts` (it reads
-`src/app/api/admin/**/route.ts` and fails on a route the policy does not name).
+left that walks paths: the route walk in `apps/admin/src/app/api/admin/access.test.ts` (it reads
+`apps/admin/src/app/api/admin/**/route.ts` and fails on a route the policy does not name).
 
 ### 3.15 Directory renames fail on Windows while the editor watches them
 
@@ -313,7 +325,7 @@ editor processes to get around it (owner instruction).
 ### 3.16 Tailwind v4 scans every file that is not git-ignored
 
 Class detection is automatic and reads Markdown and comments too. A word in a document once removed
-a CSS rule when the document was deleted (BL-018). `src/app/globals.css` now excludes
+a CSS rule when the document was deleted (BL-018). `apps/web/src/app/globals.css` now excludes
 `docs/`, `scripts/`, `database/` and the root `.md` files with `@source not`, with paths relative to
 the stylesheet. Code comments and tests are still scanned: `.transform` is in the CSS only because
 `jest.config.ts` comments say "transform".
@@ -369,7 +381,7 @@ ids that are not utility class names.
 ### 3.23 The env-var test sees only tracked files
 
 `check:boundaries` (removed in restructure 3) read `git ls-files`, and so does
-`src/config/envExample.test.ts`. A gate run before a new file is added cannot see it. Register new
+`packages/shared/src/config/envExample.test.ts`. A gate run before a new file is added cannot see it. Register new
 files with `git add -N <file>` before the gate.
 
 ---
@@ -435,16 +447,16 @@ The flows (ingest, serve, authorise), the layout, the rules and each folder's re
 in [`architecture.md`](architecture.md). The tree, in short:
 
 ```
-src/app/         URLs: each page.tsx and route.ts holds its own code; tests beside them
-src/components/  news/ · admin/ · chat/ · home/ · article/ · ui/
-src/context/     ThemeContext · LanguageContext
-src/server/      auth/ · repositories/ · services/{news,scrape,translate,classify,health} · lib/
-src/lib/ · src/config/ · src/types/      what both sides import
-src/proxy.ts · src/instrumentation*.ts · src/sentry.*.config.ts    framework-pinned beside app/
+apps/web/        the reader site: src/app (pages, public APIs) · src/components · src/context · src/lib
+apps/admin/      the back office: src/proxy.ts · src/app/admin · src/app/api/admin · src/components
+apps/worker/     scheduled jobs: src/jobs.ts (refresh-news)
+packages/server/ auth/ · repositories/ · services/{news,scrape,translate,classify,health} · lib/
+packages/shared/ config/ · types/ · lib/      what both apps import
+packages/ui/     ThemeContext
 database/        schema.sql · policies.sql · migrations/ · bootstrap/ · seed/
 ```
 
-**Authorisation, since Panel 0:** `src/proxy.ts` (matcher `/admin/*`, `/api/admin/*`) only checks that a
+**Authorisation, since Panel 0:** `apps/admin/src/proxy.ts` (matcher `/admin/*`, `/api/admin/*`) only checks that a
 session exists. Every admin route body calls `requirePermission`, the **only** gate on the data,
 because the app reads Supabase as `service_role` and bypasses RLS. A route outside the matcher is
 still public, and an admin route without a rule fails the route walk (`access.test.ts`).
@@ -454,13 +466,13 @@ still public, and an admin route without a rule fails the route walk (`access.te
 
 | File | LOC | Statements covered |
 |---|--:|--:|
-| `src/components/article/ArticleDetailView.tsx` | 970 | tested (F-005, F-013, F-017) |
-| `src/components/admin/ArticlesTable.tsx` | 751 | 0% |
-| `src/server/repositories/db.ts` | 678 | 71.8% |
-| `src/server/services/scrape/scrapeArticle.ts` | 580 | 87.1% |
-| `src/components/news/Header.tsx` | 568 | stubbed in tests |
-| `src/components/home/HomeClient.tsx` | 561 | tested (F-021, BL-027) |
-| `src/app/admin/page.tsx` | 521 | tested (F-014) |
+| `apps/web/src/components/article/ArticleDetailView.tsx` | 970 | tested (F-005, F-013, F-017) |
+| `apps/admin/src/components/ArticlesTable.tsx` | 751 | 0% |
+| `packages/server/src/repositories/db.ts` | 678 | 71.8% |
+| `packages/server/src/services/scrape/scrapeArticle.ts` | 580 | 87.1% |
+| `apps/web/src/components/news/Header.tsx` | 568 | stubbed in tests |
+| `apps/web/src/components/home/HomeClient.tsx` | 561 | tested (F-021, BL-027) |
+| `apps/admin/src/app/admin/page.tsx` | 521 | tested (F-014) |
 
 Per-file coverage: `npm run test:ci`, then `coverage/lcov-report/index.html`.
 
@@ -472,7 +484,7 @@ Per-file coverage: `npm run test:ci`, then `coverage/lcov-report/index.html`.
 |---|---|
 | Restructure 1: Phases 0, 1, A, C, D, E | ✅ Done (ADR 0001, superseded) |
 | Restructure 2: S0 design, S1 cleanup, S2 tooling, S3 moves, S4 enforcement, S5 docs | ✅ Done (ADR 0002, superseded) |
-| Restructure 3: the standard `src/` layout, cleanup of the restructure-2 tooling, ngrok and CORS | On `chore/restructure`, awaiting the owner (ADR 0004, proposed). Moved the feed's read path into `src/server/services/news/topHeadlines.ts` |
+| Restructure 3: the standard `src/` layout, cleanup of the restructure-2 tooling, ngrok and CORS | On `chore/restructure`, awaiting the owner (ADR 0004, proposed). Moved the feed's read path into `packages/server/src/services/news/topHeadlines.ts` |
 | **Phase F** — decompose the oversized files; move route-body logic into services | Optional, not started; needs an owner decision |
 
 ### Phase F candidates
@@ -539,9 +551,14 @@ BL-027, BL-029.
 | Q4 | **Contact form and newsletter: UIs removed.** `/contact` page kept, listing emails | `59b875d`, BL-005 |
 | Q5 | **EN/HI is the scope.** An explicit non-goal in the PRD, so the discard is not treated as a bug | PRD §3 |
 
-**Structure (restructure 3):** the standard Next.js `src/` layout, one app (ADR 0004, superseding
-ADR 0002's five-folder split). Routes hold their own code; components are imported from their own
-files, with no barrels; `server-only` and four lint zones keep server code out of the browser.
+**Plan (2026-11-04):** `NEWSROOM_PLAN.md` approved as the one plan every developer follows; sign-off
+item 6 (how aggregated items show) is pending, and until then they stay hidden. `PANEL_PLAN.md` and
+the PRD retired; the access rules moved to `PERMISSIONS.md`.
+
+**Structure (restructure 4, 2026-11-04):** three apps over shared packages (ADR 0005, superseding ADR
+0004's single app, which superseded ADR 0002's five-folder split). Routes hold their own code;
+components are imported from their own files, with no barrels; `server-only` and lint zones keep
+server code out of the browser and the apps apart.
 
 **Audit (Phases 0–5).** Each one is recorded in the ledger row or backlog entry it governs:
 - **Severity:** the higher rating governs (F-003 Critical, F-013 High). The jest lows are accepted;
@@ -604,7 +621,7 @@ contact-form collection that no longer happens. Legal copy, for the owner or leg
 - **`npm run verify` must pass before any commit.** All four, not a subset. `tsc` catches imports
   that no longer resolve; `eslint` catches the ones left behind and every boundary-rule break;
   `jest` covers the tested slice; `build` catches route resolution and a client module reaching
-  `src/server/` transitively (the `server-only` guard).
+  `packages/server/src/` transitively (the `server-only` guard).
 - **Three kinds of commit, never mixed:** a move (`git mv`, plus the import and path references the
   move invalidated), a deletion (`git rm`, plus the imports and index links that pointed at it), or
   a change. One finding per commit for audit fixes, prefixed with its ID.
@@ -628,10 +645,9 @@ for that day. Until then every check is made locally, against a local database (
 - **Region:** `ap-south-1` (Mumbai), for the app and for its logs. CERT-In's directions keep logs for
   180 days within India; the plan also asks for the Supabase project in an Indian region, or logs
   exported to Indian storage.
-- **The cron:** `vercel.json` registers `/api/cron/refresh-news` every 30 minutes, and only Vercel
-  reads that file. On AWS a scheduler must call the same path with `Authorization: Bearer
-  <CRON_SECRET>` (for example EventBridge Scheduler). The path stays (CR-02); without the scheduler,
-  ingestion stops silently.
+- **The refresh:** the worker's `refresh-news` job, started every 30 minutes by EventBridge
+  Scheduler (an ECS task running `npm run job -- refresh-news`). It has no HTTP path and needs no
+  secret; without the scheduler, ingestion stops silently, so alarm on the task's exit code.
 - **Runtime:** Node 24 (F-026). The proxy runs on Next's Node runtime. Audit rows take their
   `request_id` from `x-vercel-id`, and fall back to a random UUID where that header is absent, as it
   will be on AWS.
@@ -664,7 +680,7 @@ database, then done once more against the production database at deployment, in 
 **Environment:**
 - `.env.local` names the Supabase project `yhjotyxrdaqtcgsxigok`, which may be production. Until the
   local database exists, no local run may write (§2, §3.18).
-- On AWS: Node 24 (F-026), `NEXT_PUBLIC_SENTRY_DSN`, the Upstash variables, `CRON_SECRET`, and the
+- On AWS: Node 24 (F-026), `NEXT_PUBLIC_SENTRY_DSN`, the Upstash variables, and the worker's
   scheduler. No production cron entry has ever been seen in the database.
 - Owner's `.env.local`: `ADMIN_SECRET_TOKEN` and `MEDIASTACK_API_KEY` can go; nothing reads them.
   Never set `NEXT_PUBLIC_NEWSDATA_API_KEY`.
@@ -672,7 +688,7 @@ database, then done once more against the production database at deployment, in 
 **Smoke test at deployment:**
 - `/api/health` answers 200, and Sentry receives a Supabase fallback event (F-002).
 - `X-Data-Source` shows `supabase` or `cache` for readers (NFR-01).
-- The scheduler fires the cron, and its `audit_log` row (`system:cron`, `cron.refresh_news`) carries
+- The scheduler starts the worker's refresh, and its `audit_log` row (`system:cron`, `cron.refresh_news`) carries
   the purge count (F-015).
 - The Redis limiter: the 11th login attempt in 15 minutes and the 31st uncached scrape in a minute
   answer 429 across instances (F-004, F-011).
@@ -712,7 +728,7 @@ tail -40 .next/dev/logs/next-development.log
 
 # route table drift: compare the "Route (app)" block of `next build` output before and after
 # (f/o + path), not a file list
-git ls-files 'src/app/**/page.tsx' 'src/app/**/route.ts' | sort
+git ls-files 'apps/*/src/app/**/page.tsx' 'apps/*/src/app/**/route.ts' | sort
 
 # the boundary rules
 npm run lint
@@ -745,6 +761,6 @@ schema; GIN on `category`/`country`, trigram on `title`/`description`, and `link
 and the access SQL's guarantees. Every security module has tests: `urlValidation` (73),
 `fetchPage` (real axios against a local server), `adminSession`, the login and scrape routes, the
 rate limiter (memory and Redis), the size-capped body reader, and the search escaping. Repo-reading
-tests keep the SQL in step with the code (`src/server/repositories/schema.test.ts`, including the
+tests keep the SQL in step with the code (`packages/server/src/repositories/schema.test.ts`, including the
 runbook's rollback), and `.env.local.example` in step with `process.env`
-(`src/config/envExample.test.ts`). Untested: `ArticlesTable.tsx` and `Header.tsx`.
+(`packages/shared/src/config/envExample.test.ts`). Untested: `ArticlesTable.tsx` and `Header.tsx`.

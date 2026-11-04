@@ -4,7 +4,7 @@
  * POST /api/admin/login. F-004: nothing limited how many passwords one
  * client could try. Upstash is not configured in tests, so the limiter runs
  * on its in-memory fallback; the Redis path has its own tests
- * (src/server/lib/rateLimit.redis.test.ts).
+ * (packages/server/src/lib/rateLimit.redis.test.ts).
  */
 
 jest.mock("@sentry/nextjs", () => ({ captureMessage: jest.fn(), captureException: jest.fn() }));

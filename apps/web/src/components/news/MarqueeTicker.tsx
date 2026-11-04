@@ -112,7 +112,7 @@ export default function MarqueeTicker({ articles }: MarqueeTickerProps) {
     >
       {/* Fixed ticker label. Deliberately NOT "Breaking News" — that text
           collided with the real admin-curated breaking news banner
-          (src/components/news/BreakingNewsBanner.tsx), which sits directly
+          (apps/web/src/components/news/BreakingNewsBanner.tsx), which sits directly
           above this on every page: two bars both claiming "BREAKING NEWS"
           for different content read as a bug. This ticker only ever
           showed the regular India+World top-headlines feed, never

@@ -25,7 +25,7 @@ for (const file of sources) {
   for (const m of text.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)/g)) read.add(m[1]);
 }
 // Looked up by name rather than as process.env.NAME.
-for (const name of ["NEWSDATA_API_KEY", "ANTHROPIC_API_KEY"]) read.add(name); // src/server/services/health/health.ts checkKey
+for (const name of ["NEWSDATA_API_KEY", "ANTHROPIC_API_KEY"]) read.add(name); // packages/server/src/services/health/health.ts checkKey
 
 const assigned = [...example.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]);
 

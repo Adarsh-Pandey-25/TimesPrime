@@ -7,7 +7,7 @@ import { scrapeArticle } from "@timesprime/server/services/scrape/scrapeArticle"
 
 /**
  * GET /api/news/scrape-article?url=… — the public scraper. The scraping
- * itself lives in src/server/services/scrape/scrapeArticle.ts, which the
+ * itself lives in packages/server/src/services/scrape/scrapeArticle.ts, which the
  * article page calls directly (BL-016); this route serves external callers.
  */
 

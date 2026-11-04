@@ -12,38 +12,40 @@ breaking-news banners, sync controls and an activity log.
 
 ## Project structure
 
-The standard Next.js `src/` layout ([ADR 0004](docs/adr/0004-standard-src-layout.md)).
+One repository, three apps over shared packages, in npm workspaces
+([ADR 0005](docs/adr/0005-apps-and-packages.md)). The plan every developer follows is
+[`docs/NEWSROOM_PLAN.md`](docs/NEWSROOM_PLAN.md).
 
 ```
-src/
-  app/          The URLs. Each page.tsx and route.ts holds its own code; tests sit beside it
-  components/   React UI by area: news/, admin/, chat/, home/, article/, ui/
-  context/      Theme and language providers
-  server/       Server-only (every file imports "server-only"): auth/, repositories/ (Supabase
-                queries), services/ (news, scrape, translate, classify, health), lib/ (cache,
-                rate limit, …)
-  lib/          Helpers both sides use: URL validation, Sentry scrubbing, saved articles
-  config/       Static data and editorial rules: news filters, permissions, UI strings, …
-  types/        Shared TypeScript types
-  proxy.ts      Admin authorisation: the session check in front of /admin/* and /api/admin/*
-  instrumentation*.ts, sentry.*.config.ts   Sentry wiring
-database/       schema.sql, policies.sql, migrations/, bootstrap/, seed/; applied by hand
-docs/           The build plan, access rules, architecture, decision records, research, audit ledger,
-                backlog, handoff, panels
-scripts/        generate-access-catalog.mjs: writes the permission catalogue SQL from the plan
-public/         Logos and favicon
+apps/
+  web/        The reader site (Next.js): pages, public APIs, the reader UI          → port 3000
+  admin/      The back office (Next.js): /admin pages, /api/admin routes, the proxy → port 3001
+  worker/     Scheduled jobs (plain Node): refresh-news
+packages/
+  server/     @timesprime/server: server-only code (auth, repositories, services, lib); every file
+              imports "server-only"
+  shared/     @timesprime/shared: client-safe config, types and helpers
+  ui/         @timesprime/ui: React both apps use (ThemeContext)
+database/     schema.sql, policies.sql, migrations/, bootstrap/, seed/; applied by hand
+docs/         The plan, access rules, architecture, decision records, research, audit ledger,
+              backlog, handoff, panels
+scripts/      generate-access-catalog.mjs: writes the permission catalogue SQL from docs/PERMISSIONS.md
 ```
 
-The root holds only configuration: Next.js, ESLint, Jest, TypeScript, PostCSS.
+The root holds the workspace configuration: `package.json` (all dependencies, the scripts),
+ESLint, Jest and the base TypeScript config. Each app has its own `next.config.ts`,
+`tsconfig.json` and `public/`. One `.env.local` at the root serves every app.
 
 **Following a request:** `GET /api/news/top-headlines` reaches
-`src/app/api/news/top-headlines/route.ts`, which calls `getTopHeadlines` in
-`src/server/services/news/topHeadlines.ts`; that reads the cache in `src/server/lib/` and the feed
-from Supabase. The page `/about` is `src/app/about/page.tsx`.
+`apps/web/src/app/api/news/top-headlines/route.ts`, which calls `getTopHeadlines` from
+`@timesprime/server/services/news/topHeadlines`; that reads the cache and the feed from Supabase.
+The page `/about` is `apps/web/src/app/about/page.tsx`; the admin dashboard is
+`apps/admin/src/app/admin/page.tsx`.
 
-**Lint keeps server code out of the browser:** components, context, `lib`, `config` and `types`
-never import `src/server/`, and every `src/server/` file starts with `import "server-only"`, so a
-client import of it fails the build ([the rules](docs/architecture.md#5-import-rules)).
+**Lint keeps the sides apart:** client-safe code never imports `packages/server`, packages never
+import an app, and no app imports another; every `packages/server` file starts with
+`import "server-only"`, so a client import of it fails the build
+([the rules](docs/architecture.md#5-import-rules)).
 
 **Adding code?** [Where does new code go?](CONTRIBUTING.md#where-does-new-code-go) answers it in one
 table.
@@ -61,10 +63,10 @@ table.
 | Styling | Tailwind CSS v4 |
 | Monitoring | Sentry |
 | Tests | Jest + Testing Library |
-| Hosting | **Not deployed** until the project is complete; then AWS, `ap-south-1`. The cron schedule is in `vercel.json` today and needs an AWS scheduler then |
+| Hosting | **Not deployed** until the project is complete; then AWS, `ap-south-1`. The worker's 30-minute refresh needs an AWS scheduler (EventBridge) then |
 
 > **This is not stock Next.js.** Version 16 renamed Middleware to **Proxy**
-> (`src/proxy.ts`), deprecated the `priority` image prop in favour of `preload`,
+> (`apps/admin/src/proxy.ts`), deprecated the `priority` image prop in favour of `preload`,
 > and matches `images.remotePatterns` hostnames with globs rather than string
 > equality. Read `node_modules/next/dist/docs/` before relying on any framework
 > convention from memory. See `AGENTS.md`.
@@ -81,7 +83,8 @@ table.
 git clone <repo-url> && cd TimesPrime
 npm ci
 cp .env.local.example .env.local   # then fill it in, see below
-npm run dev                        # http://localhost:3000
+npm run dev                        # the reader site, http://localhost:3000
+npm run dev:admin                  # the back office, http://localhost:3001/admin
 ```
 
 Apply the database schema before first run — paste `database/schema.sql` into the
@@ -89,8 +92,8 @@ Supabase SQL editor, then `database/policies.sql`.
 
 > `database/schema.sql` currently defines the `articles` table only. The
 > `breaking_news` and `admin_logs` tables exist as SQL inside comments in
-> `src/app/api/admin/breaking-news/route.ts` and
-> `src/app/api/admin/logs/route.ts`. Until those are promoted into
+> `apps/admin/src/app/api/admin/breaking-news/route.ts` and
+> `apps/admin/src/app/api/admin/logs/route.ts`. Until those are promoted into
 > `database/schema.sql`, breaking news and the activity log will not work on a fresh
 > project.
 
@@ -108,7 +111,6 @@ Copy `.env.local.example` to `.env.local`. Never commit `.env.local`.
 | `ADMIN_PASSWORD` | yes | The admin panel password, compared in constant time |
 | `ADMIN_SESSION_SECRET` | yes | HMAC key signing the 12-hour admin session cookie |
 | `ADMIN_LEGACY_LOGIN` | optional | `off` retires the shared admin password early. It ends by itself at 00:00 IST on 1 January 2027 (Panel 0) |
-| `CRON_SECRET` | prod | Gates `/api/cron/refresh-news`; the scheduler sends it as a bearer token. Unset means the endpoint fails closed |
 | `UPSTASH_REDIS_REST_URL` | optional | Shared cache. Without it, an in-process cache is used (fine locally, not shared across serverless instances) |
 | `UPSTASH_REDIS_REST_TOKEN` | optional | Pairs with the URL above |
 | `NEXT_PUBLIC_SENTRY_DSN` | optional | Error reporting. Not a secret, but must be `NEXT_PUBLIC_` to reach the browser |
@@ -125,28 +127,31 @@ node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
 
 ## Scripts
 
+Run from the repository root.
+
 | Script | What it does |
 |---|---|
-| `npm run dev` | Dev server with Turbopack |
-| `npm run build` | Production build |
-| `npm start` | Serve a production build |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run lint` | ESLint, including the import-boundary rules (`eslint.config.mjs`) |
-| `npm test` | Jest |
+| `npm run dev` | The reader site, http://localhost:3000 |
+| `npm run dev:admin` | The back office, http://localhost:3001/admin |
+| `npm run job -- refresh-news` | Runs a worker job once (it writes to the database `.env.local` points at) |
+| `npm run build` | Production builds of both apps |
+| `npm run typecheck` | `tsc --noEmit` for every app, every package and the root |
+| `npm run lint` | ESLint over the repository, including the import-boundary rules (`eslint.config.mjs`) |
+| `npm test` | Jest: one project per app, plus the packages |
 | `npm run test:watch` | Jest in watch mode |
 | `npm run test:ci` | Jest with coverage, CI reporter |
 | `npm run verify` | typecheck → lint → test → build. **The gate every commit must pass** |
 
 ## Architecture in one paragraph
 
-A scheduled job hits `/api/cron/refresh-news` every 30 minutes, pulls each
+A worker job (`refresh-news`, started every 30 minutes by a scheduler) pulls each
 category from NewsData.io, filters out paywalled, horoscope, wire-spam and
 non-news sources, and upserts into Supabase. Reads go through
 `/api/news/top-headlines`, which tries the Redis cache, then Supabase if its
 newest row is under 30 minutes old, then NewsData.io, and finally built-in mock
 articles. The `X-Data-Source` response header says which tier answered — useful
 when diagnosing whether a given response touched the database at all. Admin
-routes are gated twice: `src/proxy.ts` lets only a session through to `/admin/*` and
+routes are gated twice: `apps/admin/src/proxy.ts` lets only a session through to `/admin/*` and
 `/api/admin/*`, and each route body checks the staff member's permissions
 (`requirePermission`, Panel 0).
 
@@ -156,10 +161,10 @@ Fuller detail in [`docs/architecture.md`](docs/architecture.md).
 
 **None until the project is complete** (owner decision, 2026-11-02); every check
 runs locally. The target is AWS, region `ap-south-1`. Set every variable from the
-table above in the AWS environment. `vercel.json` holds the 30-minute schedule
-(`*/30 * * * *` against `/api/cron/refresh-news`), but only Vercel reads it: on
-AWS a scheduler must call that path with the `CRON_SECRET` bearer token, and the
-path must not change. The list for that day is in
+table above in the AWS environment. Three units deploy: the reader site and the
+back office as ECS services, and the worker as a task that EventBridge starts every
+30 minutes (`npm run job -- refresh-news`). The plan for that day is Phase I of
+[`docs/NEWSROOM_PLAN.md`](docs/NEWSROOM_PLAN.md), and the checklist is in
 [`docs/HANDOFF.md`](docs/HANDOFF.md) §11.
 
 ## Documentation

@@ -12,20 +12,20 @@
 
 -- Array containment (category @> '{top}', country @> '{"india"}'): the feed's category filter, the
 -- India feed's country/category OR, and the admin article list's category and country filters
--- (src/server/repositories/db.ts applyArticleFilters; src/app/api/admin/articles/route.ts). A btree cannot
+-- (packages/server/src/repositories/db.ts applyArticleFilters; apps/admin/src/app/api/admin/articles/route.ts). A btree cannot
 -- serve @>; GIN can.
 CREATE INDEX IF NOT EXISTS idx_articles_category_gin ON public.articles USING GIN (category);
 CREATE INDEX IF NOT EXISTS idx_articles_country_gin ON public.articles USING GIN (country);
 
 -- Substring search (ILIKE '%term%'): the feed search on title OR description (searchFilter in
--- src/server/repositories/db.ts, F-006) and the admin search on title (src/app/api/admin/articles/route.ts).
+-- packages/server/src/repositories/db.ts, F-006) and the admin search on title (apps/admin/src/app/api/admin/articles/route.ts).
 -- A leading % defeats a btree; trigram GIN indexes serve it.
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX IF NOT EXISTS idx_articles_title_trgm ON public.articles USING GIN (title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_articles_description_trgm ON public.articles USING GIN (description gin_trgm_ops);
 
--- Exact match on link. The F-005 lookup (findArticleByLink in src/server/repositories/db.ts) runs it on
--- every article page, and the public scrape route (src/app/api/news/scrape-article/route.ts) runs it on
+-- Exact match on link. The F-005 lookup (findArticleByLink in packages/server/src/repositories/db.ts) runs it on
+-- every article page, and the public scrape route (apps/web/src/app/api/news/scrape-article/route.ts) runs it on
 -- every request, to accept only stored articles; the scraper's background content update matches on
 -- link too. Without this index each of those is a full table scan. A plain btree, not UNIQUE: rows
 -- whose source had no link are stored as "#" (saveArticlesToDB), so duplicates can exist and a

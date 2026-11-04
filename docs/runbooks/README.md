@@ -14,8 +14,9 @@ Candidates, based on failure modes already observed in this system:
   expected means the store is not being read.
 - **NewsData.io quota exhausted or key invalid** — feed falls back to built-in
   mock articles; header reads `mock`.
-- **Cron not firing** — stale feed. Check `lastSyncAt` in `/api/admin/stats`
-  against the 30-minute schedule in `vercel.json`.
+- **Refresh not running** — stale feed. Check `lastSyncAt` in `/api/admin/stats`
+  against the worker's 30-minute schedule (`npm run job -- refresh-news`, started by
+  the scheduler; its exit code is 1 when a run failed).
 - **Admin lockout** — `ADMIN_PASSWORD` or `ADMIN_SESSION_SECRET` unset makes
   the shared-password login return 503 and every `/admin/*` path redirect to the
   login page. Staff accounts (Panel 0) have their own recovery: `staff-access.md`.

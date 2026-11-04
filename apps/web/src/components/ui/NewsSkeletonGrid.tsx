@@ -1,4 +1,4 @@
-// Suspense fallback for the initial news fetch (see src/app/page.tsx). Card
+// Suspense fallback for the initial news fetch (see apps/web/src/app/page.tsx). Card
 // dimensions/spacing are copied from ArticleCard.tsx and HomeClient.tsx's
 // grid so the real content swaps in with zero layout shift.
 

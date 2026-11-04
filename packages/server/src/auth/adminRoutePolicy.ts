@@ -4,7 +4,7 @@ import type { PermissionKey } from "@timesprime/shared/config/permissions";
 import type { Mode } from "./decide";
 
 // Every admin route and method, and what it needs (design §4). Route bodies take their rule from
-// here, so the table and the code cannot disagree. src/app/api/admin/access.test.ts walks src/app/api/
+// here, so the table and the code cannot disagree. apps/admin/src/app/api/admin/access.test.ts walks apps/web/src/app/api/
 // admin/ on disk and fails on any route or method that is neither in ADMIN_ROUTE_RULES nor in
 // PUBLIC_ADMIN_ROUTES, so a new route cannot ship unguarded.
 

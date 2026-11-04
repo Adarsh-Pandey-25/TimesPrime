@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * src/proxy.ts, the optimistic check in front of /admin/* and /api/admin/* (Next 16's renamed
+ * apps/admin/src/proxy.ts, the optimistic check in front of /admin/* and /api/admin/* (Next 16's renamed
  * Middleware). Characterization first: this pins its behaviour with the shared-password cookie
  * before Panel 0 teaches it the staff session. It was at 0% coverage.
  */

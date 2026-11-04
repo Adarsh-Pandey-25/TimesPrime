@@ -10,7 +10,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // Supabase requires cookie-based session storage"). It is made per request and never at module
 // scope, because it reads that request's cookies. It uses the public anon key: this client only
 // verifies and refreshes the session. Data is read with the service-role client in
-// src/server/lib/supabase.ts, behind requirePermission.
+// packages/server/src/lib/supabase.ts, behind requirePermission.
 //
 // There is no browser Supabase client: sign-in, MFA and sign-out run in server routes. So no
 // browser code needs to read the session cookie, and every cookie this client writes is HttpOnly,

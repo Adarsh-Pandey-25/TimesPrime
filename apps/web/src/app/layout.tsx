@@ -58,7 +58,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* Applies the saved theme before the first paint (F-028); see src/config/theme.ts. */}
+        {/* Applies the saved theme before the first paint (F-028); see packages/shared/src/config/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col bg-slate-50 dark:bg-[#1a1c1e] text-slate-900 dark:text-slate-100 font-serif selection:bg-blue-600 selection:text-white transition-colors duration-200">

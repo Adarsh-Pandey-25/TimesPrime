@@ -392,7 +392,7 @@ export interface ScrapeOptions {
 /**
  * Scrapes a publisher article: the cache first, then a guarded fetch
  * (fetchPage, F-003), then extraction. Called by the public route
- * (src/app/api/news/scrape-article/route.ts) and, since BL-016, directly by the
+ * (apps/web/src/app/api/news/scrape-article/route.ts) and, since BL-016, directly by the
  * article page, which used to fetch that route over HTTP: every reader then
  * shared the server's rate-limit bucket (BL-021). Callers check that the URL
  * is a stored article first (F-005).

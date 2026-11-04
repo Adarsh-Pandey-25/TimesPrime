@@ -99,7 +99,7 @@ export type AdminAction =
 /**
  * GET /api/admin/me (Panel 0): who is signed in and what they hold, so the admin UI can hide what
  * they lack. UX only: every route checks again on the server. `permissions` maps each permission
- * key held now, in some scope, to "act" or "read" (keys: src/config/permissions.ts).
+ * key held now, in some scope, to "act" or "read" (keys: packages/shared/src/config/permissions.ts).
  */
 export type AdminMe =
   | {

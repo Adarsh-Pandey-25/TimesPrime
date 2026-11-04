@@ -5,7 +5,7 @@
 -- What this does:
 --   - public.articles: everyone (anon + authenticated) can SELECT — this is a public news feed;
 --     only service_role can INSERT / UPDATE / DELETE — that's the role the Next.js server uses
---     (src/server/lib/supabase.ts prefers SUPABASE_SERVICE_ROLE_KEY when present, which this app's .env.local sets,
+--     (packages/server/src/lib/supabase.ts prefers SUPABASE_SERVICE_ROLE_KEY when present, which this app's .env.local sets,
 --     so server-side writes are unaffected by this change)
 --   - public.breaking_news: public SELECT (the homepage banner reads it without a session, CR-08);
 --     only service_role writes

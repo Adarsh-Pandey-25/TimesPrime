@@ -10,7 +10,7 @@ a note says otherwise. The supporting publisher research is in [`RESEARCH.md`](R
 git history (`git log --all -- docs/PANEL_PLAN.md`).
 
 **The matrix is canonical.** `scripts/generate-access-catalog.mjs` turns the matrix below into
-`database/migrations/2026-11-02-access-2-catalog.sql`, and `src/config/permissions.test.ts` checks
+`database/migrations/2026-11-02-access-2-catalog.sql`, and `packages/shared/src/config/permissions.test.ts` checks
 the result cell by cell. To add or change a permission: propose it in the panel's design doc, get the
 owner's approval, edit the row here, regenerate the SQL (`node scripts/generate-access-catalog.mjs`),
 and ship it as a new migration.
@@ -109,7 +109,7 @@ The core check is one `security definer` function, conceptually `has_permission(
 ## How the check flows: the proxy guesses, the backend decides
 
 *Note (4 Nov 2026):* the layer names below are the original plan's. In today's code they are
-`src/app` (routes), `src/proxy.ts`, `src/server/auth`, `src/server` and `src/config`.
+`src/app` (routes), `apps/admin/src/proxy.ts`, `packages/server/src/auth`, `packages/server/src` and `packages/shared/src/config`.
 
 
 Next.js's guidance is explicit. Middleware (now `proxy.ts`) runs on every request including prefetches, so it should do only **optimistic, cookie-based checks** and "should not be your only line of defense". Secure checks belong in a `server-only` Data Access Layer, and Server Actions and Route Handlers should be treated like public API endpoints ([Next.js](https://nextjs.org/docs/15/app/guides/authentication)). The fetched guide is the v15 version, and the guidance carries over to the Next 16 rename. Today TimesPrime checks only in `proxy.ts`, which is exactly the single line of defence the docs warn against.

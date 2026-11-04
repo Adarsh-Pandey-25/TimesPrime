@@ -276,7 +276,7 @@ describe("GET /api/news/scrape-article — per-IP rate limit (F-011)", () => {
 });
 
 // BL-016 characterization: the public route's response shapes. Pinned before
-// the scrape logic moves into src/server/services/scrape; they must not change.
+// the scrape logic moves into packages/server/src/services/scrape; they must not change.
 describe("GET /api/news/scrape-article — response shapes (characterization, BL-016)", () => {
   const cacheMock = (jest.requireMock("@timesprime/server/lib/cache") as { cache: { get: jest.Mock; set: jest.Mock } }).cache;
   afterEach(() => cacheMock.get.mockResolvedValue(null));

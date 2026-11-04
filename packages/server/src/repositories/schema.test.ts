@@ -27,11 +27,11 @@ function columns(table: string): string[] {
 describe("database/schema.sql (F-008)", () => {
   // What the code selects, inserts, updates and filters on.
   test.each([
-    // src/app/api/admin/breaking-news/route.ts: select, insert, update, the active/expiry filter
+    // apps/admin/src/app/api/admin/breaking-news/route.ts: select, insert, update, the active/expiry filter
     ["breaking_news", ["id", "text", "is_active", "expires_at", "created_at"]],
-    // src/app/api/admin/logs/route.ts reads it (?source=legacy); nothing writes it since Panel 0
+    // apps/admin/src/app/api/admin/logs/route.ts reads it (?source=legacy); nothing writes it since Panel 0
     ["admin_logs", ["id", "action", "details", "metadata", "created_at"]],
-    // src/server/repositories/db.ts: the row mapping, the feed filters, the link lookup (F-005)
+    // packages/server/src/repositories/db.ts: the row mapping, the feed filters, the link lookup (F-005)
     ["articles", ["article_id", "title", "link", "description", "content", "pub_date", "image_url", "source_id", "source_name", "category", "country", "language", "created_at", "category_mismatches"]],
   ])("defines %s with every column the code uses", (table, used) => {
     expect(columns(table)).toEqual(expect.arrayContaining(used as string[]));

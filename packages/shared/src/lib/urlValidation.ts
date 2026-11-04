@@ -13,7 +13,7 @@
  * second DNS answer differ from the one validated (DNS rebinding).
  *
  * Shared, and safe in the browser (F-005): it imports nothing. A server
- * caller passes the DNS resolver in (src/server/services/scrape/fetchPage.ts
+ * caller passes the DNS resolver in (packages/server/src/services/scrape/fetchPage.ts
  * passes dns.lookup); without one, a hostname that needs resolving fails
  * closed. The article page's publisher links use safePublisherHref.
  */

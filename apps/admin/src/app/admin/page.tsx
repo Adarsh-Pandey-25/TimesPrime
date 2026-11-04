@@ -14,7 +14,7 @@ import type { AdminMe } from "@timesprime/shared/types";
 
 // Panel 0: what this page shows depends on GET /api/admin/me, which says what the signed-in user
 // holds. Hiding is UX only, never the check: every admin route decides again on the server
-// (src/server/auth/requirePermission.ts). Each widget is shown for the permission its routes need.
+// (packages/server/src/auth/requirePermission.ts). Each widget is shown for the permission its routes need.
 
 /** "1 January 2027": the day the shared password stops working, in IST. */
 function retireDay(iso: string): string {
@@ -109,7 +109,7 @@ export default function AdminDashboardPage() {
   }, [canStats]);
 
   // F-014: success only on res.ok. An error status shows the server's
-  // message (the admin routes send `message`, src/proxy.ts sends `error`), and a
+  // message (the admin routes send `message`, apps/admin/src/proxy.ts sends `error`), and a
   // thrown request shows why. Both used to read as success, or as nothing.
   const failureText = (action: string, res: Response, data: { message?: string; error?: string } | null) =>
     data?.message || data?.error || `${action} failed (status ${res.status}).`;

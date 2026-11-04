@@ -248,7 +248,7 @@ one by SQL (D4).
 
 - RLS is enabled on all six tables. No policy is created for `anon` or `authenticated`, and
   `REVOKE ALL ... FROM anon, authenticated` on each, so both get nothing.
-- The app reads and writes them as `service_role` through `src/server/` only (plan: "Phase 1 can ship
+- The app reads and writes them as `service_role` through `packages/server/src/` only (plan: "Phase 1 can ship
   with DAL enforcement alone and add RLS in Phase 2"). A SQL `has_permission()` function and
   `aal2` restrictive policies come with the user-context client in Phase 2. Writing it now would
   mean two copies of the same rule, in SQL and TypeScript, with nothing yet calling the SQL one.
@@ -272,7 +272,7 @@ the deploy on.
 `database/migrations/<date>-access-catalog.sql` seeds the 15 roles, 39 permissions and the
 `role_permissions` rows, generated from the matrix by a script kept in `scripts/`. A test parses the
 matrix out of `docs/PANEL_PLAN.md` and the inserts out of the SQL file and requires them to agree
-cell for cell, in both directions. `src/config/permissions.ts` holds the 39 keys as a typed
+cell for cell, in both directions. `packages/shared/src/config/permissions.ts` holds the 39 keys as a typed
 constant (plan: "so frontend and backend cannot drift"). A test checks it against the SQL too.
 
 **How the cell codes are enforced** in Panel 0. Each check asks for `act` (change something) or
@@ -309,12 +309,12 @@ Who holds what is exactly the matrix. Panel 0 routes use these rows:
 ## 3. How a request is checked
 
 ```
-browser ──cookie sb-<ref>-auth-token──▶ src/proxy.ts (matcher unchanged: /admin/:path*, /api/admin/:path*)
+browser ──cookie sb-<ref>-auth-token──▶ apps/admin/src/proxy.ts (matcher unchanged: /admin/:path*, /api/admin/:path*)
    public allowlist? ──yes──▶ next
    getClaims(): valid, unexpired JWT?  (refreshes the token if due, sets cookies, no DB call)
    or a valid legacy cookie, before the cut-off date (§7)?
    neither ──▶ 401 JSON for /api/admin/*, redirect to /admin/login for pages
-   ──▶ route body in src/app/api/admin/*
+   ──▶ route body in apps/admin/src/app/api/admin/*
          requirePermission(request, "article.unpublish", { mode: "act", target })
            1. staff session: getClaims() for sub, aal, session_id; getUser() to confirm the
               session still exists (a signed-out JWT stays valid until expiry; getUser catches it)
@@ -334,7 +334,7 @@ necessary". For an admin session it is cheap protection against a script reading
 nothing in the browser needs to read it. Route bodies get the identity only from
 `requirePermission`'s return value, never from a header, a body field or a query parameter.
 
-**Modules** (all `src/server/auth/`, all `import "server-only"`; `src/proxy.ts` may import them, P1):
+**Modules** (all `packages/server/src/auth/`, all `import "server-only"`; `apps/admin/src/proxy.ts` may import them, P1):
 
 | Module | Job |
 |---|---|
@@ -365,7 +365,7 @@ nothing in the browser needs to read it. Route bodies get the identity only from
 
 Any failure while loading the staff record (Supabase down, a malformed row) is a "no": 503 "Could
 not check your permissions. Nothing was changed." An unknown permission key cannot be written,
-because the key parameter is the typed union from `src/config/permissions.ts`. At runtime it
+because the key parameter is the typed union from `packages/shared/src/config/permissions.ts`. At runtime it
 finds no matching row anyway.
 
 **Caching.** *Superseded by the approval: there is no cache in Panel 0, and the record is read live
@@ -464,7 +464,7 @@ its outcome row leaves an `attempted` row with no outcome, which is visible, rat
 with no record. New actions built in Panels 2–4 can be Postgres functions that do both in one
 transaction. **Owner decision needed (Q2).**
 
-**Writers.** `src/server/repositories/auditLog.ts` gets `recordStaffAudit()`, which throws on failure
+**Writers.** `packages/server/src/repositories/auditLog.ts` gets `recordStaffAudit()`, which throws on failure
 (the caller refuses the action), and `recordSystemAudit()` for the cron, which logs and reports to
 Sentry but never stops a run: the same contract `logAdminAction` has today. `logAdminAction` and its
 callers move to the new writers.
@@ -503,12 +503,12 @@ person, and it never needs MFA.
 
 **How long.** Until Panel 1 is done. Panel 0 has no screen for granting roles, so without the shared
 password nobody could edit, publish or set the banner: Super Admin holds no editorial verbs (plan).
-A **hard end date** is a constant in `src/server/auth/legacySession.ts`. After it, the legacy cookie and
+A **hard end date** is a constant in `packages/server/src/auth/legacySession.ts`. After it, the legacy cookie and
 login are refused even if the code is never changed. Proposed: **2026-12-31**. An env switch,
 `ADMIN_LEGACY_LOGIN=off`, ends it earlier with no deploy. **Owner decision needed (Q3).**
 
 **The exact removal step.** One deletion commit:
-- deletes `legacySession.ts` and the legacy branches in `src/proxy.ts` and `src/app/api/admin/login/route.ts`;
+- deletes `legacySession.ts` and the legacy branches in `apps/admin/src/proxy.ts` and `apps/admin/src/app/api/admin/login/route.ts`;
 - removes `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` from `.env.local.example` and its sync test;
 - removes the "shared password" option from the login view.
 
@@ -559,16 +559,16 @@ Tests come first for every authorization module (master prompt rule 4).
 
 | Test | Proves |
 |---|---|
-| `src/server/auth/decide.test.ts` | Each code: `F`, `S`, `R`, `M`, `Own`, `A`, break-glass, both `read` and `act`. Expired, revoked and future assignments. Suspended profile. Unknown role. A role without the permission. Language and section match and mismatch, NULL scope, NULL target fields. `aal1` vs `aal2` for `requires_aal2` roles and for `mfa_required` profiles. Every "no" path, and the allowed path for each |
-| `src/config/permissions.test.ts` | The matrix parsed out of `docs/PANEL_PLAN.md` (31 rows × 15 roles) equals the catalogue SQL's `role_permissions`, and the 39 keys equal the typed constant |
-| `src/server/auth/scope.test.ts` | `english ↔ en`, `hindi ↔ hi`, anything else → NULL; `category[0]`, empty and NULL categories (D5, D6) |
-| `src/server/auth/requirePermission.test.ts` | Session errors → 401; staff-record lookup failure → 503 and no handler call; Redis down → falls back to Supabase, never to "allowed"; a denial writes a `denied` row |
-| `src/app/api/admin/accessWalk.test.ts` | **The route walk.** It lists every `src/app/api/admin/**/route.ts` from disk and each method the backend module exports. Each must appear either in `publicAdminRoutes.ts` or in the §4 mapping table (also data in that module). The test fails on a route or method that is in neither, so a new route cannot ship unguarded. For every guarded method it calls the handler with (1) no session → 401, (2) a signed-in staff member with no assignments → 403, and (3) an `aal1` session holding the right role → 403 `mfa_required`. The Supabase mock asserts the handler wrote nothing |
+| `packages/server/src/auth/decide.test.ts` | Each code: `F`, `S`, `R`, `M`, `Own`, `A`, break-glass, both `read` and `act`. Expired, revoked and future assignments. Suspended profile. Unknown role. A role without the permission. Language and section match and mismatch, NULL scope, NULL target fields. `aal1` vs `aal2` for `requires_aal2` roles and for `mfa_required` profiles. Every "no" path, and the allowed path for each |
+| `packages/shared/src/config/permissions.test.ts` | The matrix parsed out of `docs/PANEL_PLAN.md` (31 rows × 15 roles) equals the catalogue SQL's `role_permissions`, and the 39 keys equal the typed constant |
+| `packages/server/src/auth/scope.test.ts` | `english ↔ en`, `hindi ↔ hi`, anything else → NULL; `category[0]`, empty and NULL categories (D5, D6) |
+| `packages/server/src/auth/requirePermission.test.ts` | Session errors → 401; staff-record lookup failure → 503 and no handler call; Redis down → falls back to Supabase, never to "allowed"; a denial writes a `denied` row |
+| `apps/admin/src/app/api/admin/accessWalk.test.ts` | **The route walk.** It lists every `apps/admin/src/app/api/admin/**/route.ts` from disk and each method the backend module exports. Each must appear either in `publicAdminRoutes.ts` or in the §4 mapping table (also data in that module). The test fails on a route or method that is in neither, so a new route cannot ship unguarded. For every guarded method it calls the handler with (1) no session → 401, (2) a signed-in staff member with no assignments → 403, and (3) an `aal1` session holding the right role → 403 `mfa_required`. The Supabase mock asserts the handler wrote nothing |
 | One allowed test per route | The least-privileged role in the matrix gets 2xx, e.g. a Desk Editor `hi` + `sports` can edit a `hindi` article whose `category[0]` is `sports`, and gets 403 on an `english` one |
-| `src/proxy.test.ts` | Characterization first (proxy is at 0% today): public paths, method-aware breaking-news, 401 vs redirect. Then the Supabase session, the legacy cookie before and after the end date, the allowlist read from the shared module |
-| `src/app/api/admin/login/route.test.ts`, `mfa.test.ts`, `me.test.ts` | Staff sign-in, MFA enrol and verify, rate limits, legacy cut-off, cookie flags (`HttpOnly`, `SameSite=Lax`) |
-| `src/server/repositories/auditLog.test.ts` | Staff writer throws on failure; system writer never throws; a privileged route whose `attempted` write fails returns 503 and does not act |
-| `src/server/repositories/schema.test.ts` (extended) | The SQL files: `REVOKE UPDATE, DELETE, TRUNCATE` on `audit_log`; the append-only triggers; no grant to `anon`/`authenticated` on the new tables; the bootstrap path tied to `current_user = 'postgres'`; every rollback drops what its file creates |
+| `apps/admin/src/proxy.test.ts` | Characterization first (proxy is at 0% today): public paths, method-aware breaking-news, 401 vs redirect. Then the Supabase session, the legacy cookie before and after the end date, the allowlist read from the shared module |
+| `apps/admin/src/app/api/admin/login/route.test.ts`, `mfa.test.ts`, `me.test.ts` | Staff sign-in, MFA enrol and verify, rate limits, legacy cut-off, cookie flags (`HttpOnly`, `SameSite=Lax`) |
+| `packages/server/src/repositories/auditLog.test.ts` | Staff writer throws on failure; system writer never throws; a privileged route whose `attempted` write fails returns 503 and does not act |
+| `packages/server/src/repositories/schema.test.ts` (extended) | The SQL files: `REVOKE UPDATE, DELETE, TRUNCATE` on `audit_log`; the append-only triggers; no grant to `anon`/`authenticated` on the new tables; the bootstrap path tied to `current_user = 'postgres'`; every rollback drops what its file creates |
 | UI | Characterization tests before changing `AdminLoginView` and `ActivityLog` (no tests today), then the MFA steps and the removed clear button |
 
 Database behaviour (triggers, the chain, the two-admin rule) cannot run in jest, which has no

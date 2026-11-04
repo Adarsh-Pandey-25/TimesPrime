@@ -1,7 +1,7 @@
 /**
  * Shared constants/utilities for the news-fetching pipeline.
- * Previously duplicated between src/server/services/news/fetchNews.ts (server-side initial fetch)
- * and src/server/services/news/topHeadlines.ts (client-side refetch endpoint).
+ * Previously duplicated between packages/server/src/services/news/fetchNews.ts (server-side initial fetch)
+ * and packages/server/src/services/news/topHeadlines.ts (client-side refetch endpoint).
  */
 
 import { Article } from "../types";

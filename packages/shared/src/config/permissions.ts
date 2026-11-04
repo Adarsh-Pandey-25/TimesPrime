@@ -82,7 +82,7 @@ export const ACCESS_CODES = ["F", "S", "Own", "A", "R", "M"] as const;
 
 export type AccessCode = (typeof ACCESS_CODES)[number];
 
-/** Scope languages. Articles store "english"/"hindi"; src/server/auth/scope.ts maps between them (D5). */
+/** Scope languages. Articles store "english"/"hindi"; packages/server/src/auth/scope.ts maps between them (D5). */
 export const SCOPE_LANGUAGES = ["en", "hi"] as const;
 
 export type ScopeLanguage = (typeof SCOPE_LANGUAGES)[number];

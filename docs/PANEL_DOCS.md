@@ -55,7 +55,7 @@ order. Write for someone who has not seen the code: a new developer, or the seni
 - **Name:** *the panel's name, as in the index*
 - **URLs:** *every page and API route it adds or uses, for example `/admin/desk` and
   `/api/admin/articles`*
-- **Code:** *where its code lives: the view in `src/app/`, the route bodies in `src/app/api/`,
+- **Code:** *where its code lives: the view in `src/app/`, the route bodies in `apps/web/src/app/api/`,
   services, repositories, and the SQL in `database/migrations/`*
 
 #### Purpose
@@ -100,7 +100,7 @@ that needs a reason code.*
 
 | Test file | What it proves | Denied case covered |
 |---|---|---|
-| *`src/app/api/admin/…test.ts`* | *A Desk Editor in `hi` can publish a `hi` article* | *A Desk Editor in `en` gets 403 for the same article; an expired assignment gets 403* |
+| *`apps/admin/src/app/api/admin/…test.ts`* | *A Desk Editor in `hi` can publish a `hi` article* | *A Desk Editor in `en` gets 403 for the same article; an expired assignment gets 403* |
 
 *Every permission check needs an allowed test and a denied test. Add what was checked by hand, and
 the `npm run verify` and CI result at the time the panel was marked Done.*
@@ -121,12 +121,12 @@ the `npm run verify` and CI result at the time the panel was marked Done.*
   holds), `POST /api/admin/login`, `POST /api/admin/logout`, `GET /api/admin/me` and
   `POST /api/admin/mfa` (new). Every other `/api/admin/*` route now checks a permission.
 - **Code:**
-  - `src/server/auth/`: `requirePermission.ts` (the gate), `decide.ts` (the rule), `scope.ts`,
+  - `packages/server/src/auth/`: `requirePermission.ts` (the gate), `decide.ts` (the rule), `scope.ts`,
     `adminRoutePolicy.ts` (every route's rule), `staffSession.ts`, `supabaseServer.ts`, `mfa.ts`, and
     `adminSession.ts` (the shared password, with its end date);
-  - `src/server/repositories/staff.ts` and `auditLog.ts`; `src/app/api/admin/me/route.ts` and `mfa.ts`;
-  - `src/config/permissions.ts`, `src/proxy.ts`;
-  - `src/app/admin/login/page.tsx` and `AdminView.tsx`;
+  - `packages/server/src/repositories/staff.ts` and `auditLog.ts`; `apps/admin/src/app/api/admin/me/route.ts` and `mfa.ts`;
+  - `packages/shared/src/config/permissions.ts`, `apps/admin/src/proxy.ts`;
+  - `apps/admin/src/app/admin/login/page.tsx` and `apps/admin/src/app/admin/page.tsx` (the dashboard);
   - the SQL in `database/migrations/2026-11-02-access-*.sql` and `database/bootstrap/super-admin.sql`.
 - **Design:** [`design/panel-0-access-foundation.md`](design/panel-0-access-foundation.md), and
   [ADR 0003](adr/0003-primary-section-scope.md) for the section rule.
@@ -194,6 +194,7 @@ suspension applies to the next request.
 | `PATCH /api/admin/articles` | `article.edit` in the article's scope, and in the new scope if the edit moves it | Managing Editor F; Desk Editor, Sub-editor S | — | yes for these roles | attempted + outcome, before/after |
 | `DELETE /api/admin/articles` | `article.unpublish` in the article's scope | Managing Editor, Legal F; Desk Editor S; Super Admin only as break-glass | — | yes | attempted + outcome |
 | `DELETE /api/admin/articles/bulk` | `article.bulk_action` and `article.unpublish`, for every article (at most 100) | Managing Editor F; Desk Editor S | — | yes | one pair naming every article |
+| `GET /api/admin/breaking-news` | `breaking_banner.manage` (read, any scope); the banner manager's list. Readers get the items from `apps/web`'s public `GET /api/news/breaking-news` (since 4 Nov 2026) | Managing Editor F; Desk Editor S | — | yes for these roles | denials |
 | `POST`, `DELETE /api/admin/breaking-news` | `breaking_banner.manage`, site-wide | Managing Editor (unscoped grants only) | — | yes | attempted + outcome |
 | `POST /api/admin/publish-article` | `article.publish_direct` and `article.create`, in en + the category | Managing Editor F; Desk Editor S | post-hoc review is Panel 2 | yes | attempted + outcome |
 | `POST /api/admin/seed-supabase` | `sync.run`, site-wide | Super Admin, Ingestion Ops F | — | yes | attempted + outcome |
@@ -202,7 +203,7 @@ suspension applies to the next request.
 | `GET /api/admin/health` | `health.view` (read) | Super Admin, Security Lead F; Managing Editor, Ingestion Ops R | — | per role/profile | denials |
 | `GET /api/admin/logs` | `audit.read` (read; a scoped holder sees only their scope) | Super Admin, Legal, Privacy Officer, Security Lead F; Managing Editor S (own desk) | — | yes | denials |
 | `GET /api/admin/me`, `POST /api/admin/mfa` | none: session-only | any staff session, `aal1` included | — | — | sign-in and MFA events |
-| `POST /api/admin/login`, `/logout`, `GET /api/admin/breaking-news` | none: public (D10) | — | — | — | sign-in, sign-out |
+| `POST /api/admin/login`, `/logout` | none: public (D10; the banner's GET left this list on 4 Nov 2026) | — | — | — | sign-in, sign-out |
 
 - **MFA:** `staff_profiles.mfa_required` defaults to true (Q1), so every staff member uses TOTP.
   The roles marked `requires_aal2` (Super Admin, Managing Editor, Desk Editor, Legal/Compliance,
@@ -235,13 +236,13 @@ history, no longer written.
 
 | Test file | What it proves | Denied cases covered |
 |---|---|---|
-| `src/app/api/admin/access.test.ts` | **The route walk** (every admin route file on disk is public, session-only or ruled, and every rule is tested) and **the access matrix**: every guarded route and method through its real handler and the real gate, with grants read from the catalogue SQL | No session (401), no grants, expired, wrong scope, no MFA, the shared password where not allowed, the purge for every holder; nothing written in any of them. Also: moves out of scope, one out-of-scope article in a bulk delete, Sub-editor publish and bulk, an unwritable audit row (503), the 100-article limit |
-| `src/server/auth/decide.test.ts` | The rule: each code, scope, expiry, MFA, break-glass, the legacy list | Every "no" path has an allowed twin |
-| `src/server/auth/requirePermission.test.ts` | The gate, the audit pair, the denial audit | Revoked or suspended between two requests is refused on the second |
-| `src/server/auth/staffSession.test.ts`, `src/proxy.test.ts` | Who is asking; the proxy accepts both sessions; cookie flags | Forged or signed-out JWTs, errors, the legacy end date |
-| `src/app/api/admin/login/route.test.ts`, `logout.test.ts`, `me.test.ts`, `mfa.test.ts` | Sign-in, sign-out, `/me`, the second factor | Wrong credentials, not staff, suspended, wrong code, rate limits, the legacy end date and kill switch |
-| `src/config/permissions.test.ts`, `src/server/repositories/accessSchema.test.ts` | The catalogue equals the matrix cell for cell; the SQL's guarantees | — |
-| `src/app/admin/page.test.tsx`, `AdminLoginView.test.tsx`, `ActivityLog.test.tsx` | What the UI shows for each user; the sign-in steps; no clear button | Hidden widgets for missing permissions |
+| `apps/admin/src/app/api/admin/access.test.ts` | **The route walk** (every admin route file on disk is public, session-only or ruled, and every rule is tested) and **the access matrix**: every guarded route and method through its real handler and the real gate, with grants read from the catalogue SQL | No session (401), no grants, expired, wrong scope, no MFA, the shared password where not allowed, the purge for every holder; nothing written in any of them. Also: moves out of scope, one out-of-scope article in a bulk delete, Sub-editor publish and bulk, an unwritable audit row (503), the 100-article limit |
+| `packages/server/src/auth/decide.test.ts` | The rule: each code, scope, expiry, MFA, break-glass, the legacy list | Every "no" path has an allowed twin |
+| `packages/server/src/auth/requirePermission.test.ts` | The gate, the audit pair, the denial audit | Revoked or suspended between two requests is refused on the second |
+| `packages/server/src/auth/staffSession.test.ts`, `apps/admin/src/proxy.test.ts` | Who is asking; the proxy accepts both sessions; cookie flags | Forged or signed-out JWTs, errors, the legacy end date |
+| `apps/admin/src/app/api/admin/login/route.test.ts`, `logout.test.ts`, `me.test.ts`, `mfa.test.ts` | Sign-in, sign-out, `/me`, the second factor | Wrong credentials, not staff, suspended, wrong code, rate limits, the legacy end date and kill switch |
+| `packages/shared/src/config/permissions.test.ts`, `packages/server/src/repositories/accessSchema.test.ts` | The catalogue equals the matrix cell for cell; the SQL's guarantees | — |
+| `apps/admin/src/app/admin/page.test.tsx`, `apps/admin/src/app/admin/login/page.test.tsx`, `apps/admin/src/components/ActivityLog.test.tsx` | What the UI shows for each user; the sign-in steps; no clear button | Hidden widgets for missing permissions |
 
 At the branch's last code commit: `npm run verify` exits 0. That is 47 suites and 736 tests, lint 0
 errors and 13 warnings, 0 boundary violations, and the build, with the route table at 30 URLs,

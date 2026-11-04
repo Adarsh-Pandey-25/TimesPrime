@@ -34,7 +34,7 @@ Shared code `packages/` mein rahega. Saare panels ek admin app ke andar honge, h
 |---|---|---|
 | A | Panel 0 poora + restructure merge | Nov–Dec 2026 |
 | B | Aggregator band (scraping, auto-translate, stock images) | Dec 2026 |
-| C | Monorepo split (web / admin / worker) | Dec 2026 |
+| C | Monorepo split (web / admin / worker) | **Ho gaya**, 4 Nov 2026 |
 | D | Panel 1: users aur roles | Dec 2026 – Jan 2027 |
 | E | **Panel 2: Desk (newsroom ka dil)**: Tiptap editor, workflow, approval, media, bylines | Jan – Apr 2027 |
 | F | Reader site naye URLs, SEO aur Hindi `/hi/` ke saath (E ke saath parallel) | Jan – Apr 2027 |
@@ -64,6 +64,25 @@ Saare dates andaaza hain, 2 developers maan ke. Zyada developers se parallel kaa
 
 ---
 
+## Progress
+
+Update this table at the end of every phase, in the same piece of work. The current phase is the
+first one that is not Done.
+
+| Phase | Status | Where |
+|---|---|---|
+| A. Finish Panel 0, land the restructure | **In progress.** Step 1 done locally (committed on `chore/restructure`, not pushed); steps 2–4 open: local database, Panel 0 items 7–13, the merge | `chore/restructure`, then `panel-0-access` |
+| B. Make the product safe to be public | Not started | `fix/aggregator-off`, `fix/audit-closeout` |
+| C. Split into apps and packages | **Done** (4 Nov 2026), ahead of A and B | `chore/restructure` |
+| D. Panel 1, Administration | Not started | `panel-1-administration` |
+| E. Panel 2, Desk | Not started | `panel-2-desk` |
+| F. Reader site for original journalism | Not started | `site/<topic>` |
+| G. Panel 3, Front page | Not started | `panel-3-front-page` |
+| H. Panels 7 and 8, launch minimum | Not started | `panel-7-compliance`, `panel-8-privacy` |
+| I. Infrastructure and staging | Not started | `chore/infra` |
+| J. Launch gate | Not started | — |
+| K. After launch | Not started | — |
+
 ## 1. Decisions this plan builds on
 
 Taken by the owner in conversation, or recommended by the research and proposed here for approval.
@@ -89,9 +108,8 @@ These come from `CLAUDE.md` and `CONTRIBUTING.md`. A phase that breaks one is no
   site, infra, cleanup) may run alongside, on their own branches.
 - **Every panel starts with a design doc** in `docs/design/panel-N-<name>.md`, approved by the owner
   before code (as Panel 0 did).
-- **Branches:** `panel-N-<name>` for a panel, `fix/<topic>` for fixes, `chore/<topic>` for tooling,
-  docs and infra. Section 10 asks the owner to add `site/<topic>` for reader-site work. Push only the
-  branch. Never push to `main`; the owner approves every merge.
+- **Branches:** `panel-N-<name>` for a panel, `site/<topic>` for reader-site work, `fix/<topic>` for
+  fixes, `chore/<topic>` for tooling, docs and infra (all in `CLAUDE.md`). Push only the branch. Never push to `main`; the owner approves every merge.
 - **A panel is Done only when all 13 items of the definition of done in `CLAUDE.md` hold.** In short:
   - Every feature works, and the `PANEL_DOCS.md` entry matches the code.
   - Every route and action checks a permission on the server, with tests for allowed and denied.
@@ -106,7 +124,8 @@ These come from `CLAUDE.md` and `CONTRIBUTING.md`. A phase that breaks one is no
   - Failures reach Sentry.
   - A JS size budget per route is enforced in CI.
   - A runbook covers what to do when the main flow breaks.
-- **Never run a migration, bootstrap or smoke test against the database `.env.local` points at.**
+- **Never run a migration, bootstrap, smoke test or worker job against the database `.env.local`
+  points at.**
   Local work uses the local Supabase (Phase A).
 - **Commits:** a move, a deletion or a change, never two in one commit (`CONTRIBUTING.md`).
 - **The permission catalogue is generated from the matrix in `PERMISSIONS.md`**
@@ -116,16 +135,20 @@ These come from `CLAUDE.md` and `CONTRIBUTING.md`. A phase that breaks one is no
 
 ## 3. Target structure
 
+This is the structure in the code since 4 Nov 2026 (Phase C, [ADR 0005](adr/0005-apps-and-packages.md)).
+Folders marked *later* are created by the phase that first needs them.
+
 ```
 apps/
-  web/                  Reader site (Next.js 16) → the public domain
-    src/app/            home, section, article, author, /hi/..., about/ownership/masthead/policies,
-                        corrections, grievance and rights-request forms, robots, sitemaps, news sitemaps,
-                        public APIs (/api/news/*, /api/health)
-  admin/                Back office (Next.js 16) → admin subdomain; keeps the /admin and /api/admin paths
-    src/proxy.ts        the optimistic session check (moved from today's src/proxy.ts)
-    src/app/admin/login            staff sign-in and second factor (Panel 0)
-    src/app/admin/(panels)/        layout: the nav shows only panels the user's permissions allow
+  web/                  Reader site (Next.js 16) → the public domain, port 3000 locally
+    src/app/            home, article, about, contact, privacy, terms, saved; public APIs
+                        (/api/news/*, /api/chat, /api/translate, /api/health). Later: section, author,
+                        /hi/..., policy pages, corrections, grievance and rights forms, robots, sitemaps
+  admin/                Back office (Next.js 16) → admin subdomain, port 3001; keeps /admin and /api/admin
+    src/proxy.ts        the optimistic session check
+    src/app/admin/login staff sign-in and second factor (Panel 0)
+    src/app/admin/      today: the Panel 0 dashboard. Later, one route folder per panel, the nav
+                        showing only panels the user's permissions allow:
       users/            Panel 1  Administration
       desk/             Panel 2  Desk
       front-page/       Panel 3  Front page
@@ -135,19 +158,22 @@ apps/
       compliance/       Panel 7  Compliance
       privacy/          Panel 8  Privacy & security
       commercial/       Panel 9  Commercial
-    src/app/api/admin/<panel>/...  each panel's route handlers
-    src/features/<panel>/          each panel's components
-  worker/               Plain Node + TypeScript, no Next.js
-    src/jobs/           scheduled publish, sitemap and IndexNow pings, image renditions,
-                        audit head-hash export, monthly grievance report, (later) wire ingestion
+    src/app/api/admin/  every admin route handler; later grouped by panel
+    src/components/     today's dashboard widgets and AdminTopBar
+    src/features/<panel>/   later: each panel's components
+  worker/               Plain Node + TypeScript (tsx), no Next.js
+    src/jobs.ts         the jobs by name. Today: refresh-news. Later: scheduled publish, sitemap and
+                        IndexNow pings, image renditions, audit head-hash export, monthly grievance
+                        report, wire ingestion
 packages/
-  server/               server-only (every file imports "server-only"): auth, repositories, services, lib
-                        (today's src/server/)
-  shared/               client-safe: config (permission catalogue, translations), types, lib
-                        (today's src/config, src/types, src/lib)
-  editor/               the Tiptap document schema and extensions, shared by admin (editing) and web
-                        (rendering stored JSON to HTML on the server)
-database/               migrations, bootstrap, seed (unchanged)
+  server/               @timesprime/server: server-only (every file imports "server-only"): auth,
+                        repositories, services, lib
+  shared/               @timesprime/shared: client-safe config (permission catalogue, translations),
+                        types, lib
+  ui/                   @timesprime/ui: React both apps use (ThemeContext; later shared primitives)
+  editor/               later (Panel 2): the Tiptap document schema and extensions, shared by admin
+                        (editing) and web (rendering stored JSON to HTML on the server)
+database/               migrations, bootstrap, seed
 docs/  scripts/
 ```
 
@@ -156,16 +182,16 @@ permission check, the audit log and the layout. Separate apps would mean separat
 duplicated code. Inside the app, each panel has its own route folder, components, permissions and
 tests, so it can be built and reviewed on its own.
 
-What must change when the code is split (found in today's code):
+What the split changed, and what it left for later:
 
-| Today | After the split |
-|---|---|
-| The reader's breaking banner calls `/api/admin/breaking-news` (`src/components/news/BreakingNewsBanner.tsx`) | A public read in `apps/web`; the public GET exception leaves the admin route policy |
-| `src/proxy.ts` and staff sign-in live with the reader site | Only in `apps/admin`; the staff cookie is scoped to the admin subdomain; the reader site has no `/admin` |
-| `/api/cron/refresh-news` is an HTTP route behind `CRON_SECRET` | A worker job started by EventBridge Scheduler |
-| "Sync now" (`/api/admin/seed-supabase`) runs the whole sync inside one request | Admin enqueues a job (SQS); the worker runs it |
-| The reader site holds the service-role key | Only admin and worker hold it; the reader site reads with the anon key under RLS |
-| The reader's feed path writes to the database (NewsData fallback) | Removed with the aggregator (Phase B) |
+| Before the split | Now | Status |
+|---|---|---|
+| The reader's breaking banner called `/api/admin/breaking-news` | It reads `apps/web`'s public `GET /api/news/breaking-news`; the admin GET needs `breaking_banner.manage` | Done |
+| The proxy and staff sign-in lived with the reader site | Only in `apps/admin`; the reader site has no `/admin`. The staff cookie's scoping to the admin subdomain comes with the domains (Phase I) | Done |
+| `/api/cron/refresh-news`, an HTTP route behind `CRON_SECRET`, scheduled by `vercel.json` | The worker's `refresh-news` job; `vercel.json` and `CRON_SECRET` are gone. EventBridge starts it in Phase I | Done |
+| "Sync now" (`/api/admin/seed-supabase`) runs the whole sync inside one request | Admin enqueues a job (SQS) and the worker runs it | Phase I (needs the queue) |
+| The reader site holds the service-role key | Only admin and worker hold it; the reader site reads with the anon key under RLS | After Phase B (the reader's feed path still writes, through the NewsData fallback) |
+| Audit rows take their request id from `x-vercel-id` | The load balancer's trace id | Phase I |
 
 ## 4. Phases
 
@@ -176,13 +202,13 @@ tracks. More developers shorten only the parallel tracks.
 
 **Branches:** `panel-0-access`, `chore/restructure` · **Estimate:** 2–3 weeks · **Who:** Dev 1 (Panel 0), Dev 2 (local database, E2E tooling)
 
-1. **Land `chore/restructure` first.**
-   - It exists on the owner's machine and is not yet committed. It moves the code to the `src/`
-     layout and removes the old restructure tooling.
-   - Commit it as separate move, deletion and change commits, and push the branch.
-   - The owner approves it. Merge it into `panel-0-access` (it is built on that branch's head
-     `2bbec83`), so Panel 0 finishes in the new layout. Anyone with unpushed work on
-     `panel-0-access` pushes it before this step.
+1. **Land `chore/restructure` first.** *Done locally, 4 Nov 2026:* the `src/` layout, the cleanup,
+   the retirement of the old plans and the Phase C split are committed on `chore/restructure`
+   (built on `panel-0-access`'s head `2bbec83`), as separate move, deletion, change and docs
+   commits. Not pushed yet. Next: the owner approves; push the branch; merge it into
+   `panel-0-access`, so Panel 0 finishes in the new layout. Anyone with unpushed work on
+   `panel-0-access` pushes it before that merge, then moves it to the new paths
+   (`docs/architecture.md` §4 maps every folder).
 2. **Local database.**
    - Supabase CLI stack in Docker, with a guard that refuses any run whose Supabase URL is not the
      local one (HANDOFF "Next").
@@ -205,9 +231,9 @@ tracks. More developers shorten only the parallel tracks.
 
 - **Turn off** scraped full text, the unofficial translate endpoint and the stock-image fallbacks
   in reader output:
-  - `src/server/services/scrape/`
-  - `src/server/services/translate/googleTranslate.ts`
-  - `src/config/topicImages.ts`
+  - `packages/server/src/services/scrape/`
+  - `packages/server/src/services/translate/googleTranslate.ts`
+  - `packages/shared/src/config/topicImages.ts`
 - **Aggregated items** become headline, source, time and link with `noindex`, or are hidden (owner
   choice in section 10).
 - **The chatbot** answers only from our own and licensed content, or is switched off until our own
@@ -224,25 +250,21 @@ stock fallback; verify and CI are green.
 
 ### Phase C: Split into apps and packages
 
-**Branch:** `chore/monorepo` · **Estimate:** 1–2 weeks · **Who:** Dev 2, reviewed by Dev 1
+**Status: Done**, 4 Nov 2026, on `chore/restructure`, ahead of Phases A and B at the owner's
+instruction. [ADR 0005](adr/0005-apps-and-packages.md) records it.
 
-- npm workspaces (`apps/*`, `packages/*`); no Turborepo or Nx yet.
-- Move the code into the structure in section 3, with `git mv` so history follows.
-- Make the changes in the "after the split" table (section 3).
-- Configure each Next app to compile the workspace packages. Check the bundled Next 16 docs before
-  choosing the option (`AGENTS.md`).
-- Each app has its own Jest config. CI builds `web`, `admin` and `worker` separately, and reports
-  routes, JS and CSS per app.
-- The import rules in `eslint.config.mjs` carry over: `packages/shared` and the apps' UI never import
-  `packages/server`, and every server file starts with `import "server-only"`.
-- Write ADR 0005 (the apps/packages split, superseding ADR 0004's single app). Update
-  `architecture.md`, `README.md`, `CONTRIBUTING.md` and `HANDOFF.md`.
+- npm workspaces (`apps/*`, `packages/*`); no Turborepo or Nx. All dependencies in the root
+  `package.json`.
+- Every file moved with `git mv`; packages are imported by name through their `exports`.
+- The admin app has its own layout and top bar; the worker runs `refresh-news`.
+- One Jest run with a project per app and one for the packages; one ESLint config whose zones keep
+  apps and packages apart, each proven by a deliberate violation.
+- Measured: `/admin` client JS 163,762 → 80,206 bytes; every reader route equal or smaller; the
+  reader's CSS 93,939 → 83,122 bytes. 50 suites, 753 tests.
 
-**Done when:**
-- `web`'s route table has no `/admin` routes, and `admin`'s has no reader pages.
-- Every test passes.
-- The route walk test passes in `admin`.
-- The reader's JS per route is equal or smaller than before.
+**Left for later** (the "Status" column of the table in section 3): "Sync now" through a queue,
+the anon key on the reader site, the request id, `packages/editor` (with Panel 2), and moving the
+two apps' shared base CSS into `packages/ui`.
 
 ### Phase D: Panel 1, Administration
 

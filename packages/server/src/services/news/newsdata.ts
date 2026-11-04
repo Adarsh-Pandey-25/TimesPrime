@@ -6,7 +6,7 @@ import { mapCategory } from "@timesprime/shared/config/newsConfig";
 /**
  * Shared NewsData.io fetch + normalize.
  *
- * Unlike src/server/services/news/fetchNews.ts this deliberately does NOT fall back to
+ * Unlike packages/server/src/services/news/fetchNews.ts this deliberately does NOT fall back to
  * MOCK_ARTICLES on failure — it throws instead. The background cron writes
  * whatever it gets straight into Supabase, so a silent mock fallback would
  * poison the database with fake articles on every upstream outage.

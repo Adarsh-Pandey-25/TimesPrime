@@ -1,7 +1,8 @@
 # ADR 0004 — The standard Next.js `src/` layout
 
-**Status:** **Proposed** — 2026-11-02, on the branch `chore/restructure`, built on `panel-0-access`.
-Accepted when the owner approves the merge.
+**Status:** **Superseded by [ADR 0005](0005-apps-and-packages.md)** — 4 Nov 2026: the single app split
+into `apps/` and `packages/`. The text below is kept as it was written, so its paths are the single
+app's. Before that: **Accepted** — 4 Nov 2026, with the owner's approval of `NEWSROOM_PLAN.md`.
 **Supersedes:** [ADR 0002](0002-frontend-backend-separation.md)'s layout. **Related:**
 [`architecture.md`](../architecture.md) (the layout and the rules, in prose).
 

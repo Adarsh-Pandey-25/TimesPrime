@@ -5,7 +5,7 @@ import { Redis } from "@upstash/redis";
 /**
  * Basic in-memory fixed-window rate limiter. Fine for a single-instance dev
  * server; on serverless (multiple instances) it's advisory rather than a
- * hard global cap, same caveat as the in-memory news cache in src/server/lib/cache.ts.
+ * hard global cap, same caveat as the in-memory news cache in packages/server/src/lib/cache.ts.
  *
  * Keys are evicted (F-020): once a minute, every key idle for longer than
  * its window is dropped, and the map never holds more than MAX_TRACKED_KEYS
@@ -17,8 +17,8 @@ import { Redis } from "@upstash/redis";
  * counter in Upstash Redis (INCR, then EXPIRE on the window's first hit),
  * falling back to the in-memory limiter, with the fallback logged, when
  * Redis is not configured or fails (owner decision D1). The client is built
- * here from the same variables as src/server/lib/cache.ts rather than imported
- * from it: src/server/lib modules import no project module (rule LIB).
+ * here from the same variables as packages/server/src/lib/cache.ts rather than imported
+ * from it: packages/server/src/lib modules import no project module (rule LIB).
  */
 
 const WINDOW_MS = 60_000;
