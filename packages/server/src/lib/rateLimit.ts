@@ -132,9 +132,32 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
   }
 }
 
-/** Best-effort client IP extraction from standard proxy headers. */
+/**
+ * How many proxies in front of the app append to X-Forwarded-For and are trusted to: 2 on AWS
+ * (CloudFront, then the ALB), set by the task definition. Unset, 0 or not a whole number: 0.
+ */
+function trustedProxyHops(): number {
+  const hops = Number(process.env.TRUSTED_PROXY_HOPS ?? 0);
+  return Number.isInteger(hops) && hops > 0 ? hops : 0;
+}
+
+/**
+ * The client's IP (R1-05). Each trusted proxy appends the address it received the request from:
+ * on AWS, CloudFront appends the viewer's and the ALB appends CloudFront's, and Next adds the
+ * socket's only when the header is missing (next/dist/server/base-server.js, `??=`). So the client
+ * is the entry TRUSTED_PROXY_HOPS from the right; everything left of it came from the client and
+ * can be forged. It used to take the leftmost entry, which any client could set to anything, to
+ * dodge a rate limit or write a false IP into the audit log. The two right entries cannot be
+ * forged because the ALB accepts traffic only from CloudFront (owner runbook, docs/OPERATIONS.md).
+ *
+ * Hops 0 (local, no proxy): the rightmost entry, the socket's. Fewer entries than hops (a request
+ * that skipped a hop, such as the ALB's health check): the leftmost, which a trusted hop wrote.
+ */
 export function getClientIp(request: Request): string {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) return forwardedFor.split(",")[0].trim();
+  const forwardedFor = (request.headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (forwardedFor.length) return forwardedFor[Math.max(0, forwardedFor.length - Math.max(trustedProxyHops(), 1))];
   return request.headers.get("x-real-ip") || "unknown";
 }

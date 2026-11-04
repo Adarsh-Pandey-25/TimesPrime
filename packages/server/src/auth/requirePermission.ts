@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse, type NextRequest } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { getClientIp } from "../lib/rateLimit";
+import { getRequestId } from "../lib/requestId";
 import { recordAudit, type AuditRow } from "../repositories/auditLog";
 import { loadStaffRecord } from "../repositories/staff";
 import type { PermissionKey, RoleKey, ScopeLanguage } from "@timesprime/shared/config/permissions";
@@ -128,7 +129,7 @@ export async function requirePermission(
   const meta = {
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
-    requestId: request.headers.get("x-vercel-id") || crypto.randomUUID(),
+    requestId: getRequestId(request),
   };
 
   if (session.kind === "legacy") {
@@ -170,7 +171,7 @@ export async function requireSession(request: NextRequest): Promise<GateResult> 
   const meta = {
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
-    requestId: request.headers.get("x-vercel-id") || crypto.randomUUID(),
+    requestId: getRequestId(request),
   };
   if (session.kind === "legacy") {
     return { ok: true, actor: { kind: "legacy", userId: null, label: LEGACY_LABEL, aal: null, roles: [], via: [], record: null, meta } };

@@ -13,6 +13,7 @@ import { getMfaState } from "@timesprime/server/auth/mfa";
 import { auditEvent, type Actor } from "@timesprime/server/auth/requirePermission";
 import { createRouteClient } from "@timesprime/server/auth/supabaseServer";
 import { checkRateLimit, getClientIp } from "@timesprime/server/lib/rateLimit";
+import { getRequestId } from "@timesprime/server/lib/requestId";
 import { loadStaffRecord, markSignedIn } from "@timesprime/server/repositories/staff";
 
 // Sign-in, public by necessity (D10). Two ways in during the cut-over:
@@ -109,7 +110,7 @@ async function staffSignIn(request: NextRequest, email: unknown, password: unkno
     roles: [],
     via: [],
     record: null,
-    meta: { ip: getClientIp(request), userAgent: request.headers.get("user-agent"), requestId: request.headers.get("x-vercel-id") || crypto.randomUUID() },
+    meta: { ip: getClientIp(request), userAgent: request.headers.get("user-agent"), requestId: getRequestId(request) },
   };
 
   let record;

@@ -65,11 +65,41 @@ describe("isRateLimited — stale keys are evicted (F-020)", () => {
   });
 });
 
+// R1-05: the client is the entry TRUSTED_PROXY_HOPS from the right. It used to be the leftmost,
+// which the client writes itself; the first test below pinned that and changed on purpose.
 describe("getClientIp", () => {
   const req = (headers: Record<string, string>) => new Request("http://localhost/", { headers });
-  test("first X-Forwarded-For entry, then X-Real-IP, then unknown", () => {
-    expect(getClientIp(req({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" }))).toBe("203.0.113.7");
+  const env = process.env.TRUSTED_PROXY_HOPS;
+  afterEach(() => {
+    if (env === undefined) delete process.env.TRUSTED_PROXY_HOPS;
+    else process.env.TRUSTED_PROXY_HOPS = env;
+  });
+
+  test("no proxy (hops unset): the rightmost entry, the socket's; then X-Real-IP, then unknown", () => {
+    delete process.env.TRUSTED_PROXY_HOPS;
+    expect(getClientIp(req({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" }))).toBe("10.0.0.1");
+    expect(getClientIp(req({ "x-forwarded-for": "127.0.0.1" }))).toBe("127.0.0.1");
     expect(getClientIp(req({ "x-real-ip": "198.51.100.2" }))).toBe("198.51.100.2");
     expect(getClientIp(req({}))).toBe("unknown");
+  });
+
+  test("on AWS (2 hops): the viewer CloudFront appended, whatever the client wrote before it", () => {
+    process.env.TRUSTED_PROXY_HOPS = "2";
+    // viewer 198.51.100.4 via CloudFront edge 130.176.0.9, then the ALB
+    expect(getClientIp(req({ "x-forwarded-for": "198.51.100.4, 130.176.0.9" }))).toBe("198.51.100.4");
+    // a client that sends its own header to dodge a limit or forge the audit log's IP
+    expect(getClientIp(req({ "x-forwarded-for": "1.2.3.4, 5.6.7.8, 198.51.100.4, 130.176.0.9" }))).toBe("198.51.100.4");
+  });
+
+  test("fewer entries than hops: the leftmost, which a trusted hop wrote", () => {
+    process.env.TRUSTED_PROXY_HOPS = "2";
+    expect(getClientIp(req({ "x-forwarded-for": "10.0.1.20" }))).toBe("10.0.1.20");
+  });
+
+  test("a hops value that is not a whole number counts as 0", () => {
+    for (const bad of ["two", "-1", "1.5", ""]) {
+      process.env.TRUSTED_PROXY_HOPS = bad;
+      expect(getClientIp(req({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" }))).toBe("10.0.0.1");
+    }
   });
 });

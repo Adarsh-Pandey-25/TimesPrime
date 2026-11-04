@@ -54,7 +54,7 @@ const record = (assignments: Assignment[]): StaffRecord => ({ userId: "u-1", dis
 
 const request = () =>
   new NextRequest("http://localhost:3000/api/admin/articles", {
-    headers: { "x-forwarded-for": "203.0.113.9", "user-agent": "jest", "x-vercel-id": "bom1::abc" },
+    headers: { "x-forwarded-for": "203.0.113.9", "user-agent": "jest", "x-amz-cf-id": "bom1::abc" },
   });
 
 async function body(result: GateResult) {
