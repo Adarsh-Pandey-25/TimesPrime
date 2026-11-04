@@ -25,6 +25,12 @@ const nextConfig: NextConfig = {
   // The repository keeps its Markdown in docs/ and CLAUDE.md, which carries the same instruction
   // (read the bundled Next docs); scripts/check-docs.mjs fails on any other Markdown file.
   agentRules: false,
+  // The Docker image (Dockerfile, R1-01) runs .next/standalone/apps/web/server.js: the traced
+  // server files plus only the node_modules they need (bundled docs: next-config-js/output.md).
+  // With outputFileTracingRoot at the repository root, the app sits at apps/web inside it.
+  // `next start` still works locally and for the e2e builds; it only warns that server.js is the
+  // production path.
+  output: "standalone",
   images: {
     // https only, explicit hostnames only — kept in sync with topicImages.ts
     // via the shared ALLOWED_IMAGE_HOSTNAMES list (packages/shared/src/config/imageDomains.ts).

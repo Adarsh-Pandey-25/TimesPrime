@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
   // The repository keeps its Markdown in docs/ and CLAUDE.md, which carries the same instruction
   // (read the bundled Next docs); scripts/check-docs.mjs fails on any other Markdown file.
   agentRules: false,
+  // The Docker image runs .next/standalone/apps/admin/server.js, as the reader site does
+  // (apps/web/next.config.ts). Tailwind reads every word in this folder as a possible class name,
+  // so a comment here that names a utility class adds it to the admin's CSS.
+  output: "standalone",
   async redirects() {
     return [{ source: "/", destination: "/admin", permanent: false }];
   },
