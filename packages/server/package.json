@@ -1,0 +1,12 @@
+{
+  "name": "@timesprime/server",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./auth/*": "./src/auth/*.ts",
+    "./lib/*": "./src/lib/*.ts",
+    "./repositories/*": "./src/repositories/*.ts",
+    "./services/news": "./src/services/news/index.ts",
+    "./services/*": "./src/services/*.ts"
+  }
+}

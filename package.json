@@ -5,12 +5,16 @@
   "engines": {
     "node": "24.x"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "npm run dev -w @timesprime/web",
+    "dev:admin": "npm run dev -w @timesprime/admin",
+    "build": "npm run build -w @timesprime/web && npm run build -w @timesprime/admin",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p apps/web && tsc --noEmit -p apps/admin && tsc --noEmit -p packages/server && tsc --noEmit -p packages/shared && tsc --noEmit -p packages/ui && tsc --noEmit -p tsconfig.json",
     "verify": "npm run typecheck && npm run lint && npm test && npm run build",
     "test": "jest",
     "test:watch": "jest --watch",

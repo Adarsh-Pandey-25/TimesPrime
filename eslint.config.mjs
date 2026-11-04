@@ -2,13 +2,13 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-// Every src/server/ module begins with `import "server-only";`, so a client
+// Every packages/server module begins with `import "server-only";`, so a client
 // component that reaches one, directly or through another module, fails the build.
 const serverOnlyFirst = {
   meta: {
     type: "problem",
     schema: [],
-    messages: { missing: "The first statement of a src/server/ module must be `import \"server-only\";`." },
+    messages: { missing: "The first statement of a packages/server module must be `import \"server-only\";`." },
   },
   create(context) {
     return {
@@ -22,29 +22,46 @@ const serverOnlyFirst = {
   },
 };
 
-// Import boundaries (docs/architecture.md, "Import rules"). Paths are resolved,
-// so "@/server/x" and "../server/x" are the same import.
-const CLIENT_SAFE = ["./src/components", "./src/context", "./src/lib", "./src/config", "./src/types"];
+// Import boundaries (docs/architecture.md, "Import rules"). Paths are resolved, so
+// "@timesprime/server/x" and "../../packages/server/src/x" are the same import.
+const CLIENT_SAFE = [
+  "./apps/web/src/components",
+  "./apps/web/src/context",
+  "./apps/web/src/lib",
+  "./apps/admin/src/components",
+  "./packages/shared",
+  "./packages/ui",
+];
 const zones = [
   {
     target: CLIENT_SAFE,
-    from: "./src/server",
-    message: "Client-safe code never imports src/server/. Server data reaches the UI through a page (as props) or a route handler.",
+    from: "./packages/server",
+    message: "Client-safe code never imports packages/server. Server data reaches the UI through a page (as props) or a route handler.",
   },
   {
-    target: "./src/server",
-    from: ["./src/app", "./src/components", "./src/context"],
-    message: "src/server/ never imports UI or routes. What both sides need belongs in src/lib, src/config or src/types.",
+    target: "./packages",
+    from: "./apps",
+    message: "Packages never import an app. What two apps need belongs in a package.",
   },
   {
-    target: ["./src/lib", "./src/config", "./src/types"],
-    from: ["./src/app", "./src/components", "./src/context"],
-    message: "src/lib, src/config and src/types are imported by both sides, so they import no UI or routes.",
+    target: ["./packages/server", "./packages/shared"],
+    from: "./packages/ui",
+    message: "packages/server and packages/shared import no React UI.",
   },
   {
-    target: ["./src/components", "./src/context"],
-    from: "./src/app",
-    message: "Components never import from src/app/. A page imports its components, not the other way round.",
+    target: "./apps/web",
+    from: "./apps/admin",
+    message: "The reader site never imports the admin app. Shared code belongs in packages/.",
+  },
+  {
+    target: "./apps/admin",
+    from: "./apps/web",
+    message: "The admin app never imports the reader site. Shared code belongs in packages/.",
+  },
+  {
+    target: ["./apps/web/src/components", "./apps/web/src/context", "./apps/admin/src/components"],
+    from: ["./apps/web/src/app", "./apps/admin/src/app"],
+    message: "Components never import from an app's src/app. A page imports its components, not the other way round.",
   },
 ];
 
@@ -52,19 +69,29 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    settings: {
+      next: { rootDir: ["apps/web/", "apps/admin/"] },
+      // Each app resolves its own `@/`; the packages resolve through their package.json exports.
+      "import/resolver": {
+        typescript: { project: ["apps/*/tsconfig.json", "packages/*/tsconfig.json", "tsconfig.json"] },
+      },
+    },
+  },
+  {
     files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
     plugins: { boundaries: { rules: { "server-only-first": serverOnlyFirst } } },
     rules: { "import/no-restricted-paths": ["error", { zones }] },
   },
   {
-    files: ["src/server/**/*.ts"],
+    files: ["packages/server/src/**/*.ts"],
     // A test never ships; next/jest maps server-only to an empty module.
     ignores: ["**/*.test.ts"],
     rules: { "boundaries/server-only-first": "error" },
   },
   {
-    // next.config.ts evaluates this file at config-load time, where path aliases do not exist.
-    files: ["src/config/imageDomains.ts"],
+    // apps/web/next.config.ts evaluates this file at config-load time, through Next's own
+    // loader, where `@/` aliases do not exist.
+    files: ["packages/shared/src/config/imageDomains.ts"],
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [{ regex: ".*", message: "imageDomains.ts imports nothing; next.config.ts evaluates it at config-load time." }],
@@ -74,7 +101,7 @@ const eslintConfig = defineConfig([
   {
     rules: {
       // Downgraded to a warning, deliberately not fixed. The two current
-      // violations (src/app/saved/page.tsx, src/components/news/ArticleCard.tsx)
+      // violations (apps/web/src/app/saved/page.tsx, apps/web/src/components/news/ArticleCard.tsx)
       // would have to become derived state to satisfy this rule, which
       // changes render timing — a behavior change on files that have zero
       // test coverage today. They are scheduled for Phase 6, once
@@ -85,11 +112,11 @@ const eslintConfig = defineConfig([
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
+    // Default ignores of eslint-config-next, at any depth (each app builds into its own .next):
+    "**/.next/**",
+    "**/out/**",
+    "**/build/**",
+    "**/next-env.d.ts",
     // Generated by `npm run test:ci` (Istanbul's lcov-report). Linting it made the
     // warning count depend on whether coverage/ happened to exist (BL-010).
     "coverage/**",
