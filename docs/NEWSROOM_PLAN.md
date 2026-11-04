@@ -32,7 +32,7 @@ privacy, kyunki kanoonan ye launch se pehle chahiye.
 
 Shared code `packages/` mein rahega. Saare panels ek admin app ke andar honge, har panel ka apna folder aur apni permissions.
 
-**Abhi ka order (owner, 4 Nov 2026):** pehle Vivek ka `release/v1` (`main` pe), hosting **AWS** pe. Uske baad ye plan `main` pe aayega, aur neeche ke steps shuru honge.
+**Abhi ka order (owner, 4 Nov 2026):** ye plan, teen apps wala structure aur Panel 0 ab `main` pe hain. Pehle Vivek ka `release/v1` poora hoga (hosting **AWS** pe), naye structure pe hi. Uske baad neeche ke steps shuru honge.
 
 **Order (har step pichhla poora hone ke baad):**
 
