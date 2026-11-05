@@ -92,9 +92,19 @@ release). The plan's Phase I ([`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md)) covers the
 | Back office | `admin` | ECS service, 1–2 tasks | 3001 | `GET /admin/login` (liveness) |
 | Worker | `worker` | ECS task, started by EventBridge Scheduler | — | the task's exit code |
 
-Both health checks are prerendered pages that call neither Supabase nor Redis. `/api/health` is
-not one: it answers 503 whenever a dependency is down, and an ALB health check on it would have
-ECS replace every reader task during a Supabase outage. It is for the uptime monitor (step 10).
+Both health checks are prerendered pages whose rendering calls no upstream (measured at STOP R1):
+- `/about`'s server code holds no Supabase, NewsData, Upstash or Anthropic client;
+- it answers 200 from a container with no network at all;
+- its client components fetch only in effects, in the browser.
+
+Served through the reader site's shared cache handler (R1-02), each `/about` request still reads
+Redis twice (GET and HMGET, measured). With Redis unreachable it answers 200 in about 2 seconds,
+inside the checks' 5-second timeout (BL-040). `/admin/login` uses Next's default cache and reads
+nothing.
+
+`/api/health` is not a health check here: it answers 503 whenever a dependency is down, and an
+ALB health check on it would have ECS replace every reader task during a Supabase outage. It is
+for the uptime monitor (step 10).
 
 ### Building the images
 
@@ -193,6 +203,12 @@ Arm builder is faster.
       cache-hit ratio;
     - an AWS Budgets alarm on the monthly spend.
 11. **DNS:** a Route 53 alias record for the domain to the distribution.
+12. **Set an Anthropic spend limit** (owner, STOP R1): a monthly limit on the Anthropic account,
+    in its console. It is the last guard behind the app's caps
+    (`packages/shared/src/config/aiLimits.ts`): chat answers at most 500 questions a day across all
+    readers (`CHAT_LIMITS.globalPerDay`), each at most 1,024 output tokens (`max_tokens` in
+    `apps/web/src/app/api/chat/route.ts`). The worker's category classification also uses the
+    account, and is not capped by these, so leave room for it.
 
 ### Staging (needs owner confirmation)
 
@@ -261,6 +277,10 @@ database, then done once more against the production database at deployment, in 
   Never set `NEXT_PUBLIC_NEWSDATA_API_KEY`.
 
 **Smoke test at deployment:**
+- **First, the NewsData key in its header** (R1-02b; a session cannot try it with the real key):
+  `curl -s -o /dev/null -w "%{http_code}" -H "X-ACCESS-KEY: $NEWSDATA_API_KEY" "https://newsdata.io/api/1/latest?language=en"`
+  from a shell that holds the key answers 200. If it answers 401 or 403, every NewsData call fails:
+  the worker exits 1, which raises its alarm, and the feed falls back to mock articles.
 - `/api/health` answers 200, and Sentry receives a Supabase fallback event (F-002).
 - `X-Data-Source` shows `supabase` or `cache` for readers (NFR-01).
 - The scheduler starts the worker's refresh, and its `audit_log` row (`system:cron`, `cron.refresh_news`) carries
@@ -268,7 +288,8 @@ database, then done once more against the production database at deployment, in 
 - The Redis limiter: the 11th login attempt in 15 minutes and the 31st uncached scrape in a minute
   answer 429 across instances (F-004, F-011). Repeat the login case with a different forged
   `X-Forwarded-For` on every attempt: it must still answer 429 (R1-05). The 11th chat or translate
-  request in a minute answers 429 too, whichever task serves it.
+  request in a minute answers 429 too, whichever task serves it. The daily caps (per IP, and for all
+  readers together: chat 500, translate 1,000) are in `aiLimits.ts`. They are tested, not tried live.
 - An admin action's `audit_log` row carries an `X-Amz-Cf-Id` that the CloudFront log has (R1-05).
 - Every response has the six security headers, and the browser console shows no
   `Content-Security-Policy-Report-Only` report on `/`, an article page and `/admin/login` (R1-06).
@@ -879,8 +900,9 @@ owner's, by hand: [`staff-access.md`](#staff-access-switching-on-panel-0-and-get
 
 > **A deployment now (owner, 2026-11-02):** the owner's senior asked for one. The release (R0–R4)
 > is hosted on AWS `ap-south-1` (owner, 4 Nov 2026, replacing R0's Vercel); panel work is paused
-> until then. **R1 is built** on `chore/r1-aws`, from `main` (`f595ae0`), and waits at STOP R1 for
-> the owner: the code for the containers and AWS, and [the runbook](#deployment) for the resources.
+> until then. **R1 is built** on `chore/r1-aws`, from `main` (`f595ae0`): the code for the
+> containers and AWS, and [the runbook](#deployment) for the resources. The owner decided STOP R1
+> on 5 Nov 2026; R1-12 (reader pages read the database only) is proposed, not built.
 >
 > **The real database (owner decision, 2026-11-02).** The env file (the root `.env`; `.env.local`
 > until 2026-11-04) holds the real database's credentials, and the app uses them. The local database
@@ -922,19 +944,22 @@ restructures and all five audit phases were done:
 
 **Next:**
 1. **The release**, on `main`'s apps/packages layout; panels are paused meanwhile.
-   - **R1 (AWS foundations), built on `chore/r1-aws`, at STOP R1:**
+   - **R1 (AWS foundations), built on `chore/r1-aws`; STOP R1 decided on 5 Nov 2026:**
      - R1-01: the container images;
      - R1-02: the shared Next cache, and the deployment ID;
+     - R1-02b: the NewsData key in its header, and no cache entry may hold it;
      - R1-03: the refresh interval as one value;
      - R1-04: the back office's assets under `/admin-assets`;
-     - R1-05: the client IP and request ID, and chat and translate in the shared limiter;
+     - R1-05: the client IP and request ID; chat and translate in the shared limiter, with daily
+       caps per IP and for all readers together (`aiLimits.ts`);
      - R1-06: the security headers;
      - R1-07: the error pages;
      - R1-08: the health checks (runbook only);
      - R1-09: robots.txt, the sitemap, canonical links and noindex for staging;
      - R1-10 and R1-11: the variables and the logs (docs, and `sendDefaultPii`).
 
-     The four owner values are still open ([Deployment](#values-the-release-still-needs)).
+     The four owner values are still open ([Deployment](#values-the-release-still-needs)). Open
+     for the owner: R1-12 (proposed), BL-040.
    - **Then R2:** the reader UI, the new article and section URLs, and the structured data that
      waits for them.
 2. **When panels resume, finish Panel 0** (the plan's Phase A):
@@ -999,7 +1024,7 @@ Check `/api/health` before assuming the database is either up or down.
 |---|---|
 | `CLAUDE.md` | **Every session, first.** Start here: the plan, the branch rules, the database rules |
 | `docs/README.md` | Setup, commands, the folder structure, where new code goes, the commit rules |
-| `docs/OPERATIONS.md` | Environment variables, deployment, the runbooks, **this current status**, the backlog (BL-001..BL-038) and the audit ledger (F-001..F-028) |
+| `docs/OPERATIONS.md` | Environment variables, deployment, the runbooks, **this current status**, the backlog (BL-001..BL-040) and the audit ledger (F-001..F-028) |
 | `docs/NEWSROOM_PLAN.md` | **The build plan.** The phases from Panel 0 to launch and after, their order, owner tasks and the sign-off |
 | `docs/ARCHITECTURE.md` | The flows, the layout, the import rules, and the decisions (the owner's, and ADRs 0001–0006) |
 | `docs/PANEL_DOCS.md` | **For the back office.** The definition of done; the access rules (panels, roles, the permission matrix the catalogue SQL is generated from, four-eyes and MFA rules, data model); progress (panels 0–9) and each finished panel's record; Panel 0's design as approved (D1–D12, Q1–Q8) |
@@ -1278,7 +1303,10 @@ explicit `env` object, where an empty string survives as "set".
 back turns `§` into `Â§` (it happened to a test file in Panel 0, repaired before commit).
 `Set-Content -Encoding utf8` and `Out-File` add a BOM, which once reached a commit subject (amended
 before push). Read and write text with Node, or the Write and Edit tools. Check a commit message's
-first bytes with `git cat-file -p`, not through a PowerShell pipe, which adds its own BOM.
+first bytes with `git cat-file -p`, not through a PowerShell pipe, which adds its own BOM. The
+Write tool keeps the encoding of a file it overwrites: in R1 a message file that `Set-Content` had
+once written kept its BOM through every later Write (amended before push). Write each message to a
+new file, or with `[IO.File]::WriteAllText` and `UTF8Encoding($false)`.
 
 #### 3.22 Tailwind reads test files too
 
@@ -1500,6 +1528,8 @@ are resolved:
   BL-031 (the new moderate advisories), BL-032 (A2 for new pages).
 - BL-033 (the 7-day purge against Rule 19's 60 days; Panel 4 or 7), BL-034 (export the audit chain's
   head hash outside the database).
+- BL-039 (lighter root not-found and error pages, R2) and BL-040 (Redis unreachable: a cache miss
+  waits two seconds; for the owner).
 
 **Resolved:** BL-003, BL-010, BL-011, BL-012, BL-013, BL-014, BL-015, BL-017, BL-018, BL-020, BL-021,
 BL-027, BL-029, BL-038 (R1-05).
@@ -2302,6 +2332,38 @@ balancer **appends** the client's address, and the first one is whatever the cli
 guesser can send a new address with each attempt and never reach the limit. The per-user MFA limit
 (five codes per 15 minutes) is not affected. At the AWS move, read the address the balancer adds
 (the last entry, or a header it sets that clients cannot), and test it with a forged header.
+
+### BL-039 — The root not-found and error pages cost every reader page 6.7 KB
+
+**Found:** R1-07 (2026-11-04) · **Status:** Open, for R2 (owner, STOP R1: the growth is accepted
+until then)
+
+Every page route loads the root `not-found.tsx` and `error.tsx` components, and Turbopack gives each
+one's chunk its own copy of what it imports (gotcha 3.27). R1-07 kept the cost at +6,707 bytes a
+reader route (+0.98% on `/about`, from a first draft's +34,684): the message component, with its
+English and Hindi strings, once in each chunk. In R2, with the pages' design:
+- render the not-found page on the server, with no client component: the language can follow
+  `<html lang>` in CSS instead of the language context;
+- give the error boundary only what it must have on the client, the retry button.
+
+Measure with `node scripts/check-js-budget.mjs --print` before and after.
+
+### BL-040 — With Redis unreachable, a cache miss waits two seconds
+
+**Found:** STOP R1's `/about` evidence (2026-11-05) · **Status:** Open, for the owner
+
+The reader site's cache handler (`apps/web/cache-handler.mjs`) gives Redis 1 second for a read and
+1 second for a write. Measured on the Docker image with Upstash pointed at an unreachable address:
+`/about` still answers 200, but in about 2.1 seconds. Every page or fetch that misses the cache pays
+the same while Redis is down, and the ALB and container health checks (5-second timeout) pass
+slowly. Options:
+- a shorter timeout;
+- writes that do not hold the response (sent without awaiting, errors still logged);
+- a few seconds of in-process memory of a failed Redis, so later requests skip it.
+
+Healthy, each `/about` request costs two Redis reads (GET and the tag check's HMGET). With ALB
+checks every 30 seconds from two availability zones and the container's own check, two reader tasks
+spend about 35,000 commands a day on health checks alone.
 
 ## Audit ledger
 

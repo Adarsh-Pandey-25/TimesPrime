@@ -105,6 +105,10 @@ conclusions (see [the gotchas](OPERATIONS.md#3-gotchas-that-have-already-burned-
     every task in Upstash. A side effect: prerendered pages render again on their first request
     (OPERATIONS gotcha 3.26).
   - **The client IP** is the `X-Forwarded-For` entry `TRUSTED_PROXY_HOPS` from the right.
+  - **The NewsData key** travels in the `X-ACCESS-KEY` header, never in a URL, and no cache entry
+    may hold it (R1-02b).
+  - **Chat and translate** are capped per IP and for all readers together, a day, in the shared
+    Redis (`packages/shared/src/config/aiLimits.ts`).
   - **Security headers** come from `next.config.ts` `headers()`, with the CSP report-only.
   - **The error boundaries** report to Sentry through `clientErrorReport.ts`, not the SDK (gotcha
     3.27).
@@ -324,11 +328,19 @@ Scheduler, logs in Mumbai for 365 days) and the owner's answers, all on `chore/r
   Redis.
 - **The four R1 owner values** (Supabase region, NewsData plan, brand colour, grievance officer)
   are set aside for now (the owner's senior); R1 went ahead without them.
-- **For the owner to confirm at STOP R1** (proposed during R1):
-  - the daily caps per IP: chat 100, translate 300;
-  - liveness, not `/api/health`, for the reader site's ALB check;
-  - the reader site's structured data and the article page's canonical link moved to R2, with
-    the new article URLs.
+- **Decided at STOP R1 (5 Nov 2026):**
+  - **Daily caps:** per IP, chat 100 and translate 300. A cap for all readers together, chat 500
+    and translate 1,000, one config value each (`packages/shared/src/config/aiLimits.ts`), because
+    mobile carriers in India put many readers behind one IP (CGNAT). Plus an Anthropic spend limit
+    in the owner runbook.
+  - **The reader site's ALB check:** `/about`, liveness, not `/api/health`.
+  - **Moved to R2:** the structured data and the article page's canonical link, with the new
+    article URLs.
+  - **The error pages' +0.98% JS:** accepted. Making them lighter is BL-039, in R2.
+  - **R1-02b (before go-live, in R1):** no cache entry may hold the NewsData API key. It travels
+    in the X-ACCESS-KEY header, and the cache handler refuses any entry that holds it.
+  - **R1-12:** reader pages read the database only (R0 v2 decision 7). To be proposed; not built
+    until approved.
 
 **Follow-up the product decisions created:** the privacy policy still describes newsletter and
 contact-form collection that no longer happens. Legal copy, for the owner or legal review (BL-008).
