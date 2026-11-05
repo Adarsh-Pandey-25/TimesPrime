@@ -44,11 +44,16 @@ test("the public-prefixed key alone is not used: 500, and NewsData.io is never c
   expect(global.fetch).not.toHaveBeenCalled();
 });
 
-test("NEWSDATA_API_KEY is the key sent to NewsData.io", async () => {
+// R1-02b: the key travels in NewsData's X-ACCESS-KEY header. It used to be ?apikey= in the URL,
+// which this test pinned; it changed on purpose.
+test("NEWSDATA_API_KEY is the key sent to NewsData.io, in the X-ACCESS-KEY header, never the URL", async () => {
   process.env.NEWSDATA_API_KEY = "server-key";
   process.env.NEXT_PUBLIC_NEWSDATA_API_KEY = "public-prefixed-key";
   await POST();
-  const urls = (global.fetch as jest.Mock).mock.calls.map(([url]) => String(url));
-  expect(urls.length).toBeGreaterThan(0);
-  expect(urls.every((url) => url.includes("apikey=server-key") && !url.includes("public-prefixed-key"))).toBe(true);
+  const calls = (global.fetch as jest.Mock).mock.calls as [string, RequestInit][];
+  expect(calls.length).toBeGreaterThan(0);
+  for (const [url, init] of calls) {
+    expect(String(url)).not.toMatch(/apikey|server-key|public-prefixed-key/);
+    expect(init.headers).toEqual({ "X-ACCESS-KEY": "server-key" });
+  }
 });

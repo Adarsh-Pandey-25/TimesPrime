@@ -178,6 +178,54 @@ describe("when Redis fails", () => {
   });
 });
 
+// R1-02b: whoever builds a request, no entry that holds the NewsData API key is stored.
+describe("the NewsData API key never reaches the cache", () => {
+  const KEY = "pub_r102b_test_key";
+  const withKeyInUrl = () => ({
+    kind: "FETCH",
+    data: { headers: {}, body: "e30=", status: 200, url: `https://newsdata.io/api/1/latest?apikey=${KEY}&category=top` },
+    revalidate: 900,
+  });
+
+  test("an entry whose URL holds the key is refused, in Redis, and the refusal is logged", async () => {
+    process.env.NEWSDATA_API_KEY = KEY;
+    const { handler } = await instance({ redis: true });
+    await handler.set("k-key", withKeyInUrl(), { fetchCache: true, tags: [] });
+    expect(mockStore.size).toBe(0);
+    expect(mockCalls.set).toEqual([]);
+    expect(await handler.get("k-key", { kind: "FETCH", tags: [] })).toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("cache-handler: set failed"), expect.stringContaining("NewsData API key"));
+  });
+
+  test("and in the in-memory fallback", async () => {
+    process.env.NEWSDATA_API_KEY = KEY;
+    const { handler } = await instance({ redis: false });
+    await handler.set("k-key", withKeyInUrl(), { fetchCache: true, tags: [] });
+    expect(await handler.get("k-key", { kind: "FETCH", tags: [] })).toBeNull();
+  });
+
+  test("the same request with the key in the header (no key in the entry) is stored", async () => {
+    process.env.NEWSDATA_API_KEY = KEY;
+    const { handler } = await instance({ redis: true });
+    await handler.set("k-header", fetchEntry("feed"), { fetchCache: true, tags: [] });
+    expect([...mockStore.values()].join("")).not.toContain(KEY);
+    expect((await handler.get("k-header", { kind: "FETCH", tags: [] }))?.value).toEqual(fetchEntry("feed"));
+  });
+
+  test("the key URL-encoded is refused too", async () => {
+    process.env.NEWSDATA_API_KEY = "pub key/with+chars";
+    const { mod } = await instance({ redis: false });
+    expect(mod.holdsSecret(JSON.stringify({ url: `https://x/?apikey=${encodeURIComponent("pub key/with+chars")}` }))).toBe(true);
+    expect(mod.holdsSecret(JSON.stringify({ url: "https://x/?category=top" }))).toBe(false);
+  });
+
+  test("with no key configured, nothing is refused", async () => {
+    delete process.env.NEWSDATA_API_KEY;
+    const { mod } = await instance({ redis: false });
+    expect(mod.holdsSecret("anything at all")).toBe(false);
+  });
+});
+
 describe("without Upstash", () => {
   test("one process keeps a bounded in-memory cache", async () => {
     const { handler } = await instance({ redis: false });

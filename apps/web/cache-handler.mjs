@@ -20,6 +20,7 @@
 //     reaches all of them (the app calls none today; the handler is ready for it);
 //   - survive storage errors: a failed or slow read is a miss, a failed write is dropped, and the
 //     page renders either way (`withTimeout`, `reportOnce`).
+// And one rule of this app's own: no entry may hold the NewsData API key (R1-02b, `holdsSecret`).
 //
 // Without UPSTASH_REDIS_REST_URL and _TOKEN (local runs, tests, the e2e builds) it keeps a bounded
 // in-process Map, like packages/server/src/lib/cache.ts: one process, so nothing is lost.
@@ -88,6 +89,19 @@ export function deserialize(/** @type {string} */ text) {
     }
     return value;
   });
+}
+
+/**
+ * True if the serialized entry holds the NewsData API key (R1-02b). A fetch entry stores its
+ * request URL, and the key used to travel in it as the apikey query parameter. The callers now
+ * send it in the X-ACCESS-KEY header (newsDataInit in packages/server/src/services/news/newsdata.ts);
+ * this refuses any entry that would still carry it, whoever builds the request, so the key never
+ * reaches Upstash.
+ */
+export function holdsSecret(/** @type {string} */ text) {
+  const key = process.env.NEWSDATA_API_KEY;
+  if (!key) return false;
+  return text.includes(key) || text.includes(encodeURIComponent(key));
 }
 
 /** The tags an entry is invalidated by: a fetch carries them in ctx, a response in a header. */
@@ -167,6 +181,10 @@ export default class CacheHandler {
       tags: tagsOf(data, ctx),
       cacheControl: data?.kind === "FETCH" ? undefined : ctx?.cacheControl,
     });
+    if (holdsSecret(text)) {
+      reportOnce("set", new Error("an entry holding the NewsData API key was refused (R1-02b)"));
+      return;
+    }
     try {
       if (redis) {
         await withTimeout(redis.set(storageKey, text, { ex: ttlSeconds(data, ctx) }));

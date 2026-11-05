@@ -11,6 +11,7 @@ import {
   isFromWireSpamSource,
   isFromNonNewsListingSource,
 } from "@timesprime/shared/config/newsConfig";
+import { NEWSDATA_LATEST_URL, newsDataInit } from "./newsdata";
 
 /**
  * Server-side news fetching function.
@@ -42,8 +43,8 @@ export async function fetchInitialNews(
       return MOCK_ARTICLES;
     }
 
-    const targetUrl = new URL("https://newsdata.io/api/1/latest");
-    targetUrl.searchParams.set("apikey", apiKey);
+    // The key goes in a header, never the URL, which this fetch's cache entry stores (R1-02b).
+    const targetUrl = new URL(NEWSDATA_LATEST_URL);
 
     if (language === "hi") {
       targetUrl.searchParams.set("country", "in");
@@ -70,9 +71,7 @@ export async function fetchInitialNews(
       targetUrl.searchParams.set("q", query.trim());
     }
 
-    const apiRes = await fetch(targetUrl.toString(), {
-      next: { revalidate: 900 },
-    });
+    const apiRes = await fetch(targetUrl.toString(), newsDataInit(apiKey, { next: { revalidate: 900 } }));
 
     if (!apiRes.ok) {
       console.error(`NewsData API error: status ${apiRes.status}`);
