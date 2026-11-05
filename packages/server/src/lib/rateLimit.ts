@@ -91,6 +91,8 @@ export interface RateLimitDecision {
   limited: boolean;
   /** Seconds until the request would be allowed: the value for Retry-After. */
   retryAfterSeconds: number;
+  /** The name of the rule that limited, from checkRateLimits, so a route can say which. */
+  rule?: string;
 }
 
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
@@ -141,9 +143,19 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
 export async function checkRateLimits(key: string, rules: readonly RateLimitRule[]): Promise<RateLimitDecision> {
   for (const rule of rules) {
     const decision = await checkRateLimit(key, rule);
-    if (decision.limited) return decision;
+    if (decision.limited) return { ...decision, rule: rule.name };
   }
   return { limited: false, retryAfterSeconds: 0 };
+}
+
+/**
+ * One count for every client together (STOP R1): a daily cap on an endpoint's total, whatever the
+ * IPs. The same counter as checkRateLimit, under one key. Without Redis it falls back to the
+ * in-memory limiter like the others, and is then per instance.
+ */
+export async function checkGlobalRateLimit(rule: RateLimitRule): Promise<RateLimitDecision> {
+  const decision = await checkRateLimit("all", rule);
+  return decision.limited ? { ...decision, rule: rule.name } : decision;
 }
 
 /**

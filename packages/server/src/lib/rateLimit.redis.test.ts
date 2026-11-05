@@ -110,10 +110,31 @@ describe("checkRateLimits (burst, then daily cap)", () => {
       expect((await checkRateLimits("203.0.113.21", [BURST, DAY])).limited).toBe(false);
     }
     jest.setSystemTime(Date.parse("2026-11-02T18:00:00Z"));
-    // 18:00 UTC to the day's end: 6 hours.
-    expect(await checkRateLimits("203.0.113.21", [BURST, DAY])).toEqual({ limited: true, retryAfterSeconds: 6 * 3600 });
+    // 18:00 UTC to the day's end: 6 hours. The decision names the rule that limited.
+    expect(await checkRateLimits("203.0.113.21", [BURST, DAY])).toEqual({ limited: true, retryAfterSeconds: 6 * 3600, rule: "chat-day" });
     jest.setSystemTime(Date.parse("2026-11-03T00:00:00Z"));
     expect((await checkRateLimits("203.0.113.21", [BURST, DAY])).limited).toBe(false);
+  });
+
+  test("the burst limit names itself, so a route can tell a burst from a daily cap", async () => {
+    const { checkRateLimits } = await load(true);
+    shareCounters();
+    for (let i = 0; i < 10; i++) await checkRateLimits("203.0.113.23", [BURST, DAY]);
+    expect((await checkRateLimits("203.0.113.23", [BURST, DAY])).rule).toBe("chat");
+  });
+
+  test("the global cap (STOP R1): one counter for every client, shared by every instance, to midnight UTC", async () => {
+    const GLOBAL = { name: "chat-global-day", limit: 500, windowSeconds: 86_400 };
+    jest.setSystemTime(Date.parse("2026-11-02T18:00:00Z"));
+    const first = await load(true);
+    shareCounters();
+    for (let i = 0; i < 300; i++) expect((await first.checkGlobalRateLimit(GLOBAL)).limited).toBe(false);
+    const second = await load(true);
+    shareCounters();
+    for (let i = 0; i < 200; i++) expect((await second.checkGlobalRateLimit(GLOBAL)).limited).toBe(false);
+    expect(await second.checkGlobalRateLimit(GLOBAL)).toEqual({ limited: true, retryAfterSeconds: 6 * 3600, rule: "chat-global-day" });
+    const dayId = Math.floor(Date.now() / 86_400_000);
+    expect(counters.get(`ratelimit:chat-global-day:all:${dayId}`)).toBe(501);
   });
 
   test("a request the burst limit refuses does not spend the day's budget", async () => {

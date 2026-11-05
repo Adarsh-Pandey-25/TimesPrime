@@ -3,7 +3,8 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/nextjs";
-import { checkRateLimits, getClientIp, type RateLimitRule } from "@timesprime/server/lib/rateLimit";
+import { checkGlobalRateLimit, checkRateLimits, getClientIp, type RateLimitRule } from "@timesprime/server/lib/rateLimit";
+import { CHAT_LIMITS } from "@timesprime/shared/config/aiLimits";
 import { readJsonBody } from "@timesprime/server/lib/readJsonBody";
 
 const MODEL = "claude-haiku-4-5"; // fast + cheap, good fit for chat
@@ -18,13 +19,25 @@ const MAX_CONTEXT_TITLE_CHARS = 300;
 const MAX_CONTEXT_DESCRIPTION_CHARS = 1_000;
 const MAX_BODY_BYTES = 16 * 1024;
 
-// Per IP, counted in the shared Redis so every instance sees the same count (R1-05): the burst
-// limit the route always had (10 a minute), then a daily cap on what one reader can spend on the
-// model. The daily window is the UTC day (it resets at 05:30 IST).
+// The limits are CHAT_LIMITS (packages/shared/src/config/aiLimits.ts), counted in the shared Redis
+// so every instance sees one count. Per IP, checked first: the burst limit the route always had,
+// then a daily cap on what one reader can spend on the model (R1-05). Then, only for a request that
+// is valid and about to reach the model, the cap for every reader together (STOP R1). The daily
+// windows are the UTC day (they reset at 05:30 IST).
+const DAY_SECONDS = 24 * 60 * 60;
 const CHAT_RATE_LIMITS: readonly RateLimitRule[] = [
-  { name: "chat", limit: 10, windowSeconds: 60 },
-  { name: "chat-day", limit: 100, windowSeconds: 24 * 60 * 60 },
+  { name: "chat", limit: CHAT_LIMITS.perIpPerMinute, windowSeconds: 60 },
+  { name: "chat-day", limit: CHAT_LIMITS.perIpPerDay, windowSeconds: DAY_SECONDS },
 ];
+const CHAT_GLOBAL_LIMIT: RateLimitRule = { name: "chat-global-day", limit: CHAT_LIMITS.globalPerDay, windowSeconds: DAY_SECONDS };
+
+/** 429 with Retry-After; the chat box shows the message, so a daily cap says so, not "a moment". */
+function tooManyRequests(retryAfterSeconds: number, burst: boolean) {
+  const error = burst
+    ? "Too many requests. Please wait a moment and try again."
+    : "The AI assistant has reached its limit for today. Please try again tomorrow.";
+  return NextResponse.json({ error }, { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } });
+}
 
 const SYSTEM_PROMPT =
   "You are TimesPrime AI, a helpful news assistant. Answer questions about news topics concisely and factually. If given article context, use it to answer specifically.";
@@ -74,12 +87,7 @@ function buildSystemPrompt(articleContext?: ArticleContext): string {
 
 export async function POST(request: NextRequest) {
   const rate = await checkRateLimits(getClientIp(request), CHAT_RATE_LIMITS);
-  if (rate.limited) {
-    return NextResponse.json(
-      { error: "Too many requests. Please wait a moment and try again." },
-      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
-    );
-  }
+  if (rate.limited) return tooManyRequests(rate.retryAfterSeconds, rate.rule === "chat");
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -114,6 +122,10 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  // Every reader together, counted only now: this request is valid and about to reach the model.
+  const allReaders = await checkGlobalRateLimit(CHAT_GLOBAL_LIMIT);
+  if (allReaders.limited) return tooManyRequests(allReaders.retryAfterSeconds, false);
 
   const client = new Anthropic({ apiKey });
 

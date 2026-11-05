@@ -145,6 +145,7 @@ describe("POST /api/chat", () => {
     const retryAfter = Number(res.headers.get("retry-after"));
     expect(retryAfter).toBeGreaterThan(0);
     expect(retryAfter).toBeLessThanOrEqual(60);
+    expect((await res.json()).error).toBe("Too many requests. Please wait a moment and try again.");
   });
 
   // R1-05: a daily cap per IP on top of the burst limit (shared across instances in Redis; here,
@@ -169,6 +170,8 @@ describe("POST /api/chat", () => {
       const res = await send();
       expect(res.status).toBe(429);
       expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(60);
+      // The chat box shows this text: a daily cap must not say "wait a moment" (STOP R1).
+      expect((await res.json()).error).toBe("The AI assistant has reached its limit for today. Please try again tomorrow.");
     } finally {
       now.mockRestore();
     }
