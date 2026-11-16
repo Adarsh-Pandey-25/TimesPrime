@@ -17,9 +17,15 @@ import { NextResponse, type NextRequest } from "next/server";
 // SameSite=Lax and, in production, Secure. Supabase says HttpOnly is "not necessary"; for an admin
 // session it is cheap protection against a script reading the token.
 
-/** The flags every staff session cookie gets, whatever @supabase/ssr proposes. */
+/**
+ * The flags every staff session cookie gets, whatever @supabase/ssr proposes. No Domain: the
+ * cookie is host-only, sent to admin.timesprime247.com alone and never to the reader site or
+ * another subdomain (E-04).
+ */
 export function hardenCookie(options: CookieOptions = {}): CookieOptions {
-  return { ...options, httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: options.path ?? "/" };
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- dropped on purpose
+  const { domain, ...rest } = options;
+  return { ...rest, httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: options.path ?? "/" };
 }
 
 /**

@@ -114,6 +114,15 @@ describe("the staff session cookie's flags", () => {
     });
   });
 
+  // E-04: the back office lives on admin.timesprime247.com. A cookie without a Domain attribute is
+  // host-only: the browser sends it to that exact host and to no other subdomain, nor the reader
+  // site. A Domain attribute would widen it to every *.timesprime247.com, so none is ever set.
+  test("host-only: a Domain that @supabase/ssr proposes is dropped", () => {
+    const hardened = hardenCookie({ domain: ".timesprime247.com", maxAge: 400 });
+    expect(hardened).not.toHaveProperty("domain");
+    expect(hardened.maxAge).toBe(400);
+  });
+
   test("the route client writes every cookie through hardenCookie", async () => {
     await createRouteClient();
     const { cookies: methods } = (createServerClient as jest.Mock).mock.calls[0][2];
