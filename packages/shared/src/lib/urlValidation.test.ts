@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * The SSRF guard in front of the scraper (audit Phase 2, step 2.1). DNS is
+ * The SSRF guard for server-side fetches (audit Phase 2, step 2.1). DNS is
  * mocked: each hostname resolves to exactly what the real resolver returned
  * on the development machine (including for bracketed IPv6 literals, which
  * reached the DNS branch before F-003 because `new URL()` keeps the

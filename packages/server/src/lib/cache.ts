@@ -5,8 +5,7 @@ import { Redis } from "@upstash/redis";
 import { createRedisBreaker, REDIS_CLIENT_OPTIONS } from "./redisBreaker";
 
 /**
- * Shared cache used by the news feed (15 min TTL) and the article scraper
- * (1 hr TTL). Backed by Upstash Redis when configured — required for
+ * Shared cache used by the news feed (15 min TTL). Backed by Upstash Redis when configured — required for
  * correctness on serverless, where each function instance would otherwise
  * have its own private in-memory cache and most requests would miss. Falls
  * back to an in-memory Map when Upstash isn't configured (e.g. local dev)
@@ -39,7 +38,7 @@ interface MemoryCacheEntry<T> {
 const memoryStore = new Map<string, MemoryCacheEntry<unknown>>();
 
 // BL-013: an expired entry used to leave only when its key was read again,
-// so keys never re-read (every distinct scraped URL, every search) piled up.
+// so keys never re-read (every distinct search) piled up.
 // Now each set sweeps expired entries at most once a minute, and the store
 // holds at most MEMORY_MAX_ENTRIES, dropping the least recently set first.
 const MEMORY_SWEEP_INTERVAL_MS = 60_000;
@@ -120,4 +119,3 @@ export const cache = {
 };
 
 export const CACHE_TTL_NEWS_SECONDS = 15 * 60; // 15 minutes — top-headlines route
-export const CACHE_TTL_SCRAPE_SECONDS = 60 * 60; // 1 hour — scrape-article route

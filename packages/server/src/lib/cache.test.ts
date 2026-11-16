@@ -4,7 +4,7 @@
  * The in-memory fallback of the shared cache, used whenever Upstash is not
  * configured (as in tests and local dev). BL-013 / audit N-03: an expired
  * entry was removed only when its key was read again, so keys that are never
- * re-read — every distinct scraped URL, every search — piled up.
+ * re-read — every distinct search — piled up.
  */
 
 import { cache, memoryEntryCount } from "./cache";
@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 let n = 0;
-const freshKey = () => `scrape:https://publisher.example/story-${++n}`;
+const freshKey = () => `news:key-${++n}`;
 
 describe("memory cache — unchanged behaviour", () => {
   test("a value is returned until its TTL passes, then null", async () => {

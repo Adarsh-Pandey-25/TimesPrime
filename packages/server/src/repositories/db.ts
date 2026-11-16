@@ -191,10 +191,9 @@ function isFromHindiSource(link: string | undefined): boolean {
   }
 }
 
-// Sources that gate nearly all article content behind a subscription, so
-// storing them just means the reader hits scrape-article's paywall branch
-// (see packages/server/src/services/scrape/scrapeArticle.ts) every time — better to
-// not show them in the feed at all.
+// Sources that gate nearly all article content behind a subscription: a
+// reader who follows the link out meets a paywall every time, so they are
+// not shown in the feed at all.
 //
 // Deliberately NOT domain-wide for every "premium" publisher: Supabase's
 // live data (checked August 2026) also has timesofindia.indiatimes.com
@@ -202,10 +201,8 @@ function isFromHindiSource(link: string | undefined): boolean {
 // thehindu.com (12), but those are metered/partial paywalls — most of
 // their content is freely readable, and only a labeled subset (e.g. TOI+)
 // is locked. Skipping their entire domain here would hide dozens of
-// legitimate free articles; per-article precision for those sources comes
-// from scrape-article's detectPaywall() at read time instead, not from
-// this list. This list is only for sources where practically everything
-// is behind the paywall, verified against the same live data.
+// legitimate free articles. This list is only for sources where practically
+// everything is behind the paywall, verified against the same live data.
 const HARD_PAYWALL_SOURCE_DOMAINS = ["wsj.com", "bloomberg.com"];
 
 function isFromHardPaywallSource(link: string | undefined): boolean {

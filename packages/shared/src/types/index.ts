@@ -24,29 +24,6 @@ export interface Article {
 }
 
 /**
- * The scraper's answer for an article it read (status 200), from
- * scrapeArticle() and GET /api/news/scrape-article. `content` is empty when
- * nothing could be extracted or the page is paywalled; it never holds
- * placeholder prose. Any failure is a non-200 status with a
- * ScrapeErrorResponse instead (F-017).
- */
-export interface ScrapeResponse {
-  url: string;
-  title?: string;
-  content: string[];
-  text: string;
-  isPaywalled: boolean;
-  description?: string;
-  image?: string;
-  cached?: boolean;
-}
-
-/** The scraper's body for any non-200 status (F-017). */
-export interface ScrapeErrorResponse {
-  error: string;
-}
-
-/**
  * One raw result row from NewsData.io's /api/1/latest response, before it is
  * normalized into `Article`. Field set is exactly what the mapping code in
  * fetchNews.ts, newsdata.ts, top-headlines/route.ts and seed-supabase/route.ts

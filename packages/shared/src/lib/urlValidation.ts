@@ -1,9 +1,10 @@
 /**
- * SSRF guard for server-side fetches of user/attacker-influenced URLs
- * (e.g. the article scraper, which fetches whatever link the news API returns).
+ * SSRF guard for server-side fetches of user/attacker-influenced URLs. The
+ * article scraper that used it is gone (B-01, Phase B); it stays, tested, for
+ * the next server-side fetch of an outside link (such as wire ingestion).
  *
- * A domain allowlist isn't viable here — the scraper legitimately needs to hit
- * arbitrary publisher domains from around the world. Instead this blocks the
+ * A domain allowlist isn't viable for such fetches: they reach arbitrary
+ * publisher domains from around the world. Instead this blocks the
  * actual attack surface: non-http(s) protocols, and any hostname that resolves
  * (directly or via DNS) to a private/loopback/link-local/reserved address,
  * which is what lets SSRF reach internal services or cloud metadata endpoints.
@@ -13,9 +14,9 @@
  * second DNS answer differ from the one validated (DNS rebinding).
  *
  * Shared, and safe in the browser (F-005): it imports nothing. A server
- * caller passes the DNS resolver in (packages/server/src/services/scrape/fetchPage.ts
- * passes dns.lookup); without one, a hostname that needs resolving fails
- * closed. The article page's publisher links use safePublisherHref.
+ * caller passes the DNS resolver in (dns.lookup); without one, a hostname
+ * that needs resolving fails closed. The article page's publisher links use
+ * safePublisherHref.
  */
 
 export interface ValidatedAddress {

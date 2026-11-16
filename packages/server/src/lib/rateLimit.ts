@@ -15,7 +15,7 @@ import { createRedisBreaker, REDIS_CLIENT_OPTIONS } from "./redisBreaker";
  * in memory for the life of the process.
  *
  * checkRateLimit adds a shared limit for the routes worth defending across
- * instances, admin login (F-004), the scraper (F-011), and chat and
+ * instances, admin login (F-004), and chat and
  * translate with a daily cap per IP (R1-05, checkRateLimits): a fixed-window
  * counter in Upstash Redis (INCR, then EXPIRE on the window's first hit),
  * falling back to the in-memory limiter, with the fallback logged, when
@@ -84,7 +84,7 @@ export function trackedKeyCount(): number {
 }
 
 export interface RateLimitRule {
-  /** Namespaces the counter: "login", "scrape". */
+  /** Namespaces the counter: "login", "chat". */
   name: string;
   limit: number;
   windowSeconds: number;
@@ -115,8 +115,8 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
     if (!warnedNoRedis) {
       warnedNoRedis = true;
       console.warn(
-        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not configured — rate limits for login, the " +
-          "scraper, chat and translate use the in-memory limiter, which is per instance."
+        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not configured — rate limits for login, " +
+          "chat and translate use the in-memory limiter, which is per instance."
       );
     }
     return checkInMemory(key, rule, now);
