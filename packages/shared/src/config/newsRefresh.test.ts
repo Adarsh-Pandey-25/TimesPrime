@@ -7,6 +7,10 @@
 
 import {
   isRefreshDue,
+  NEWSDATA_PLAN_CEILING,
+  NEWSDATA_PLAN_DAILY_CALLS,
+  refreshCallsPerDay,
+  withinNewsDataPlan,
   NEWS_REFRESH_GRACE_MINUTES,
   NEWS_REFRESH_INTERVAL_MINUTES,
   NEWS_REFRESH_RUNS_PER_DAY,
@@ -45,4 +49,23 @@ test("another interval, such as the admin setting's later, is honoured", () => {
 test("a recorded start in the future (the clock went back) or a broken value runs at once", () => {
   expect(isRefreshDue(t0 + 30 * MIN, t0)).toBe(true);
   expect(isRefreshDue(Number.NaN, t0)).toBe(true);
+});
+
+// R12-05: the NewsData plan the refresh must stay inside, 70% of the Basic plan.
+describe("calls a day against the plan", () => {
+  test("the Basic plan, about 666 calls a day, and a 70% ceiling (about 466)", () => {
+    expect(NEWSDATA_PLAN_DAILY_CALLS).toBe(666);
+    expect(NEWSDATA_PLAN_CEILING).toBe(0.7);
+  });
+
+  test.each([
+    ["today: 14 calls a run every 60 minutes", 60, 14, 336, true],
+    ["option (c): 4 calls a run every 15 minutes", 15, 4, 384, true],
+    ["option (c) every 30 minutes", 30, 4, 192, true],
+    ["14 calls a run every 15 minutes: over the ceiling", 15, 14, 1344, false],
+    ["14 calls a run every 30 minutes: over the ceiling", 30, 14, 672, false],
+  ])("%s: %d-minute interval, %d a run = %d a day", (_label, interval, perRun, perDay, ok) => {
+    expect(refreshCallsPerDay(interval, perRun)).toBe(perDay);
+    expect(withinNewsDataPlan(interval, perRun)).toBe(ok);
+  });
 });

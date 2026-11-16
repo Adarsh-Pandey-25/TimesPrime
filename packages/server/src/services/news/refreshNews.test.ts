@@ -13,8 +13,8 @@ jest.mock("../../repositories/db", () => ({
 }));
 jest.mock("./newsdata", () => ({ fetchNewsDataArticles: jest.fn(() => Promise.resolve([])) }));
 
-import { refreshNews } from "./refreshNews";
-import { NEWS_REFRESH_INTERVAL_MINUTES, NEWS_REFRESH_RUNS_PER_DAY } from "@timesprime/shared/config/newsRefresh";
+import { refreshNews, refreshPlan } from "./refreshNews";
+import { NEWS_REFRESH_INTERVAL_MINUTES, NEWS_REFRESH_RUNS_PER_DAY, withinNewsDataPlan } from "@timesprime/shared/config/newsRefresh";
 
 const db = jest.requireMock("../../repositories/db") as { saveArticlesToDB: jest.Mock; purgeOldArticles: jest.Mock };
 const newsdata = jest.requireMock("./newsdata") as { fetchNewsDataArticles: jest.Mock };
@@ -97,4 +97,59 @@ describe("refreshNews", () => {
   });
   // A failed audit write never stops a run: recordSystemAudit reports and carries on
   // (packages/server/src/repositories/auditLog.test.ts).
+});
+
+// R12-05: option (c), the batched refresh, behind NEWS_REFRESH_BATCHED (off unless "1").
+describe("the batched refresh", () => {
+  const env = { ...process.env };
+  beforeEach(() => {
+    process.env.NEWSDATA_API_KEY = "newsdata-test-key";
+    jest.clearAllMocks();
+  });
+  afterEach(() => {
+    process.env = { ...env };
+  });
+
+  test("off by default: the 14 single-category calls", () => {
+    delete process.env.NEWS_REFRESH_BATCHED;
+    expect(refreshPlan()).toHaveLength(14);
+  });
+
+  test("on: 4 calls a run, each naming at most 5 categories and asking for 50 articles", async () => {
+    process.env.NEWS_REFRESH_BATCHED = "1";
+    await refreshNews();
+    const queries = newsdata.fetchNewsDataArticles.mock.calls.map(([, opts]) => opts);
+    expect(queries).toEqual([
+      { categories: ["top", "world", "technology", "business", "sports"], language: "en", country: "us", size: 50 },
+      { categories: ["top", "entertainment"], language: "en", country: "in", size: 50 },
+      { categories: ["top", "world", "technology", "business", "sports"], language: "hi", country: "in", size: 50 },
+      { categories: ["entertainment"], language: "hi", country: "in", size: 50 },
+    ]);
+  });
+
+  test("every one of the 7 categories, in both languages, is covered by some call", () => {
+    const covered = new Set(refreshPlan(true).flatMap((call) => Object.values(call.countsAs).flat().map((c) => call.language + ":" + c)));
+    for (const language of ["en", "hi"]) {
+      for (const category of ["general", "india", "world", "tech", "business", "sports", "entertainment"]) {
+        expect(covered).toContain(language + ":" + category);
+      }
+    }
+  });
+
+  test("every 15 minutes it stays under 70% of the Basic plan; the single-category refresh would not", () => {
+    expect(withinNewsDataPlan(15, refreshPlan(true).length)).toBe(true);
+    expect(withinNewsDataPlan(15, refreshPlan(false).length)).toBe(false);
+  });
+
+  test("a run saves what each call returns and names the call in its detail", async () => {
+    process.env.NEWS_REFRESH_BATCHED = "1";
+    const outcome = await refreshNews();
+    expect(db.saveArticlesToDB).toHaveBeenCalledTimes(4);
+    expect(outcome.ok && outcome.result.details.map((d) => d.category)).toEqual([
+      "en:top,world,technology,business,sports",
+      "en:india,entertainment",
+      "hi:top,world,technology,business,sports",
+      "hi:entertainment",
+    ]);
+  });
 });
