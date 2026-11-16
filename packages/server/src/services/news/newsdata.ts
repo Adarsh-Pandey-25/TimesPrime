@@ -20,8 +20,25 @@ export interface NewsDataQuery {
   page?: string;
 }
 
-/** Builds the upstream URL, mirroring the rules used by the news routes. */
-export function buildNewsDataUrl(apiKey: string, opts: NewsDataQuery): URL {
+/** NewsData.io's latest-articles endpoint, which every caller in this repository uses. */
+export const NEWSDATA_LATEST_URL = "https://newsdata.io/api/1/latest";
+
+/**
+ * The fetch options for a NewsData.io request: `init` plus the API key, in the X-ACCESS-KEY header
+ * (R1-02b). NewsData's docs call the header "the recommended secure method"
+ * (newsdata.io/documentation/api-authentication). The key used to travel as the `apikey` query
+ * parameter, and a URL
+ * is kept where a header is not: Next's fetch cache stores the request URL in each entry
+ * (`data.url`, next/dist/server/lib/patch-fetch.js), and the reader site's cache handler writes
+ * entries to Upstash. Next hashes request headers into the cache key, so the key is not stored even
+ * as part of a key. `init` must not carry headers of its own.
+ */
+export function newsDataInit(apiKey: string, init: RequestInit = {}): RequestInit {
+  return { ...init, headers: { "X-ACCESS-KEY": apiKey } };
+}
+
+/** Builds the upstream URL, mirroring the rules used by the news routes. It never holds the key. */
+export function buildNewsDataUrl(opts: NewsDataQuery): URL {
   const {
     categoryParam = "general",
     language = "en",
@@ -31,8 +48,7 @@ export function buildNewsDataUrl(apiKey: string, opts: NewsDataQuery): URL {
   } = opts;
 
   const category = mapCategory(categoryParam);
-  const targetUrl = new URL("https://newsdata.io/api/1/latest");
-  targetUrl.searchParams.set("apikey", apiKey);
+  const targetUrl = new URL(NEWSDATA_LATEST_URL);
 
   if (language === "hi") {
     targetUrl.searchParams.set("country", "in");
@@ -96,11 +112,11 @@ export async function fetchNewsDataArticles(
     country = "us",
   } = opts;
 
-  const targetUrl = buildNewsDataUrl(apiKey, opts);
+  const targetUrl = buildNewsDataUrl(opts);
 
   // no-store: the cron's whole job is to pull genuinely fresh upstream data,
   // so it must not be served a cached copy of its own previous run.
-  const apiRes = await fetch(targetUrl.toString(), { cache: "no-store" });
+  const apiRes = await fetch(targetUrl.toString(), newsDataInit(apiKey, { cache: "no-store" }));
 
   if (!apiRes.ok) {
     throw new Error(`NewsData API error: status ${apiRes.status}`);

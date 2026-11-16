@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextResponse, type NextRequest } from "next/server";
 import { saveArticlesToDB } from "@timesprime/server/services/news";
+import { NEWSDATA_LATEST_URL, newsDataInit } from "@timesprime/server/services/news/newsdata";
 import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
 import { SITE_WIDE } from "@timesprime/server/auth/scope";
 import { auditUnavailable, beginAudit, finishAudit, requirePermission } from "@timesprime/server/auth/requirePermission";
@@ -37,8 +38,9 @@ export async function POST(request: NextRequest) {
 
     for (const cat of CATEGORIES) {
       try {
-        const url = `https://newsdata.io/api/1/latest?apikey=${apiKey}&category=${cat}&language=en`;
-        const res = await fetch(url, { cache: "no-store" });
+        // The key in NewsData's header, not the URL (R1-02b, newsDataInit).
+        const url = `${NEWSDATA_LATEST_URL}?category=${cat}&language=en`;
+        const res = await fetch(url, newsDataInit(apiKey, { cache: "no-store" }));
         if (!res.ok) continue;
 
         const data = await res.json();

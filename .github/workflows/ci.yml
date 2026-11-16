@@ -57,6 +57,11 @@ jobs:
         # Definition of done, item 12: each app's page routes' client JS against scripts/js-budget.json.
         run: npm run check:js-budget
 
+      - name: Admin asset prefix
+        # R1-04: the back office's pages link /_next/ only under its prefix, so the shared
+        # CloudFront distribution never sends them to the reader site (scripts/check-asset-prefix.mjs).
+        run: npm run check:asset-prefix
+
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4

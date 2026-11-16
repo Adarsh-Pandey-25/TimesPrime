@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Terms of Use",
+  alternates: { canonical: "/terms" },
   description: "The terms and conditions governing your use of TimesPrime.",
 };
 

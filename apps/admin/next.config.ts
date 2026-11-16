@@ -2,6 +2,8 @@ import path from "node:path";
 import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
 import { withSentryConfig } from "@sentry/nextjs/config";
+import { ADMIN_ASSET_PREFIX } from "@timesprime/shared/config/adminAssets";
+import { securityHeaders } from "@timesprime/shared/config/securityHeaders";
 
 // One set of env files for every app, at the repository root. Next has already loaded this app's
 // folder (none there) before it evaluates this file, and @next/env returns that cached result to a
@@ -24,8 +26,26 @@ const nextConfig: NextConfig = {
   // The repository keeps its Markdown in docs/ and CLAUDE.md, which carries the same instruction
   // (read the bundled Next docs); scripts/check-docs.mjs fails on any other Markdown file.
   agentRules: false,
+  // The Docker image runs .next/standalone/apps/admin/server.js, as the reader site does
+  // (apps/web/next.config.ts). Tailwind reads every word in this folder as a possible class name,
+  // so a comment here that names a utility class adds it to the admin's CSS.
+  output: "standalone",
+  // Every chunk, CSS and font URL under /admin-assets, so the shared CloudFront distribution can
+  // send them to this service and never to the reader site's (R1-04,
+  // packages/shared/src/config/adminAssets.ts).
+  assetPrefix: ADMIN_ASSET_PREFIX,
   async redirects() {
     return [{ source: "/", destination: "/admin", permanent: false }];
+  },
+  // The security headers on every response (R1-06). ArticlesTable shows admin-entered image URLs
+  // in a plain img, so images may come from any https host here. The back office is never
+  // indexed: its pages say so in metadata, and this says it for every response (R1-09).
+  async headers() {
+    const headers = [
+      ...securityHeaders({ dev: process.env.NODE_ENV !== "production", imgSrc: ["https:"] }),
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ];
+    return [{ source: "/(.*)", headers }];
   },
 };
 

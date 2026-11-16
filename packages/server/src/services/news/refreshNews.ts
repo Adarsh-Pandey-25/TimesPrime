@@ -9,7 +9,8 @@ import { fetchNewsDataArticles } from "./newsdata";
  * Background refresh: pulls every category from NewsData.io into Supabase.
  *
  * Run by the worker (`npm run job -w @timesprime/worker -- refresh-news`), which a scheduler
- * starts every 30 minutes (EventBridge on AWS). Nothing reaches it over HTTP, so it needs no
+ * starts every NEWS_REFRESH_INTERVAL_MINUTES (@timesprime/shared/config/newsRefresh; EventBridge
+ * Scheduler on AWS, with NEWS_REFRESH_SCHEDULE). Nothing reaches it over HTTP, so it needs no
  * cron secret. With it running, reader requests are served from Supabase (see topHeadlines.ts)
  * instead of hitting NewsData.io per visitor.
  */

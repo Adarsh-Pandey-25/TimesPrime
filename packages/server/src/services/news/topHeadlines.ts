@@ -19,6 +19,7 @@ import {
   isFromWireSpamSource,
   isFromNonNewsListingSource,
 } from "@timesprime/shared/config/newsConfig";
+import { NEWSDATA_LATEST_URL, newsDataInit } from "./newsdata";
 
 /** Which tier answered; the route sends it as the X-Data-Source header. */
 export type TopHeadlinesSource = "cache" | "supabase" | "newsdata" | "mock";
@@ -141,9 +142,9 @@ export async function getTopHeadlines(searchParams: URLSearchParams): Promise<To
       return { body: mockResult, source: "mock", status: 200 };
     }
 
-    // Call NewsData.io API
-    const targetUrl = new URL("https://newsdata.io/api/1/latest");
-    targetUrl.searchParams.set("apikey", apiKey);
+    // Call NewsData.io API. The key goes in a header, never the URL, which this fetch's cache
+    // entry stores (R1-02b, newsDataInit).
+    const targetUrl = new URL(NEWSDATA_LATEST_URL);
     if (language === "hi") {
       targetUrl.searchParams.set("country", "in");
       targetUrl.searchParams.set("language", "hi");
@@ -172,9 +173,10 @@ export async function getTopHeadlines(searchParams: URLSearchParams): Promise<To
     }
     if (page) targetUrl.searchParams.set("page", page);
 
-    const apiRes = await fetch(targetUrl.toString(), {
-      next: { revalidate: 900 }, // 15 mins Next.js revalidation
-    });
+    const apiRes = await fetch(
+      targetUrl.toString(),
+      newsDataInit(apiKey, { next: { revalidate: 900 } }) // 15 mins Next.js revalidation
+    );
 
     if (!apiRes.ok) {
       throw new Error(`NewsData API error: status ${apiRes.status}`);

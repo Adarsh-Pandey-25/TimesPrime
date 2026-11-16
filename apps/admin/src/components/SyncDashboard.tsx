@@ -3,14 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Clock3, CalendarClock, Database, TimerReset } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
+import { NEWS_REFRESH_INTERVAL_MINUTES } from "@timesprime/shared/config/newsRefresh";
 
 interface StatsResponse {
   totalArticles: number;
   todayArticles: number;
   lastSyncAt: string | null;
 }
-
-const SYNC_INTERVAL_MINUTES = 30;
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -23,11 +22,11 @@ function timeAgo(dateStr: string): string {
   return `${days} day${days > 1 ? "s" : ""} ago`;
 }
 
-/** "Next sync" is a display estimate (last sync + 30 min), not a real
- * schedule read from the scheduler — there's no API for that here. */
+/** "Next sync" is a display estimate (last sync + the refresh interval), not
+ * a real schedule read from the scheduler — there's no API for that here. */
 function nextSyncLabel(lastSyncAt: string | null): string {
   if (!lastSyncAt) return "—";
-  const dueAt = new Date(lastSyncAt).getTime() + SYNC_INTERVAL_MINUTES * 60 * 1000;
+  const dueAt = new Date(lastSyncAt).getTime() + NEWS_REFRESH_INTERVAL_MINUTES * 60 * 1000;
   const diff = dueAt - Date.now();
   if (diff <= 0) return "Due now";
   const mins = Math.ceil(diff / 60000);
@@ -187,7 +186,7 @@ export default function SyncDashboard() {
       )}
 
       <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-medium ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-        <span>Auto-sync: Every {SYNC_INTERVAL_MINUTES} minutes</span>
+        <span>Auto-sync: Every {NEWS_REFRESH_INTERVAL_MINUTES} minutes</span>
         <span className="flex items-center gap-1">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           Scheduled by the worker (refresh-news)

@@ -101,4 +101,30 @@ describe("POST /api/translate — rate limit", () => {
     expect(retryAfter).toBeGreaterThan(0);
     expect(retryAfter).toBeLessThanOrEqual(60);
   });
+
+  // R1-05: a daily cap per IP on top of the burst limit, with no budget shared with /api/chat.
+  test("the 301st request in a day is 429, even at 10 a minute", async () => {
+    const t0 = Date.parse("2026-11-04T01:00:00Z");
+    const now = jest.spyOn(Date, "now");
+    const send = () =>
+      POST(
+        new NextRequest("http://localhost:3000/api/translate", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-forwarded-for": "10.1.9.10" },
+          body: JSON.stringify({ texts: ["a"], target: "hi" }),
+        })
+      );
+    try {
+      for (let i = 0; i < 300; i++) {
+        now.mockReturnValue(t0 + Math.floor(i / 10) * 61_000);
+        expect((await send()).status).toBe(200);
+      }
+      now.mockReturnValue(t0 + 31 * 61_000);
+      const res = await send();
+      expect(res.status).toBe(429);
+      expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(60);
+    } finally {
+      now.mockRestore();
+    }
+  });
 });

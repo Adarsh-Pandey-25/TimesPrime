@@ -14,6 +14,7 @@ jest.mock("../../repositories/db", () => ({
 jest.mock("./newsdata", () => ({ fetchNewsDataArticles: jest.fn(() => Promise.resolve([])) }));
 
 import { refreshNews } from "./refreshNews";
+import { NEWS_REFRESH_INTERVAL_MINUTES, NEWS_REFRESH_RUNS_PER_DAY, NEWS_REFRESH_SCHEDULE } from "@timesprime/shared/config/newsRefresh";
 
 const db = jest.requireMock("../../repositories/db") as { saveArticlesToDB: jest.Mock; purgeOldArticles: jest.Mock };
 const newsdata = jest.requireMock("./newsdata") as { fetchNewsDataArticles: jest.Mock };
@@ -30,6 +31,18 @@ describe("refreshNews", () => {
 
   afterAll(() => {
     process.env = env;
+  });
+
+  // The NewsData quota math for the one interval value (R1-03): a run's calls, counted from a real
+  // run, times the runs a day. A change to the interval or the categories changes this number on
+  // purpose; before go-live it is checked against 70% of the plan's daily limit.
+  test("the scheduled job's NewsData calls a day: 7 a run, every 30 minutes, 336", async () => {
+    await refreshNews();
+    const callsPerRun = newsdata.fetchNewsDataArticles.mock.calls.length;
+    expect(NEWS_REFRESH_INTERVAL_MINUTES).toBe(30);
+    expect(NEWS_REFRESH_SCHEDULE).toBe("rate(30 minutes)");
+    expect(NEWS_REFRESH_RUNS_PER_DAY).toBe(48);
+    expect(callsPerRun * NEWS_REFRESH_RUNS_PER_DAY).toBe(336);
   });
 
   test("a run purges once, and refreshes every category", async () => {

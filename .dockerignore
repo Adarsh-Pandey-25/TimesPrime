@@ -1,0 +1,23 @@
+# The build context of the Dockerfile (R1-01). Every env file stays out, with no exception: the
+# image takes its NEXT_PUBLIC_ values as build arguments and its secrets at run time from the ECS
+# task definition. scripts/container.test.ts fails if a line here lets an env file back in.
+**/.env*
+
+# Installed and built inside the image, never copied from this machine.
+**/node_modules
+**/.next
+**/.swc
+**/coverage
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# Not needed to build or run the apps.
+.git
+.github
+.claude
+.vscode
+docs
+e2e
+test-results
+playwright-report
+**/*.pem

@@ -20,6 +20,9 @@ async function project(name: string, nextDir: string, root: string, alias?: stri
     roots: [`<rootDir>/${root}`],
     // e2e/ is Playwright's (npm run test:e2e), not the unit suite.
     testPathIgnorePatterns: ["/node_modules/", "/.next/", "<rootDir>/e2e/"],
+    // A build's .next/standalone holds copies of the apps' package.json (output: "standalone"),
+    // which collide with the real ones in Jest's module map.
+    modulePathIgnorePatterns: ["/\\.next/"],
     testEnvironment: "jsdom",
     setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
     moduleNameMapper: { ...(alias ? { "^@/(.*)$": `<rootDir>/${alias}/$1` } : {}), ...PACKAGES },

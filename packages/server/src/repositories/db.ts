@@ -10,6 +10,7 @@ import {
   isFromWireSpamSource,
   isFromNonNewsListingSource,
 } from "@timesprime/shared/config/newsConfig";
+import { NEWS_REFRESH_INTERVAL_MINUTES } from "@timesprime/shared/config/newsRefresh";
 import { classifyCategoryRelevance } from "../services/classify/categoryClassifier";
 import { throttleReport } from "../lib/reportFallback";
 import { containsPattern } from "../lib/likePattern";
@@ -59,9 +60,10 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * How long DB-backed news is considered fresh enough to serve without
- * calling NewsData.io. Also the interval the background cron refreshes on.
+ * calling NewsData.io: the worker's refresh interval, the one value in
+ * @timesprime/shared/config/newsRefresh (R1-03).
  */
-export const NEWS_FRESHNESS_WINDOW_MS = 30 * 60 * 1000;
+export const NEWS_FRESHNESS_WINDOW_MS = NEWS_REFRESH_INTERVAL_MINUTES * 60 * 1000;
 
 /**
  * The category/query filter shared by every article read below.

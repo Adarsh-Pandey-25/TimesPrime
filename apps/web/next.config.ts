@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { ALLOWED_IMAGE_HOSTNAMES } from "@timesprime/shared/config/imageDomains";
+import { securityHeaders } from "@timesprime/shared/config/securityHeaders";
+import { siteNoindex } from "@timesprime/shared/config/site";
 
 // One set of env files for every app, at the repository root. Next has already loaded this app's
 // folder (none there) before it evaluates this file, and @next/env returns that cached result to a
@@ -25,6 +27,23 @@ const nextConfig: NextConfig = {
   // The repository keeps its Markdown in docs/ and CLAUDE.md, which carries the same instruction
   // (read the bundled Next docs); scripts/check-docs.mjs fails on any other Markdown file.
   agentRules: false,
+  // The Docker image (Dockerfile, R1-01) runs .next/standalone/apps/web/server.js: the traced
+  // server files plus only the node_modules they need (bundled docs: next-config-js/output.md).
+  // With outputFileTracingRoot at the repository root, the app sits at apps/web inside it.
+  // `next start` still works locally and for the e2e builds; it only warns that server.js is the
+  // production path.
+  output: "standalone",
+  // One cache for every instance, in Upstash (R1-02, cache-handler.mjs), and no per-process copy
+  // in front of it (bundled docs: next-config-js/incrementalCacheHandlerPath.md). The build traces
+  // the handler and its imports into the standalone output.
+  cacheHandler: path.join(__dirname, "cache-handler.mjs"),
+  cacheMaxMemorySize: 0,
+  // The security headers on every response (R1-06, packages/shared/src/config/securityHeaders.ts),
+  // and, on a NEXT_PUBLIC_SITE_NOINDEX build such as staging, noindex on every response too (R1-09).
+  async headers() {
+    const noindex = siteNoindex() ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] : [];
+    return [{ source: "/(.*)", headers: [...securityHeaders({ dev: process.env.NODE_ENV !== "production" }), ...noindex] }];
+  },
   images: {
     // https only, explicit hostnames only — kept in sync with topicImages.ts
     // via the shared ALLOWED_IMAGE_HOSTNAMES list (packages/shared/src/config/imageDomains.ts).

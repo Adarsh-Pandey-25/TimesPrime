@@ -13,7 +13,8 @@ import { Redis } from "@upstash/redis";
  * in memory for the life of the process.
  *
  * checkRateLimit adds a shared limit for the routes worth defending across
- * instances, admin login (F-004) and the scraper (F-011): a fixed-window
+ * instances, admin login (F-004), the scraper (F-011), and chat and
+ * translate with a daily cap per IP (R1-05, checkRateLimits): a fixed-window
  * counter in Upstash Redis (INCR, then EXPIRE on the window's first hit),
  * falling back to the in-memory limiter, with the fallback logged, when
  * Redis is not configured or fails (owner decision D1). The client is built
@@ -60,8 +61,8 @@ export function isRateLimited(key: string): boolean {
   return limitDefault(key).limited;
 }
 
-/** isRateLimited with the wait: the decision /api/chat and /api/translate answer 429 + Retry-After from. */
-export function limitDefault(key: string): RateLimitDecision {
+/** isRateLimited with the wait. /api/chat and /api/translate used it until R1-05 moved them to checkRateLimits. */
+function limitDefault(key: string): RateLimitDecision {
   const now = Date.now();
   return decide(recordHit(key, WINDOW_MS, now), MAX_REQUESTS_PER_WINDOW, WINDOW_MS, now);
 }
@@ -90,6 +91,8 @@ export interface RateLimitDecision {
   limited: boolean;
   /** Seconds until the request would be allowed: the value for Retry-After. */
   retryAfterSeconds: number;
+  /** The name of the rule that limited, from checkRateLimits, so a route can say which. */
+  rule?: string;
 }
 
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
@@ -108,8 +111,8 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
     if (!warnedNoRedis) {
       warnedNoRedis = true;
       console.warn(
-        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not configured — rate limits for login and the " +
-          "scraper use the in-memory limiter, which is per instance."
+        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not configured — rate limits for login, the " +
+          "scraper, chat and translate use the in-memory limiter, which is per instance."
       );
     }
     return checkInMemory(key, rule, now);
@@ -132,9 +135,55 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
   }
 }
 
-/** Best-effort client IP extraction from standard proxy headers. */
+/**
+ * checkRateLimit for several rules on one key, in order, stopping at the first that limits: a
+ * burst limit, then a daily cap (R1-05, for /api/chat and /api/translate). A rule after the one
+ * that limits is not counted, so a refused request never spends the day's budget.
+ */
+export async function checkRateLimits(key: string, rules: readonly RateLimitRule[]): Promise<RateLimitDecision> {
+  for (const rule of rules) {
+    const decision = await checkRateLimit(key, rule);
+    if (decision.limited) return { ...decision, rule: rule.name };
+  }
+  return { limited: false, retryAfterSeconds: 0 };
+}
+
+/**
+ * One count for every client together (STOP R1): a daily cap on an endpoint's total, whatever the
+ * IPs. The same counter as checkRateLimit, under one key. Without Redis it falls back to the
+ * in-memory limiter like the others, and is then per instance.
+ */
+export async function checkGlobalRateLimit(rule: RateLimitRule): Promise<RateLimitDecision> {
+  const decision = await checkRateLimit("all", rule);
+  return decision.limited ? { ...decision, rule: rule.name } : decision;
+}
+
+/**
+ * How many proxies in front of the app append to X-Forwarded-For and are trusted to: 2 on AWS
+ * (CloudFront, then the ALB), set by the task definition. Unset, 0 or not a whole number: 0.
+ */
+function trustedProxyHops(): number {
+  const hops = Number(process.env.TRUSTED_PROXY_HOPS ?? 0);
+  return Number.isInteger(hops) && hops > 0 ? hops : 0;
+}
+
+/**
+ * The client's IP (R1-05). Each trusted proxy appends the address it received the request from:
+ * on AWS, CloudFront appends the viewer's and the ALB appends CloudFront's, and Next adds the
+ * socket's only when the header is missing (next/dist/server/base-server.js, `??=`). So the client
+ * is the entry TRUSTED_PROXY_HOPS from the right; everything left of it came from the client and
+ * can be forged. It used to take the leftmost entry, which any client could set to anything, to
+ * dodge a rate limit or write a false IP into the audit log. The two right entries cannot be
+ * forged because the ALB accepts traffic only from CloudFront (owner runbook, docs/OPERATIONS.md).
+ *
+ * Hops 0 (local, no proxy): the rightmost entry, the socket's. Fewer entries than hops (a request
+ * that skipped a hop, such as the ALB's health check): the leftmost, which a trusted hop wrote.
+ */
 export function getClientIp(request: Request): string {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) return forwardedFor.split(",")[0].trim();
+  const forwardedFor = (request.headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (forwardedFor.length) return forwardedFor[Math.max(0, forwardedFor.length - Math.max(trustedProxyHops(), 1))];
   return request.headers.get("x-real-ip") || "unknown";
 }

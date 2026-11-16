@@ -93,9 +93,27 @@ conclusions (see [the gotchas](OPERATIONS.md#3-gotchas-that-have-already-burned-
   the array is capped at **50 entries**. 49 are used.
 - Turbopack compiles the workspace packages without `transpilePackages`, and finds the repository
   root from the single `package-lock.json`.
-- Nothing is deployed until the project is complete; the target is AWS (`ap-south-1`).
-  `vercel.json` is gone: the worker's scheduler replaces it ([`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md),
-  Phase I).
+- **The release runs on AWS** (`ap-south-1`; R1, [the runbook](OPERATIONS.md#deployment)). What
+  that asks of the code:
+  - **Images:** both apps build `output: "standalone"`, and one `Dockerfile` builds three images
+    (web, admin, worker). `NEXT_PUBLIC_` values and `NEXT_DEPLOYMENT_ID` are fixed at build, so each
+    environment has its own image.
+  - **One CloudFront distribution serves both apps:** so the back office builds its files under
+    `assetPrefix: "/admin-assets"`, and keeps its public files in `public/admin-assets/`
+    (`packages/shared/src/config/adminAssets.ts`; `npm run check:asset-prefix` checks the build).
+  - **The reader site's `cacheHandler`** (`apps/web/cache-handler.mjs`) keeps one Next cache for
+    every task in Upstash. A side effect: prerendered pages render again on their first request
+    (OPERATIONS gotcha 3.26).
+  - **The client IP** is the `X-Forwarded-For` entry `TRUSTED_PROXY_HOPS` from the right.
+  - **The NewsData key** travels in the `X-ACCESS-KEY` header, never in a URL, and no cache entry
+    may hold it (R1-02b).
+  - **Chat and translate** are capped per IP and for all readers together, a day, in the shared
+    Redis (`packages/shared/src/config/aiLimits.ts`).
+  - **Security headers** come from `next.config.ts` `headers()`, with the CSP report-only.
+  - **The error boundaries** report to Sentry through `clientErrorReport.ts`, not the SDK (gotcha
+    3.27).
+  - **The refresh:** `vercel.json` is gone, and the worker's job runs on EventBridge Scheduler, at
+    the one interval in `packages/shared/src/config/newsRefresh.ts`.
 
 ## 3. How the structure got here
 
@@ -264,7 +282,8 @@ server code out of the browser and the apps apart.
   - a runbook for when the main flow breaks.
 - **The audit's remaining items** wait for Panel 0's merge, then go on `fix/audit-closeout` (§ "Next").
 - **Deployment:** none until the whole project is complete. Ignore the earlier Vercel deployment.
-  The target is AWS, `ap-south-1`. All verification is local.
+  The target is AWS, `ap-south-1`. All verification is local. (Superseded later that day: a
+  deployment now, the release; and on 4 Nov, hosted on AWS. See "Release R1 on AWS" below.)
 - **The real database (later the same day):** `.env.local` holds its credentials and the app uses
   them; the local database was dropped. Never write to it yourself; browser tests are read-only (§2).
 
@@ -289,6 +308,39 @@ server code out of the browser and the apps apart.
   - the banner for unscoped grants only, until Panel 3;
   - the three behaviour changes;
   - the bulk audit as one pair, with the 100-article limit.
+
+**Release R1 on AWS (2026-11-04).** The owner's senior's message (hosting on AWS `ap-south-1`: ECS
+Fargate Arm behind CloudFront's flat-rate Business plan, a Redis cache handler, EventBridge
+Scheduler, logs in Mumbai for 365 days) and the owner's answers, all on `chore/r1-aws`:
+- **Scope:** R1-01..R1-11 and their docs only. The branch `fix/analysis-2026-11-04` is left as it
+  is.
+- **Infrastructure:** a console or CLI runbook ([OPERATIONS.md](OPERATIONS.md#deployment)), no
+  infrastructure-as-code tool and no new dependency for the release.
+- **The refresh interval** is one config value, 30 minutes for now. The NewsData calls a day are
+  checked against 70% of the plan's limit when its values come.
+- **The cache handler** uses the existing Upstash, which must be in `ap-south-1`.
+- **Staging** is in the plan as "needs owner confirmation".
+- **R1-04:** the back office's assets under a path `assetPrefix`, with a build check that no admin
+  page links a bare `/_next/`.
+- **R1-05:** the ALB accepts traffic only from CloudFront, and the CloudFront origin header's value
+  lives only in Secrets Manager.
+- **The back office's ALB health check** is `/admin/login`, shown to call neither Supabase nor
+  Redis.
+- **The four R1 owner values** (Supabase region, NewsData plan, brand colour, grievance officer)
+  are set aside for now (the owner's senior); R1 went ahead without them.
+- **Decided at STOP R1 (5 Nov 2026):**
+  - **Daily caps:** per IP, chat 100 and translate 300. A cap for all readers together, chat 500
+    and translate 1,000, one config value each (`packages/shared/src/config/aiLimits.ts`), because
+    mobile carriers in India put many readers behind one IP (CGNAT). Plus an Anthropic spend limit
+    in the owner runbook.
+  - **The reader site's ALB check:** `/about`, liveness, not `/api/health`.
+  - **Moved to R2:** the structured data and the article page's canonical link, with the new
+    article URLs.
+  - **The error pages' +0.98% JS:** accepted. Making them lighter is BL-039, in R2.
+  - **R1-02b (before go-live, in R1):** no cache entry may hold the NewsData API key. It travels
+    in the X-ACCESS-KEY header, and the cache handler refuses any entry that holds it.
+  - **R1-12:** reader pages read the database only (R0 v2 decision 7). To be proposed; not built
+    until approved.
 
 **Follow-up the product decisions created:** the privacy policy still describes newsletter and
 contact-form collection that no longer happens. Legal copy, for the owner or legal review (BL-008).

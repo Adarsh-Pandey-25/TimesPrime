@@ -6,6 +6,7 @@ import { auditEvent } from "@timesprime/server/auth/requirePermission";
 import { readSession } from "@timesprime/server/auth/staffSession";
 import { createRouteClient } from "@timesprime/server/auth/supabaseServer";
 import { getClientIp } from "@timesprime/server/lib/rateLimit";
+import { getRequestId } from "@timesprime/server/lib/requestId";
 
 // Public (D10, PUBLIC_ADMIN_ROUTES): logout has to succeed even when the session has already
 // expired, so clicking it always lands back on the login page instead of erroring on an invalid
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
         roles: [],
         via: [],
         record: null,
-        meta: { ip: getClientIp(request), userAgent: request.headers.get("user-agent"), requestId: request.headers.get("x-vercel-id") || crypto.randomUUID() },
+        meta: { ip: getClientIp(request), userAgent: request.headers.get("user-agent"), requestId: getRequestId(request) },
       },
       "auth.sign_out",
       "succeeded"

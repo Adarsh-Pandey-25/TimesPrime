@@ -6,6 +6,7 @@ import { LanguageProvider } from "@/context/LanguageContext";
 import FloatingAiAssistant from "@/components/chat/FloatingAiAssistant";
 import BreakingNewsBanner from "@/components/news/BreakingNewsBanner";
 import { THEME_INIT_SCRIPT } from "@timesprime/shared/config/theme";
+import { SITE_URL } from "@timesprime/shared/config/site";
 
 const ptSerif = PT_Serif({
   weight: ["400", "700"],
@@ -37,6 +38,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  // Canonical and Open Graph URLs resolve against the public origin (R1-09).
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "TimesPrime News - Premium News Aggregator",
     template: "%s | TimesPrime News",
@@ -50,7 +53,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "TimesPrime News - Premium News Aggregator",
     description: "Stay updated with real-time headlines and AI-curated news.",
-    url: "https://timesprimenews.com",
+    url: SITE_URL,
     siteName: "TimesPrime News",
     locale: "en_US",
     type: "website",

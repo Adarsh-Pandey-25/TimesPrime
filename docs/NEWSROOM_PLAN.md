@@ -77,7 +77,7 @@ first one that is not Done.
 
 | Phase | Status | Where |
 |---|---|---|
-| 0. Release v1 (Vivek, on `main`) | **In progress, goes first.** R0 done; R1 waits on four owner values, now on AWS instead of Vercel and on the apps/packages layout. The panel phases wait for it | branches from `main` |
+| 0. Release v1 (Vivek, on `main`) | **In progress, goes first.** R0 done. R1 (AWS foundations) built on `chore/r1-aws` (4 Nov 2026), at STOP R1 for the owner; the four owner values set aside for now. Then R2–R4. The panel phases wait for it | branches from `main` (`chore/r1-aws` for R1) |
 | A. Finish Panel 0, port this plan onto `main` | **Step 1 done** (4 Nov 2026): this plan, the access rules, the research, the split and Panel 0's second half reached `main` through `chore/integrate`. **After the release:** step 3's owner check, then step 4 | `chore/integrate` (merged), then `panel-0-access` work on a branch from `main` |
 | B. Make the product safe to be public | Not started | `fix/aggregator-off`, `fix/audit-closeout` |
 | C. Split into apps and packages | **Done** (4 Nov 2026), on `main` since `chore/integrate` | `chore/restructure`, `chore/integrate` |
