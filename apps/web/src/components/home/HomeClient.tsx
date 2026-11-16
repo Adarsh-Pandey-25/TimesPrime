@@ -84,7 +84,6 @@ export default function HomeClient({
   const [category, setCategory] = useState(initialCategory);
   const [articles, setArticles] = useState<Article[]>(initialArticles);
   const [loading, setLoading] = useState(false); // false: we have server data
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
 
   // "New stories" banner state.
@@ -341,8 +340,6 @@ export default function HomeClient({
           setSearchQuery(search);
           fetchNews(cat, search, language);
         }}
-        onToggleChatbot={() => setIsChatOpen(!isChatOpen)}
-        isChatOpen={isChatOpen}
         searchQuery={searchQuery}
         onSearch={handleSearch}
         articles={articles}
