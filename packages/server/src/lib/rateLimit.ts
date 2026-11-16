@@ -2,6 +2,8 @@ import "server-only";
 
 import { Redis } from "@upstash/redis";
 
+import { createRedisBreaker, REDIS_CLIENT_OPTIONS } from "./redisBreaker";
+
 /**
  * Basic in-memory fixed-window rate limiter. Fine for a single-instance dev
  * server; on serverless (multiple instances) it's advisory rather than a
@@ -17,9 +19,10 @@ import { Redis } from "@upstash/redis";
  * translate with a daily cap per IP (R1-05, checkRateLimits): a fixed-window
  * counter in Upstash Redis (INCR, then EXPIRE on the window's first hit),
  * falling back to the in-memory limiter, with the fallback logged, when
- * Redis is not configured or fails (owner decision D1). The client is built
- * here from the same variables as packages/server/src/lib/cache.ts rather than imported
- * from it: packages/server/src/lib modules import no project module (rule LIB).
+ * Redis is not configured or fails (owner decision D1). After a failure,
+ * Redis is skipped for the breaker's pause and the in-memory limiter decides
+ * at once (BL-040, ./redisBreaker.ts). On the single EC2 there is one app
+ * process per app, so the in-memory count is the same count.
  */
 
 const WINDOW_MS = 60_000;
@@ -97,7 +100,8 @@ export interface RateLimitDecision {
 
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
 const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-const redis = upstashUrl && upstashToken ? new Redis({ url: upstashUrl, token: upstashToken }) : null;
+const redis = upstashUrl && upstashToken ? new Redis({ url: upstashUrl, token: upstashToken, ...REDIS_CLIENT_OPTIONS }) : null;
+const breaker = createRedisBreaker();
 let warnedNoRedis = false;
 
 function checkInMemory(key: string, rule: RateLimitRule, now: number): RateLimitDecision {
@@ -117,6 +121,7 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
     }
     return checkInMemory(key, rule, now);
   }
+  if (breaker.isOpen(now)) return checkInMemory(key, rule, now);
 
   const windowMs = rule.windowSeconds * 1000;
   const windowId = Math.floor(now / windowMs);
@@ -124,9 +129,11 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
   try {
     const count = await redis.incr(counterKey);
     if (count === 1) await redis.expire(counterKey, rule.windowSeconds);
+    breaker.recordSuccess();
     const limited = count > rule.limit;
     return { limited, retryAfterSeconds: limited ? Math.max(1, Math.ceil(((windowId + 1) * windowMs - now) / 1000)) : 0 };
   } catch (err) {
+    breaker.recordFailure(now);
     console.error(
       "Upstash Redis rate-limit counter failed, falling back to the in-memory limiter:",
       err instanceof Error ? err.message : String(err)

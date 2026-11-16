@@ -69,6 +69,31 @@ describe("with Redis", () => {
     expect(fourth.retryAfterSeconds).toBe(600);
   });
 
+  // BL-040: one attempt per call, cut off after a second, then a ten-second pause after a failure.
+  test("the client makes one attempt, cut off after a second", async () => {
+    await load(true);
+    const { Redis } = jest.requireMock("@upstash/redis") as { Redis: jest.Mock };
+    const options = Redis.mock.calls.at(-1)[0];
+    expect(options.retry).toEqual({ retries: 0 });
+    expect(options.signal()).toBeInstanceOf(AbortSignal);
+  });
+
+  test("after a failure, Redis is skipped for ten seconds, then asked again", async () => {
+    const { checkRateLimit } = await load(true);
+    redis.incr.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+    await checkRateLimit("203.0.113.30", RULE);
+    expect(redis.incr).toHaveBeenCalledTimes(1);
+
+    redis.incr.mockResolvedValue(1); // Redis is back, but the pause holds
+    await checkRateLimit("203.0.113.30", RULE);
+    expect(redis.incr).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledTimes(1);
+
+    jest.setSystemTime(Date.now() + 10_000);
+    await checkRateLimit("203.0.113.30", RULE);
+    expect(redis.incr).toHaveBeenCalledTimes(2);
+  });
+
   test("a Redis failure falls back to the in-memory limiter, and says so", async () => {
     const { checkRateLimit } = await load(true);
     redis.incr.mockRejectedValue(new Error("ECONNRESET"));

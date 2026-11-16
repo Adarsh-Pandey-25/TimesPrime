@@ -19,7 +19,9 @@
 //   - index entries by tag in the shared store (`TAGS_KEY`), so a revalidateTag on one instance
 //     reaches all of them (the app calls none today; the handler is ready for it);
 //   - survive storage errors: a failed or slow read is a miss, a failed write is dropped, and the
-//     page renders either way (`withTimeout`, `reportOnce`).
+//     page renders either way (`withTimeout`, `reportOnce`). After a failure Redis is skipped for
+//     PAUSE_MS, so an outage costs one request a timeout, not every request (BL-040, `usable`,
+//     the same rule as packages/server/src/lib/redisBreaker.ts, which this plain file cannot import).
 // And one rule of this app's own: no entry may hold the NewsData API key (R1-02b, `holdsSecret`).
 //
 // Without UPSTASH_REDIS_REST_URL and _TOKEN (local runs, tests, the e2e builds) it keeps a bounded
@@ -32,18 +34,31 @@ import { Redis } from "@upstash/redis";
 const PREFIX = "next-cache:";
 const TAGS_KEY = `${PREFIX}tags`;
 const TIMEOUT_MS = 1_000;
+const PAUSE_MS = 10_000;
 const MAX_TTL_SECONDS = 24 * 60 * 60;
 const MEMORY_MAX_ENTRIES = 500;
 
 const url = process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 // Values are stored as the strings `serialize` writes; the client must not parse them itself.
-const redis = url && token ? new Redis({ url, token, automaticDeserialization: false }) : null;
+// One attempt per call: withTimeout bounds it, and no retry keeps running behind a timed-out call.
+const redis = url && token ? new Redis({ url, token, automaticDeserialization: false, retry: { retries: 0 } }) : null;
 
 /** @type {Map<string, string>} insertion order is recency order, as in lib/cache.ts */
 const memory = new Map();
 /** @type {Map<string, number>} */
 const memoryTags = new Map();
+
+let skipUntil = 0;
+/** Redis is configured and not paused after a failure. */
+function usable() {
+  return redis !== null && Date.now() >= skipUntil;
+}
+/** A Redis call failed: skip Redis for PAUSE_MS, and say so once a minute at most. */
+function failed(/** @type {string} */ what, /** @type {unknown} */ err) {
+  skipUntil = Date.now() + PAUSE_MS;
+  reportOnce(what, err);
+}
 
 let lastReport = 0;
 /** One line a minute at most, so a Redis outage cannot flood the logs. */
@@ -151,6 +166,7 @@ export default class CacheHandler {
   /** @param {string} key @param {any} [ctx] */
   async get(key, ctx) {
     const storageKey = this.storageKey(key, ctx);
+    if (redis && !usable()) return null;
     try {
       const text = redis ? await withTimeout(redis.get(storageKey)) : memory.get(storageKey);
       if (typeof text !== "string") return null;
@@ -158,7 +174,8 @@ export default class CacheHandler {
       if (entry.tags?.length && (await this.revalidatedSince(entry.tags, entry.lastModified))) return null;
       return { value: entry.value, lastModified: entry.lastModified, cacheControl: entry.cacheControl };
     } catch (err) {
-      reportOnce("get", err);
+      if (redis) failed("get", err);
+      else reportOnce("get", err);
       return null;
     }
   }
@@ -166,12 +183,13 @@ export default class CacheHandler {
   /** @param {string} key @param {any} data @param {any} [ctx] */
   async set(key, data, ctx) {
     const storageKey = this.storageKey(key, data?.kind === "FETCH" ? { kind: "FETCH" } : ctx);
+    if (redis && !usable()) return;
     if (data === null) {
       try {
         if (redis) await withTimeout(redis.del(storageKey));
         else memory.delete(storageKey);
       } catch (err) {
-        reportOnce("delete", err);
+        failed("delete", err);
       }
       return;
     }
@@ -194,7 +212,8 @@ export default class CacheHandler {
         while (memory.size > MEMORY_MAX_ENTRIES) memory.delete(/** @type {string} */ (memory.keys().next().value));
       }
     } catch (err) {
-      reportOnce("set", err);
+      if (redis) failed("set", err);
+      else reportOnce("set", err);
     }
   }
 
@@ -203,11 +222,12 @@ export default class CacheHandler {
     const list = (Array.isArray(tags) ? tags : [tags]).filter(Boolean);
     if (list.length === 0) return;
     const now = Date.now();
+    if (redis && !usable()) return;
     try {
       if (redis) await withTimeout(redis.hset(TAGS_KEY, Object.fromEntries(list.map((tag) => [tag, now]))));
       else for (const tag of list) memoryTags.set(tag, now);
     } catch (err) {
-      reportOnce("revalidateTag", err);
+      failed("revalidateTag", err);
     }
   }
 

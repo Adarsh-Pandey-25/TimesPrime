@@ -2,6 +2,8 @@ import "server-only";
 
 import { Redis } from "@upstash/redis";
 
+import { createRedisBreaker, REDIS_CLIENT_OPTIONS } from "./redisBreaker";
+
 /**
  * Shared cache used by the news feed (15 min TTL) and the article scraper
  * (1 hr TTL). Backed by Upstash Redis when configured — required for
@@ -9,12 +11,16 @@ import { Redis } from "@upstash/redis";
  * have its own private in-memory cache and most requests would miss. Falls
  * back to an in-memory Map when Upstash isn't configured (e.g. local dev)
  * so nothing crashes — just degrades to per-instance caching like before.
+ *
+ * BL-040: when Redis fails, the memory cache answers, and Redis is skipped for the breaker's pause
+ * (./redisBreaker.ts) instead of costing every call its retries. The health probe always asks.
  */
 
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
 const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-const redis = upstashUrl && upstashToken ? new Redis({ url: upstashUrl, token: upstashToken }) : null;
+const redis = upstashUrl && upstashToken ? new Redis({ url: upstashUrl, token: upstashToken, ...REDIS_CLIENT_OPTIONS }) : null;
+const breaker = createRedisBreaker();
 
 if (!redis) {
   console.warn(
@@ -74,11 +80,13 @@ export function memoryEntryCount(): number {
 
 export const cache = {
   async get<T>(key: string): Promise<T | null> {
-    if (redis) {
+    if (redis && !breaker.isOpen()) {
       try {
         const value = await redis.get<T>(key);
+        breaker.recordSuccess();
         return value ?? null;
       } catch (err) {
+        breaker.recordFailure();
         console.error("Upstash Redis get() failed, falling back to in-memory cache:", err);
       }
     }
@@ -86,11 +94,13 @@ export const cache = {
   },
 
   async set<T>(key: string, data: T, ttlSeconds: number): Promise<void> {
-    if (redis) {
+    if (redis && !breaker.isOpen()) {
       try {
         await redis.set(key, data as unknown as string | number, { ex: ttlSeconds });
+        breaker.recordSuccess();
         return;
       } catch (err) {
+        breaker.recordFailure();
         console.error("Upstash Redis set() failed, falling back to in-memory cache:", err);
       }
     }
