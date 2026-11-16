@@ -10,7 +10,7 @@ import { useTheme } from "@timesprime/ui/ThemeContext";
 
 import { useLanguage } from "@/context/LanguageContext";
 
-import { assignDedupedTopicImages } from "@timesprime/shared/config/topicImages";
+import { assignPlaceholders } from "@timesprime/shared/config/categoryPlaceholders";
 
 interface CategoryMegaMenuProps {
   category: string;
@@ -102,7 +102,7 @@ export default function CategoryMegaMenu({
     onClose();
   };
 
-  const dedupedImages = assignDedupedTopicImages(categoryArticles);
+  const dedupedImages = assignPlaceholders(categoryArticles);
 
   return (
     <div

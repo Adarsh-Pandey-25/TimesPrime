@@ -9,10 +9,11 @@ import { reportFallback } from "../../lib/reportFallback";
  * /api/admin/health (admin session: per-dependency detail). Owner decision D4.
  *
  * Required: Supabase, the store every read and write depends on — its silent
- * failure is exactly what F-002 was — and the NewsData.io key, without which
- * the feed serves built-in mock articles. Optional: Upstash Redis (the cache
- * falls back to memory when it is not configured, but a configured Redis that
- * fails is degraded) and the Anthropic key (only the chat panel needs it).
+ * failure is exactly what F-002 was. Optional: Upstash Redis (the cache falls
+ * back to memory when it is not configured, but a configured Redis that fails
+ * is degraded), the NewsData.io key (only the worker and the back office's
+ * Sync now use it; since R1-12 the reader site has none) and the Anthropic key
+ * (only the chat panel needs it).
  *
  * `ok` means "not degrading the app": an optional dependency that is not
  * configured is ok. `error` is a short code (ENOTFOUND, PGRST301, timeout…),
@@ -99,7 +100,7 @@ async function runChecks(): Promise<HealthReport> {
   const dependencies = {
     supabase: supabaseHealth,
     redis: redisHealth,
-    newsdata: checkKey("NEWSDATA_API_KEY", true),
+    newsdata: checkKey("NEWSDATA_API_KEY", false),
     anthropic: checkKey("ANTHROPIC_API_KEY", false),
   };
   const degraded = Object.values(dependencies).some((d) => !d.ok);

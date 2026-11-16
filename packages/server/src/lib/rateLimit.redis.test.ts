@@ -103,7 +103,7 @@ describe("with Redis", () => {
   });
 });
 
-// R1-05: chat and translate, a burst limit then a daily cap, counted in Redis by every instance.
+// R1-05: chat, a burst limit then a daily cap, counted in Redis by every instance.
 describe("checkRateLimits (burst, then daily cap)", () => {
   const BURST = { name: "chat", limit: 10, windowSeconds: 60 };
   const DAY = { name: "chat-day", limit: 100, windowSeconds: 86_400 };

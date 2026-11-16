@@ -306,9 +306,9 @@ function PreviewArticleModal({ article, isDark, onClose }: PreviewArticleModalPr
         </button>
 
         {article.image_url && (
-          // Admin-entered URLs may not be in the next/image remotePatterns
-          // allowlist (imageDomains.ts); a plain <img> avoids that for this
-          // internal-only preview.
+          // The publisher's photo, shown only in this internal preview: the
+          // reader site shows its own category drawings (B-03), and next/image
+          // fetches no outside image, so a plain <img> is used here.
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={article.image_url}

@@ -95,11 +95,13 @@ describe("getHealth", () => {
     expect(supabaseMock.supabase.from).not.toHaveBeenCalled();
   });
 
-  test("is degraded when the NewsData key is missing", async () => {
+  // Since R1-12 the reader site never calls NewsData, and its container carries no key: a missing
+  // key there must not make the uptime monitor's /api/health answer 503.
+  test("a missing NewsData key is shown but does not degrade: readers do not need it", async () => {
     delete process.env.NEWSDATA_API_KEY;
     const report = await getHealth();
-    expect(report.status).toBe("degraded");
-    expect(report.dependencies.newsdata).toEqual({ configured: false, ok: false, error: "not-configured" });
+    expect(report.status).toBe("ok");
+    expect(report.dependencies.newsdata).toEqual({ configured: false, ok: true });
   });
 
   test("is degraded when a configured Redis fails PING", async () => {

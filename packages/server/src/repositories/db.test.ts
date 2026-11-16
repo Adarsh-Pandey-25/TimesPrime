@@ -180,9 +180,40 @@ describe("findArticleByLink (F-005)", () => {
   test("an exact match on link, read-only", async () => {
     const calls: Array<[string, unknown[]]> = [];
     supabase.from.mockImplementation(() => answering([{ title: "Budget", link: "https://publisher.example/a?b=1" }], calls));
-    await expect(findArticleByLink("https://publisher.example/a?b=1")).resolves.toEqual({ title: "Budget", link: "https://publisher.example/a?b=1" });
+    await expect(findArticleByLink("https://publisher.example/a?b=1")).resolves.toMatchObject({ title: "Budget", link: "https://publisher.example/a?b=1" });
     expect(calls).toContainEqual(["eq", ["link", "https://publisher.example/a?b=1"]]);
     expect(calls.map(([m]) => m)).not.toEqual(expect.arrayContaining(["delete", "update", "upsert", "insert"]));
+  });
+
+  // B-05: the outside-story page shows what is stored: the headline, NewsData's short summary,
+  // the source and the time. Never the scraped full text (the content column is not even read).
+  test("the stored story comes back as the page shows it, without its content", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    const row = {
+      article_id: "a1",
+      title: "Budget passes",
+      link: "https://publisher.example/a",
+      description: "The lower house voted.",
+      source_id: "publisher_example",
+      source_name: "Publisher Example",
+      pub_date: "2026-11-16T06:00:00+00:00",
+      category: ["business"],
+      language: "english",
+    };
+    supabase.from.mockImplementation(() => answering([row], calls));
+    await expect(findArticleByLink("https://publisher.example/a")).resolves.toEqual({
+      article_id: "a1",
+      title: "Budget passes",
+      link: "https://publisher.example/a",
+      description: "The lower house voted.",
+      source_id: "publisher_example",
+      source_name: "Publisher Example",
+      pubDate: "2026-11-16T06:00:00+00:00",
+      category: ["business"],
+      language: "english",
+    });
+    const select = calls.find(([m]) => m === "select")?.[1][0] as string;
+    expect(select).not.toMatch(/content/);
   });
 
   test("no row, or a database failure, is not a match", async () => {

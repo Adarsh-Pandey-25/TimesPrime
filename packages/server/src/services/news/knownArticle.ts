@@ -1,18 +1,15 @@
 import "server-only";
 
+import type { Article } from "@timesprime/shared/types";
 import { findArticleByLink } from "../../repositories/db";
-import { MOCK_ARTICLES } from "@timesprime/shared/config/newsConfig";
 
 /**
- * Whether `link` names an article this app serves, and so may be shown as a
- * publisher link, scraped, and linked from the article page (F-005). An
- * attacker can put any URL in the page's `?url=`; only one we stored, or one
- * of the built-in mock articles the feed falls back to, is trusted.
- * Exact match: the app's link builders pass the stored value unchanged.
+ * The stored story whose link is exactly `link`, or null: only a story we stored may be shown on
+ * the article page and linked to as its publisher's (F-005). An
+ * attacker can put any URL in the page's `?url=`; only one we stored is
+ * trusted. Exact match: the app's link builders pass the stored value unchanged.
  */
-export async function findKnownArticle(link: string | undefined | null): Promise<{ title: string; link: string } | null> {
+export async function findKnownArticle(link: string | undefined | null): Promise<Article | null> {
   if (!link) return null;
-  const mock = MOCK_ARTICLES.find((article) => article.link === link);
-  if (mock) return { title: mock.title, link: mock.link };
   return findArticleByLink(link);
 }

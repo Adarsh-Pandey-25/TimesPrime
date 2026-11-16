@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * The in-memory rate limiter used by /api/chat and /api/translate. F-020: its
+ * The in-memory rate limiter used by /api/chat. F-020: its
  * map kept a key for every client ever seen and never deleted one.
  */
 

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import * as Sentry from "@sentry/nextjs";
 import { checkGlobalRateLimit, checkRateLimits, getClientIp, type RateLimitRule } from "@timesprime/server/lib/rateLimit";
+import { aiChatEnabled } from "@timesprime/shared/config/aiChat";
 import { CHAT_LIMITS } from "@timesprime/shared/config/aiLimits";
 import { readJsonBody } from "@timesprime/server/lib/readJsonBody";
 
@@ -86,6 +87,10 @@ function buildSystemPrompt(articleContext?: ArticleContext): string {
 }
 
 export async function POST(request: NextRequest) {
+  // B-06: the AI chat is off unless NEXT_PUBLIC_AI_CHAT_ENABLED is "1". Off, the route does not
+  // exist for readers: no rate-limit count, no Anthropic call.
+  if (!aiChatEnabled()) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const rate = await checkRateLimits(getClientIp(request), CHAT_RATE_LIMITS);
   if (rate.limited) return tooManyRequests(rate.retryAfterSeconds, rate.rule === "chat");
 

@@ -191,10 +191,9 @@ function isFromHindiSource(link: string | undefined): boolean {
   }
 }
 
-// Sources that gate nearly all article content behind a subscription, so
-// storing them just means the reader hits scrape-article's paywall branch
-// (see packages/server/src/services/scrape/scrapeArticle.ts) every time — better to
-// not show them in the feed at all.
+// Sources that gate nearly all article content behind a subscription: a
+// reader who follows the link out meets a paywall every time, so they are
+// not shown in the feed at all.
 //
 // Deliberately NOT domain-wide for every "premium" publisher: Supabase's
 // live data (checked August 2026) also has timesofindia.indiatimes.com
@@ -202,10 +201,8 @@ function isFromHindiSource(link: string | undefined): boolean {
 // thehindu.com (12), but those are metered/partial paywalls — most of
 // their content is freely readable, and only a labeled subset (e.g. TOI+)
 // is locked. Skipping their entire domain here would hide dozens of
-// legitimate free articles; per-article precision for those sources comes
-// from scrape-article's detectPaywall() at read time instead, not from
-// this list. This list is only for sources where practically everything
-// is behind the paywall, verified against the same live data.
+// legitimate free articles. This list is only for sources where practically
+// everything is behind the paywall, verified against the same live data.
 const HARD_PAYWALL_SOURCE_DOMAINS = ["wsj.com", "bloomberg.com"];
 
 function isFromHardPaywallSource(link: string | undefined): boolean {
@@ -652,12 +649,20 @@ export async function getDBStats() {
  * the app's own links carry the stored value unchanged, so an exact match
  * is enough, and anything else is treated as absent. Read-only. The query
  * relies on an index on `link` (database/migrations, F-018) to stay cheap.
+ *
+ * It returns what the outside-story page shows (B-05): the headline, NewsData's
+ * short summary, the source, the time, the category and the language. The
+ * content column, where the retired scraper kept a story's full text, is not read.
  */
-export async function findArticleByLink(link: string): Promise<{ title: string; link: string } | null> {
+export async function findArticleByLink(link: string): Promise<Article | null> {
   if (!isSupabaseConfigured() || !link) return null;
 
   try {
-    const { data, error } = await supabase.from("articles").select("title, link").eq("link", link).limit(1);
+    const { data, error } = await supabase
+      .from("articles")
+      .select("article_id, title, link, description, source_id, source_name, pub_date, category, language")
+      .eq("link", link)
+      .limit(1);
     if (error) {
       console.error("Supabase Article Lookup Error:", error.message);
       reportSupabaseFailure("findArticleByLink", (suppressed) =>
@@ -668,8 +673,19 @@ export async function findArticleByLink(link: string): Promise<{ title: string; 
       );
       return null;
     }
-    const row = data?.[0] as { title: string | null; link: string | null } | undefined;
-    return row?.link === link ? { title: row.title ?? "", link: row.link } : null;
+    const row = data?.[0] as Partial<ArticleRow> | undefined;
+    if (row?.link !== link) return null;
+    return {
+      article_id: row.article_id ?? link,
+      title: row.title ?? "",
+      link: row.link,
+      description: row.description ?? null,
+      source_id: row.source_id ?? undefined,
+      source_name: row.source_name ?? undefined,
+      pubDate: row.pub_date ?? "",
+      category: row.category ?? undefined,
+      language: row.language ?? undefined,
+    };
   } catch (err) {
     console.error("Failed to look up an article by link:", err);
     reportSupabaseFailure("findArticleByLink", (suppressed) =>

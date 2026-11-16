@@ -1,7 +1,6 @@
 // A reader's flow, read-only: the front page lists the database's stories, each linking to its
 // article page (R1-12: readers read the database only). In CI the database is a stand-in with three
-// fixed stories (e2e/supabase-stub.mjs); locally it is the real one. The article page itself is not
-// opened: it scrapes the source site, so its time depends on sites outside the test.
+// fixed stories (e2e/supabase-stub.mjs); locally it is the real one.
 
 import { expect, test } from "@playwright/test";
 

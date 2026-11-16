@@ -12,7 +12,7 @@ import { Flame, Layers, RefreshCw, X, ChevronDown } from "lucide-react";
 import { Language, TRANSLATIONS } from "@timesprime/shared/config/translations";
 import { useTheme } from "@timesprime/ui/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { assignDedupedTopicImages } from "@timesprime/shared/config/topicImages";
+import { assignPlaceholders } from "@timesprime/shared/config/categoryPlaceholders";
 
 interface HomeClientProps {
   initialArticles: Article[];
@@ -29,7 +29,7 @@ const NEW_STORIES_POLL_MS = 120000;
  * Preferred over the browser clock as the "since" marker: the comparison
  * runs in Postgres against the same column, so a skewed client clock can't
  * make the banner either never appear or never go away. Falls back to null
- * for sources that carry no timestamp (mock articles, cached payloads).
+ * for sources that carry no timestamp (cached payloads).
  */
 function latestCreatedAt(articles: Article[]): Date | null {
   let newestMs: number | null = null;
@@ -319,11 +319,8 @@ export default function HomeClient({
   const topStories = articles.slice(gridStart, gridStart + 4);
   const latestStories = articles.slice(gridStart + 4);
 
-  // Dedupe topic images across every visible card: several articles from
-  // the same category otherwise resolve to the same pooled Unsplash photo
-  // (see topicImages.ts). One Map spans featured + topStories + latestStories
-  // so no two cards on the page share an image.
-  const cardImageUrls = assignDedupedTopicImages(
+  // Each card's own category drawing (B-03): never a stock or publisher photo.
+  const cardImageUrls = assignPlaceholders(
     [featuredArticle, ...topStories, ...latestStories].filter((art): art is Article => !!art)
   );
 
@@ -524,10 +521,12 @@ export default function HomeClient({
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 sm:p-12 text-center space-y-4">
                 <Layers className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-slate-400" />
                 <h3 className="font-serif text-lg sm:text-xl font-bold">
-                  📰 No News Stories Found
+                  {language === "hi" ? "अभी कोई खबर नहीं है" : "No stories right now"}
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                  Try switching categories or refreshing your feed to fetch the latest global news reports.
+                  {language === "hi"
+                    ? "इस श्रेणी में अभी कोई खबर नहीं है। थोड़ी देर बाद देखें, या सभी खबरें देखें।"
+                    : "There are no stories in this view yet. Check back shortly, or see all the news."}
                 </p>
                 <button
                   onClick={() => {
@@ -537,7 +536,7 @@ export default function HomeClient({
                   }}
                   className="rounded-xl bg-red-600 px-6 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors"
                 >
-                  Reset Category
+                  {language === "hi" ? "सभी खबरें देखें" : "Show all news"}
                 </button>
               </div>
             )}

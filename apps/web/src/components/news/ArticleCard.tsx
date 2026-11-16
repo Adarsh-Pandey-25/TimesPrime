@@ -11,7 +11,7 @@ import { useTheme } from "@timesprime/ui/ThemeContext";
 import { isBookmarked, toggleBookmark } from "@/lib/bookmarks";
 import { useLanguage } from "@/context/LanguageContext";
 
-import { getTopicImageUrl } from "@timesprime/shared/config/topicImages";
+import { placeholderFor } from "@timesprime/shared/config/categoryPlaceholders";
 import { getCategoryColor, getCategoryBadgeBgClass, getCategoryBorderClass } from "@timesprime/shared/config/categoryColors";
 import { mapCategory } from "@timesprime/shared/config/newsConfig";
 
@@ -43,8 +43,8 @@ interface ArticleCardProps {
   featured?: boolean;
   language?: Language;
   relatedStories?: Article[];
-  // Optional pre-resolved image (e.g. from a feed-level dedup pass). Falls
-  // back to this card's own getTopicImageUrl lookup when omitted.
+  // Optional pre-resolved image (a list's pass over its stories). Falls back
+  // to the story's own category drawing (placeholderFor) when omitted.
   imageUrl?: string;
   // Optional extra classes merged onto the card's root — e.g. Latest
   // Updates passes a min-height so its 4-col grid stays visually even.
@@ -74,14 +74,14 @@ export default function ArticleCard({
   const { language: globalLang } = useLanguage();
   const language = globalLang || propsLang || "en";
 
-  const contextualImage = imageUrl || getTopicImageUrl(article.title, article.category, article.description, article.image_url);
+  const contextualImage = imageUrl || placeholderFor(article);
   const [imgSrc, setImgSrc] = useState(contextualImage);
   const [imgFailed, setImgFailed] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
 
   useEffect(() => {
     setBookmarked(isBookmarked(article.article_id || article.link));
-    setImgSrc(imageUrl || getTopicImageUrl(article.title, article.category, article.description, article.image_url));
+    setImgSrc(imageUrl || placeholderFor(article));
     // A new article deserves a fresh attempt, not the previous card's failure.
     setImgFailed(false);
   }, [article, imageUrl]);
@@ -124,13 +124,7 @@ export default function ArticleCard({
   const articleSlug = encodeURIComponent(
     article.article_id || article.title.slice(0, 30)
   );
-  // Pass the already-validated image (imgSrc comes from getTopicImageUrl, which
-  // enforces the next/image allowlist). Passing the raw article.image_url here
-  // would just put a long publisher URL in the query string that the detail
-  // page discards anyway when it isn't on the allowlist.
-  const activeImg = imgSrc || contextualImage;
-  const imageParam = activeImg ? `&image=${encodeURIComponent(activeImg)}` : "";
-  const detailUrl = `/article/${articleSlug}?url=${encodeURIComponent(article.link)}${imageParam}`;
+  const detailUrl = `/article/${articleSlug}?url=${encodeURIComponent(article.link)}`;
 
   const handleBookmarkClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -145,8 +139,7 @@ export default function ArticleCard({
     const relSlug = encodeURIComponent(
       relArt.article_id || relArt.title.slice(0, 30)
     );
-    const relImg = getTopicImageUrl(relArt.title, relArt.category, relArt.description, relArt.image_url);
-    router.push(`/article/${relSlug}?url=${encodeURIComponent(relArt.link)}&image=${encodeURIComponent(relImg)}`);
+    router.push(`/article/${relSlug}?url=${encodeURIComponent(relArt.link)}`);
   };
 
   // "general"/"top" is deliberately excluded from the override: forcing
