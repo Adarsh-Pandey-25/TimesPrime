@@ -16,7 +16,7 @@ beforeEach(() => findArticleByLink.mockReset().mockResolvedValue(null));
 
 test("a stored article is known", async () => {
   findArticleByLink.mockResolvedValue({ title: "Budget passes", link: "https://publisher.example/story" });
-  await expect(findKnownArticle("https://publisher.example/story")).resolves.toEqual({ title: "Budget passes", link: "https://publisher.example/story" });
+  await expect(findKnownArticle("https://publisher.example/story")).resolves.toMatchObject({ title: "Budget passes", link: "https://publisher.example/story" });
   expect(findArticleByLink).toHaveBeenCalledWith("https://publisher.example/story");
 });
 

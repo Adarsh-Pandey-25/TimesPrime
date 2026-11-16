@@ -652,12 +652,20 @@ export async function getDBStats() {
  * the app's own links carry the stored value unchanged, so an exact match
  * is enough, and anything else is treated as absent. Read-only. The query
  * relies on an index on `link` (database/migrations, F-018) to stay cheap.
+ *
+ * It returns what the outside-story page shows (B-05): the headline, NewsData's
+ * short summary, the source, the time, the category and the language. The
+ * content column, where the retired scraper kept a story's full text, is not read.
  */
-export async function findArticleByLink(link: string): Promise<{ title: string; link: string } | null> {
+export async function findArticleByLink(link: string): Promise<Article | null> {
   if (!isSupabaseConfigured() || !link) return null;
 
   try {
-    const { data, error } = await supabase.from("articles").select("title, link").eq("link", link).limit(1);
+    const { data, error } = await supabase
+      .from("articles")
+      .select("article_id, title, link, description, source_id, source_name, pub_date, category, language")
+      .eq("link", link)
+      .limit(1);
     if (error) {
       console.error("Supabase Article Lookup Error:", error.message);
       reportSupabaseFailure("findArticleByLink", (suppressed) =>
@@ -668,8 +676,19 @@ export async function findArticleByLink(link: string): Promise<{ title: string; 
       );
       return null;
     }
-    const row = data?.[0] as { title: string | null; link: string | null } | undefined;
-    return row?.link === link ? { title: row.title ?? "", link: row.link } : null;
+    const row = data?.[0] as Partial<ArticleRow> | undefined;
+    if (row?.link !== link) return null;
+    return {
+      article_id: row.article_id ?? link,
+      title: row.title ?? "",
+      link: row.link,
+      description: row.description ?? null,
+      source_id: row.source_id ?? undefined,
+      source_name: row.source_name ?? undefined,
+      pubDate: row.pub_date ?? "",
+      category: row.category ?? undefined,
+      language: row.language ?? undefined,
+    };
   } catch (err) {
     console.error("Failed to look up an article by link:", err);
     reportSupabaseFailure("findArticleByLink", (suppressed) =>
