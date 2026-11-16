@@ -2,7 +2,6 @@ import path from "node:path";
 import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
 import { withSentryConfig } from "@sentry/nextjs/config";
-import { ALLOWED_IMAGE_HOSTNAMES } from "@timesprime/shared/config/imageDomains";
 import { securityHeaders } from "@timesprime/shared/config/securityHeaders";
 import { siteNoindex } from "@timesprime/shared/config/site";
 
@@ -45,34 +44,11 @@ const nextConfig: NextConfig = {
     return [{ source: "/(.*)", headers: [...securityHeaders({ dev: process.env.NODE_ENV !== "production" }), ...noindex] }];
   },
   images: {
-    // https only, explicit hostnames only — kept in sync with topicImages.ts
-    // via the shared ALLOWED_IMAGE_HOSTNAMES list (packages/shared/src/config/imageDomains.ts).
-    //
-    // The `{,*.}` prefix is what makes that sync real rather than nominal.
-    // Sharing the list is not enough on its own: isAllowedImageUrl matches
-    // with `hostname === host || hostname.endsWith("." + host)` (subdomains
-    // count), while a bare `hostname` pattern here is an exact match. That
-    // gap meant topicImages.ts handed https://i.newsdata.io/... to <Image>
-    // — "newsdata.io" is on the list — and next/image then threw "hostname
-    // is not configured" at runtime, because the pattern "newsdata.io" does
-    // not match "i.newsdata.io".
-    //
-    // hostname is matched with picomatch (next/dist/shared/lib/
-    // match-remote-pattern.js), so a glob is the fix. `{,*.}host` expands to
-    // "host" OR "*.host" — exactly isAllowedImageUrl's rule, so the two now
-    // accept the same set by construction. Verified against the bundled
-    // picomatch: matches host, i.host and a.b.host; rejects evilhost and
-    // host.evil.com. Do NOT "simplify" this to `**${hostname}` — that form
-    // matches evilnewsdata.io, i.e. any attacker domain ending in a listed
-    // name.
-    //
-    // Still one pattern per entry, so the 50-pattern cap documented in
-    // imageDomains.ts (enforced by zod .max(50) in next/dist/server/
-    // config-schema.js) is unaffected: 49 entries, 49 patterns.
-    remotePatterns: ALLOWED_IMAGE_HOSTNAMES.map((hostname) => ({
-      protocol: "https" as const,
-      hostname: `{,*.}${hostname}`,
-    })),
+    // No outside image is fetched or served (B-03, Phase B): stories show our own category
+    // drawings (apps/web/public/placeholders, packages/shared/src/config/categoryPlaceholders.ts),
+    // never a stock or publisher photo. next/image serves a local ".svg" as it is, so the
+    // optimizer has nothing remote to allow.
+    remotePatterns: [],
   },
 };
 

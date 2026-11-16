@@ -12,7 +12,7 @@ import { Flame, Layers, RefreshCw, X, ChevronDown } from "lucide-react";
 import { Language, TRANSLATIONS } from "@timesprime/shared/config/translations";
 import { useTheme } from "@timesprime/ui/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { assignDedupedTopicImages } from "@timesprime/shared/config/topicImages";
+import { assignPlaceholders } from "@timesprime/shared/config/categoryPlaceholders";
 
 interface HomeClientProps {
   initialArticles: Article[];
@@ -319,11 +319,8 @@ export default function HomeClient({
   const topStories = articles.slice(gridStart, gridStart + 4);
   const latestStories = articles.slice(gridStart + 4);
 
-  // Dedupe topic images across every visible card: several articles from
-  // the same category otherwise resolve to the same pooled Unsplash photo
-  // (see topicImages.ts). One Map spans featured + topStories + latestStories
-  // so no two cards on the page share an image.
-  const cardImageUrls = assignDedupedTopicImages(
+  // Each card's own category drawing (B-03): never a stock or publisher photo.
+  const cardImageUrls = assignPlaceholders(
     [featuredArticle, ...topStories, ...latestStories].filter((art): art is Article => !!art)
   );
 

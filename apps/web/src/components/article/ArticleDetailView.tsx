@@ -10,7 +10,7 @@ import AskAboutArticle from "@/components/article/AskAboutArticle";
 
 import { useLanguage } from "@/context/LanguageContext";
 import { useTheme } from "@timesprime/ui/ThemeContext";
-import { assignDedupedTopicImages } from "@timesprime/shared/config/topicImages";
+import { assignPlaceholders } from "@timesprime/shared/config/categoryPlaceholders";
 import { safePublisherHref } from "@timesprime/shared/lib/urlValidation";
 
 /** Bare hostname (no "www."), the source's name when the row carries none. */
@@ -99,8 +99,8 @@ export default function ArticleDetailView({ story, allArticles }: ArticleDetailV
   const trending = displayArticles.slice(4, 12);
   const suggested = displayArticles.slice(12, 20);
 
-  // One image pass over every story on the page, so no two share an image.
-  const dedupedImages = assignDedupedTopicImages([story, ...relatedNews, ...trending, ...suggested]);
+  // Each story's own category drawing (B-03): never a stock or publisher photo.
+  const dedupedImages = assignPlaceholders([story, ...relatedNews, ...trending, ...suggested]);
   const heroImage = dedupedImages.get(story)!;
 
   const storyHref = (art: Article) =>

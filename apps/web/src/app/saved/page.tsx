@@ -9,7 +9,7 @@ import { getBookmarks, clearAllBookmarks } from "@/lib/bookmarks";
 import { Article } from "@timesprime/shared/types";
 import { Bookmark, Trash2, ArrowLeft, Layers } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
-import { assignDedupedTopicImages } from "@timesprime/shared/config/topicImages";
+import { assignPlaceholders } from "@timesprime/shared/config/categoryPlaceholders";
 
 export default function SavedArticlesPage() {
   const { theme } = useTheme();
@@ -35,7 +35,7 @@ export default function SavedArticlesPage() {
     }
   };
 
-  const dedupedImages = assignDedupedTopicImages(savedArticles);
+  const dedupedImages = assignPlaceholders(savedArticles);
 
   return (
     <div
