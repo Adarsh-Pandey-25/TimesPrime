@@ -73,7 +73,7 @@ One repository, three apps over shared packages, in npm workspaces
 apps/
   web/        The reader site (Next.js): pages, public APIs, the reader UI          → port 3000
   admin/      The back office (Next.js): /admin pages, /api/admin routes, the proxy → port 3001
-  worker/     Scheduled jobs (plain Node): refresh-news
+  worker/     Scheduled jobs (plain Node): refresh-news; refresh-news-dry-run, by hand
 packages/
   server/     @timesprime/server: server-only code (auth, repositories, services, lib); every file
               imports "server-only"
@@ -167,13 +167,12 @@ Run from the repository root.
 
 ## Architecture in one paragraph
 
-A worker job (`refresh-news`, started every 30 minutes by a scheduler) pulls each
-category from NewsData.io, filters out paywalled, horoscope, wire-spam and
-non-news sources, and upserts into Supabase. Reads go through
-`/api/news/top-headlines`, which tries the Redis cache, then Supabase if its
-newest row is under 30 minutes old, then NewsData.io, and finally built-in mock
-articles. The `X-Data-Source` response header says which tier answered — useful
-when diagnosing whether a given response touched the database at all. Admin
+A worker job (`refresh-news`, on the server's 15-minute timer, running once its interval of 60
+minutes has passed) pulls each category, in English and Hindi, from NewsData.io, filters out
+paywalled, horoscope, wire-spam and non-news sources, and upserts into Supabase. Readers read only
+the database (R1-12): `/api/news/top-headlines` tries the Redis cache, then Supabase, and never
+NewsData.io; there are no mock articles. The `X-Data-Source` response header (`cache` or
+`supabase`) says which tier answered. Admin
 routes are gated twice: `apps/admin/src/proxy.ts` lets only a session through to `/admin/*` and
 `/api/admin/*`, and each route body checks the staff member's permissions
 (`requirePermission`, Panel 0).

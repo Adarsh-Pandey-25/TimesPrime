@@ -160,7 +160,7 @@ apps/
     src/app/api/admin/     every admin route handler, each gated by requirePermission
     src/components/        the dashboard widgets and AdminTopBar
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
-    src/jobs.ts            the jobs by name: refresh-news
+    src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand)
 packages/
   server/                  @timesprime/server: server-only, every module opens with import "server-only"
     src/auth/              the access foundation (Panel 0): requirePermission (the gate), decide, scope,
