@@ -53,6 +53,14 @@ export default function Header({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [menuDropdownOpen, setMenuDropdownOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(searchQuery);
+  // The box follows the feed's search when it changes from outside the box (a
+  // menu sub-topic, a category, the URL), adjusted during render as the React
+  // docs advise for state that follows a prop. Typing is kept until then.
+  const [followedQuery, setFollowedQuery] = useState(searchQuery);
+  if (searchQuery !== followedQuery) {
+    setFollowedQuery(searchQuery);
+    setSearchInput(searchQuery);
+  }
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
