@@ -36,21 +36,33 @@ describe("refreshNews", () => {
   // The NewsData quota math for the one interval value (R1-03): a run's calls, counted from a real
   // run, times the runs a day. A change to the interval or the categories changes this number on
   // purpose; before go-live it is checked against 70% of the plan's daily limit.
-  test("the scheduled job's NewsData calls a day: 7 a run, every 30 minutes, 336", async () => {
+  // R12-02: the worker fetches English and Hindi, 7 categories each, so 14 calls a run.
+  test("the scheduled job's NewsData calls a day: 14 a run, at the configured interval", async () => {
     await refreshNews();
     const callsPerRun = newsdata.fetchNewsDataArticles.mock.calls.length;
+    expect(callsPerRun).toBe(14);
     expect(NEWS_REFRESH_INTERVAL_MINUTES).toBe(30);
     expect(NEWS_REFRESH_SCHEDULE).toBe("rate(30 minutes)");
     expect(NEWS_REFRESH_RUNS_PER_DAY).toBe(48);
-    expect(callsPerRun * NEWS_REFRESH_RUNS_PER_DAY).toBe(336);
+    expect(callsPerRun * NEWS_REFRESH_RUNS_PER_DAY).toBe(672);
   });
 
-  test("a run purges once, and refreshes every category", async () => {
+  test("a run purges once, and refreshes every category in English and in Hindi", async () => {
     const outcome = await refreshNews();
     expect(outcome.ok).toBe(true);
     expect(db.purgeOldArticles).toHaveBeenCalledTimes(1);
-    expect(newsdata.fetchNewsDataArticles).toHaveBeenCalledTimes(7);
+    const queries = newsdata.fetchNewsDataArticles.mock.calls.map(([, opts]) => opts);
+    expect(queries.filter((q) => q.language === "en")).toHaveLength(7);
+    expect(queries.filter((q) => q.language === "hi")).toHaveLength(7);
     expect(outcome.ok && outcome.result.purged).toBe(3);
+  });
+
+  test("Hindi rows are tagged India: NewsData's Hindi feed is India's (country=in)", async () => {
+    await refreshNews();
+    const queries = newsdata.fetchNewsDataArticles.mock.calls.map(([, opts]) => opts);
+    expect(queries.filter((q) => q.language === "hi").every((q) => q.country === "in")).toBe(true);
+    expect(queries.find((q) => q.language === "en" && q.categoryParam === "india")?.country).toBe("in");
+    expect(queries.find((q) => q.language === "en" && q.categoryParam === "world")?.country).toBe("us");
   });
 
   test("without a NewsData key nothing runs: no purge, no audit", async () => {
@@ -64,7 +76,7 @@ describe("refreshNews", () => {
     newsdata.fetchNewsDataArticles.mockRejectedValueOnce(new Error("rate limited"));
     const outcome = await refreshNews();
     expect(outcome.ok && outcome.result.failed).toBe(1);
-    expect(outcome.ok && outcome.result.refreshed).toBe(6);
+    expect(outcome.ok && outcome.result.refreshed).toBe(13);
   });
 
   // D11: the job is not a person and not a staff account; it writes the audit log as system:cron.
@@ -78,7 +90,7 @@ describe("refreshNews", () => {
         actor_label: "system:cron",
         action: "cron.refresh_news",
         outcome: "succeeded",
-        after: expect.objectContaining({ purged: 3, refreshed: 7, failed: 0 }),
+        after: expect.objectContaining({ purged: 3, refreshed: 14, failed: 0 }),
       })
     );
   });

@@ -6,7 +6,9 @@ import { recordSystemAudit } from "../../repositories/auditLog";
 import { fetchNewsDataArticles } from "./newsdata";
 
 /**
- * Background refresh: pulls every category from NewsData.io into Supabase.
+ * Background refresh: pulls every category, in English and in Hindi, from NewsData.io into
+ * Supabase. Since R1-12 it is the only writer of the articles table and the only caller of
+ * NewsData on the reader's behalf: readers read the database (topHeadlines.ts).
  *
  * Run by the worker (`npm run job -w @timesprime/worker -- refresh-news`), which a scheduler
  * starts every NEWS_REFRESH_INTERVAL_MINUTES (@timesprime/shared/config/newsRefresh; EventBridge
@@ -14,6 +16,9 @@ import { fetchNewsDataArticles } from "./newsdata";
  * cron secret. With it running, reader requests are served from Supabase (see topHeadlines.ts)
  * instead of hitting NewsData.io per visitor.
  */
+
+// The languages the reader site offers. Hindi comes from NewsData's Hindi feed, which is India's.
+const REFRESH_LANGUAGES = ["en", "hi"] as const;
 
 // The 7 categories the UI exposes as primary feeds.
 const REFRESH_CATEGORIES = [
@@ -28,6 +33,7 @@ const REFRESH_CATEGORIES = [
 
 interface RefreshDetail {
   category: string;
+  language: string;
   ok: boolean;
   fetched: number;
   saved: number;
@@ -58,37 +64,34 @@ export async function refreshNews(): Promise<RefreshOutcome> {
   let refreshed = 0;
   let failed = 0;
 
-  // Sequential on purpose: NewsData.io rate-limits bursts, and 7 parallel
+  // Sequential on purpose: NewsData.io rate-limits bursts, and 14 parallel
   // requests is the fastest way to get the whole run throttled.
-  for (const category of REFRESH_CATEGORIES) {
-    try {
-      const articles = await fetchNewsDataArticles(apiKey, {
-        categoryParam: category,
-        language: "en",
-        country: category === "india" ? "in" : "us",
-      });
+  for (const language of REFRESH_LANGUAGES) {
+    for (const category of REFRESH_CATEGORIES) {
+      try {
+        const articles = await fetchNewsDataArticles(apiKey, {
+          categoryParam: category,
+          language,
+          country: language === "hi" || category === "india" ? "in" : "us",
+        });
 
-      const saved = await saveArticlesToDB(articles);
+        const saved = await saveArticlesToDB(articles);
 
-      refreshed += 1;
-      details.push({
-        category,
-        ok: true,
-        fetched: articles.length,
-        saved: saved.length,
-      });
-    } catch (err) {
-      failed += 1;
-      const message = err instanceof Error ? err.message : String(err);
+        refreshed += 1;
+        details.push({ category, language, ok: true, fetched: articles.length, saved: saved.length });
+      } catch (err) {
+        failed += 1;
+        const message = err instanceof Error ? err.message : String(err);
 
-      console.error(`Refresh failed for category "${category}":`, message);
-      Sentry.captureException(err, {
-        tags: { source: "cron" },
-        extra: { operation: "refresh-news", category },
-      });
+        console.error(`Refresh failed for category "${category}" (${language}):`, message);
+        Sentry.captureException(err, {
+          tags: { source: "cron" },
+          extra: { operation: "refresh-news", category, language },
+        });
 
-      // Keep going — one bad category shouldn't abort the whole refresh.
-      details.push({ category, ok: false, fetched: 0, saved: 0, error: message });
+        // Keep going — one bad category shouldn't abort the whole refresh.
+        details.push({ category, language, ok: false, fetched: 0, saved: 0, error: message });
+      }
     }
   }
 
