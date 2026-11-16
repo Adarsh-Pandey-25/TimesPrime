@@ -69,15 +69,19 @@ any code, and heed deprecation notices. (`next dev` no longer writes this into a
   - `chore/<topic>` for tooling, infrastructure and docs.
 
   Push only the branch.
-- **Never push to `main` directly.** A branch reaches `main` only after the owner approves: then merge
-  it into `main` and push `main`.
+- **Never push to `main`, and never merge into it, not even locally.** A branch reaches `main` only
+  as a pull request that the owner's senior merges (16 Nov 2026).
 
 ## Deployment and the database
 
 - **A deployment now** (owner, 2026-11-02): the owner's senior asked for one; it is built as the
-  release (`release/v1`, phases R0–R4). **Hosting is AWS**, region `ap-south-1` (owner, 4 Nov 2026,
-  replacing R0's Vercel): the two apps on ECS, and the worker as a task EventBridge starts every
-  30 minutes.
+  release (phases R0–R4). **Hosting is AWS**, region `ap-south-1` (owner, 4 Nov 2026, replacing
+  R0's Vercel): for the release, **one EC2 server with Docker Compose** (owner's senior, 16 Nov
+  2026): the two apps behind Nginx, CloudFront in front of the reader site, and the worker started
+  by the server's timer every 15 minutes. The kit is `deploy/`; the runbook is
+  `docs/OPERATIONS.md`, Deployment.
+- **Merging:** a session never merges into `main`, not even locally. Each branch goes up as a pull
+  request (`gh pr create`), and the owner's senior merges it.
 - **The real database:** the env file holds its credentials and the app uses them. Never read,
   print or edit an env file (`.claude/settings.json` denies it too). Never write to the database
   yourself: no SQL, migrations, bootstrap, test users, destructive tests or worker jobs. Schema

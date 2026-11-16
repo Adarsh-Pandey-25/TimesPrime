@@ -39,7 +39,7 @@ Shared code `packages/` mein rahega. Saare panels ek admin app ke andar honge, h
 | Step | Kya | Andaazan kab |
 |---|---|---|
 | A | Panel 0 poora + restructure merge | Nov–Dec 2026 |
-| B | Aggregator band (scraping, auto-translate, stock images) | Dec 2026 |
+| B | Aggregator band (scraping, auto-translate, stock images) | **Ho gaya**, release mein (16 Nov 2026); audit close-out baaki |
 | C | Monorepo split (web / admin / worker) | **Ho gaya**, 4 Nov 2026 |
 | D | Panel 1: users aur roles | Dec 2026 – Jan 2027 |
 | E | **Panel 2: Desk (newsroom ka dil)**: Tiptap editor, workflow, approval, media, bylines | Jan – Apr 2027 |
@@ -50,7 +50,7 @@ Shared code `packages/` mein rahega. Saare panels ek admin app ke andar honge, h
 | J | Launch checklist | May – Jun 2027 |
 | K | Launch ke baad: Panels 7–8 poore, phir 4 (wire), 5 (AI), 6 (insights), 9 (kamai) | Jun 2027 se |
 
-**Aapne approve kiya** (4 Nov 2026, section 10). Sirf aggregator wala option (a ya b) baaki hai:
+**Aapne approve kiya** (4 Nov 2026, section 10). Aggregator wala option bhi tay ho gaya (16 Nov 2026: (a), headline + summary + source + link, `noindex` ke saath):
 - Tiptap editor
 - Teen apps wala structure
 - Panel order mein badlav (7 aur 8 ka minimum launch se pehle)
@@ -77,16 +77,16 @@ first one that is not Done.
 
 | Phase | Status | Where |
 |---|---|---|
-| 0. Release v1 (Vivek, on `main`) | **In progress, goes first.** R0 done. R1 (AWS foundations) built on `chore/r1-aws` (4 Nov 2026), at STOP R1 for the owner; the four owner values set aside for now. Then R2–R4. The panel phases wait for it | branches from `main` (`chore/r1-aws` for R1) |
+| 0. Release v1 (Vivek, on `main`) | **In progress, goes first.** R0 done. On `main` since 16 Nov 2026 (PRs #4–#9, each merged by the owner's senior): R1, R1-12, Phase B's removals and the deploy kit. The release runs on one EC2 server (owner's senior, 16 Nov 2026). Next: the AWS setup from the runbook (OPERATIONS.md, Deployment) and the go-live gates, then R2–R4. The panel phases wait for it | one branch per piece of work, from `main`, each a PR the senior merges |
 | A. Finish Panel 0, port this plan onto `main` | **Step 1 done** (4 Nov 2026): this plan, the access rules, the research, the split and Panel 0's second half reached `main` through `chore/integrate`. **After the release:** step 3's owner check, then step 4 | `chore/integrate` (merged), then `panel-0-access` work on a branch from `main` |
-| B. Make the product safe to be public | Not started | `fix/aggregator-off`, `fix/audit-closeout` |
+| B. Make the product safe to be public | **Removals done in the release** (16 Nov 2026, `fix/aggregator-off`, PR #8): no scraped full text, no Google Translate, no stock or publisher photos, no mock articles, outside-story pages `noindex`, the chatbot off behind a flag (BL-030 closed). Item 6 decided: (a). **Left:** the audit close-out | `fix/aggregator-off` (merged), then `fix/audit-closeout` |
 | C. Split into apps and packages | **Done** (4 Nov 2026), on `main` since `chore/integrate` | `chore/restructure`, `chore/integrate` |
 | D. Panel 1, Administration | Not started | `panel-1-administration` |
 | E. Panel 2, Desk | Not started | `panel-2-desk` |
 | F. Reader site for original journalism | Not started | `site/<topic>` |
 | G. Panel 3, Front page | Not started | `panel-3-front-page` |
 | H. Panels 7 and 8, launch minimum | Not started | `panel-7-compliance`, `panel-8-privacy` |
-| I. Infrastructure and staging | Not started | `chore/infra` |
+| I. Infrastructure and staging | **The release's part done** (16 Nov 2026): one EC2 server with Docker Compose, the kit in `deploy/` (PR #9), the runbook in OPERATIONS.md. Phase I's own scope (infrastructure as code, staging, SQS, S3 media, purge by tag) is not started | `chore/release-deploy-kit` (merged), then `chore/infra` |
 | J. Launch gate | Not started | — |
 | K. After launch | Not started | — |
 
@@ -101,7 +101,7 @@ Taken by the owner in conversation, or recommended by the research and proposed 
 | 3 | **CMS: build our own** on the existing stack; Quintype is the fallback if the editor fails its checkpoint (Phase E) | Research D3 |
 | 4 | **Aggregator off before any public traffic**: no scraped full text, no unofficial translation, no stock-photo fallbacks | Research D2 |
 | 5 | **Hindi on its own URLs** (`/hi/...`), rendered on the server; written in Hindi or translated by a person | Research D4, D5 |
-| 6 | **Hosting: AWS ap-south-1**, ECS Fargate behind CloudFront's flat-rate plan; worker on EventBridge + SQS. Confirmed by the owner on 4 Nov 2026 over the release's R0 choice (Vercel Pro, `bom1`), so the release's hosting work (R1) moves to AWS too | Research D6; owner, 4 Nov 2026 |
+| 6 | **Hosting: AWS ap-south-1**, ECS Fargate behind CloudFront's flat-rate plan; worker on EventBridge + SQS. Confirmed by the owner on 4 Nov 2026 over the release's R0 choice (Vercel Pro, `bom1`). **For the release** the owner's senior chose one EC2 server with Docker Compose (16 Nov 2026; ARCHITECTURE.md, decisions); Phase I revisits the full launch | Research D6; owner, 4 Nov 2026; senior, 16 Nov 2026 |
 | 7 | **Database: Supabase Mumbai**, with a custom domain, server-side reads on reader pages and log drains | Research D7 |
 | 8 | **Logs:** staff actions in Supabase `audit_log`; every system log in AWS Mumbai for 365 days; the audit chain's head hash exported daily to a locked S3 bucket (BL-034) | Research; this conversation |
 | 9 | **Video: YouTube first** (embeds and YouTube Live); no reader comments at launch | Research D9, D10 |
@@ -196,11 +196,11 @@ What the split changed, and what it left for later:
 | Before the split | Now | Status |
 |---|---|---|
 | The reader's breaking banner called `/api/admin/breaking-news` | It reads `apps/web`'s public `GET /api/news/breaking-news`; the admin GET needs `breaking_banner.manage` | Done |
-| The proxy and staff sign-in lived with the reader site | Only in `apps/admin`; the reader site has no `/admin`. The staff cookie's scoping to the admin subdomain comes with the domains (Phase I) | Done |
-| `/api/cron/refresh-news`, an HTTP route behind `CRON_SECRET`, scheduled by `vercel.json` | The worker's `refresh-news` job; `vercel.json` and `CRON_SECRET` are gone. EventBridge starts it in Phase I | Done |
+| The proxy and staff sign-in lived with the reader site | Only in `apps/admin`; the reader site has no `/admin`. The staff cookies are host-only, so they stay on `admin.timesprime247.com` (E-04, 16 Nov 2026) | Done |
+| `/api/cron/refresh-news`, an HTTP route behind `CRON_SECRET`, scheduled by `vercel.json` | The worker's `refresh-news` job; `vercel.json` and `CRON_SECRET` are gone. The server's timer starts it every 15 minutes (the release, 16 Nov 2026) | Done |
 | "Sync now" (`/api/admin/seed-supabase`) runs the whole sync inside one request | Admin enqueues a job (SQS) and the worker runs it | Phase I (needs the queue) |
-| The reader site holds the service-role key | Only admin and worker hold it; the reader site reads with the anon key under RLS | After Phase B (the reader's feed path still writes, through the NewsData fallback) |
-| Audit rows take their request id from `x-vercel-id` | The load balancer's trace id | Phase I |
+| The reader site holds the service-role key | Only admin and worker hold it; the reader site reads with the anon key under RLS | The reader writes nothing since R1-12 and Phase B (a test keeps it so); the key leaves its container once the owner applies and checks `database/policies.sql` (R12-03) |
+| Audit rows take their request id from `x-vercel-id` | CloudFront's `X-Amz-Cf-Id`, else Nginx's `X-Request-Id` | Done (E-03, 16 Nov 2026) |
 
 ## 4. Phases
 
@@ -581,8 +581,8 @@ These changes from the retired `PANEL_PLAN.md` were approved with this plan on 4
 ## 10. Owner sign-off
 
 The owner approved the plan in conversation on 4 Nov 2026 ("is plan ke according hi sab kuch karna
-hai"). Item 6 still needs the owner's choice; until then aggregated items are hidden (option b, the
-safer one).
+hai"). Item 6 was decided by the owner's senior on 16 Nov 2026: option (a), with `noindex` on the
+outside-story pages.
 
 | # | Item | Status |
 |---|---|---|
@@ -591,7 +591,7 @@ safer one).
 | 3 | Panel order: 0 → 1 → 2 → 3 → 7 (minimum) → 8 (minimum) → launch → 7–8 full → 4 → 5 → 6 → 9 | Approved |
 | 4 | A new `stories` table for original journalism | Approved |
 | 5 | Branch prefix `site/<topic>` for reader-site work (to be added to `CLAUDE.md`) | Approved |
-| 6 | Aggregator items after Phase B: (a) headline + source + link with `noindex`, or (b) hidden entirely | **Pending:** owner to choose (a) or (b) |
+| 6 | Aggregator items after Phase B: (a) headline + source + link with `noindex`, or (b) hidden entirely | **Decided:** (a), headline + short summary + source + link, `noindex` on their pages (owner's senior, 16 Nov 2026) |
 | 7 | A staging environment on AWS before the project is complete | Approved |
 | 8 | Hindi at `/hi/` on the same domain | Approved |
 | 9 | The phases and their order (section 4) | Approved |
