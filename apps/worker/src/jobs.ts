@@ -1,6 +1,7 @@
 import "server-only";
 
 import { refreshNews } from "@timesprime/server/services/news/refreshNews";
+import { dryRunRefresh } from "@timesprime/server/services/news/refreshDryRun";
 import { isRefreshDue, NEWS_REFRESH_INTERVAL_MINUTES } from "@timesprime/shared/config/newsRefresh";
 import { readLastStartedAt, recordStart } from "./refreshState";
 
@@ -32,8 +33,30 @@ async function refreshNewsJob(): Promise<number> {
   return outcome.result.failed === 0 ? 0 : 1;
 }
 
+/**
+ * R12-05: the batched refresh against today's, side by side, writing nothing. Run by hand, once,
+ * after the NewsData plan is bought; never by the timer. Exits 1 if a call failed.
+ */
+async function refreshNewsDryRunJob(): Promise<number> {
+  const outcome = await dryRunRefresh();
+  if (!outcome.ok) {
+    console.error(outcome.error);
+    return 1;
+  }
+  const { calls, rows, failures } = outcome.report;
+  console.log(`NewsData calls a run: ${calls.single} today, ${calls.batched} batched. Articles per category:`);
+  console.log("language  category       today  batched");
+  for (const r of rows) {
+    console.log(`${r.language.padEnd(9)} ${r.category.padEnd(14)} ${String(r.single).padStart(5)}  ${String(r.batched).padStart(7)}`);
+  }
+  for (const failure of failures) console.error(`failed: ${failure}`);
+  console.log(JSON.stringify(outcome.report));
+  return failures.length === 0 ? 0 : 1;
+}
+
 export const JOBS: Record<string, Job> = {
   "refresh-news": refreshNewsJob,
+  "refresh-news-dry-run": refreshNewsDryRunJob,
 };
 
 export async function runJob(name: string | undefined, jobs: Record<string, Job> = JOBS): Promise<number> {

@@ -18,10 +18,10 @@ import { NEWS_REFRESH_BATCH_SIZE } from "@timesprime/shared/config/newsRefresh";
  */
 
 // The languages the reader site offers. Hindi comes from NewsData's Hindi feed, which is India's.
-const REFRESH_LANGUAGES = ["en", "hi"] as const;
+export const REFRESH_LANGUAGES = ["en", "hi"] as const;
 
 // The 7 categories the UI exposes as primary feeds.
-const REFRESH_CATEGORIES = [
+export const REFRESH_CATEGORIES = [
   "general",
   "india",
   "world",

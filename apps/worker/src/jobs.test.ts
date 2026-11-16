@@ -6,6 +6,7 @@
  */
 
 jest.mock("@timesprime/server/services/news/refreshNews", () => ({ refreshNews: jest.fn() }));
+jest.mock("@timesprime/server/services/news/refreshDryRun", () => ({ dryRunRefresh: jest.fn() }));
 
 import fs from "fs";
 import os from "os";
@@ -13,6 +14,7 @@ import path from "path";
 import { JOBS, runJob } from "./jobs";
 
 const { refreshNews } = jest.requireMock("@timesprime/server/services/news/refreshNews") as { refreshNews: jest.Mock };
+const { dryRunRefresh } = jest.requireMock("@timesprime/server/services/news/refreshDryRun") as { dryRunRefresh: jest.Mock };
 const result = (failed: number) => ({ ok: true, result: { refreshed: 7 - failed, failed, purged: 0, timestamp: "t", details: [] } });
 
 const env = { ...process.env };
@@ -98,6 +100,33 @@ describe("refresh-news on the 15-minute timer", () => {
   });
 });
 
-test("the job list is exactly the jobs the scheduler may start", () => {
-  expect(Object.keys(JOBS)).toEqual(["refresh-news"]);
+// R12-05: the dry run, by hand, once the NewsData plan is bought. It never refreshes.
+describe("refresh-news-dry-run", () => {
+  const report = (failures: string[] = []) => ({
+    ok: true,
+    report: { calls: { single: 14, batched: 4 }, failures, rows: [{ language: "en", category: "tech", single: 10, batched: 9 }] },
+  });
+
+  test("prints each category's counts side by side and exits 0, refreshing nothing", async () => {
+    dryRunRefresh.mockResolvedValue(report());
+    await expect(runJob("refresh-news-dry-run")).resolves.toBe(0);
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("14 today, 4 batched"));
+    expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/^en\s+tech\s+10\s+9$/));
+    expect(refreshNews).not.toHaveBeenCalled();
+  });
+
+  test("a failed call exits 1 and is printed", async () => {
+    dryRunRefresh.mockResolvedValue(report(["batched en:india,entertainment: NewsData API error: status 422"]));
+    await expect(runJob("refresh-news-dry-run")).resolves.toBe(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("status 422"));
+  });
+
+  test("no NewsData key exits 1", async () => {
+    dryRunRefresh.mockResolvedValue({ ok: false, error: "NEWSDATA_API_KEY is not set" });
+    await expect(runJob("refresh-news-dry-run")).resolves.toBe(1);
+  });
+});
+
+test("the job list is exactly the jobs the worker may start", () => {
+  expect(Object.keys(JOBS)).toEqual(["refresh-news", "refresh-news-dry-run"]);
 });
