@@ -4,7 +4,7 @@ Running, deploying and picking up TimesPrime:
 
 1. [Environment variables](#environment-variables): every variable, where it is set, and which files
    hold them.
-2. [Deployment](#deployment): AWS, and the checklist for the day.
+2. [Deployment](#deployment): the single server: the AWS runbook, every deploy, the go-live gates.
 3. [Runbooks](#runbooks): procedures for the owner, to follow under pressure.
 4. [Current status](#current-status): where the work stands, the baselines, the gotchas, the history.
    **A new session starts here**, after [`CLAUDE.md`](../CLAUDE.md).
@@ -18,304 +18,447 @@ Running, deploying and picking up TimesPrime:
 
 ## Environment variables
 
-**Files.** One env file serves every app: `.env` at the repository root holds the owner's real
-values locally. It is git-ignored, and a session never reads, prints, copies or edits it
-(`CLAUDE.md`; `.claude/settings.json` denies it). Create it from `.env.example`, the committed
-template, which names every variable the code reads; a test keeps the two in step (F-009,
-`10c8b47`). `.env.test`, committed with every key empty, is the test environment: Next loads it
-before `.env` when `NODE_ENV` is `test`, and keeps the first value it finds, so tests never see the
-real values. Each app's `next.config.ts` loads the root files (gotcha 3.25); the worker passes
-`--env-file-if-exists=../../.env`. In production the variables come from the AWS task definitions,
-not from a file. **Never commit real values.** (Until 2026-11-04 the local file was `.env.local` at
-the root on this branch, and `frontend/.env` on `main`.)
+**Files.** Locally, one env file serves every app: `.env` at the repository root holds the owner's
+real values. It is git-ignored, and a session never reads, prints, copies or edits it (`CLAUDE.md`;
+`.claude/settings.json` denies it). Create it from `.env.example`, the committed template, which
+names every variable the code reads; a test keeps the two in step (F-009, `10c8b47`). `.env.test`,
+committed with every key empty, is the test environment: Next loads it before `.env` when
+`NODE_ENV` is `test`, and keeps the first value it finds, so tests never see the real values. Each
+app's `next.config.ts` loads the root files (gotcha 3.25); the worker passes
+`--env-file-if-exists=../../.env`. **On the server** each container gets its own env file, with
+only the secrets it needs ([where each is set](#where-each-is-set-on-the-server)). **Never commit
+real values.** (Until 2026-11-04 the local file was `.env.local` at the root on this branch, and
+`frontend/.env` on `main`.)
 
-| Variable | Required | Purpose |
+| Variable | Read by | Purpose |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | yes | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | Public anon key; RLS restricts it to reads. Used only without the service-role key, and then every write fails (BL-025) |
-| `SUPABASE_SERVICE_ROLE_KEY` | server, required in production | Bypasses RLS for server writes. Never expose to the client. Only the back office and the worker need it |
-| `NEWSDATA_API_KEY` | yes | NewsData.io. Without it the app serves built-in mock articles |
-| `ANTHROPIC_API_KEY` | yes | Powers `/api/chat` and category classification. Without it chat returns a clear "unavailable" message |
-| `ADMIN_PASSWORD` | yes | The admin panel password, compared in constant time. Unset (or without `ADMIN_SESSION_SECRET`), login answers 503 and `/admin` stays locked |
-| `ADMIN_SESSION_SECRET` | yes | HMAC key signing the 12-hour admin session cookie; changing it signs every admin out |
-| `ADMIN_LEGACY_LOGIN` | optional | The two variables above are the shared password, retired in code at 2027-01-01 00:00 IST. Set this to `off` to retire it sooner |
-| `UPSTASH_REDIS_REST_URL` | optional | Shared cache and the shared rate-limit windows. Without it, an in-process cache is used (fine locally, not shared across instances) |
-| `UPSTASH_REDIS_REST_TOKEN` | optional | Pairs with the URL above |
-| `NEXT_PUBLIC_SENTRY_DSN` | optional | Error reporting. Not a secret, but must be `NEXT_PUBLIC_` to reach the browser |
-| `SENTRY_AUTH_TOKEN` | build | Source-map upload at build time only |
+| `NEXT_PUBLIC_SUPABASE_URL` | all | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | all | Public anon key; RLS restricts it to reads. Used only without the service-role key, and then every write fails (BL-025) |
+| `SUPABASE_SERVICE_ROLE_KEY` | admin, worker (web until R12-03's gate) | Bypasses RLS for server writes. Never expose to the client. The reader site writes nothing (R12-03), so it drops the key once `database/policies.sql` is applied and checked |
+| `NEWSDATA_API_KEY` | worker, admin | NewsData.io: the worker's refresh and the back office's Sync now. The reader site reads only the database (R1-12) and holds no key. Without it the refresh exits 1 and the feed stays as it was; there are no mock articles (B-04) |
+| `ANTHROPIC_API_KEY` | worker, admin; web if the chat is on | Category classification (the refresh and Sync now), and `/api/chat` when `NEXT_PUBLIC_AI_CHAT_ENABLED` is `1` |
+| `ADMIN_PASSWORD` | admin | The shared admin password, compared in constant time. Unset (or without `ADMIN_SESSION_SECRET`), login answers 503 and `/admin` stays locked |
+| `ADMIN_SESSION_SECRET` | admin | HMAC key signing the 12-hour admin session cookie; changing it signs every admin out |
+| `ADMIN_LEGACY_LOGIN` | admin | The two variables above are the shared password, retired in code at 2027-01-01 00:00 IST. Set this to `off` to retire it sooner |
+| `UPSTASH_REDIS_REST_URL` | web, admin | The shared cache and rate limits. On the server: the local Redis's REST proxy, `http://redis-rest`, set by `deploy/compose.yml`. Unset locally: an in-process cache |
+| `UPSTASH_REDIS_REST_TOKEN` | web, admin | The proxy's token: the same value as `SRH_TOKEN` in `.env.redis` |
+| `NEXT_PUBLIC_SENTRY_DSN` | build | Error reporting (Sentry, EU region). Not a secret; `NEXT_PUBLIC_` so it reaches the browser. A build argument |
+| `SENTRY_AUTH_TOKEN` | build | Source-map upload at build time only (not done by the image builds yet) |
 | `SENTRY_ORG` | build | Sentry org slug |
 | `SENTRY_PROJECT` | build | Sentry project slug |
-| `NEXT_PUBLIC_APP_URL` | prod | The site's public origin: `metadataBase`, canonical links, `robots.txt`, the sitemap and `og:url` (`packages/shared/src/config/site.ts`). Fixed at build |
-| `NEXT_PUBLIC_SITE_NOINDEX` | staging | `1` builds a copy search engines must not index: `robots.txt` disallows everything, every response says `X-Robots-Tag: noindex`. Unset for the public site. Fixed at build (gotcha 3.26) |
-| `TRUSTED_PROXY_HOPS` | prod | Proxies in front of the app that append to `X-Forwarded-For`: `2` on AWS (CloudFront, then the ALB), `0` locally. The client IP for rate limits and the audit log is the entry this many from the right (R1-05) |
+| `NEXT_PUBLIC_APP_URL` | build | The site's public origin, `https://timesprime247.com`: `metadataBase`, canonical links, `robots.txt`, the sitemap and `og:url` (`packages/shared/src/config/site.ts`). Fixed at build |
+| `NEXT_PUBLIC_SITE_NOINDEX` | build | `1` builds a copy search engines must not index: `robots.txt` disallows everything, every response says `X-Robots-Tag: noindex`. Unset for the public site. Fixed at build (gotcha 3.26) |
+| `NEXT_PUBLIC_AI_CHAT_ENABLED` | build | `1` turns the readers' AI chat on (B-06). Unset, it is off: no chat button, no ask panel, and `/api/chat` answers 404. Fixed at build |
+| `TRUSTED_PROXY_HOPS` | web, admin | Proxies that append to `X-Forwarded-For`: `2` for the reader site (CloudFront, then Nginx), `1` for the back office (Nginx), `0` locally. The client IP for rate limits and the audit log is the entry this many from the right (R1-05). Set by `deploy/compose.yml` |
+| `WORKER_STATE_DIR` | worker | When the news refresh last started, so a timer tick before the interval has passed skips (R12-04). On the server a Docker volume at `/var/lib/timesprime`, set by `deploy/compose.yml` |
 
-**Where each is set on AWS** ([the runbook](#the-aws-resources-in-order)):
-- **Build arguments** (`docker build --build-arg`, so the image is built per environment): every
-  `NEXT_PUBLIC_` variable, which Next inlines at build, and `NEXT_DEPLOYMENT_ID` (the git SHA; Next's
-  `deploymentId`, read from the environment by Next itself, so no code names it). Never a secret:
-  `scripts/container.test.ts` fails a build argument that is not one of these.
-- **Secrets Manager**, injected by the task definition: `SUPABASE_SERVICE_ROLE_KEY`,
-  `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`,
-  `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`. Also the CloudFront origin header's value
-  (runbook step 6), which no app reads.
-- **Task-definition environment** (not secret): `TRUSTED_PROXY_HOPS=2`, `ADMIN_LEGACY_LOGIN`.
+### Where each is set on the server
+
+- **Build arguments,** on the laptop, from `deploy/env/.env.build` (git-ignored; template
+  `deploy/env/build.env.example`): every `NEXT_PUBLIC_` variable, which Next inlines at build, and
+  `NEXT_DEPLOYMENT_ID` (the git SHA, set by `build-and-push.sh`; Next's `deploymentId`). Never a
+  secret: `scripts/container.test.ts` fails a build argument that is not one of these.
+- **One env file per service**, on the server in `/opt/timesprime/env/`, mode 600, filled in by
+  hand from the templates in `deploy/env/` (names only). Each container gets only its own:
+
+  | File | For | Variables |
+  |---|---|---|
+  | `.env.shared` | web, admin, worker | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the worker is not a Next build, so it reads them at run time), `UPSTASH_REDIS_REST_TOKEN`, `NEXT_PUBLIC_SENTRY_DSN` |
+  | `.env.web` | web | `SUPABASE_SERVICE_ROLE_KEY`, only until R12-03's gate; then the line is deleted |
+  | `.env.admin` | admin | `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `ADMIN_LEGACY_LOGIN`, `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY` |
+  | `.env.worker` | worker | `SUPABASE_SERVICE_ROLE_KEY`, `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY` |
+  | `.env.redis` | redis, redis-rest | `REDIS_PASSWORD`, `SRH_TOKEN`, `SRH_CONNECTION_STRING` (`redis://:<REDIS_PASSWORD>@redis:6379`) |
+  | `.env.edge` | nginx | `READER_ORIGIN_HOST`, `ADMIN_HOST`, `ORIGIN_SECRET` (also CloudFront's custom origin header) |
+  | `.env.backup` | the weekly backup only | `SUPABASE_DB_URL` (Supabase's Session pooler connection string) |
+
+- **Set by `deploy/compose.yml`** (not secret): `TRUSTED_PROXY_HOPS`, `UPSTASH_REDIS_REST_URL`,
+  `WORKER_STATE_DIR`.
 - **Not needed:** `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`. The app has no Server Function, so nothing
-  is encrypted across instances. Set it, the same on every instance, the day one is added
-  (bundled docs: guides/self-hosting.md "Server Functions encryption key").
+  is encrypted across instances. Set it the day one is added (bundled docs: guides/self-hosting.md
+  "Server Functions encryption key").
 
 Gone since the apps/packages split: `CRON_SECRET` (the refresh is the worker's `refresh-news` job,
-started by the scheduler, not an HTTP route) and `NEXT_PUBLIC_BASE_URL` (the article page no longer
-fetches its own API, BL-016). `ADMIN_SECRET_TOKEN` and `MEDIASTACK_API_KEY` appear in some older env
-files and are **read by nothing**; `NEXT_PUBLIC_NEWSDATA_API_KEY` is no longer read either
+started by the server's timer, not an HTTP route) and `NEXT_PUBLIC_BASE_URL` (the article page no
+longer fetches its own API, BL-016). `ADMIN_SECRET_TOKEN` and `MEDIASTACK_API_KEY` appear in some
+older env files and are **read by nothing**; `NEXT_PUBLIC_NEWSDATA_API_KEY` is no longer read either
 (`45223f0`) and must never be set. The code also reads `NODE_ENV`, `CI` and `NEXT_RUNTIME`, which
 the platform sets.
 
-Generate the two admin secrets with:
+Generate the two admin secrets with the first command, and `REDIS_PASSWORD`, `SRH_TOKEN` and
+`ORIGIN_SECRET` (each its own value) with the second:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
+openssl rand -hex 32
 ```
 
 ## Deployment
 
-**A deployment now** (owner, 2026-11-02): the owner's senior asked for one, and it is built as the
-release (phases R0–R4). **Hosting is AWS**, region `ap-south-1` (owner, 4 Nov 2026, replacing R0's
-Vercel Pro `bom1`): ECS Fargate (Arm) behind CloudFront's flat-rate plan, the refresh on EventBridge
-Scheduler, logs in Mumbai for 365 days ([`RESEARCH.md`](RESEARCH.md) §3). **R1** (branch
-`chore/r1-aws`) built what the code needs; the AWS resources are made by hand from the runbook
-below (owner decision, 4 Nov 2026: a console or CLI runbook, no infrastructure-as-code tool for the
-release). The plan's Phase I ([`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md)) covers the full launch.
+**The release runs on one server** (the owner's senior, 16 Nov 2026, replacing the 4 Nov ECS plan):
+an EC2 t3.medium (x86_64, Ubuntu 24.04 LTS) in `ap-south-1` (Mumbai), running Docker Compose.
+- **Who reaches what:** the reader site sits behind CloudFront; the back office is reached directly.
+- **Images:** built on a laptop and pushed to ECR. The server only pulls; it never builds.
+- **Deploys:** manual, each approved by Adarsh, with a one-command rollback.
+- **Not used:** ECS, ALB, EventBridge, NAT.
+- **The kit is `deploy/`:** compose file, Nginx, the refresh timer, scripts and env templates
+  ([where new code goes](README.md#where-new-code-goes)). `scripts/deploy.test.ts` checks it.
 
-| Unit | Image (`Dockerfile` target) | Runs as | Port | Health check |
+The plan's Phase I ([`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md)) adds what the full launch needs
+(infrastructure as code, staging).
+
+```
+readers  -> timesprime247.com (CloudFront Pro, WAF) -> origin.timesprime247.com:8443 -> Nginx -> web
+the team -> admin.timesprime247.com (Elastic IP)    -> :443                          -> Nginx -> admin
+timer, every 15 min -> worker refresh-news -> NewsData -> Supabase
+web, admin -> Redis (internal network, through its REST proxy);  web, admin, worker -> Supabase
+```
+
+| Service | Image | Port | Reached by | Health |
 |---|---|---|---|---|
-| Reader site | `web` | ECS service, 2+ tasks across 2 availability zones | 3000 | `GET /about` (liveness) |
-| Back office | `admin` | ECS service, 1–2 tasks | 3001 | `GET /admin/login` (liveness) |
-| Worker | `worker` | ECS task, started by EventBridge Scheduler | — | the task's exit code |
+| `web` | `timesprime-web:<tag>` | 3000, internal | Nginx on 8443, which only CloudFront reaches | Docker `HEALTHCHECK`, `GET /about` |
+| `admin` | `timesprime-admin:<tag>` | 3001, internal | Nginx on 443, which only the team's IPs reach | `GET /admin/login` |
+| `worker` | `timesprime-worker:<tag>` | — | the systemd timer, every 15 minutes | its exit code (journal, log group) |
+| `nginx` | `nginx:1.27.3-alpine` | 443 and 8443, the only published ports | the security groups | — |
+| `redis`, `redis-rest` | `redis:7.4.1-alpine`, `hiett/serverless-redis-http:0.0.10` | internal network only | web and admin | — |
 
-Both health checks are prerendered pages whose rendering calls no upstream (measured at STOP R1):
-- `/about`'s server code holds no Supabase, NewsData, Upstash or Anthropic client;
+**The two health checks** are prerendered pages whose rendering calls no upstream (measured at
+STOP R1):
+- `/about`'s server code holds no Supabase, NewsData, Redis or Anthropic client;
 - it answers 200 from a container with no network at all;
 - its client components fetch only in effects, in the browser.
 
-Served through the reader site's shared cache handler (R1-02), each `/about` request still reads
-Redis twice (GET and HMGET, measured). With Redis unreachable it answers 200 in about 2 seconds,
-inside the checks' 5-second timeout (BL-040). `/admin/login` uses Next's default cache and reads
+Each `/about` request still reads Redis twice through the shared cache handler. If Redis fails, the
+handler skips it for 10 seconds after the one failed call (E-07, BL-040). `/admin/login` reads
 nothing.
 
-`/api/health` is not a health check here: it answers 503 whenever a dependency is down, and an
-ALB health check on it would have ECS replace every reader task during a Supabase outage. It is
-for the uptime monitor (step 10).
+**`/api/health`** is for the uptime monitor. It answers 503 when Supabase is down or a configured
+Redis fails. The NewsData and Anthropic keys are optional: the reader site holds neither.
 
-### Building the images
+**What Nginx enforces** (`deploy/nginx/templates`):
+- **Reader origin (8443):** refuses any request without CloudFront's secret `X-Origin-Verify`
+  header, and strips it before the app.
+- **Back office (443):** clears `X-Amz-Cf-Id`, which a client could forge there, since no
+  CloudFront is in front.
+- **Both:** set `X-Request-Id`, which the audit log records (E-03).
+- **Any other name:** refused at the TLS handshake.
 
-One `Dockerfile`, three targets, over one `npm ci`. For Fargate Arm:
+### Every deploy
+
+Adarsh approves each deploy. On the laptop, from `main` as merged:
 
 ```bash
-docker buildx build --platform linux/arm64 --target web \
-  --build-arg NEXT_DEPLOYMENT_ID="$(git rev-parse --short HEAD)" \
-  --build-arg NEXT_PUBLIC_APP_URL=https://<domain> \
-  --build-arg NEXT_PUBLIC_SUPABASE_URL=<url> \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key> \
-  --build-arg NEXT_PUBLIC_SENTRY_DSN=<dsn> \
-  -t <account>.dkr.ecr.ap-south-1.amazonaws.com/timesprime-web:<sha> .
+git switch main && git pull --ff-only
+deploy/scripts/build-and-push.sh --no-push   # builds the three images (linux/amd64), prints the tag
+deploy/scripts/run-local.sh <tag>            # the same images: http://localhost:3200 and :3201/admin
 ```
 
-The `admin` target takes the same arguments; the `worker` target takes none. The `NEXT_PUBLIC_`
-values are inlined at build, so each environment has its own image; staging adds
-`NEXT_PUBLIC_SITE_NOINDEX=1` and its own `NEXT_PUBLIC_APP_URL`. Never pass a secret as a build
-argument (`scripts/container.test.ts`). `.dockerignore` keeps every env file out of the build
-context. Under emulation on an x86 machine an Arm build of `web` took 13 minutes (R1-01); a native
-Arm builder is faster.
+1. **Check the local run.** Look at the reader and the back office in a browser, then stop them:
+   `deploy/scripts/run-local.sh <tag> down`. This replaces a staging server (owner's senior).
+   The laptop needs these files, made from the templates in `deploy/env` and git-ignored:
+   `deploy/env/.env.build`, plus `.env.shared`, `.env.web`, `.env.admin` and `.env.redis`.
+2. **Push the same tag:** `deploy/scripts/build-and-push.sh`. It needs `aws sso login` with push
+   rights on the three ECR repositories; Docker's build cache makes this second build quick.
+3. **Deploy on the server.** Open EC2 → the instance → Connect → Session Manager, and run
+   `sudo bash /opt/timesprime/current/scripts/deploy.sh <tag>`.
+   - It takes the tag's kit from the worker image, records the previous tag, installs the timer,
+     pulls, starts, and waits up to three minutes for web and admin to report healthy.
+4. **Clear CloudFront's copy of the pages:**
+   `aws cloudfront create-invalidation --distribution-id <id> --paths "/*"`.
+   - Static pages (`/about`, `/privacy`, `/terms`, `/contact`, `/saved`) are sent with
+     `s-maxage=31536000`, so CloudFront keeps them for a year.
+   - The home and article pages are `no-store`.
+   - `/_next/static` files have hashed names and are immutable.
+   - One `/*` path counts once against the monthly allowance.
+5. **Run the [smoke test](#smoke-test).**
+6. **If anything is wrong,** roll back: `sudo bash /opt/timesprime/current/scripts/rollback.sh`.
+   - It deploys the previous tag with that tag's own kit. Run it again to come back.
+   - Then invalidate CloudFront again, as in step 4.
 
 ### The AWS resources, in order
 
-1. **Upstash.** Put the Redis database in AWS `ap-south-1` (Mumbai): the shared Next cache
-   (`apps/web/cache-handler.mjs`) and every rate limit read it on each request. Check the region
-   in the Upstash console.
-2. **Secrets Manager** (`ap-south-1`): one secret per value in the
-   [list above](#environment-variables), and the CloudFront origin header's value (step 6). Values
-   live there only: never in code, docs, tickets, tests or logs.
-3. **ECR:** three repositories; push the three images.
-4. **ECS** (Fargate, `ARM64`), one task definition per unit:
-   - **all three:** the secrets each reads; logs with the `awslogs` driver to
-     `/timesprime/web`, `/timesprime/admin` and `/timesprime/worker`;
-   - **web and admin:** `TRUSTED_PROXY_HOPS=2` (back office also `ADMIN_LEGACY_LOGIN`);
-     `stopTimeout` 30 s (Next closes the listener and finishes in-flight requests on SIGTERM); the
-     container health check repeated from the `Dockerfile`'s `HEALTHCHECK`, which ECS ignores;
-   - **web:** at least two tasks across two availability zones, autoscaling on CPU and request
-     count.
-   - **worker:** the image's default command, `refresh-news`.
-5. **ALB** (target type `ip`). Target groups:
-   - web on port 3000, health path `/about`;
-   - admin on port 3001, health path `/admin/login`.
+For the manager, in the AWS console, region **Asia Pacific (Mumbai) ap-south-1**. The only
+exception is the step 13 certificate, which must be in **us-east-1**. Each step says what to choose.
 
-   Listener rules send `/admin*`, `/api/admin/*` and `/admin-assets/*` to admin, and everything
-   else to web.
-6. **The ALB accepts traffic only from CloudFront** (approved R1-05). Otherwise anyone can reach the
-   ALB directly and write their own `X-Forwarded-For`, and the client IP that rate limits and the
-   audit log trust is forged. Either:
-   - **(preferred)** a CloudFront VPC origin, with the ALB internal; or
-   - a public ALB whose security group allows inbound only from the managed prefix list
-     `com.amazonaws.global.cloudfront.origin-facing`, **and** whose listener answers a fixed 403
-     unless the request carries the secret origin header that CloudFront adds (a custom origin
-     header).
+**Account and access**
+1. **IAM Identity Center:** a user for each of the one or two team members, with MFA. No shared
+   logins, and the root user is not used.
+   - **Deployer:** `AmazonEC2ContainerRegistryPowerUser` on the three repositories, and
+     `cloudfront:CreateInvalidation` on the distribution.
+   - **Manager:** what the steps below need.
+2. **Billing → Budgets:** a monthly cost budget of **$50**, alerting `adarsh@timesprime247.com` at
+   80% and 100%.
 
-   The header's value lives only in Secrets Manager. To rotate it, add the new value to the
-   listener rule, then to CloudFront, then remove the old one.
-7. **CloudFront:** one distribution (one flat-rate plan covers one distribution), flat-rate
-   **Business** to start ($200/month; RESEARCH.md §3), its ACM certificate in `us-east-1`, and the
-   plan's WAF. Behaviours, in this order:
+**Storage and logs**
 
-   | Path | Origin | Cache |
-   |---|---|---|
-   | `/admin-assets/*` | admin | one year (hashed, immutable files) |
-   | `/admin*`, `/api/admin/*` | admin | none; all headers, cookies and query strings forwarded; stricter WAF rules |
-   | `/_next/static/*` | web | one year |
-   | `/api/*` | web | none; query strings forwarded |
-   | default (`*`) | web | the origin's `Cache-Control`; query strings forwarded (the feed's `?category=`) |
+3. **S3:** two buckets in ap-south-1, both with Block Public Access on and default encryption on.
+   - `timesprime-logs-<suffix>`: CloudFront's logs. Lifecycle rule: expire objects after
+     **365 days**.
+   - `timesprime-backups-<suffix>`: the weekly Supabase backup, under `supabase/`. Lifecycle rule:
+     expire after **90 days**.
+4. **CloudWatch → Log groups:** create `/timesprime/web`, `/timesprime/admin`,
+   `/timesprime/worker`, `/timesprime/nginx` and `/timesprime/redis`, each with retention
+   **365 days**. Docker writes to them; it does not create them.
+5. **ECR:** three private repositories, `timesprime-web`, `timesprime-admin` and
+   `timesprime-worker`.
+   - Scan on push: on.
+   - Lifecycle rule: keep the last **10** images.
+   - Note the registry, `<account-id>.dkr.ecr.ap-south-1.amazonaws.com`.
 
-   Keep `X-Forwarded-For` in the origin request: CloudFront appends the viewer's address, and
-   `TRUSTED_PROXY_HOPS=2` counts CloudFront and the ALB. Streamed responses pass through
-   CloudFront and an ALB with ECS targets (bundled docs: guides/self-hosting.md "Streaming and
-   Suspense").
-8. **EventBridge Scheduler** for the refresh:
-   - **schedule:** `rate(30 minutes)`, the one value `NEWS_REFRESH_SCHEDULE` in
-     `packages/shared/src/config/newsRefresh.ts` (change both together; `refreshNews.test.ts`
-     pins 7 NewsData calls a run, 336 a day);
-   - **target:** ECS RunTask of the worker task definition, with a retry policy (2 retries) and an
-     SQS dead-letter queue;
-   - **alarms (CloudWatch):** a worker task that stops with a non-zero exit code (the job exits 1
-     when any category fails), and no run in two intervals.
-9. **Logs, in `ap-south-1`, for 365 days** (CERT-In: 180 days within India; DPDP: one year;
-   RESEARCH.md §3):
-   - the three CloudWatch log groups, with 365-day retention;
-   - CloudFront standard logs, WAF logs and ALB access logs to one S3 bucket in `ap-south-1`, with
-     a lifecycle rule that deletes after 365 days;
-   - a CloudTrail trail to the same bucket;
-   - a Supabase log drain to it (a Supabase Pro add-on).
+**The server's role**
 
-   Sentry keeps only a scrubbed copy, outside India (`sendDefaultPii: false`, `scrubSentryEvent`).
-   It is never the record.
-10. **Health and alarms:**
-    - a Route 53 health check on `https://<domain>/api/health` (200 ok, 503 degraded);
-    - an external uptime monitor that checks from India;
-    - CloudWatch alarms on the ALB's 5xx rate and response time, and on CloudFront's 5xx rate and
-      cache-hit ratio;
-    - an AWS Budgets alarm on the monthly spend.
-11. **DNS:** a Route 53 alias record for the domain to the distribution.
-12. **Set an Anthropic spend limit** (owner, STOP R1): a monthly limit on the Anthropic account,
-    in its console. It is the last guard behind the app's caps
-    (`packages/shared/src/config/aiLimits.ts`): chat answers at most 500 questions a day across all
-    readers (`CHAT_LIMITS.globalPerDay`), each at most 1,024 output tokens (`max_tokens` in
-    `apps/web/src/app/api/chat/route.ts`). The worker's category classification also uses the
-    account, and is not capped by these, so leave room for it.
+6. **IAM → Roles → Create role** for EC2, named `timesprime-ec2`, with:
+   - the managed policies `AmazonSSMManagedInstanceCore` and
+     `AmazonEC2ContainerRegistryReadOnly`;
+   - an inline policy allowing `logs:CreateLogStream` and `logs:PutLogEvents` on the five log
+     groups;
+   - `s3:PutObject` on `timesprime-backups-<suffix>/supabase/*`;
+   - `route53:ListHostedZones` and `route53:GetChange`, plus `route53:ChangeResourceRecordSets` on
+     the `timesprime247.com` hosted zone only. Let's Encrypt's DNS check needs these.
 
-### Staging (needs owner confirmation)
+**DNS: only the DNS moves; the domain stays registered at GoDaddy**
 
-Built only if the owner approves (`NEWSROOM_PLAN.md`, row 10). The same runbook, with:
-- its own images: `NEXT_PUBLIC_SITE_NOINDEX=1` and its own `NEXT_PUBLIC_APP_URL`;
-- a WAF IP allowlist on its distribution.
+7. **Route 53 → Hosted zones → Create** `timesprime247.com`.
+   - **First copy every record from GoDaddy's DNS:** MX, TXT (SPF, DKIM, DMARC, site
+     verifications), CNAMEs and CAA. If there is a CAA record, add `letsencrypt.org` and
+     `amazon.com` to it.
+   - **Check that every subdomain in use answers on HTTPS.** The site sends HSTS with
+     `includeSubDomains`, and browsers will then refuse plain HTTP on all of them.
+   - **A day before:** lower the TTLs at GoDaddy to 300 seconds.
+   - **Then:** set GoDaddy's nameservers to the four Route 53 servers.
+   - **After the switch:** check that email still arrives.
 
-There is one database, the real one, so staging writes what production writes:
-- **No scheduler:** the refresh would double the NewsData spend.
-- **No admin changes made from staging.**
+**The server**
 
-### Values the release still needs
+8. **EC2 → Launch instance:**
+   - `timesprime-1`, Ubuntu Server 24.04 LTS (x86_64), **t3.medium**;
+   - **no key pair** (Session Manager only);
+   - the default VPC, a public subnet, "auto-assign public IP" off;
+   - storage **30 GB gp3**, encrypted;
+   - Advanced details: IAM instance profile `timesprime-ec2`, metadata version **IMDSv2 only**,
+     termination protection on.
 
-The four owner values were set aside for now on 4 Nov 2026 (the owner's senior):
-- **The Supabase project's region:** if it is not `ap-south-1`, note the latency in the go-live
-  checks.
-- **The NewsData plan and its daily limit:** the scheduled job spends 336 calls a day at 30
-  minutes. The reader paths that still call NewsData (the home page's server render, and the feed
-  when the database is older than the window) come on top. Keep the total under 70% of the limit
-  (owner decision 7 of R0 v2), or raise the interval.
-- **The brand colour** (R2) and **the grievance officer's details** (R3).
+   Then **Elastic IPs → Allocate**, and associate it with the instance.
+9. **Security groups,** attached to the instance. There is no port 22 anywhere; outbound stays open.
+   - `timesprime-admin`: inbound TCP 443 from the team's IPs only. The senior sets the IPs himself.
+   - `timesprime-origin`: inbound TCP 8443 from the managed prefix list
+     `com.amazonaws.global.cloudfront.origin-facing`. Keep it in its own group: the prefix list
+     uses most of a group's rule quota.
+10. **Route 53 records:**
+    - `admin.timesprime247.com`, an A record to the Elastic IP;
+    - `origin.timesprime247.com`, an A record to the Elastic IP (only CloudFront uses it).
+11. **EC2 → Lifecycle Manager:** a policy for EBS snapshots of the instance's volume, **daily**,
+    keeping **7**.
+12. **CloudWatch → Alarms** on the instance's `StatusCheckFailed_System`, with the action
+    **Recover**, notifying an SNS topic. The topic has an email subscription to
+    `adarsh@timesprime247.com`, confirmed from that inbox.
+13. **ACM, in us-east-1 (N. Virginia):** request a public certificate for `timesprime247.com` and
+    `www.timesprime247.com`, with DNS validation → "Create records in Route 53".
 
-### On the day
+Then set up the server ([below](#the-servers-first-setup)) and deploy the first tag, so the origin
+answers before CloudFront points at it.
 
-The lists below must hold on the day the apps first serve the public. Until then every check is
-made locally ([environment](#2-environment-and-commands)).
+**CloudFront and the public names**
 
-**AWS.**
-- **Region:** `ap-south-1` (Mumbai), for the apps and their logs (step 9).
-- **Runtime:** Node 24 (F-026), in the images. The proxy runs on Next's Node runtime. Audit rows take
-  their `request_id` from CloudFront's `X-Amz-Cf-Id`, else the ALB's `X-Amzn-Trace-Id`, else a
-  random UUID (R1-05), so a row can be found in the CloudFront and ALB logs.
-- **Configuration:** every variable in `.env.example`, set as the
-  [list above](#environment-variables) says, never in the repository.
-- **Spend limits:** a monthly spend limit on the Anthropic account; the NewsData plan checked
-  against the calls above; the CloudFront plan's request allowance.
+14. **CloudFront → Create distribution,** on the **Pro** flat-rate plan ($15/month).
+    - **Origin:** `origin.timesprime247.com`, protocol HTTPS only, HTTPS port **8443**, minimum
+      TLS 1.2.
+    - **Custom header on the origin:** `X-Origin-Verify` = the `ORIGIN_SECRET` from the server's
+      `.env.edge`.
+    - **Alternate names:** `timesprime247.com` and `www.timesprime247.com`, with the step 13
+      certificate.
+    - **Viewers:** redirect HTTP to HTTPS, compression on.
+    - **Behaviours, in this order:**
 
-**Panel 0** ([the staff-access runbook](#staff-access-switching-on-panel-0-and-getting-back-in)). It is rehearsed first on the local
-database, then done once more against the production database at deployment, in this order:
-1. Supabase dashboard: sign-ups off, TOTP on. Apply `2026-11-02-access-1-foundation.sql`, then
-   `2026-11-02-access-2-catalog.sql`, and run their checks.
-2. Run the merged code. The shared password still works, and an admin change writes `audit_log`
-   rows.
-3. Invite two Super Admins, and run `database/bootstrap/super-admin.sql` for each, with its four
-   checks.
-4. Each signs in with email, password and a second factor; check the audit rows.
-5. Apply `2026-11-02-access-3-freeze-admin-logs.sql`.
-6. Only after Panel 1: consider `ADMIN_LEGACY_LOGIN=off`. The code ends the shared password on
-   1 January 2027 regardless.
+      | Path | Cache policy | Origin request policy |
+      |---|---|---|
+      | `/_next/static/*` | CachingOptimized | none |
+      | `/api/*` | CachingDisabled | AllViewerExceptHostHeader |
+      | default (`*`) | UseOriginCacheControlHeaders-QueryStrings | AllViewerExceptHostHeader |
 
-**The production database** ([the database runbook](#applying-the-database-files)), from the audit:
-1. Confirm `SUPABASE_SERVICE_ROLE_KEY` is set in the environment (present, not copied). Without it the
-   app falls back to the anon key and RLS refuses every write (BL-025).
-2. Take the step 0 snapshot and confirm `service_role` has `rolbypassrls`.
-3. Apply `database/schema.sql`, then `database/policies.sql`, then
-   `database/migrations/2026-11-02-indexes.sql`. Verify each as the runbook shows. Each has a
-   rollback. This closes F-008 and F-018 (the F-005 and scraper lookups use the link index).
-4. Before any `NOT NULL` migration, count the nulls in live data (BL-024).
-5. Re-run the F-006 injection probe, and an RLS check, against the live database.
+    - **CloudFront Function** `www-to-apex`, on viewer request for every behaviour:
 
-**Environment:**
-- The root `.env` holds the real database (§2). The app uses it; nothing else writes to it.
-- On AWS: Node 24 (F-026), `NEXT_PUBLIC_SENTRY_DSN`, the Upstash variables, and the worker's
-  scheduler. No production cron entry has ever been seen in the database.
-- Owner's `.env`: `ADMIN_SECRET_TOKEN` and `MEDIASTACK_API_KEY` can go; nothing reads them.
-  Never set `NEXT_PUBLIC_NEWSDATA_API_KEY`.
+      ```js
+      function handler(event) {
+        var host = event.request.headers.host.value;
+        if (host.indexOf('www.') === 0) {
+          return { statusCode: 301, statusDescription: 'Moved Permanently',
+            headers: { location: { value: 'https://' + host.slice(4) + event.request.uri } } };
+        }
+        return event.request;
+      }
+      ```
 
-**Smoke test at deployment:**
-- **First, the NewsData key in its header** (R1-02b; a session cannot try it with the real key):
-  `curl -s -o /dev/null -w "%{http_code}" -H "X-ACCESS-KEY: $NEWSDATA_API_KEY" "https://newsdata.io/api/1/latest?language=en"`
-  from a shell that holds the key answers 200. If it answers 401 or 403, every NewsData call fails:
-  the worker exits 1, which raises its alarm, and the feed falls back to mock articles.
-- `/api/health` answers 200, and Sentry receives a Supabase fallback event (F-002).
-- `X-Data-Source` shows `supabase` or `cache` for readers (NFR-01).
-- The scheduler starts the worker's refresh, and its `audit_log` row (`system:cron`, `cron.refresh_news`) carries
-  the purge count (F-015).
-- The Redis limiter: the 11th login attempt in 15 minutes and the 31st uncached scrape in a minute
-  answer 429 across instances (F-004, F-011). Repeat the login case with a different forged
-  `X-Forwarded-For` on every attempt: it must still answer 429 (R1-05). The 11th chat or translate
-  request in a minute answers 429 too, whichever task serves it. The daily caps (per IP, and for all
-  readers together: chat 500, translate 1,000) are in `aiLimits.ts`. They are tested, not tried live.
-- An admin action's `audit_log` row carries an `X-Amz-Cf-Id` that the CloudFront log has (R1-05).
-- Every response has the six security headers, and the browser console shows no
+    - **Standard logging (v2)** to `timesprime-logs-<suffix>`.
+
+    The plan's WAF stays on with its defaults. CloudFront appends the viewer's address to
+    `X-Forwarded-For`; Nginx and the app count it (`TRUSTED_PROXY_HOPS=2`).
+15. **Route 53:** for `timesprime247.com` and `www.timesprime247.com`, A and AAAA alias records to
+    the distribution.
+
+**The services**
+
+16. **Supabase → Authentication → URL configuration:** Site URL
+    `https://admin.timesprime247.com`.
+    - Note the Postgres major version (Database → Settings) for the backup.
+    - Note the **Session pooler** connection string (IPv4) for `.env.backup`.
+17. **Sentry:** an organisation in the **EU (Frankfurt)** region, with two projects, `web` and
+    `admin`. The browser DSN goes into `.env.build`.
+18. **UptimeRobot:** a monitor on `https://timesprime247.com/api/health`, alerting on any status
+    other than 200, by email to `adarsh@timesprime247.com`.
+19. **Anthropic console:** a monthly spend limit. The chat is off; the worker's category
+    classification still uses the account.
+
+### The server's first setup
+
+In a Session Manager shell, as root (`sudo -i`). Values written as `<...>` are filled in by hand,
+never pasted into a ticket or a chat.
+
+```bash
+# 2 GB of swap
+fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+# Docker Engine and the Compose plugin, from Docker's repository
+apt-get update && apt-get install -y ca-certificates curl
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# The AWS CLI, and certbot with its Route 53 plugin
+snap install aws-cli --classic
+apt-get install -y certbot python3-certbot-dns-route53
+
+# The two certificates Nginx needs (port 80 stays closed: the check is a DNS record)
+certbot certonly --dns-route53 --non-interactive --agree-tos -m adarsh@timesprime247.com -d admin.timesprime247.com
+certbot certonly --dns-route53 --non-interactive --agree-tos -m adarsh@timesprime247.com -d origin.timesprime247.com
+cat > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh <<'EOF'
+#!/bin/sh
+cd /opt/timesprime/current && docker compose --env-file /opt/timesprime/release.env --profile edge exec -T nginx nginx -s reload
+EOF
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+
+# The folders, the registry, and the env files (from deploy/env/*.env.example, mode 600)
+mkdir -p /opt/timesprime/env && chmod 700 /opt/timesprime/env
+echo 'ECR_REGISTRY=<account-id>.dkr.ecr.ap-south-1.amazonaws.com' > /opt/timesprime/server.conf
+nano /opt/timesprime/env/.env.shared   # and .env.web, .env.admin, .env.worker, .env.redis, .env.edge, .env.backup
+chmod 600 /opt/timesprime/env/.env.*
+
+# The first deploy: deploy.sh comes from the tag's own image
+. /opt/timesprime/server.conf
+aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+docker run --rm --entrypoint cat "$ECR_REGISTRY/timesprime-worker:<tag>" /deploy/scripts/deploy.sh > /tmp/deploy.sh
+bash /tmp/deploy.sh <tag>
+```
+
+From then on every deploy is `sudo bash /opt/timesprime/current/scripts/deploy.sh <tag>`. Check
+the timer with `systemctl list-timers timesprime-refresh.timer`, and a run with
+`journalctl -u timesprime-refresh.service -n 20`.
+
+### Weekly: the Supabase backup
+
+Until Supabase is on Pro (with its own daily backups), a copy each week, by hand, from the server.
+Use a Postgres image whose major version is at least Supabase's (step 16):
+
+```bash
+sudo -i
+set -a; . /opt/timesprime/env/.env.backup; set +a
+docker run --rm -e SUPABASE_DB_URL postgres:17-alpine sh -c 'pg_dump "$SUPABASE_DB_URL" --format=custom' \
+  | aws s3 cp - "s3://timesprime-backups-<suffix>/supabase/$(date +%F).dump"
+aws s3 ls "s3://timesprime-backups-<suffix>/supabase/" --human-readable | tail -3
+```
+
+A file of a few kilobytes means the dump failed: read the command's output. The bucket keeps 90
+days.
+
+### The news refresh: interval, calls and the admin setting
+
+- **Today: English and Hindi every 60 minutes.** 7 categories each, so 14 NewsData calls a run and
+  **336 a day**. That is 50% of the NewsData Basic plan (20,000 calls a month, about 666 a day).
+  - The ceiling is **70%** (owner decision 7 of R0 v2).
+  - The value is `NEWS_REFRESH_INTERVAL_MINUTES` in
+    `packages/shared/src/config/newsRefresh.ts`; `refreshNews.test.ts` pins the arithmetic.
+- **The timer** fires every 15 minutes. The job runs only when the interval (less 2 minutes' grace)
+  has passed since the last run started, and otherwise logs a skip.
+- **Every 15 minutes needs option (c) first** (R12-05, not built yet): several categories per
+  call, 4 calls a run, about 384 a day (58%). It switches on only after the Basic plan is bought
+  and a dry run shows articles per category close to today's.
+- **The admin setting (design, not built; owner's senior, 16 Nov 2026).** A screen in the back
+  office's Sync panel to change the interval without a deploy:
+  - **Storage:** one row in a new table `news_refresh_settings` (`interval_minutes`, 15 to 1,440, a
+    multiple of 15; `updated_at`; `updated_by`), from a migration the owner applies (`[SCHEMA]`),
+    with RLS on and nothing granted to `anon` or `authenticated`.
+  - **Permission:** the existing `settings.manage`, so no catalogue change. Super Admin and
+    Security Lead may change it; Managing Editor and Ingestion Ops may read it. Changes need MFA
+    and are written to the audit log, before and after.
+  - **The server refuses an interval above 70%.** It works out calls a day = (1,440 ÷ interval) ×
+    calls a run, against the plan's daily limit (`NEWSDATA_PLAN_DAILY_CALLS`, one config value).
+    The screen shows calls a day and the share of the plan for each choice, and disables the ones
+    above 70%.
+  - **The worker reads the row on every tick,** so no restart is needed. If the table is missing,
+    it uses the default.
+  - **It works only after the Panel 0 SQL is applied and a Super Admin exists.** The shared
+    password can never hold `settings.manage`. **Until then, the interval changes only by changing
+    `NEWS_REFRESH_INTERVAL_MINUTES` and deploying.**
+
+### Go-live gates
+
+The site is public only when **all** of these hold:
+1. **Supabase is on Pro:** the same project, no data migration; daily backups and no pausing.
+2. **Panel 0's SQL is applied** ([the staff-access runbook](#staff-access-switching-on-panel-0-and-getting-back-in),
+   Part B) and two Super Admins exist. Without it, every admin change in production answers 503.
+3. **`database/policies.sql` is applied and checked** (F-008,
+   [the database runbook](#applying-the-database-files)). Then the `SUPABASE_SERVICE_ROLE_KEY` line
+   leaves `.env.web` (R12-03).
+4. **Phase B is in the deployed tag** (`fix/aggregator-off`, merged 16 Nov 2026):
+   - no scraped full text, no Google Translate, no stock or publisher photos, no mock articles;
+   - outside-story pages carry noindex;
+   - the AI chat is off.
+5. **The NewsData Basic plan is bought.** If the refresh moves to option (c), the R12-05 dry run
+   has been done first.
+6. **The grievance and contact pages show the real officer and address** (R3): Adarsh Pandey,
+   `adarsh@timesprime247.com`, 704A-704B, Iris Tech Park, Sector 48, Gurgaon 122018. He is also
+   the CERT-In contact. No phone number in the repository.
+7. **The smoke test passes,** and the alarms, the budget, UptimeRobot and the snapshots are in
+   place.
+
+### Smoke test
+
+After every deploy, from a browser and a shell:
+- **NewsData accepts the key in its header** (R1-02b). From the server, in a shell that holds the
+  key, this answers 200:
+  `curl -s -o /dev/null -w "%{http_code}" -H "X-ACCESS-KEY: $NEWSDATA_API_KEY" "https://newsdata.io/api/1/latest?language=en"`.
+  On 401 or 403 every refresh fails, and the worker exits 1.
+- **Health:** `https://timesprime247.com/api/health` answers 200.
+- **The feed:** `X-Data-Source` is `supabase` or `cache` on `/api/news/top-headlines`.
+- **Outside stories:** an article page shows a headline, a summary, the source and "Read the full
+  story at …", with `<meta name="robots" content="noindex, follow">`.
+- **Images:** the page loads none but `/placeholders/*.svg` and the logos.
+- **Removed and switched-off routes:** `/api/chat`, `/api/translate` and
+  `/api/news/scrape-article` answer 404.
+- **The refresh:** `journalctl -u timesprime-refresh.service` shows a run or a skip within 15
+  minutes. A run's `audit_log` row (`system:cron`, `cron.refresh_news`) carries the purge count
+  (F-015).
+- **The origin is locked:** `https://origin.timesprime247.com:8443/` without the header answers 403
+  (from a team IP; anything else does not even connect).
+- **The back office:** `https://admin.timesprime247.com/` redirects to `/admin`. Its files load
+  from `/admin-assets/`, and an admin action's `audit_log` row carries Nginx's `X-Request-Id`.
+- **The login limit:** the 11th attempt in 15 minutes answers 429, even with a different forged
+  `X-Forwarded-For` on every attempt (R1-05).
+- **Security headers:** every response has the six headers, and the browser console shows no
   `Content-Security-Policy-Report-Only` report on `/`, an article page and `/admin/login` (R1-06).
-- The back office's files load from `/admin-assets/` and its favicon shows (R1-04).
-- `https://<domain>/robots.txt` names the sitemap and `/sitemap.xml` lists the domain's pages; an
-  unknown URL answers 404 with the not-found page (R1-07, R1-09).
-- BL-019 (publisher image timeouts) under real traffic.
+- **robots and sitemap:** `https://timesprime247.com/robots.txt` names the sitemap, and
+  `/sitemap.xml` lists the static pages.
 
-**Before production.** A list only; no work is planned on it yet (owner, 2026-11-02):
-- **Environments:** local, then staging on AWS, then production. Nothing skips a stage.
-- **Backup and restore:** a restore actually tested, not just backups switched on.
-- **Load test** of the reader paths and the admin API.
-- **Review:** dependencies (advisories, BL-031) and HTTP headers (CSP, HSTS, frame and referrer
-  policies).
-- **AWS infrastructure as code:** no hand-made production resources.
-- **Alerts:** Sentry, the cron's runs, `/api/health`, the audit chain.
-- **Incident runbook:** including CERT-In's 6-hour report.
-- **Legal pages:** the privacy policy (BL-008), and the grievance officer page (NEWSROOM_PLAN Phase H, IT Rules
-  Level I).
-
-**Not covered by any audit:** accessibility (axe-core), a scraper replay against the 120-URL
-publisher sample, a staging environment, Supabase backup and restore, end-to-end tests, and a bundle
-budget in CI.
-
-**Open with the owner:** the privacy policy (BL-008); BL-031 (accept the moderate advisories or wait);
-Phase F (§6) is optional.
+**Before production** (a list; Phase I plans it):
+- **Staging:** skipped for the release (owner's senior; `run-local.sh` stands in).
+- **A tested restore** of the weekly backup.
+- **A load test** of the reader paths and the admin API.
+- **Reviews:** dependencies (BL-031) and the CSP, which is report-only today.
+- **Infrastructure as code.**
+- **The incident runbook,** with CERT-In's 6-hour report.
+- **The Supabase log drain** (BL-041).
+- **Legal pages:** the privacy policy (BL-008).
 
 ---
 
@@ -898,35 +1041,49 @@ owner's, by hand: [`staff-access.md`](#staff-access-switching-on-panel-0-and-get
 
 ## Current status
 
-> **A deployment now (owner, 2026-11-02):** the owner's senior asked for one. The release (R0–R4)
-> is hosted on AWS `ap-south-1` (owner, 4 Nov 2026, replacing R0's Vercel); panel work is paused
-> until then. **R1 is built** on `chore/r1-aws`, from `main` (`f595ae0`): the code for the
-> containers and AWS, and [the runbook](#deployment) for the resources. The owner decided STOP R1
-> on 5 Nov 2026; R1-12 (reader pages read the database only) is proposed, not built.
+> **The release first (owner, 2026-11-02; hosting decided 4 and 16 Nov 2026).** The owner's senior
+> asked for a deployment. The release runs on **one EC2 server in Mumbai with Docker Compose**
+> ([Deployment](#deployment)); panel work waits for it. Its code is on `main` (16 Nov 2026,
+> PRs #4 to #9), and the runbook below is what remains, for the owner's manager in the AWS console.
 >
 > **The real database (owner decision, 2026-11-02).** The env file (the root `.env`; `.env.local`
 > until 2026-11-04) holds the real database's credentials, and the app uses them. The local database
 > was dropped. **Never read, print or edit an env file.** You never write to the real database yourself: no SQL, no migrations, no
 > bootstrap, no test users, no destructive or tamper tests. The app's normal behaviour (reading news,
-> ingesting articles, caching scraped content) is fine. Browser tests are read-only. A schema change
+> ingesting articles) is fine. Browser tests are read-only. A schema change
 > is an owner action in a runbook. Since `78e58b6` every admin change writes `audit_log` first and
 > refuses with 503 without it, so the admin needs Panel 0's migrations wherever it runs.
 >
 > **Branch rule:** all work happens on a branch (`panel-N-<name>`, `fix/<topic>`, `chore/<topic>`),
-> and only that branch is pushed. Nothing is pushed to `main` directly: a branch is merged into
-> `main`, and `main` pushed, only after the owner approves.
+> and only that branch is pushed. **Nothing is merged into `main` by a session, not even locally:**
+> each branch goes up as a pull request, and the owner's senior merges it.
 
 **For:** a fresh Claude session (or engineer) continuing this work with no prior context.
-**State as of:** 2026-11-04. The branch `chore/integrate` brought three lines of work into `main` in
-one pull request: `main` itself (`release/v1`), Panel 0's second half (`panel-0-access`), and
-`chore/restructure` (the owner-approved plan [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md), its research
-[`RESEARCH.md`](RESEARCH.md), [the access rules](PANEL_DOCS.md#access-rules), and the
-apps/packages split, [ADR 0006](ARCHITECTURE.md#adr-0006--three-apps-over-shared-packages-2026-11-04)). **Panel 0 (Access foundation) is
-complete in code** ([`PANEL_DOCS.md`](PANEL_DOCS.md), §4) and paused for `release/v1`. None of its
-SQL is applied. Its database-level checks (the two-admin trigger, the audit hash chain, the
-bootstrap) are **unverified**: the owner verifies them against the real database with
-[the staff-access runbook](#staff-access-switching-on-panel-0-and-getting-back-in), Part B, when panels resume. Before it, five
-restructures and all five audit phases were done:
+**State as of:** 2026-11-16. On `main` since 16 Nov 2026, each through a PR the senior merged:
+- **R1** (PR #5): containers, the shared Next cache, the NewsData key in a header, security
+  headers, error pages, robots and the sitemap, the client IP and request ID, the AI caps.
+- **Reader bug fixes** (PR #4): the category menu's sub-topic search, the search box.
+- **EC2 basics** (PR #6):
+  - the domain `timesprime247.com`;
+  - proxy hops (reader 2, admin 1) and Nginx's request ID;
+  - host-only staff cookies;
+  - the Redis circuit breaker (BL-040).
+- **R1-12** (PR #7): readers read only the database; the worker fetches English and Hindi every
+  60 minutes on a 15-minute timer; the CI browser test reads a Supabase stand-in.
+- **Phase B** (PR #8): outside news is headline + summary + source + link.
+  - No scraper, no Google Translate, no stock or publisher photos, no mock articles.
+  - Outside-story pages carry noindex.
+  - The AI chat is off behind a flag.
+  - `/api/health` no longer needs the NewsData key.
+- **The deploy kit** (PR #9): `deploy/`, with Compose, Nginx, the refresh timer, and the build,
+  deploy, rollback and local-run scripts.
+
+**Panel 0 (Access foundation) is complete in code** ([`PANEL_DOCS.md`](PANEL_DOCS.md), §4) and
+paused for the release. None of its SQL is applied. Its database-level checks (the two-admin trigger,
+the audit hash chain, the bootstrap) are **unverified**: the owner verifies them against the real
+database with [the staff-access runbook](#staff-access-switching-on-panel-0-and-getting-back-in),
+Part B; it is a [go-live gate](#go-live-gates). Before it, five restructures and all five audit
+phases were done:
 - **Restructure 5** (the plan's Phase C, ADR 0006): `apps/web`, `apps/admin` and `apps/worker` over
   `packages/server`, `packages/shared` and `packages/ui`.
 - **Restructure 4** ([ADR 0005](ARCHITECTURE.md#adr-0005--the-standard-nextjs-src-layout-2026-11-02-superseded-by-0006), superseded by ADR 0006): the
@@ -943,38 +1100,25 @@ restructures and all five audit phases were done:
   came before it.
 
 **Next:**
-1. **The release**, on `main`'s apps/packages layout; panels are paused meanwhile.
-   - **R1 (AWS foundations), built on `chore/r1-aws`; STOP R1 decided on 5 Nov 2026:**
-     - R1-01: the container images;
-     - R1-02: the shared Next cache, and the deployment ID;
-     - R1-02b: the NewsData key in its header, and no cache entry may hold it;
-     - R1-03: the refresh interval as one value;
-     - R1-04: the back office's assets under `/admin-assets`;
-     - R1-05: the client IP and request ID; chat and translate in the shared limiter, with daily
-       caps per IP and for all readers together (`aiLimits.ts`);
-     - R1-06: the security headers;
-     - R1-07: the error pages;
-     - R1-08: the health checks (runbook only);
-     - R1-09: robots.txt, the sitemap, canonical links and noindex for staging;
-     - R1-10 and R1-11: the variables and the logs (docs, and `sendDefaultPii`).
-
-     The four owner values are still open ([Deployment](#values-the-release-still-needs)). Open
-     for the owner: R1-12 (proposed), BL-040.
-   - **Then R2:** the reader UI, the new article and section URLs, and the structured data that
-     waits for them.
-2. **When panels resume, finish Panel 0** (the plan's Phase A):
-   - the owner applies the SQL and runs Part B of the staff-access runbook against the real database, which
-     verifies the two-admin trigger, the audit hash chain and the bootstrap;
-   - what is done of definition-of-done items 7–13, and what is not, is in PANEL_DOCS (Panel 0,
-     "Tests and verification").
-3. The owner approves Panel 0 as Done.
-4. **Phase B:** `fix/aggregator-off`, then `fix/audit-closeout`:
+1. **The AWS setup and the first deploy** ([Deployment](#deployment)): the manager follows the
+   runbook, then the [go-live gates](#go-live-gates).
+2. **R12-05** (`chore/newsdata-batched`): several categories per NewsData call, behind a flag, with
+   the dry run. Then the admin refresh-interval setting, once it is approved to build (its design
+   is [here](#the-news-refresh-interval-calls-and-the-admin-setting)).
+3. **The rest of the release:**
+   - **R2:** the reader design with the brand colour `#E7000B`, the new article and section URLs,
+     the structured data, the lighter error pages (BL-039), and BL-042 to BL-045.
+   - **R3:** the grievance officer's details on the grievance and contact pages, and the legal
+     pages.
+   - **R4:** go-live.
+4. **Finish Panel 0** (the plan's Phase A): the owner applies the SQL and runs Part B; then the
+   owner approves Panel 0 as Done.
+5. **The audit close-out** (rest of Phase B, `fix/audit-closeout`):
    - F-028 / BL-028 (theme ternaries);
-   - the local SQL checks for F-006, F-008 and F-018;
-   - the F-002 fallback check;
-   - BL-030 (lazy-load the chatbot).
-5. Then Panel 1, on `panel-1-administration` (granting roles in the app, the access review,
-   retiring the shared password).
+   - the SQL checks for F-006, F-008 and F-018;
+   - the F-002 fallback check.
+6. Then Panel 1, on `panel-1-administration`, and the Publisher (Panel 2) after it, as the plan
+   orders.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
@@ -1386,6 +1530,35 @@ The bundled docs' example names its `error.tsx` component `Error`. Inside it tha
 function itself, so `error instanceof Error` is always false: R1-07's digest never showed until
 the test caught it. The boundaries are named `RouteError`.
 
+#### 3.32 Images built from a Windows checkout carry CRLF, and bash on the server fails on it
+
+With `core.autocrlf` on, git checks text files out with CRLF on Windows. The worker image copies
+`deploy/` from that checkout, so a script inside it would stop on the server with
+"`$'\r': command not found`". `.gitattributes` keeps `deploy/**`, `*.sh` and the `Dockerfile` LF
+in every checkout, and `scripts/deploy.test.ts` fails on a kit file holding a carriage return.
+After adding such a rule, `git add --renormalize` the files it covers.
+
+#### 3.33 A stale `*.tsbuildinfo` reports errors the code no longer has
+
+`tsconfig.base.json` sets `incremental`. After a test file became a module (an `export {}` that
+stopped its names colliding with another script-style test's), `tsc -p packages/server` still
+reported the old "cannot redeclare" errors; `--incremental false` reported none. Delete the
+package's `tsconfig.tsbuildinfo` (git-ignored, regenerated). CI starts clean and never sees it.
+
+#### 3.34 `notFound()` after streaming has started answers 200, with noindex
+
+The root `loading.tsx` streams every page, so the article page's `notFound()` for an unknown link
+arrives after the status is sent: the not-found page renders with status 200, and Next adds
+`<meta name="robots" content="noindex">` (bundled docs: functions/not-found.md, "Calling
+`notFound()` after streaming has started"). A real 404 needs the check before the body streams, in
+a Proxy (BL-042).
+
+#### 3.35 Docker on Windows needs `C:/...`, not Git Bash's `/c/...`
+
+A path from Git Bash's `$PWD` (`/c/Users/...`) given to Docker Desktop, in a compose `env_file`
+for instance, is read as relative to the compose file. `pwd -W` gives `C:/Users/...`
+(`deploy/scripts/run-local.sh` uses it, and falls back to `pwd` on Linux and macOS).
+
 ### 4. Commits — restructure 2, then audit Phases 2–5
 
 `f260d3e` closed audit Phase 1. Everything after it is restructure 2. Restructure 1 and Phase 1 are
@@ -1520,19 +1693,22 @@ are resolved:
   self-heals). BL-005, real contact and newsletter backends, is future feature work.
 - BL-007 (`next typegen` in `typecheck`, a one-line change) and BL-009 (two cosmetic leftovers).
 - BL-008 (privacy policy, needs the owner or legal).
-- BL-016's remainder (the suggestions fetch is still HTTP; no per-IP limit on its route) and BL-019
-  (an image optimizer timeout: act only if it recurs).
-- BL-022 (a public scrape writes `articles.content`; kept by the owner), BL-023 (signed links, only if
-  needed), BL-024 (nullable columns, deployment phase), BL-025 (the anon-key fallback).
-- BL-026 (headline translation, a feature), BL-028 (theme ternaries), BL-030 (lazy-load the chatbot),
-  BL-031 (the new moderate advisories), BL-032 (A2 for new pages).
+- BL-016's remainder (the suggestions fetch is still HTTP; no per-IP limit on its route).
+- BL-023 (signed links, only if needed), BL-024 (nullable columns, deployment phase), BL-025 (the
+  anon-key fallback).
+- BL-028 (theme ternaries), BL-031 (the new moderate advisories), BL-032 (A2 for new pages).
 - BL-033 (the 7-day purge against Rule 19's 60 days; Panel 4 or 7), BL-034 (export the audit chain's
   head hash outside the database).
-- BL-039 (lighter root not-found and error pages, R2) and BL-040 (Redis unreachable: a cache miss
-  waits two seconds; for the owner).
+- BL-039 (lighter root not-found and error pages, R2).
+- From the release (16 Nov 2026): BL-041 (Supabase's log drain, before the full launch), BL-042 (a
+  real 404 for unknown article links, R2), BL-043 (remove `axios` and `cheerio`, needs the owner),
+  BL-044 (an astrology story past the filler filter, R2), BL-045 (thumbnails crop the placeholder's
+  label, R2), BL-046 (rename the `supabase->newsdata` report).
 
 **Resolved:** BL-003, BL-010, BL-011, BL-012, BL-013, BL-014, BL-015, BL-017, BL-018, BL-020, BL-021,
-BL-027, BL-029, BL-038 (R1-05).
+BL-027, BL-029, BL-038 (R1-05), BL-040 (E-07). Phase B (16 Nov 2026) resolved BL-019 (no remote image
+is fetched any more), BL-022 (the scraper is gone), BL-030 (the chat loads only when it is on) and
+closed BL-026 (no machine translation; Hindi stories come from the Hindi feed).
 
 ### 12. Quick reference
 
@@ -1986,8 +2162,7 @@ configs would be a further owner decision.
 
 ### BL-019 — An article-page trending image timed out at the image optimizer
 
-**Found:** restructure 2, S3 (the smoke test after slice 11) · **Status:** Open — **no config
-change** (owner, S4); act only if it recurs
+**Found:** restructure 2, S3 (the smoke test after slice 11) · **Status:** **Resolved** in Phase B (B-03, 16 Nov 2026): the reader site fetches no remote image; stories show our own category drawings
 
 In the slice-11 smoke test's screenshot of `/article/[slug]`, one thumbnail in the lists the page
 builds from `/api/news/top-headlines` was empty. The `next start` log of that run has exactly one
@@ -2055,9 +2230,7 @@ Options:
 
 ### BL-022 — A public scrape writes to the database
 
-**Found:** audit Phase 2, F-003 tests · **Status:** **Kept** (owner, Phase 2 follow-up): it caches
-scraped content to the stored article, and since `988c7fa` the public route scrapes only stored
-articles, so it writes only to our own rows
+**Found:** audit Phase 2, F-003 tests · **Status:** **Resolved** in Phase B (B-01, 16 Nov 2026): the scraper is deleted, and the reader site writes nothing (R12-03)
 
 Every uncached scrape that extracts an article also runs
 `supabase.from("articles").update({ content }).eq("link", targetUrl)` in the background
@@ -2124,7 +2297,7 @@ covers it.
 
 ### BL-026 — Headline translation
 
-**Found:** audit F-024 · **Status:** Open — feature, not a defect (owner decision D3)
+**Found:** audit F-024 · **Status:** **Closed** in Phase B (B-02, 16 Nov 2026): no machine translation of other publishers' text; Hindi readers get stories written in Hindi from NewsData's Hindi feed (R1-12)
 
 `translateHeadline(text, lang)` in `packages/shared/src/config/translations.ts` returned `text` unchanged. It
 ran on every card title and description (`ArticleCard`) and on the mega-menu titles
@@ -2173,7 +2346,7 @@ the seed route only for an environment that sets the public name alone.
 
 ### BL-030 — The chatbot ships on every route
 
-**Found:** audit Phase 4, F-027 (`7ead49b`) · **Status:** Open — proposal, not started (owner)
+**Found:** audit Phase 4, F-027 (`7ead49b`) · **Status:** **Resolved** in Phase B (B-06, 16 Nov 2026): the chat button is a lazy chunk (`ChatLauncher`), loaded only when the AI chat is on
 
 `apps/web/src/app/layout.tsx` renders `FloatingAiAssistant` (`apps/web/src/components/chat`), which imports
 `Chatbot` statically. So the chatbot's code is in a chunk every route loads, even though it is closed
@@ -2350,7 +2523,7 @@ Measure with `node scripts/check-js-budget.mjs --print` before and after.
 
 ### BL-040 — With Redis unreachable, a cache miss waits two seconds
 
-**Found:** STOP R1's `/about` evidence (2026-11-05) · **Status:** Open, for the owner
+**Found:** STOP R1's `/about` evidence (2026-11-05) · **Status:** **Resolved** in E-07 (16 Nov 2026): one attempt per Redis call, cut off after 1 second, then Redis is skipped for 10 seconds (`packages/server/src/lib/redisBreaker.ts`, and the cache handler's own copy)
 
 The reader site's cache handler (`apps/web/cache-handler.mjs`) gives Redis 1 second for a read and
 1 second for a write. Measured on the Docker image with Upstash pointed at an unreachable address:
@@ -2364,6 +2537,59 @@ slowly. Options:
 Healthy, each `/about` request costs two Redis reads (GET and the tag check's HMGET). With ALB
 checks every 30 seconds from two availability zones and the container's own check, two reader tasks
 spend about 35,000 commands a day on health checks alone.
+
+### BL-041 — Supabase's own logs are not kept in Mumbai
+
+**Found:** the release plan (owner's senior, 16 Nov 2026) · **Status:** Open — before the full
+launch
+
+The release keeps the app's logs, Nginx's and CloudFront's in Mumbai for 365 days. Supabase's own
+logs (the database, auth) stay with Supabase, which keeps them for days, not a year. A log drain
+sends them to our store; it is a paid Supabase add-on. Skipped for the release; add it before the
+full launch, with the lawyer's answer on which logs must stay in India (NEWSROOM_PLAN §8, question 7).
+
+### BL-042 — An unknown article link answers 200 with noindex, not 404
+
+**Found:** Phase B's browser check (B-05, 16 Nov 2026) · **Status:** Open — R2, with the new
+article URLs
+
+The article page calls `notFound()` for a link we never stored, but the root `loading.tsx` has
+already started streaming, so the response keeps status 200; Next adds `noindex` (gotcha 3.34). It
+is a soft 404: search engines drop it, and readers see the not-found page. A real 404 needs the
+lookup in a Proxy, before the page renders. Do it with R2's id-based article URLs, where the lookup
+is a cheap check by id.
+
+### BL-043 — `axios` and `cheerio` are no longer used
+
+**Found:** B-01 (16 Nov 2026) · **Status:** Open — needs the owner's approval (a dependency change)
+
+The scraper was their only user. Removing them from `package.json` and the lockfile shrinks the
+install and the worker image, and takes two packages out of the advisory reviews (BL-031).
+
+### BL-044 — An astrology story passed the filler filter
+
+**Found:** Phase B's browser check (16 Nov 2026) · **Status:** Open — R2
+
+"What Cosmic Changes Await Us? Astrological Insights for 2023 and Beyond" reached the feed:
+`isHoroscopeOrRitualFiller` (`packages/shared/src/config/newsConfig.ts`) misses this wording. Widen
+it with a test for this title, and check the stored rows for others like it.
+
+### BL-045 — The smallest thumbnails crop the category drawing's label
+
+**Found:** Phase B's browser check (16 Nov 2026) · **Status:** Open — R2
+
+The placeholders (`apps/web/public/placeholders`) are drawn for 16:9 and 21:9 cards. In the 56–64
+pixel thumbnails of the article page's side lists, the label is cut ("USINESS"). In R2's design, a
+square variant or no label at that size.
+
+### BL-046 — The Supabase fallback report is still called `supabase->newsdata`
+
+**Found:** R1-12 (16 Nov 2026) · **Status:** Open — small, any time
+
+Since R1-12 the feed never falls back to NewsData: when the database does not answer, the feed is
+empty. The report (`reportSupabaseFallback`, `packages/server/src/services/health/health.ts`) still
+names the old fallback, which misleads whoever reads it in Sentry. Rename it (and its alert, if one
+is set on the name).
 
 ## Audit ledger
 

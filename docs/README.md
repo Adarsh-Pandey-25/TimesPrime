@@ -112,11 +112,11 @@ table.
 | Database | Supabase (PostgreSQL) with Row Level Security |
 | Cache | Upstash Redis, falling back to an in-process `Map` |
 | AI | Anthropic Claude Haiku — chat and category classification |
-| Scraping | axios + cheerio |
+| Outside news | NewsData.io, fetched only by the worker (headline, summary, source, link; no scraping since Phase B) |
 | Styling | Tailwind CSS v4 |
 | Monitoring | Sentry |
 | Tests | Jest + Testing Library |
-| Hosting | **Not deployed** until the project is complete; then AWS, `ap-south-1`. The worker's 30-minute refresh needs an AWS scheduler (EventBridge) then |
+| Hosting | The release: one EC2 server in AWS `ap-south-1` with Docker Compose, CloudFront in front of the reader site (`deploy/`; [the runbook](OPERATIONS.md#deployment)). Not yet set up in AWS |
 
 > **This is not stock Next.js.** Version 16 renamed Middleware to **Proxy**
 > (`apps/admin/src/proxy.ts`), deprecated the `priority` image prop in favour of `preload`,

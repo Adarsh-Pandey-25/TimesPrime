@@ -16,9 +16,10 @@ holds the server-only code, `packages/shared` the client-safe config, types and 
 Three independent flows, each with its own failure posture.
 
 ```
-INGEST ─ every 30 minutes, a scheduler starts the worker (EventBridge at deployment, Phase I)
-  npm run job -- refresh-news   (apps/worker; exit 0 clean, 1 failed, 2 unknown job)
-    → NewsData.io, one request per category, sequential (bursts get throttled)
+INGEST ─ the server's timer starts the worker every 15 minutes; it refreshes every 60 (R12-04)
+  npm run job -- refresh-news   (apps/worker; exit 0 clean or skipped, 1 failed, 2 unknown job)
+    → skip unless the interval has passed since the last start (a state file on a volume)
+    → NewsData.io, one request per category, in English then Hindi: 14, sequential
     → reject: hard-paywall domains · horoscope/tarot filler · wire-spam
               · non-news listing sources
     → upsert into Supabase on article_id; purge rows older than 7 days
@@ -26,15 +27,15 @@ INGEST ─ every 30 minutes, a scheduler starts the worker (EventBridge at deplo
   code: apps/worker/src/jobs.ts → packages/server/src/services/news/refreshNews.ts
         → packages/server/src/repositories/db.ts, auditLog.ts
 
-SERVE ─ per reader request (apps/web)
-  /api/news/top-headlines
+SERVE ─ per reader request (apps/web); readers read the database only (R1-12)
+  /api/news/top-headlines, the home page and the article page
     1. Redis cache        15 min TTL                 → X-Data-Source: cache
-    2. Supabase           newest row < 30 min old    → supabase
-    3. NewsData.io        live call                  → newsdata
-    4. MOCK_ARTICLES      built-in fallback          → mock
-  Each tier degrades to the next without an error to the reader. The header
-  says which tier answered; a Supabase → NewsData fallback is also reported
-  to Sentry, rate-limited, and /api/health reports whether Supabase answers.
+    2. Supabase           whatever it holds          → supabase
+  Never NewsData, never a write, never mock articles. An empty answer is not
+  cached; if Supabase is down, that is reported to Sentry, rate-limited, and
+  /api/health answers 503.
+  Outside stories show headline + summary + source + a link out, with our own
+  category drawings and noindex on their pages (Phase B).
   /api/news/breaking-news: the homepage banner's public read.
   code: packages/server/src/services/news/topHeadlines.ts, breakingNews.ts
 
@@ -85,35 +86,43 @@ conclusions (see [the gotchas](OPERATIONS.md#3-gotchas-that-have-already-burned-
   the repository root with `@next/env` (with `forceReload`: Next has already loaded and cached
   the app's own folder, gotcha 3.25), so one `.env` serves every app; the worker passes
   `--env-file-if-exists=../../.env`.
-- `apps/web/next.config.ts` imports `ALLOWED_IMAGE_HOSTNAMES` from
-  `@timesprime/shared/config/imageDomains` at **config-load time**. Next's config loader resolves a
-  relative import from the working directory, not from the config file, so the import uses the
-  package name, and `imageDomains.ts` imports nothing (CR-06).
-- `images.remotePatterns` hostnames are matched with **picomatch globs**, not string equality, and
-  the array is capped at **50 entries**. 49 are used.
+- `next.config.ts` imports packages by name at **config-load time**, never a relative path into
+  `src/`: Next's config loader resolves a relative import from the working directory, not from
+  the config file (CR-06; OPERATIONS gotcha 3.30).
+- The reader site loads **no remote image** (Phase B): `images.remotePatterns` is empty, and story
+  pictures are the SVG category drawings in `apps/web/public/placeholders`, which next/image serves
+  as they are.
 - Turbopack compiles the workspace packages without `transpilePackages`, and finds the repository
   root from the single `package-lock.json`.
-- **The release runs on AWS** (`ap-south-1`; R1, [the runbook](OPERATIONS.md#deployment)). What
-  that asks of the code:
+- **The release runs on one EC2 server in Mumbai** with Docker Compose (owner's senior, 16 Nov
+  2026; [the runbook](OPERATIONS.md#deployment), the kit in `deploy/`). What that asks of the code:
   - **Images:** both apps build `output: "standalone"`, and one `Dockerfile` builds three images
     (web, admin, worker). `NEXT_PUBLIC_` values and `NEXT_DEPLOYMENT_ID` are fixed at build, so each
     environment has its own image.
-  - **One CloudFront distribution serves both apps:** so the back office builds its files under
-    `assetPrefix: "/admin-assets"`, and keeps its public files in `public/admin-assets/`
+  - **Two front doors:** the reader site behind CloudFront and Nginx, the back office at
+    `admin.timesprime247.com` straight to Nginx. The back office still builds its files under
+    `assetPrefix: "/admin-assets"` (built for one shared distribution, R1-04; it works unchanged
+    behind its own host), with its public files in `public/admin-assets/`
     (`packages/shared/src/config/adminAssets.ts`; `npm run check:asset-prefix` checks the build).
-  - **The reader site's `cacheHandler`** (`apps/web/cache-handler.mjs`) keeps one Next cache for
-    every task in Upstash. A side effect: prerendered pages render again on their first request
-    (OPERATIONS gotcha 3.26).
-  - **The client IP** is the `X-Forwarded-For` entry `TRUSTED_PROXY_HOPS` from the right.
+    Staff session cookies are host-only, so they stay on the admin host (E-04).
+  - **The reader site's `cacheHandler`** (`apps/web/cache-handler.mjs`) keeps the Next cache in
+    the server's Redis, reached through its REST proxy so the Upstash client is unchanged. A side
+    effect: prerendered pages render again on their first request (OPERATIONS gotcha 3.26). After a
+    Redis failure it skips Redis for 10 seconds (E-07).
+  - **The client IP** is the `X-Forwarded-For` entry `TRUSTED_PROXY_HOPS` from the right: 2 for the
+    reader site (CloudFront, Nginx), 1 for the back office (Nginx). The audit log's request ID is
+    CloudFront's `X-Amz-Cf-Id`, else Nginx's `X-Request-Id` (E-03).
   - **The NewsData key** travels in the `X-ACCESS-KEY` header, never in a URL, and no cache entry
     may hold it (R1-02b).
-  - **Chat and translate** are capped per IP and for all readers together, a day, in the shared
-    Redis (`packages/shared/src/config/aiLimits.ts`).
+  - **The chat** is off unless `NEXT_PUBLIC_AI_CHAT_ENABLED` is `1` (B-06); on, it is capped per
+    IP and for all readers together, a day, in the shared Redis
+    (`packages/shared/src/config/aiLimits.ts`). The translator is gone (B-02).
   - **Security headers** come from `next.config.ts` `headers()`, with the CSP report-only.
   - **The error boundaries** report to Sentry through `clientErrorReport.ts`, not the SDK (gotcha
     3.27).
-  - **The refresh:** `vercel.json` is gone, and the worker's job runs on EventBridge Scheduler, at
-    the one interval in `packages/shared/src/config/newsRefresh.ts`.
+  - **The refresh:** `vercel.json` is gone. The server's systemd timer starts the worker every 15
+    minutes, and the job runs at the one interval in `packages/shared/src/config/newsRefresh.ts`
+    (60 minutes).
 
 ## 3. How the structure got here
 
@@ -341,6 +350,54 @@ Scheduler, logs in Mumbai for 365 days) and the owner's answers, all on `chore/r
     in the X-ACCESS-KEY header, and the cache handler refuses any entry that holds it.
   - **R1-12:** reader pages read the database only (R0 v2 decision 7). To be proposed; not built
     until approved.
+
+**The release on one EC2 server (2026-11-16).** The owner's senior's answers to the release
+questions, replacing the 4 Nov ECS plan above where they differ. Built and merged into `main` the
+same day (PRs #4 to #9); the runbook is [OPERATIONS.md, Deployment](OPERATIONS.md#deployment):
+- **Server:** one EC2 t3.medium (x86_64), Mumbai, Ubuntu 24.04, Docker Compose with Nginx in front
+  of web, admin, the worker and Redis. No ECS, ALB, EventBridge or NAT.
+  - Images are built on the laptop (linux/amd64), pushed to ECR, and pulled by the server, which
+    never builds.
+  - Deploys are manual, approved by Adarsh, with a one-command rollback.
+  - The server has an Elastic IP, 30 GB gp3, 2 GB swap, daily snapshots kept 7, Session Manager
+    instead of SSH, and a systemd timer for the worker.
+- **Front doors:**
+  - `timesprime247.com` → CloudFront (Pro plan) → Nginx on 8443, open only to CloudFront's prefix
+    list and checked by a secret origin header.
+  - `admin.timesprime247.com` → the Elastic IP → Nginx on 443, with Let's Encrypt (DNS check),
+    open only to the team's IPs (security group, set by the senior).
+  - DNS moves to Route 53; the domain stays registered at GoDaddy.
+- **Redis:** in Docker on the same server: internal network, a password, 256 MB with LRU eviction,
+  no persistence. The Upstash REST client is kept, through the serverless-redis-http proxy (no code
+  rewrite, no new dependency).
+- **Outside news (Phase B, in the release):**
+  - headline + short summary + source name + link only;
+  - no full article, Google Translate, stock photos or mock articles;
+  - our own placeholder per category;
+  - noindex on outside-story pages;
+  - AI chat off behind a flag.
+- **The refresh:** English and Hindi every 60 minutes (336 calls a day). Option (c), several
+  categories per call, is built and switched to every 15 minutes only after the NewsData Basic plan
+  is bought and a dry run passes. The admin refresh-interval setting is designed, not built
+  (permission `settings.manage`).
+- **Supabase:** Free for now, Pro before the site goes public (a go-live gate). Until then a
+  weekly `pg_dump` to S3 by hand. The log drain is skipped for now (BL-041).
+- **Logs:** Docker's awslogs driver to CloudWatch, and CloudFront's logs to S3, both in Mumbai for
+  365 days.
+- **Others:**
+  - alerts by email only (no SMS without DLT registration);
+  - an AWS budget alarm at about $50;
+  - UptimeRobot on `/api/health`;
+  - Sentry in the EU region, with `sendDefaultPii: false`;
+  - no staging: before each deploy, the production images run locally.
+- **Values:**
+  - **Domain:** `timesprime247.com`.
+  - **Brand colour:** the site's red, `#E7000B`.
+  - **Grievance officer and CERT-In contact:** Adarsh Pandey (`adarsh@timesprime247.com`).
+  - **Office:** 704A-704B, Iris Tech Park, Sector 48, Gurgaon 122018, in one site-config value
+    used by the grievance and contact pages (R3). No phone number in the repository.
+- **Process:** a session never merges into `main`, not even locally. Each branch is a PR the
+  senior merges.
 
 **Follow-up the product decisions created:** the privacy policy still describes newsletter and
 contact-form collection that no longer happens. Legal copy, for the owner or legal review (BL-008).
@@ -964,6 +1021,7 @@ Panel 2, when there is code to put in it.
   reader route equal or smaller; the reader's CSS 93,939 → 83,122 bytes (admin-only classes left it).
   50 test suites, 753 tests.
 - Local development runs two servers (`npm run dev` on 3000, `npm run dev:admin` on 3001).
-- Deployment has three units (Phase I): two ECS services and a scheduled worker task.
+- Deployment has three units: two long-running apps and a scheduled worker (since 16 Nov 2026,
+  three Compose services on one server; Phase I may change that).
 - `globals.css` exists in both apps; moving the shared base styles into `packages/ui` is a later
   cleanup.
