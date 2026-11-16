@@ -248,3 +248,24 @@ describe("a category menu sub-topic searches within its category", () => {
     ]);
   });
 });
+
+// B-04 (Phase B): no mock articles anywhere. An empty database is an empty feed, said plainly in
+// the reader's language, with a way back to the full feed.
+describe("an empty feed", () => {
+  test("says there are no stories right now, in English", async () => {
+    await act(async () => {
+      renderHome([]);
+    });
+    expect(screen.getByText("No stories right now")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show all news" })).toBeInTheDocument();
+  });
+
+  test("and in Hindi", async () => {
+    language = "hi";
+    await act(async () => {
+      renderHome([]);
+    });
+    expect(screen.getByText("अभी कोई खबर नहीं है")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "सभी खबरें देखें" })).toBeInTheDocument();
+  });
+});

@@ -17,7 +17,6 @@ export { findKnownArticle } from "./knownArticle";
 export { fetchNewsDataArticles } from "./newsdata";
 export {
   mapCategory,
-  MOCK_ARTICLES,
   filterArticlesByLanguageScript,
   dedupeArticlesByTitle,
   isHoroscopeOrRitualFiller,

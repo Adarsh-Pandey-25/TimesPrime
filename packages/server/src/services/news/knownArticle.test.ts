@@ -2,13 +2,13 @@
  * @jest-environment node
  *
  * findKnownArticle (F-005): the article page trusts its `?url=` only when it
- * names a stored article or a built-in mock one, matched exactly.
+ * names a stored article, matched exactly. There are no built-in mock
+ * articles any more (B-04, Phase B).
  */
 
 jest.mock("../../repositories/db", () => ({ findArticleByLink: jest.fn() }));
 
 import { findKnownArticle } from "./knownArticle";
-import { MOCK_ARTICLES } from "@timesprime/shared/config/newsConfig";
 
 const { findArticleByLink } = jest.requireMock("../../repositories/db") as { findArticleByLink: jest.Mock };
 
@@ -20,10 +20,9 @@ test("a stored article is known", async () => {
   expect(findArticleByLink).toHaveBeenCalledWith("https://publisher.example/story");
 });
 
-test("a mock article is known without asking the database", async () => {
-  const mock = MOCK_ARTICLES[0];
-  await expect(findKnownArticle(mock.link)).resolves.toEqual({ title: mock.title, link: mock.link });
-  expect(findArticleByLink).not.toHaveBeenCalled();
+test("a link that only the old mock articles had is unknown: the database decides", async () => {
+  await expect(findKnownArticle("https://nextjs.org")).resolves.toBeNull();
+  expect(findArticleByLink).toHaveBeenCalledWith("https://nextjs.org");
 });
 
 test("anything else is unknown", async () => {
