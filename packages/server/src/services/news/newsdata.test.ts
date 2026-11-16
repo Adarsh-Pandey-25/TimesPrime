@@ -3,8 +3,8 @@
  *
  * R1-02b: the NewsData API key travels in the X-ACCESS-KEY header, never in a URL, so no fetch
  * cache entry (which stores its request URL) can hold it. Every caller is checked: the worker's
- * fetchNewsDataArticles and the home page's fetchInitialNews here, the feed in topHeadlines.test.ts,
- * the back office's seed route in its own test; and no source file may put it in a URL again.
+ * fetchNewsDataArticles here and the back office's seed route in its own test (readers no longer
+ * call NewsData at all, R1-12); and no source file may put it in a URL again.
  */
 
 jest.mock("@sentry/nextjs", () => ({ captureMessage: jest.fn(), captureException: jest.fn() }));
@@ -13,7 +13,6 @@ import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { buildNewsDataUrl, fetchNewsDataArticles, NEWSDATA_LATEST_URL, newsDataInit } from "./newsdata";
-import { fetchInitialNews } from "./fetchNews";
 
 const KEY = "pub_r102b_test_key";
 const env = { ...process.env };
@@ -55,11 +54,6 @@ test("buildNewsDataUrl never holds the key", () => {
 test("the worker's fetch: no-store, the key in the header", async () => {
   await fetchNewsDataArticles(KEY, { categoryParam: "business", language: "en" });
   expectHeaderAuth({ cache: "no-store" });
-});
-
-test("the home page's fetch: cached for 15 minutes, the key in the header", async () => {
-  await fetchInitialNews("general", "hi", "");
-  expectHeaderAuth({ next: { revalidate: 900 } });
 });
 
 test("no source file puts the NewsData key in a URL", () => {
