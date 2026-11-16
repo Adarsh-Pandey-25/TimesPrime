@@ -190,7 +190,7 @@ that breaks one, naming why.
 | Adding | Where | Example to copy |
 |---|---|---|
 | A reader page, e.g. `/faq` | `apps/web/src/app/faq/page.tsx`: the page's code, a default export, plus `metadata` | `apps/web/src/app/about/page.tsx` |
-| A reader page that needs server data | `apps/web/src/app/<path>/page.tsx` calls `@timesprime/server/...` directly (never its own API over HTTP) and passes props to a component in `apps/web/src/components/` | `apps/web/src/app/page.tsx` (`fetchInitialNews` → `HomeClient`) |
+| A reader page that needs server data | `apps/web/src/app/<path>/page.tsx` calls `@timesprime/server/...` directly (never its own API over HTTP) and passes props to a component in `apps/web/src/components/` | `apps/web/src/app/page.tsx` (`getTopHeadlines` → `HomeClient`) |
 | A public API route, e.g. `GET /api/news/trending` | `apps/web/src/app/api/news/trending/route.ts`: parse the request, call `@timesprime/server/...`, return the response. Logic goes in a service | `apps/web/src/app/api/news/breaking-news/route.ts` |
 | A back-office panel, e.g. Panel 2 Desk | Pages in `apps/admin/src/app/admin/desk/`, routes in `apps/admin/src/app/api/admin/desk/...`, components in `apps/admin/src/features/desk/` (NEWSROOM_PLAN section 3) | `apps/admin/src/app/admin/page.tsx` |
 | An admin API route | `apps/admin/src/app/api/admin/<name>/route.ts`, gated by `requirePermission` with its rule in `packages/server/src/auth/adminRoutePolicy.ts`, and a case in `apps/admin/src/app/api/admin/access.test.ts` | `apps/admin/src/app/api/admin/stats/route.ts` |
@@ -201,7 +201,8 @@ that breaks one, naming why.
 | A database query | `packages/server/src/repositories/` (`db.ts` holds the article queries), using `supabase` from `packages/server/src/lib/supabase.ts` | `getDBStats` in `db.ts` |
 | A schema change | A migration in `database/migrations/` with its rollback, which the owner applies by hand | `database/migrations/2026-11-02-indexes.sql` |
 | A permission | Proposed in the panel's design; after the owner approves, a row in the access rules (`docs/PANEL_DOCS.md`), then `node scripts/generate-access-catalog.mjs` and a new migration | `database/migrations/2026-11-02-access-2-catalog.sql` |
-| A helper, type or config value both apps use | `packages/shared/src/lib/`, `src/types/index.ts` or `src/config/`; it must not import `packages/server`. An image host goes in `ALLOWED_IMAGE_HOSTNAMES` (`packages/shared/src/config/imageDomains.ts`; 49 of the 50 slots are used) | `packages/shared/src/lib/urlValidation.ts` |
+| A helper, type or config value both apps use | `packages/shared/src/lib/`, `src/types/index.ts` or `src/config/`; it must not import `packages/server`. The reader site loads no remote image (Phase B): story pictures are the category drawings in `apps/web/public/placeholders` | `packages/shared/src/lib/urlValidation.ts` |
+| How the release runs on its server | `deploy/`: `compose.yml` (the services), `nginx/templates/`, `systemd/` (the refresh timer), `scripts/` (build and push, deploy, rollback, run locally) and `env/*.env.example` (names only; the real env files never enter git or an image). `scripts/deploy.test.ts` checks it | `deploy/compose.yml` |
 
 A new export path in a package needs its pattern in that package's `package.json` `exports` (and,
 for a new package, a line in the `moduleNameMapper` of `jest.config.ts`). Tests sit beside what

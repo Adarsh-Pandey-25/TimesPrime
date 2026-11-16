@@ -1,0 +1,35 @@
+# The back office, reached directly at the server's Elastic IP, not through CloudFront. The
+# security group opens 443 to the team's IPs only (set by the senior in the AWS console). The
+# certificate is Let's Encrypt's for ${ADMIN_HOST}, issued and renewed on the server with the
+# Route 53 DNS check (port 80 stays closed).
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${ADMIN_HOST};
+
+    ssl_certificate     /etc/letsencrypt/live/${ADMIN_HOST}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${ADMIN_HOST}/privkey.pem;
+
+    # HSTS and the other security headers come from the app itself (R1-06).
+
+    # The back office lives under /admin.
+    location = / {
+        return 302 /admin;
+    }
+
+    location / {
+        proxy_pass http://timesprime_admin;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        # Nginx appends the viewer (TRUSTED_PROXY_HOPS=1 in admin).
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        # No CloudFront here, so a client could send X-Amz-Cf-Id itself and plant a false ID in the
+        # audit log: it is cleared, and the app takes Nginx's X-Request-Id (E-03).
+        proxy_set_header X-Amz-Cf-Id "";
+        proxy_set_header X-Request-Id $request_id;
+        proxy_read_timeout 120s;
+    }
+}

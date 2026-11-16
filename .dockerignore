@@ -1,7 +1,11 @@
 # The build context of the Dockerfile (R1-01). Every env file stays out, with no exception: the
-# image takes its NEXT_PUBLIC_ values as build arguments and its secrets at run time from the ECS
-# task definition. scripts/container.test.ts fails if a line here lets an env file back in.
+# image takes its NEXT_PUBLIC_ values as build arguments and its secrets at run time from the
+# server's env files. scripts/container.test.ts fails if a line here lets an env file back in.
 **/.env*
+
+# The deploy kit's env folder, real files and templates alike: the kit enters the worker image
+# (/deploy) without it.
+deploy/env
 
 # Installed and built inside the image, never copied from this machine.
 **/node_modules

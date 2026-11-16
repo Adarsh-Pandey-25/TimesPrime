@@ -1,0 +1,139 @@
+# The release on one EC2 server (owner's senior, 16 Nov 2026): the reader site, the back office,
+# the job runner, Nginx in front, and Redis with the REST proxy the app's Upstash client speaks.
+# docs/OPERATIONS.md, Deployment, is the runbook; deploy/scripts/deploy.sh runs this file.
+#
+#   timesprime247.com       -> CloudFront -> nginx :8443 (CloudFront only, secret header) -> web
+#   admin.timesprime247.com -> Elastic IP -> nginx :443  (team IPs only)                 -> admin
+#
+# Variables come from release.env, which deploy.sh writes: ECR_REGISTRY, TAG (the git SHA the
+# images were built from) and ENV_DIR (the folder of the env files, default /opt/timesprime/env).
+# Secrets live only in those env files on the server, never in this repository.
+
+name: timesprime
+
+x-logs: &logs
+  # Every container's output to CloudWatch Logs in Mumbai, one group per service, kept 365 days
+  # (the runbook creates the groups with that retention; the Docker daemon only writes, with the
+  # server's instance role). Each service names its group in its own options.
+  driver: awslogs
+
+services:
+  web:
+    image: ${ECR_REGISTRY}/timesprime-web:${TAG}
+    restart: unless-stopped
+    env_file:
+      - ${ENV_DIR:-/opt/timesprime/env}/.env.shared
+      - ${ENV_DIR:-/opt/timesprime/env}/.env.web
+    environment:
+      # CloudFront appends the viewer, Nginx appends CloudFront: the client is 2 from the right.
+      TRUSTED_PROXY_HOPS: "2"
+      UPSTASH_REDIS_REST_URL: http://redis-rest
+    networks: [edge, data]
+    depends_on:
+      redis-rest:
+        condition: service_started
+    logging:
+      <<: *logs
+      options: { awslogs-region: ap-south-1, awslogs-create-group: "false", awslogs-group: /timesprime/web }
+
+  admin:
+    image: ${ECR_REGISTRY}/timesprime-admin:${TAG}
+    restart: unless-stopped
+    env_file:
+      - ${ENV_DIR:-/opt/timesprime/env}/.env.shared
+      - ${ENV_DIR:-/opt/timesprime/env}/.env.admin
+    environment:
+      # admin.timesprime247.com does not go through CloudFront: Nginx appends the viewer.
+      TRUSTED_PROXY_HOPS: "1"
+      UPSTASH_REDIS_REST_URL: http://redis-rest
+    networks: [edge, data]
+    depends_on:
+      redis-rest:
+        condition: service_started
+    logging:
+      <<: *logs
+      options: { awslogs-region: ap-south-1, awslogs-create-group: "false", awslogs-group: /timesprime/admin }
+
+  # Started by the server's timer every 15 minutes (deploy/systemd), never by `up`: it runs
+  # refresh-news and exits. Its state (when the refresh last started) lives in a volume.
+  worker:
+    image: ${ECR_REGISTRY}/timesprime-worker:${TAG}
+    profiles: [jobs]
+    env_file:
+      - ${ENV_DIR:-/opt/timesprime/env}/.env.shared
+      - ${ENV_DIR:-/opt/timesprime/env}/.env.worker
+    environment:
+      WORKER_STATE_DIR: /var/lib/timesprime
+    volumes:
+      - worker-state:/var/lib/timesprime
+    networks: [edge]
+    logging:
+      <<: *logs
+      options: { awslogs-region: ap-south-1, awslogs-create-group: "false", awslogs-group: /timesprime/worker }
+
+  nginx:
+    image: nginx:1.27.3-alpine
+    profiles: [edge]
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "8443:8443"
+    env_file:
+      - ${ENV_DIR:-/opt/timesprime/env}/.env.edge
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks: [edge]
+    depends_on:
+      web:
+        condition: service_healthy
+      admin:
+        condition: service_healthy
+    logging:
+      <<: *logs
+      options: { awslogs-region: ap-south-1, awslogs-create-group: "false", awslogs-group: /timesprime/nginx }
+
+  # The shared cache and the rate limits. Internal network only, a password, at most 256 MB with
+  # least-recently-used eviction, nothing written to disk: a restart empties it, and the app
+  # refills it (a cache) or counts afresh (the limits).
+  redis:
+    image: redis:7.4.1-alpine
+    restart: unless-stopped
+    env_file:
+      - ${ENV_DIR:-/opt/timesprime/env}/.env.redis
+    command:
+      - sh
+      - -c
+      - exec redis-server --requirepass "$$REDIS_PASSWORD" --maxmemory 256mb --maxmemory-policy allkeys-lru --save "" --appendonly no
+    networks: [data]
+    logging:
+      <<: *logs
+      options: { awslogs-region: ap-south-1, awslogs-create-group: "false", awslogs-group: /timesprime/redis }
+
+  # The Upstash REST API in front of the local Redis, so the app's @upstash/redis client works
+  # unchanged (no code rewrite, no new dependency).
+  redis-rest:
+    image: hiett/serverless-redis-http:0.0.10
+    restart: unless-stopped
+    env_file:
+      - ${ENV_DIR:-/opt/timesprime/env}/.env.redis
+    environment:
+      # SRH_TOKEN and SRH_CONNECTION_STRING come from .env.redis; it listens on port 80.
+      SRH_MODE: env
+    depends_on:
+      redis:
+        condition: service_started
+    networks: [data]
+    logging:
+      <<: *logs
+      options: { awslogs-region: ap-south-1, awslogs-create-group: "false", awslogs-group: /timesprime/redis }
+
+networks:
+  # Nginx and the apps; the apps reach Supabase and NewsData through it.
+  edge: {}
+  # Redis and its REST proxy: no route out, nothing published.
+  data:
+    internal: true
+
+volumes:
+  worker-state: {}
