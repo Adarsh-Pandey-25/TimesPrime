@@ -336,10 +336,10 @@ export default function HomeClient({
     >
       <Header
         activeCategory={category}
-        onSelectCategory={(cat) => {
+        onSelectCategory={(cat, search = "") => {
           setCategory(cat);
-          setSearchQuery("");
-          fetchNews(cat, "", language);
+          setSearchQuery(search);
+          fetchNews(cat, search, language);
         }}
         onToggleChatbot={() => setIsChatOpen(!isChatOpen)}
         isChatOpen={isChatOpen}

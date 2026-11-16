@@ -15,7 +15,7 @@ import { useLanguage } from "@/context/LanguageContext";
 
 interface HeaderProps {
   activeCategory?: string;
-  onSelectCategory?: (category: string) => void;
+  onSelectCategory?: (category: string, search?: string) => void;
   onToggleChatbot?: () => void;
   isChatOpen?: boolean;
   language?: Language;

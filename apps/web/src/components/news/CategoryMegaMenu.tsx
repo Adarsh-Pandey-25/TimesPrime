@@ -17,7 +17,8 @@ interface CategoryMegaMenuProps {
   articles: Article[];
   language?: Language;
   onClose: () => void;
-  onSelectCategory?: (category: string) => void;
+  /** `search` is the sub-topic, searched within the category; without it the category is shown whole. */
+  onSelectCategory?: (category: string, search?: string) => void;
 }
 
 const SUB_TOPICS: Record<string, string[]> = {
@@ -96,7 +97,7 @@ export default function CategoryMegaMenu({
 
   const handleCategoryClick = (cat: string, searchTopic?: string) => {
     if (onSelectCategory) {
-      onSelectCategory(cat);
+      onSelectCategory(cat, searchTopic);
     }
     onClose();
   };
