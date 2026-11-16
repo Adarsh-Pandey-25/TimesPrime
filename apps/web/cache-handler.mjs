@@ -2,12 +2,11 @@
 // The reader site's Next.js cache handler (R1-02): every instance reads and writes one cache, in
 // the existing Upstash Redis, instead of each keeping its own on local disk.
 //
-// Why it matters here: the home page's server render (fetchInitialNews) and the feed route call
-// NewsData with `next: { revalidate: 900 }`. Next's default cache is per instance (bundled docs:
-// guides/self-hosting.md "Configuring Caching"), so two ECS tasks would each call NewsData for the
-// same feed every 15 minutes, and the quota spent would rise with the task count. One shared cache
-// keeps it at one call per feed per window, however many tasks run. (Tailwind reads every word in
-// this folder as a possible class name: comments here avoid the names of utility classes.)
+// Why it matters: Next's default cache is per instance (bundled docs: guides/self-hosting.md
+// "Configuring Caching"). It was first built so that several app instances calling NewsData shared
+// one cache and one quota; since R1-12 readers read only the database, and it keeps the rendered
+// pages in the server's Redis. (Tailwind reads every word in this folder as a possible class name:
+// comments here avoid the names of utility classes.)
 //
 // Next loads this file at run time from disk (it is traced into the standalone output, not
 // bundled), so it is plain JavaScript. The contract is next-config-js/incrementalCacheHandlerPath.md:
