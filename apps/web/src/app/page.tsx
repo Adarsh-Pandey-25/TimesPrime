@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { fetchInitialNews } from "@timesprime/server/services/news";
+import { getTopHeadlines } from "@timesprime/server/services/news/topHeadlines";
 import HomeClient from "@/components/home/HomeClient";
 import NewsSkeletonGrid from "@/components/ui/NewsSkeletonGrid";
 
@@ -19,7 +19,9 @@ async function ArticlesFeed({
   category: string;
   search: string;
 }) {
-  const initialArticles = await fetchInitialNews(category, "en", search);
+  // The database, like every reader path (R1-12): the server render never calls NewsData.
+  const { body } = await getTopHeadlines(new URLSearchParams({ category, language: "en", q: search }));
+  const initialArticles = body.results ?? [];
 
   return (
     <HomeClient
