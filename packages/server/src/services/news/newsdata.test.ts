@@ -51,6 +51,45 @@ test("buildNewsDataUrl never holds the key", () => {
   expect(url.searchParams.get("q")).toBe("election");
 });
 
+// R12-05: several categories in one call (NewsData's /latest takes up to 5, comma-separated, and
+// up to 50 articles a page on paid plans; one call costs one credit: newsdata.io/openapi.json).
+describe("several categories in one call", () => {
+  test("they go in one category parameter, with the country, language and page size given", () => {
+    const url = buildNewsDataUrl({ categories: ["top", "world", "technology"], language: "en", country: "us", size: 50 });
+    expect(url.searchParams.get("category")).toBe("top,world,technology");
+    expect(url.searchParams.get("country")).toBe("us");
+    expect(url.searchParams.get("language")).toBe("en");
+    expect(url.searchParams.get("size")).toBe("50");
+    expect(url.toString()).not.toContain("apikey");
+  });
+
+  test("a Hindi call stays on India's Hindi feed", () => {
+    const url = buildNewsDataUrl({ categories: ["entertainment"], language: "hi", country: "in", size: 50 });
+    expect(url.searchParams.get("language")).toBe("hi");
+    expect(url.searchParams.get("country")).toBe("in");
+    expect(url.searchParams.get("category")).toBe("entertainment");
+  });
+
+  test.each([[[]], [["a", "b", "c", "d", "e", "f"]]])("an empty list or more than 5 is refused (%j)", (categories) => {
+    expect(() => buildNewsDataUrl({ categories, language: "en" })).toThrow(/1 to 5 categories/);
+  });
+
+  test("an article without its own category or country takes the call's first category and its country", async () => {
+    (global.fetch as jest.Mock).mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ results: [{ article_id: "a1", title: "T", link: "https://p.example/a" }] }),
+    }));
+    const [article] = await fetchNewsDataArticles(KEY, { categories: ["entertainment", "top"], language: "en", country: "in", size: 50 });
+    expect(article.category).toEqual(["entertainment"]);
+    expect(article.country).toEqual(["in"]);
+  });
+
+  test("without a size, NewsData's own page size applies (no size parameter)", () => {
+    expect(buildNewsDataUrl({ categories: ["top"], language: "en" }).searchParams.has("size")).toBe(false);
+  });
+});
+
 test("the worker's fetch: no-store, the key in the header", async () => {
   await fetchNewsDataArticles(KEY, { categoryParam: "business", language: "en" });
   expectHeaderAuth({ cache: "no-store" });
