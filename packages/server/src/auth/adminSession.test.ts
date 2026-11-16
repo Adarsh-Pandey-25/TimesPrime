@@ -147,6 +147,11 @@ describe("sessionCookieOptions", () => {
   test("Secure only in production", () => {
     expect(sessionCookieOptions().secure).toBe(process.env.NODE_ENV === "production");
   });
+
+  // E-04: host-only, so the browser sends it to admin.timesprime247.com alone.
+  test("no Domain attribute: the cookie stays on the back office's own host", () => {
+    expect(sessionCookieOptions()).not.toHaveProperty("domain");
+  });
 });
 
 // Owner decision Q3: the shared password runs until Panel 1 with a hard end in code, so it stops

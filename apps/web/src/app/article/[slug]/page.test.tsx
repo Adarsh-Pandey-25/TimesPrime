@@ -71,7 +71,7 @@ describe("the probe URL is treated as absent (F-005)", () => {
   test("og:url is the page's own URL, never the query string's", async () => {
     const metadata = await generateMetadata(props({ url: PROBE }));
     expect(JSON.stringify(metadata)).not.toContain("evil.example.com");
-    expect(metadata.openGraph?.url).toBe("https://timesprimenews.com/article/budget-passes");
+    expect(metadata.openGraph?.url).toBe("https://timesprime247.com/article/budget-passes");
   });
 
   test.each(["javascript:alert(1)", "http://127.0.0.1/admin", "not a url"])("a malformed or internal url (%s) is absent too", async (url) => {

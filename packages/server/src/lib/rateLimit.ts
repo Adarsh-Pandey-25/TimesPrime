@@ -2,6 +2,8 @@ import "server-only";
 
 import { Redis } from "@upstash/redis";
 
+import { createRedisBreaker, REDIS_CLIENT_OPTIONS } from "./redisBreaker";
+
 /**
  * Basic in-memory fixed-window rate limiter. Fine for a single-instance dev
  * server; on serverless (multiple instances) it's advisory rather than a
@@ -17,9 +19,10 @@ import { Redis } from "@upstash/redis";
  * translate with a daily cap per IP (R1-05, checkRateLimits): a fixed-window
  * counter in Upstash Redis (INCR, then EXPIRE on the window's first hit),
  * falling back to the in-memory limiter, with the fallback logged, when
- * Redis is not configured or fails (owner decision D1). The client is built
- * here from the same variables as packages/server/src/lib/cache.ts rather than imported
- * from it: packages/server/src/lib modules import no project module (rule LIB).
+ * Redis is not configured or fails (owner decision D1). After a failure,
+ * Redis is skipped for the breaker's pause and the in-memory limiter decides
+ * at once (BL-040, ./redisBreaker.ts). On the single EC2 there is one app
+ * process per app, so the in-memory count is the same count.
  */
 
 const WINDOW_MS = 60_000;
@@ -97,7 +100,8 @@ export interface RateLimitDecision {
 
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
 const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-const redis = upstashUrl && upstashToken ? new Redis({ url: upstashUrl, token: upstashToken }) : null;
+const redis = upstashUrl && upstashToken ? new Redis({ url: upstashUrl, token: upstashToken, ...REDIS_CLIENT_OPTIONS }) : null;
+const breaker = createRedisBreaker();
 let warnedNoRedis = false;
 
 function checkInMemory(key: string, rule: RateLimitRule, now: number): RateLimitDecision {
@@ -117,6 +121,7 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
     }
     return checkInMemory(key, rule, now);
   }
+  if (breaker.isOpen(now)) return checkInMemory(key, rule, now);
 
   const windowMs = rule.windowSeconds * 1000;
   const windowId = Math.floor(now / windowMs);
@@ -124,9 +129,11 @@ export async function checkRateLimit(key: string, rule: RateLimitRule): Promise<
   try {
     const count = await redis.incr(counterKey);
     if (count === 1) await redis.expire(counterKey, rule.windowSeconds);
+    breaker.recordSuccess();
     const limited = count > rule.limit;
     return { limited, retryAfterSeconds: limited ? Math.max(1, Math.ceil(((windowId + 1) * windowMs - now) / 1000)) : 0 };
   } catch (err) {
+    breaker.recordFailure(now);
     console.error(
       "Upstash Redis rate-limit counter failed, falling back to the in-memory limiter:",
       err instanceof Error ? err.message : String(err)
@@ -159,8 +166,10 @@ export async function checkGlobalRateLimit(rule: RateLimitRule): Promise<RateLim
 }
 
 /**
- * How many proxies in front of the app append to X-Forwarded-For and are trusted to: 2 on AWS
- * (CloudFront, then the ALB), set by the task definition. Unset, 0 or not a whole number: 0.
+ * How many proxies in front of the app append to X-Forwarded-For and are trusted to, set per
+ * container (deploy/compose.yml): 2 for the reader site (CloudFront, then Nginx) and 1 for the back
+ * office (Nginx only: admin.timesprime247.com does not go through CloudFront). Unset, 0 or not a
+ * whole number: 0.
  */
 function trustedProxyHops(): number {
   const hops = Number(process.env.TRUSTED_PROXY_HOPS ?? 0);
@@ -169,15 +178,17 @@ function trustedProxyHops(): number {
 
 /**
  * The client's IP (R1-05). Each trusted proxy appends the address it received the request from:
- * on AWS, CloudFront appends the viewer's and the ALB appends CloudFront's, and Next adds the
- * socket's only when the header is missing (next/dist/server/base-server.js, `??=`). So the client
- * is the entry TRUSTED_PROXY_HOPS from the right; everything left of it came from the client and
- * can be forged. It used to take the leftmost entry, which any client could set to anything, to
- * dodge a rate limit or write a false IP into the audit log. The two right entries cannot be
- * forged because the ALB accepts traffic only from CloudFront (owner runbook, docs/OPERATIONS.md).
+ * for the reader site, CloudFront appends the viewer's and Nginx appends CloudFront's; for the back
+ * office, Nginx appends the viewer's. Next adds the socket's only when the header is missing
+ * (next/dist/server/base-server.js, `??=`). So the client is the entry TRUSTED_PROXY_HOPS from the
+ * right; everything left of it came from the client and can be forged. It used to take the
+ * leftmost entry, which any client could set to anything, to dodge a rate limit or write a false
+ * IP into the audit log. The right entries cannot be forged because the server's security groups
+ * open the reader port only to CloudFront and the admin port only to the team (owner runbook,
+ * docs/OPERATIONS.md).
  *
  * Hops 0 (local, no proxy): the rightmost entry, the socket's. Fewer entries than hops (a request
- * that skipped a hop, such as the ALB's health check): the leftmost, which a trusted hop wrote.
+ * that skipped a hop): the leftmost, which a trusted hop wrote.
  */
 export function getClientIp(request: Request): string {
   const forwardedFor = (request.headers.get("x-forwarded-for") ?? "")

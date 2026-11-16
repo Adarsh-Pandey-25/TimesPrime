@@ -13,11 +13,12 @@ import path from "path";
 const mockStore = new Map<string, string>();
 const mockHashes = new Map<string, Map<string, string>>();
 const mockFail = { get: false, set: false, hang: false };
-const mockCalls: { set: Array<{ key: string; ex?: number }> } = { set: [] };
+const mockCalls: { get: number; set: Array<{ key: string; ex?: number }> } = { get: 0, set: [] };
 
 jest.mock("@upstash/redis", () => ({
   Redis: jest.fn(() => ({
     get: async (key: string) => {
+      mockCalls.get += 1;
       if (mockFail.hang) return new Promise(() => {});
       if (mockFail.get) throw new Error("connection reset");
       return mockStore.get(key) ?? null;
@@ -86,6 +87,7 @@ let warn: jest.SpyInstance;
 beforeEach(() => {
   mockStore.clear();
   mockHashes.clear();
+  mockCalls.get = 0;
   mockCalls.set = [];
   Object.assign(mockFail, { get: false, set: false, hang: false });
   warn = jest.spyOn(console, "warn").mockImplementation(() => {});
@@ -166,6 +168,33 @@ describe("when Redis fails", () => {
     await expect(handler.get("k1", { kind: "FETCH", tags: [] })).resolves.toBeNull();
     // One warning a minute at most, however many calls fail.
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  // BL-040: a failure used to cost every request its full timeout while Redis stayed down.
+  test("after a failure, Redis is skipped for ten seconds: misses at once, writes dropped", async () => {
+    jest.useFakeTimers({ now: Date.parse("2026-11-16T10:00:00Z") });
+    const { handler } = await instance({ redis: true });
+    mockFail.get = true;
+    await expect(handler.get("k1", { kind: "FETCH", tags: [] })).resolves.toBeNull();
+    expect(mockCalls.get).toBe(1);
+
+    mockFail.get = false; // Redis is back, but the pause holds
+    mockStore.set("next-cache:fetch:k1", "{}");
+    await expect(handler.get("k1", { kind: "FETCH", tags: [] })).resolves.toBeNull();
+    await handler.set("k2", fetchEntry("feed"), { fetchCache: true, tags: [] });
+    expect(mockCalls.get).toBe(1);
+    expect(mockCalls.set).toEqual([]);
+
+    jest.setSystemTime(Date.parse("2026-11-16T10:00:10Z"));
+    await handler.set("k2", fetchEntry("feed"), { fetchCache: true, tags: [] });
+    expect(mockCalls.set).toHaveLength(1);
+    expect(await handler.get("k2", { kind: "FETCH", tags: [] })).not.toBeNull();
+  });
+
+  test("the client makes one attempt; the handler's own timeout cuts it off", async () => {
+    await instance({ redis: true });
+    const { Redis } = jest.requireMock("@upstash/redis") as { Redis: jest.Mock };
+    expect(Redis.mock.calls.at(-1)[0].retry).toEqual({ retries: 0 });
   });
 
   test("a read that hangs is a miss after one second, not a stuck request", async () => {
