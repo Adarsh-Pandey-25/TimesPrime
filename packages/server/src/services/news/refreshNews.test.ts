@@ -14,7 +14,7 @@ jest.mock("../../repositories/db", () => ({
 jest.mock("./newsdata", () => ({ fetchNewsDataArticles: jest.fn(() => Promise.resolve([])) }));
 
 import { refreshNews } from "./refreshNews";
-import { NEWS_REFRESH_INTERVAL_MINUTES, NEWS_REFRESH_RUNS_PER_DAY, NEWS_REFRESH_SCHEDULE } from "@timesprime/shared/config/newsRefresh";
+import { NEWS_REFRESH_INTERVAL_MINUTES, NEWS_REFRESH_RUNS_PER_DAY } from "@timesprime/shared/config/newsRefresh";
 
 const db = jest.requireMock("../../repositories/db") as { saveArticlesToDB: jest.Mock; purgeOldArticles: jest.Mock };
 const newsdata = jest.requireMock("./newsdata") as { fetchNewsDataArticles: jest.Mock };
@@ -37,14 +37,15 @@ describe("refreshNews", () => {
   // run, times the runs a day. A change to the interval or the categories changes this number on
   // purpose; before go-live it is checked against 70% of the plan's daily limit.
   // R12-02: the worker fetches English and Hindi, 7 categories each, so 14 calls a run.
-  test("the scheduled job's NewsData calls a day: 14 a run, at the configured interval", async () => {
+  // R12-04: every 60 minutes, the senior's figure. 336 calls a day is 50% of the NewsData Basic
+  // plan (20,000 a month, about 666 a day); the ceiling is 70%.
+  test("the scheduled job's NewsData calls a day: 14 a run, every 60 minutes, 336", async () => {
     await refreshNews();
     const callsPerRun = newsdata.fetchNewsDataArticles.mock.calls.length;
     expect(callsPerRun).toBe(14);
-    expect(NEWS_REFRESH_INTERVAL_MINUTES).toBe(30);
-    expect(NEWS_REFRESH_SCHEDULE).toBe("rate(30 minutes)");
-    expect(NEWS_REFRESH_RUNS_PER_DAY).toBe(48);
-    expect(callsPerRun * NEWS_REFRESH_RUNS_PER_DAY).toBe(672);
+    expect(NEWS_REFRESH_INTERVAL_MINUTES).toBe(60);
+    expect(NEWS_REFRESH_RUNS_PER_DAY).toBe(24);
+    expect(callsPerRun * NEWS_REFRESH_RUNS_PER_DAY).toBe(336);
   });
 
   test("a run purges once, and refreshes every category in English and in Hindi", async () => {

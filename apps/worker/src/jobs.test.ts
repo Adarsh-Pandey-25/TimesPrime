@@ -7,15 +7,30 @@
 
 jest.mock("@timesprime/server/services/news/refreshNews", () => ({ refreshNews: jest.fn() }));
 
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { JOBS, runJob } from "./jobs";
 
 const { refreshNews } = jest.requireMock("@timesprime/server/services/news/refreshNews") as { refreshNews: jest.Mock };
 const result = (failed: number) => ({ ok: true, result: { refreshed: 7 - failed, failed, purged: 0, timestamp: "t", details: [] } });
 
+const env = { ...process.env };
+let stateDir: string;
+
 beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(console, "log").mockImplementation(() => {});
   jest.spyOn(console, "error").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
+  // Each test is a fresh server: no run recorded yet.
+  stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "worker-state-"));
+  process.env.WORKER_STATE_DIR = stateDir;
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+  process.env = { ...env };
 });
 
 test("an unknown job name exits 2 and runs nothing", async () => {
@@ -37,6 +52,50 @@ test("refresh-news: a failed category exits 1, so the scheduler's alarm sees it"
 test("refresh-news: no NewsData key exits 1", async () => {
   refreshNews.mockResolvedValue({ ok: false, error: "NEWSDATA_API_KEY is not set" });
   await expect(runJob("refresh-news")).resolves.toBe(1);
+});
+
+// R12-04: the server's timer fires every 15 minutes; the job runs once an interval has passed.
+describe("refresh-news on the 15-minute timer", () => {
+  const t0 = Date.parse("2026-11-16T10:00:00Z");
+
+  test("a tick before the interval has passed exits 0 and calls nothing", async () => {
+    jest.useFakeTimers({ now: t0 });
+    refreshNews.mockResolvedValue(result(0));
+    await expect(runJob("refresh-news")).resolves.toBe(0);
+    jest.setSystemTime(t0 + 15 * 60_000);
+    await expect(runJob("refresh-news")).resolves.toBe(0);
+    expect(refreshNews).toHaveBeenCalledTimes(1);
+  });
+
+  test("the tick an hour later runs again", async () => {
+    jest.useFakeTimers({ now: t0 });
+    refreshNews.mockResolvedValue(result(0));
+    await runJob("refresh-news");
+    jest.setSystemTime(t0 + 60 * 60_000);
+    await runJob("refresh-news");
+    expect(refreshNews).toHaveBeenCalledTimes(2);
+  });
+
+  test("the start is recorded before the run, so a run that overlaps the next tick is not doubled", async () => {
+    jest.useFakeTimers({ now: t0 });
+    let recordedDuringRun: unknown;
+    refreshNews.mockImplementation(async () => {
+      recordedDuringRun = JSON.parse(fs.readFileSync(path.join(stateDir, "refresh-news.json"), "utf8"));
+      return result(0);
+    });
+    await runJob("refresh-news");
+    expect(recordedDuringRun).toEqual({ lastStartedAt: t0 });
+  });
+
+  test("a state folder it cannot write does not stop the refresh: it runs, and says so", async () => {
+    const file = path.join(stateDir, "not-a-folder");
+    fs.writeFileSync(file, "");
+    process.env.WORKER_STATE_DIR = file;
+    refreshNews.mockResolvedValue(result(0));
+    await expect(runJob("refresh-news")).resolves.toBe(0);
+    expect(refreshNews).toHaveBeenCalledTimes(1);
+    expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/could not record/), expect.anything());
+  });
 });
 
 test("the job list is exactly the jobs the scheduler may start", () => {

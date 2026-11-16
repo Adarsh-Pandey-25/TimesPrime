@@ -10,11 +10,10 @@ import { fetchNewsDataArticles } from "./newsdata";
  * Supabase. Since R1-12 it is the only writer of the articles table and the only caller of
  * NewsData on the reader's behalf: readers read the database (topHeadlines.ts).
  *
- * Run by the worker (`npm run job -w @timesprime/worker -- refresh-news`), which a scheduler
- * starts every NEWS_REFRESH_INTERVAL_MINUTES (@timesprime/shared/config/newsRefresh; EventBridge
- * Scheduler on AWS, with NEWS_REFRESH_SCHEDULE). Nothing reaches it over HTTP, so it needs no
- * cron secret. With it running, reader requests are served from Supabase (see topHeadlines.ts)
- * instead of hitting NewsData.io per visitor.
+ * Run by the worker (`npm run job -w @timesprime/worker -- refresh-news`), which the server's timer
+ * starts every 15 minutes; the job runs once NEWS_REFRESH_INTERVAL_MINUTES has passed
+ * (@timesprime/shared/config/newsRefresh, apps/worker/src/jobs.ts). Nothing reaches it over HTTP,
+ * so it needs no cron secret.
  */
 
 // The languages the reader site offers. Hindi comes from NewsData's Hindi feed, which is India's.
