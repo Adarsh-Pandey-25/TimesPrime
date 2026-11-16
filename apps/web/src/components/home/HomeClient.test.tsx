@@ -12,10 +12,17 @@ jest.mock("next/navigation", () => ({ useSearchParams: () => searchParams }));
 jest.mock("@/context/LanguageContext", () => ({ useLanguage: () => ({ language, setLanguage: jest.fn() }) }));
 jest.mock("@/components/news/Header", () => ({
   __esModule: true,
-  default: ({ onSelectCategory, onSearch }: { onSelectCategory: (c: string) => void; onSearch: (q: string) => void }) => (
+  default: ({
+    onSelectCategory,
+    onSearch,
+  }: {
+    onSelectCategory: (c: string, search?: string) => void;
+    onSearch: (q: string) => void;
+  }) => (
     <div>
       <button onClick={() => onSelectCategory("sports")}>cat:sports</button>
       <button onClick={() => onSelectCategory("technology")}>cat:technology</button>
+      <button onClick={() => onSelectCategory("sports", "Cricket")}>topic:sports/Cricket</button>
       <button onClick={() => onSearch("budget")}>search:budget</button>
     </div>
   ),
@@ -201,5 +208,43 @@ describe("the home feed's fetches cannot race (F-021)", () => {
       );
     });
     expect(feedCalls()).toEqual(["/api/news/top-headlines?category=sports&language=en&q=budget"]);
+  });
+});
+
+// The category menu's sub-topics ("Cricket" under Sports) link to
+// /?category=sports&search=Cricket and also call onSelectCategory. That call
+// used to drop the topic: the first click fetched plain Sports and then the
+// search (two requests), and a second click on the same topic, which does not
+// change the URL, left plain Sports on screen under a URL that says Cricket.
+describe("a category menu sub-topic searches within its category", () => {
+  beforeEach(() => holdFeed());
+
+  const navigateTo = async (rerender: (ui: React.ReactElement) => void, query: string) => {
+    searchParams = new URLSearchParams(query);
+    await act(async () => {
+      rerender(
+        <ThemeProvider>
+          <HomeClient initialArticles={feed("Initial story").results} initialCategory="general" initialSearch="" />
+        </ThemeProvider>
+      );
+    });
+  };
+
+  test("the first click sends one request, the topic's search, and the URL change adds none", async () => {
+    const { rerender } = renderHome();
+    await click("topic:sports/Cricket");
+    await navigateTo(rerender, "category=sports&search=Cricket");
+    expect(feedCalls()).toEqual(["/api/news/top-headlines?category=sports&language=en&q=Cricket"]);
+  });
+
+  test("a second click on the same topic searches it again instead of dropping it", async () => {
+    const { rerender } = renderHome();
+    await click("topic:sports/Cricket");
+    await navigateTo(rerender, "category=sports&search=Cricket");
+    await click("topic:sports/Cricket");
+    expect(feedCalls()).toEqual([
+      "/api/news/top-headlines?category=sports&language=en&q=Cricket",
+      "/api/news/top-headlines?category=sports&language=en&q=Cricket",
+    ]);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Bot, Send, X, Sparkles, User, RefreshCw } from "lucide-react";
+import { Send, X, Sparkles, RefreshCw } from "lucide-react";
 import { ChatMessage } from "@timesprime/shared/types";
 
 interface ChatbotProps {

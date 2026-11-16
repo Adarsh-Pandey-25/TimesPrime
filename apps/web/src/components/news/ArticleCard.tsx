@@ -132,10 +132,6 @@ export default function ArticleCard({
   const imageParam = activeImg ? `&image=${encodeURIComponent(activeImg)}` : "";
   const detailUrl = `/article/${articleSlug}?url=${encodeURIComponent(article.link)}${imageParam}`;
 
-  const handleCardClick = () => {
-    router.push(detailUrl);
-  };
-
   const handleBookmarkClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();

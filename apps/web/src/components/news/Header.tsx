@@ -15,9 +15,7 @@ import { useLanguage } from "@/context/LanguageContext";
 
 interface HeaderProps {
   activeCategory?: string;
-  onSelectCategory?: (category: string) => void;
-  onToggleChatbot?: () => void;
-  isChatOpen?: boolean;
+  onSelectCategory?: (category: string, search?: string) => void;
   language?: Language;
   onChangeLanguage?: (lang: Language) => void;
   searchQuery?: string;
@@ -40,8 +38,6 @@ const CATEGORY_IDS = [
 export default function Header({
   activeCategory = "general",
   onSelectCategory,
-  onToggleChatbot,
-  isChatOpen = false,
   language: propsLanguage,
   onChangeLanguage: propsOnChangeLanguage,
   searchQuery = "",
@@ -51,15 +47,21 @@ export default function Header({
   const { theme, toggleTheme } = useTheme();
   const { language: globalLang, toggleLanguage: globalToggleLang } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [menuDropdownOpen, setMenuDropdownOpen] = useState(false);
   const [searchInput, setSearchInput] = useState(searchQuery);
+  // The box follows the feed's search when it changes from outside the box (a
+  // menu sub-topic, a category, the URL), adjusted during render as the React
+  // docs advise for state that follows a prop. Typing is kept until then.
+  const [followedQuery, setFollowedQuery] = useState(searchQuery);
+  if (searchQuery !== followedQuery) {
+    setFollowedQuery(searchQuery);
+    setSearchInput(searchQuery);
+  }
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   const [bookmarkCount, setBookmarkCount] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [time, setTime] = useState<Date>(new Date());
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleMouseEnterCategory = (catId: string) => {
@@ -101,19 +103,6 @@ export default function Header({
     window.addEventListener("timesprime_bookmarks_updated", updateCount);
     return () => {
       window.removeEventListener("timesprime_bookmarks_updated", updateCount);
-    };
-  }, []);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setMenuDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
