@@ -1,0 +1,34 @@
+# The reader site's origin: only CloudFront calls it. The security group opens 8443 to
+# CloudFront's managed prefix list alone, and this refuses any request without the secret header
+# CloudFront adds (${ORIGIN_SECRET}, from .env.edge and the CloudFront origin settings; never in
+# this repository). CloudFront terminates the readers' TLS; this certificate is for
+# ${READER_ORIGIN_HOST}, the name CloudFront uses for the origin.
+
+server {
+    listen 8443 ssl;
+    http2 on;
+    server_name ${READER_ORIGIN_HOST};
+
+    ssl_certificate     /etc/letsencrypt/live/${READER_ORIGIN_HOST}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${READER_ORIGIN_HOST}/privkey.pem;
+
+    if ($http_x_origin_verify != "${ORIGIN_SECRET}") {
+        return 403;
+    }
+
+    location / {
+        proxy_pass http://timesprime_web;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        # CloudFront appended the viewer; this appends CloudFront (TRUSTED_PROXY_HOPS=2 in web).
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        # The app's request ID is CloudFront's X-Amz-Cf-Id, which CloudFront sets; this one is
+        # Nginx's own, overwriting anything a client sent.
+        proxy_set_header X-Request-Id $request_id;
+        # The secret stops here: the app never sees it.
+        proxy_set_header X-Origin-Verify "";
+        proxy_read_timeout 60s;
+    }
+}

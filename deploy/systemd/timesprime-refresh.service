@@ -1,0 +1,15 @@
+# One tick of the news refresh (R12-04): runs the worker's refresh-news job and exits. The job
+# itself decides whether the interval has passed (60 minutes by default) and otherwise logs a
+# skip; a failed run exits 1, which the journal and the worker's log group record.
+# Installed by deploy/scripts/deploy.sh into /etc/systemd/system.
+
+[Unit]
+Description=TimesPrime news refresh (one tick)
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/timesprime/current
+ExecStart=/usr/bin/docker compose --env-file /opt/timesprime/release.env --profile jobs run --rm worker refresh-news
+TimeoutStartSec=900

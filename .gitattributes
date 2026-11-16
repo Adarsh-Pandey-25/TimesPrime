@@ -1,0 +1,7 @@
+# The deploy kit runs on the Linux server (bash, Nginx, systemd, Docker Compose) and goes into the
+# worker image from this checkout, which is built on Windows. With core.autocrlf it would be
+# checked out with CRLF line endings, and bash fails on them ("$'\r': command not found"), so its
+# files keep LF in every checkout. scripts/deploy.test.ts checks it.
+deploy/** text eol=lf
+*.sh text eol=lf
+Dockerfile text eol=lf

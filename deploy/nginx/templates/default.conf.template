@@ -1,0 +1,8 @@
+# Any other name on either port: refuse the TLS handshake, so the server answers only for the
+# reader origin and the back office. Named default.conf so it replaces the image's welcome page.
+
+server {
+    listen 443 ssl default_server;
+    listen 8443 ssl default_server;
+    ssl_reject_handshake on;
+}

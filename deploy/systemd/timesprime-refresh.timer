@@ -1,0 +1,14 @@
+# The server's timer for the news refresh: every 15 minutes, on the quarter hour
+# (NEWS_REFRESH_TICK_MINUTES in packages/shared/src/config/newsRefresh.ts; a test keeps the two
+# equal). The job runs the refresh only when the interval has passed since the last one.
+
+[Unit]
+Description=TimesPrime news refresh, every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,27 @@
+# Shared by both sites. The nginx image renders every *.template in /etc/nginx/templates into
+# /etc/nginx/conf.d, filling in the dollar-brace names set in its environment (.env.edge) and
+# leaving Nginx's own dollar variables alone.
+
+server_tokens off;
+client_max_body_size 1m;
+
+# One line per request, with the ID the app also writes to the audit log (X-Request-Id).
+log_format timesprime '$remote_addr "$http_x_forwarded_for" $host "$request" $status $body_bytes_sent '
+                      '$request_time rid=$request_id cf=$http_x_amz_cf_id "$http_user_agent"';
+access_log /dev/stdout timesprime;
+
+# Both apps are Next.js servers on the Docker network.
+upstream timesprime_web {
+    server web:3000;
+    keepalive 16;
+}
+
+upstream timesprime_admin {
+    server admin:3001;
+    keepalive 8;
+}
+
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_prefer_server_ciphers off;
+ssl_session_cache shared:SSL:10m;
+ssl_session_timeout 1d;

@@ -1,0 +1,30 @@
+# The production images on a laptop (deploy/scripts/run-local.sh), the staging stand-in: the same
+# compose.yml with these changes only. Logs stay local, the apps answer on localhost, and no proxy
+# is in front of them. Nginx (profile edge) and the worker (profile jobs) are not started.
+
+services:
+  web:
+    ports: ["127.0.0.1:3200:3000"]
+    environment:
+      TRUSTED_PROXY_HOPS: "0"
+    logging: !override
+      driver: local
+
+  admin:
+    ports: ["127.0.0.1:3201:3001"]
+    environment:
+      TRUSTED_PROXY_HOPS: "0"
+    logging: !override
+      driver: local
+
+  worker:
+    logging: !override
+      driver: local
+
+  redis:
+    logging: !override
+      driver: local
+
+  redis-rest:
+    logging: !override
+      driver: local

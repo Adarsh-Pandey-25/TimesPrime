@@ -7,14 +7,14 @@
 #   docker build --target admin  -t timesprime-admin  .   back office, port 3001
 #   docker build --target worker -t timesprime-worker .   jobs: `docker run timesprime-worker refresh-news`
 #
-# AWS runs them on ECS Fargate (Arm): add `--platform linux/arm64`. The lockfile holds the
-# linux-arm64 builds of the native packages (sharp), so `npm ci` picks them inside the build.
+# They run on one EC2 server (x86_64) with Docker Compose (deploy/compose.yml), built on a laptop
+# with `--platform linux/amd64` by deploy/scripts/build-and-push.sh and pulled from ECR.
 #
 # Build arguments are the deployment ID and the NEXT_PUBLIC_ values. Next inlines the latter into
 # the server and browser bundles at build time (bundled docs: guides/environment-variables.md), so
 # they cannot be set at run time, and an image is built per environment. They are public by
-# design: the browser receives them. Every secret is set at run time by the ECS task definition,
-# from Secrets Manager, never here; .dockerignore keeps every env file out of the build context.
+# design: the browser receives them. Every secret is set at run time from the server's env files
+# (deploy/env), never here; .dockerignore keeps every env file out of the build context.
 
 ARG NODE_IMAGE=node:24.19.0-bookworm-slim
 
@@ -45,8 +45,11 @@ ARG NEXT_DEPLOYMENT_ID
 # "1" for a build search engines must not index (staging): robots.txt disallows everything and
 # every response says noindex (packages/shared/src/config/site.ts). Fixed at build, like the rest.
 ARG NEXT_PUBLIC_SITE_NOINDEX
+# "1" turns the readers' AI chat on (B-06; packages/shared/src/config/aiChat.ts). Unset, it is off.
+ARG NEXT_PUBLIC_AI_CHAT_ENABLED
 ENV NEXT_DEPLOYMENT_ID=$NEXT_DEPLOYMENT_ID \
     NEXT_PUBLIC_SITE_NOINDEX=$NEXT_PUBLIC_SITE_NOINDEX \
+    NEXT_PUBLIC_AI_CHAT_ENABLED=$NEXT_PUBLIC_AI_CHAT_ENABLED \
     NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
@@ -60,7 +63,7 @@ RUN npm run build -w @timesprime/admin
 
 # ---- runtime images: the standalone server and its static files, run as the node user ----
 # server.js serves .next/static and public/ only when they sit next to it (bundled docs:
-# next-config-js/output.md); CloudFront caches them in front.
+# next-config-js/output.md); CloudFront caches the reader's in front.
 FROM ${NODE_IMAGE} AS web
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
@@ -89,14 +92,17 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:3001/admin/login').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 CMD ["node", "apps/admin/server.js"]
 
-# ---- worker: the job runner (apps/worker), started per run by EventBridge Scheduler (R1-03) ----
+# ---- worker: the job runner (apps/worker), started every 15 minutes by the server's timer ----
 # It runs TypeScript through tsx, as `npm run job` does locally, so it keeps the full install.
+# It also carries the deploy kit (deploy/, without its env files) at /deploy: the server's
+# deploy.sh takes the kit of the tag it deploys from here, so it needs nothing but ECR.
 FROM deps AS worker
 # No "new npm version" notice in every run's log.
 ENV NODE_ENV=production NPM_CONFIG_UPDATE_NOTIFIER=false
 COPY --chown=node:node tsconfig.base.json ./
 COPY --chown=node:node packages ./packages
 COPY --chown=node:node apps/worker ./apps/worker
+COPY deploy /deploy
 USER node
 ENTRYPOINT ["npm", "run", "job", "--"]
 CMD ["refresh-news"]
