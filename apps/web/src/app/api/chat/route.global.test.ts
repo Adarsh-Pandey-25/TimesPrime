@@ -41,11 +41,13 @@ const env = process.env.ANTHROPIC_API_KEY;
 let now: jest.SpyInstance;
 beforeAll(() => {
   process.env.ANTHROPIC_API_KEY = "test-key";
+  process.env.NEXT_PUBLIC_AI_CHAT_ENABLED = "1";
   // Every request at one instant of one UTC day.
   now = jest.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-04T18:00:00Z"));
 });
 afterAll(() => {
   now.mockRestore();
+  delete process.env.NEXT_PUBLIC_AI_CHAT_ENABLED;
   if (env === undefined) delete process.env.ANTHROPIC_API_KEY;
   else process.env.ANTHROPIC_API_KEY = env;
 });

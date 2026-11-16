@@ -12,6 +12,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useTheme } from "@timesprime/ui/ThemeContext";
 import { assignPlaceholders } from "@timesprime/shared/config/categoryPlaceholders";
 import { safePublisherHref } from "@timesprime/shared/lib/urlValidation";
+import { aiChatEnabled } from "@timesprime/shared/config/aiChat";
 
 /** Bare hostname (no "www."), the source's name when the row carries none. */
 function getSourceDomain(url?: string): string | null {
@@ -249,7 +250,7 @@ export default function ArticleDetailView({ story, allArticles }: ArticleDetailV
 
         {/* RIGHT COLUMN */}
         <aside className="space-y-6 lg:col-span-3 order-3 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-[#2b2f36] lg:pl-6 pt-6 lg:pt-0 sticky top-24">
-          <AskAboutArticle title={story.title} description={story.description ?? undefined} />
+          {aiChatEnabled() && <AskAboutArticle title={story.title} description={story.description ?? undefined} />}
 
           {trending.length > 0 && (
             <div className="rounded-2xl border border-slate-200 dark:border-[#2b2f36] bg-white dark:bg-[#25282d] p-4 shadow-xs space-y-4">

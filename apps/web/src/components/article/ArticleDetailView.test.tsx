@@ -82,6 +82,24 @@ describe("what an outside story shows", () => {
   });
 });
 
+// B-06: the askTimesPrime panel follows the AI chat switch.
+describe("the askTimesPrime panel", () => {
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_AI_CHAT_ENABLED;
+  });
+
+  test("is hidden while the AI chat is off (the default)", () => {
+    show();
+    expect(screen.queryByPlaceholderText("Ask anything about this article...")).toBeNull();
+  });
+
+  test('is shown when NEXT_PUBLIC_AI_CHAT_ENABLED is "1"', () => {
+    process.env.NEXT_PUBLIC_AI_CHAT_ENABLED = "1";
+    show();
+    expect(screen.getByPlaceholderText("Ask anything about this article...")).toBeInTheDocument();
+  });
+});
+
 describe("the publisher link stays guarded (F-005)", () => {
   test.each(["http://127.0.0.1/admin", "https://user:pw@publisher.example/story", "http://[::1]/", "ftp://publisher.example/story"])(
     "no link goes to %s, and no read-at-source button is shown",

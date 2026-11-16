@@ -3,7 +3,7 @@ import { Noto_Serif_Devanagari, PT_Serif } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@timesprime/ui/ThemeContext";
 import { LanguageProvider } from "@/context/LanguageContext";
-import FloatingAiAssistant from "@/components/chat/FloatingAiAssistant";
+import ChatLauncher from "@/components/chat/ChatLauncher";
 import BreakingNewsBanner from "@/components/news/BreakingNewsBanner";
 import { THEME_INIT_SCRIPT } from "@timesprime/shared/config/theme";
 import { SITE_URL } from "@timesprime/shared/config/site";
@@ -80,7 +80,7 @@ export default function RootLayout({
           <LanguageProvider>
             <BreakingNewsBanner />
             {children}
-            <FloatingAiAssistant />
+            <ChatLauncher />
           </LanguageProvider>
         </ThemeProvider>
       </body>

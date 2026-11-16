@@ -12,7 +12,7 @@ jest.mock("next/font/google", () => ({
 }));
 jest.mock("@timesprime/ui/ThemeContext", () => ({ ThemeProvider: ({ children }: { children: React.ReactNode }) => children }));
 jest.mock("@/context/LanguageContext", () => ({ LanguageProvider: ({ children }: { children: React.ReactNode }) => children }));
-jest.mock("@/components/chat/FloatingAiAssistant", () => ({ __esModule: true, default: () => null }));
+jest.mock("@/components/chat/ChatLauncher", () => ({ __esModule: true, default: () => null }));
 jest.mock("@/components/news/BreakingNewsBanner", () => ({ __esModule: true, default: () => null }));
 
 import { renderToStaticMarkup } from "react-dom/server";

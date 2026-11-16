@@ -68,11 +68,22 @@ describe("POST /api/chat", () => {
 
   beforeEach(() => {
     process.env.ANTHROPIC_API_KEY = "test-key";
+    process.env.NEXT_PUBLIC_AI_CHAT_ENABLED = "1";
     mockStreamFn.mockClear();
   });
 
   afterAll(() => {
     process.env.ANTHROPIC_API_KEY = originalKey;
+    delete process.env.NEXT_PUBLIC_AI_CHAT_ENABLED;
+  });
+
+  // B-06: off unless the flag is "1"; then the route does not exist for readers.
+  it.each([undefined, "", "0", "true"])("answers 404, counting nothing and calling nobody, when the flag is %j", async (flag) => {
+    if (flag === undefined) delete process.env.NEXT_PUBLIC_AI_CHAT_ENABLED;
+    else process.env.NEXT_PUBLIC_AI_CHAT_ENABLED = flag;
+    const res = await POST(makeRequest({ message: "Hello" }));
+    expect(res.status).toBe(404);
+    expect(mockStreamFn).not.toHaveBeenCalled();
   });
 
   it("returns 400 when the body has no message field", async () => {
