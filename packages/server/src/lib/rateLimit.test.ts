@@ -83,12 +83,20 @@ describe("getClientIp", () => {
     expect(getClientIp(req({}))).toBe("unknown");
   });
 
-  test("on AWS (2 hops): the viewer CloudFront appended, whatever the client wrote before it", () => {
+  test("the reader site (2 hops): the viewer CloudFront appended, whatever the client wrote before it", () => {
     process.env.TRUSTED_PROXY_HOPS = "2";
-    // viewer 198.51.100.4 via CloudFront edge 130.176.0.9, then the ALB
+    // viewer 198.51.100.4 via CloudFront edge 130.176.0.9, then Nginx
     expect(getClientIp(req({ "x-forwarded-for": "198.51.100.4, 130.176.0.9" }))).toBe("198.51.100.4");
     // a client that sends its own header to dodge a limit or forge the audit log's IP
     expect(getClientIp(req({ "x-forwarded-for": "1.2.3.4, 5.6.7.8, 198.51.100.4, 130.176.0.9" }))).toBe("198.51.100.4");
+  });
+
+  test("the back office (1 hop): the viewer Nginx appended, whatever the client wrote before it", () => {
+    process.env.TRUSTED_PROXY_HOPS = "1";
+    // admin.timesprime247.com reaches Nginx directly: Nginx appends the viewer, 198.51.100.4
+    expect(getClientIp(req({ "x-forwarded-for": "198.51.100.4" }))).toBe("198.51.100.4");
+    // a forged header cannot move the IP the limits and the audit log use
+    expect(getClientIp(req({ "x-forwarded-for": "1.2.3.4, 5.6.7.8, 198.51.100.4" }))).toBe("198.51.100.4");
   });
 
   test("fewer entries than hops: the leftmost, which a trusted hop wrote", () => {

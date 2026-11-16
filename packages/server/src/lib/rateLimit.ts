@@ -159,8 +159,10 @@ export async function checkGlobalRateLimit(rule: RateLimitRule): Promise<RateLim
 }
 
 /**
- * How many proxies in front of the app append to X-Forwarded-For and are trusted to: 2 on AWS
- * (CloudFront, then the ALB), set by the task definition. Unset, 0 or not a whole number: 0.
+ * How many proxies in front of the app append to X-Forwarded-For and are trusted to, set per
+ * container (deploy/compose.yml): 2 for the reader site (CloudFront, then Nginx) and 1 for the back
+ * office (Nginx only: admin.timesprime247.com does not go through CloudFront). Unset, 0 or not a
+ * whole number: 0.
  */
 function trustedProxyHops(): number {
   const hops = Number(process.env.TRUSTED_PROXY_HOPS ?? 0);
@@ -169,15 +171,17 @@ function trustedProxyHops(): number {
 
 /**
  * The client's IP (R1-05). Each trusted proxy appends the address it received the request from:
- * on AWS, CloudFront appends the viewer's and the ALB appends CloudFront's, and Next adds the
- * socket's only when the header is missing (next/dist/server/base-server.js, `??=`). So the client
- * is the entry TRUSTED_PROXY_HOPS from the right; everything left of it came from the client and
- * can be forged. It used to take the leftmost entry, which any client could set to anything, to
- * dodge a rate limit or write a false IP into the audit log. The two right entries cannot be
- * forged because the ALB accepts traffic only from CloudFront (owner runbook, docs/OPERATIONS.md).
+ * for the reader site, CloudFront appends the viewer's and Nginx appends CloudFront's; for the back
+ * office, Nginx appends the viewer's. Next adds the socket's only when the header is missing
+ * (next/dist/server/base-server.js, `??=`). So the client is the entry TRUSTED_PROXY_HOPS from the
+ * right; everything left of it came from the client and can be forged. It used to take the
+ * leftmost entry, which any client could set to anything, to dodge a rate limit or write a false
+ * IP into the audit log. The right entries cannot be forged because the server's security groups
+ * open the reader port only to CloudFront and the admin port only to the team (owner runbook,
+ * docs/OPERATIONS.md).
  *
  * Hops 0 (local, no proxy): the rightmost entry, the socket's. Fewer entries than hops (a request
- * that skipped a hop, such as the ALB's health check): the leftmost, which a trusted hop wrote.
+ * that skipped a hop): the leftmost, which a trusted hop wrote.
  */
 export function getClientIp(request: Request): string {
   const forwardedFor = (request.headers.get("x-forwarded-for") ?? "")
