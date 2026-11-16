@@ -51,6 +51,7 @@ real values.** (Until 2026-11-04 the local file was `.env.local` at the root on 
 | `NEXT_PUBLIC_AI_CHAT_ENABLED` | build | `1` turns the readers' AI chat on (B-06). Unset, it is off: no chat button, no ask panel, and `/api/chat` answers 404. Fixed at build |
 | `TRUSTED_PROXY_HOPS` | web, admin | Proxies that append to `X-Forwarded-For`: `2` for the reader site (CloudFront, then Nginx), `1` for the back office (Nginx), `0` locally. The client IP for rate limits and the audit log is the entry this many from the right (R1-05). Set by `deploy/compose.yml` |
 | `WORKER_STATE_DIR` | worker | When the news refresh last started, so a timer tick before the interval has passed skips (R12-04). On the server a Docker volume at `/var/lib/timesprime`, set by `deploy/compose.yml` |
+| `NEWS_REFRESH_BATCHED` | worker | `1` makes the refresh name several categories per NewsData call: 4 calls a run instead of 14 (R12-05, option (c)). Unset, it is off. Switch it on only after the dry run ([the news refresh](#the-news-refresh-interval-calls-and-the-admin-setting)) |
 
 ### Where each is set on the server
 
@@ -66,7 +67,7 @@ real values.** (Until 2026-11-04 the local file was `.env.local` at the root on 
   | `.env.shared` | web, admin, worker | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the worker is not a Next build, so it reads them at run time), `UPSTASH_REDIS_REST_TOKEN`, `NEXT_PUBLIC_SENTRY_DSN` |
   | `.env.web` | web | `SUPABASE_SERVICE_ROLE_KEY`, only until R12-03's gate; then the line is deleted |
   | `.env.admin` | admin | `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `ADMIN_LEGACY_LOGIN`, `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY` |
-  | `.env.worker` | worker | `SUPABASE_SERVICE_ROLE_KEY`, `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY` |
+  | `.env.worker` | worker | `SUPABASE_SERVICE_ROLE_KEY`, `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY`; `NEWS_REFRESH_BATCHED` once the dry run passes |
   | `.env.redis` | redis, redis-rest | `REDIS_PASSWORD`, `SRH_TOKEN`, `SRH_CONNECTION_STRING` (`redis://:<REDIS_PASSWORD>@redis:6379`) |
   | `.env.edge` | nginx | `READER_ORIGIN_HOST`, `ADMIN_HOST`, `ORIGIN_SECRET` (also CloudFront's custom origin header) |
   | `.env.backup` | the weekly backup only | `SUPABASE_DB_URL` (Supabase's Session pooler connection string) |
@@ -380,9 +381,27 @@ days.
     `packages/shared/src/config/newsRefresh.ts`; `refreshNews.test.ts` pins the arithmetic.
 - **The timer** fires every 15 minutes. The job runs only when the interval (less 2 minutes' grace)
   has passed since the last run started, and otherwise logs a skip.
-- **Every 15 minutes needs option (c) first** (R12-05, not built yet): several categories per
-  call, 4 calls a run, about 384 a day (58%). It switches on only after the Basic plan is bought
-  and a dry run shows articles per category close to today's.
+- **Every 15 minutes needs option (c) first** (R12-05, built, off by default): several categories
+  per call, at most 5 (NewsData's limit), 50 articles a call, 4 calls a run, about 384 a day (58%).
+  - **The calls** (`refreshPlan` in `packages/server/src/services/news/refreshNews.ts`): English
+    top, world, technology, business and sports from the United States; English India and
+    entertainment from India; Hindi top, world, technology, business and sports; Hindi
+    entertainment. **English entertainment moves from the United States' feed to India's.**
+  - **The dry run comes first,** once the Basic plan is bought (the batched calls ask for 50
+    articles, which the free plan refuses). It makes both runs' calls, 18 credits, prints articles
+    per category and language for today's run and the batched one, and writes nothing:
+
+    ```bash
+    cd /opt/timesprime
+    docker compose --env-file /opt/timesprime/release.env --profile jobs run --rm worker refresh-news-dry-run
+    ```
+
+    It exits 1 if a call failed. Go on only if every category's batched count is close to today's.
+  - **To switch on:** add `NEWS_REFRESH_BATCHED=1` to `/opt/timesprime/env/.env.worker` (each
+    tick starts a fresh container, so the next one reads it). For every 15 minutes, `NEWS_REFRESH_INTERVAL_MINUTES` becomes 15 on a branch
+    (with `refreshNews.test.ts`'s arithmetic), through a PR, and is deployed. **To switch off:**
+    remove the line; at 15 minutes the single-category refresh would be 1,344 calls a day, so the
+    interval goes back to 60 first.
 - **The admin setting (design, not built; owner's senior, 16 Nov 2026).** A screen in the back
   office's Sync panel to change the interval without a deploy:
   - **Storage:** one row in a new table `news_refresh_settings` (`interval_minutes`, 15 to 1,440, a
@@ -415,7 +434,7 @@ The site is public only when **all** of these hold:
    - outside-story pages carry noindex;
    - the AI chat is off.
 5. **The NewsData Basic plan is bought.** If the refresh moves to option (c), the R12-05 dry run
-   has been done first.
+   (`refresh-news-dry-run`) has been done first.
 6. **The grievance and contact pages show the real officer and address** (R3): Adarsh Pandey,
    `adarsh@timesprime247.com`, 704A-704B, Iris Tech Park, Sector 48, Gurgaon 122018. He is also
    the CERT-In contact. No phone number in the repository.
@@ -1102,9 +1121,11 @@ phases were done:
 **Next:**
 1. **The AWS setup and the first deploy** ([Deployment](#deployment)): the manager follows the
    runbook, then the [go-live gates](#go-live-gates).
-2. **R12-05** (`chore/newsdata-batched`): several categories per NewsData call, behind a flag, with
-   the dry run. Then the admin refresh-interval setting, once it is approved to build (its design
-   is [here](#the-news-refresh-interval-calls-and-the-admin-setting)).
+2. **R12-05** (`chore/newsdata-batched`, in review): several categories per NewsData call, behind
+   `NEWS_REFRESH_BATCHED`, with the dry run `refresh-news-dry-run`. After the Basic plan is bought,
+   the manager runs the dry run on the server and switches it on
+   ([the news refresh](#the-news-refresh-interval-calls-and-the-admin-setting)). Then the admin
+   refresh-interval setting, once it is approved to build (its design is in the same section).
 3. **The rest of the release:**
    - **R2:** the reader design with the brand colour `#E7000B`, the new article and section URLs,
      the structured data, the lighter error pages (BL-039), and BL-042 to BL-045.

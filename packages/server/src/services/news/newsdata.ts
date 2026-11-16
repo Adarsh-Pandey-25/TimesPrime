@@ -12,11 +12,22 @@ import { mapCategory } from "@timesprime/shared/config/newsConfig";
 
 export interface NewsDataQuery {
   categoryParam?: string;
+  /**
+   * Several of NewsData's own category names in one call (R12-05), instead of `categoryParam`:
+   * /latest takes 1 to 5, comma-separated, and a call costs one credit however many it names
+   * (newsdata.io/openapi.json).
+   */
+  categories?: string[];
   language?: string;
   country?: string;
   query?: string;
   page?: string;
+  /** Articles per call: 1 to 50 on paid plans, 1 to 10 on the free plan. Unset, the plan's maximum. */
+  size?: number;
 }
+
+/** The most categories one /latest call may name (the plan's filter limit, by default 5). */
+export const NEWSDATA_MAX_CATEGORIES_PER_CALL = 5;
 
 /** NewsData.io's latest-articles endpoint, which every caller in this repository uses. */
 export const NEWSDATA_LATEST_URL = "https://newsdata.io/api/1/latest";
@@ -56,7 +67,12 @@ export function buildNewsDataUrl(opts: NewsDataQuery): URL {
     targetUrl.searchParams.set("language", "en");
   }
 
-  if (query.trim()) {
+  if (opts.categories) {
+    if (opts.categories.length < 1 || opts.categories.length > NEWSDATA_MAX_CATEGORIES_PER_CALL) {
+      throw new Error(`A NewsData call names 1 to ${NEWSDATA_MAX_CATEGORIES_PER_CALL} categories, not ${opts.categories.length}.`);
+    }
+    targetUrl.searchParams.set("category", opts.categories.join(","));
+  } else if (query.trim()) {
     targetUrl.searchParams.set("q", query.trim());
   } else if (categoryParam === "india") {
     targetUrl.searchParams.set("country", "in");
@@ -68,6 +84,7 @@ export function buildNewsDataUrl(opts: NewsDataQuery): URL {
   }
 
   if (page) targetUrl.searchParams.set("page", page);
+  if (opts.size) targetUrl.searchParams.set("size", String(opts.size));
 
   return targetUrl;
 }
@@ -121,7 +138,8 @@ export async function fetchNewsDataArticles(
   }
 
   const data = await apiRes.json();
-  const category = mapCategory(categoryParam);
+  // The tag for an article NewsData sends without one: the call's category, or its first.
+  const category = opts.categories?.[0] ?? mapCategory(categoryParam);
 
   return (data.results || []).map(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

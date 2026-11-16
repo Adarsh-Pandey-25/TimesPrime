@@ -38,3 +38,22 @@ export function isRefreshDue(
   if (lastStartedAt === null || !Number.isFinite(lastStartedAt) || lastStartedAt > now) return true;
   return now - lastStartedAt >= (intervalMinutes - NEWS_REFRESH_GRACE_MINUTES) * 60_000;
 }
+
+/** The NewsData Basic plan, in calls a day: 20,000 a month, about 666 a day. */
+export const NEWSDATA_PLAN_DAILY_CALLS = 666;
+
+/** The share of the plan the refresh may use (owner decision 7 of R0 v2): 70%. */
+export const NEWSDATA_PLAN_CEILING = 0.7;
+
+/** Articles per call when the refresh is batched (R12-05): the most a paid plan allows. */
+export const NEWS_REFRESH_BATCH_SIZE = 50;
+
+/** NewsData calls a day for an interval and a number of calls a run. */
+export function refreshCallsPerDay(intervalMinutes: number, callsPerRun: number): number {
+  return Math.floor((24 * 60) / intervalMinutes) * callsPerRun;
+}
+
+/** Whether a refresh setup stays under the ceiling of the plan. */
+export function withinNewsDataPlan(intervalMinutes: number, callsPerRun: number): boolean {
+  return refreshCallsPerDay(intervalMinutes, callsPerRun) <= NEWSDATA_PLAN_CEILING * NEWSDATA_PLAN_DAILY_CALLS;
+}
