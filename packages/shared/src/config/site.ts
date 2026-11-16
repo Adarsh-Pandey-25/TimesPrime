@@ -2,9 +2,10 @@
  * The reader site's public origin (R1-09): canonical links, the sitemap, robots.txt and Open
  * Graph URLs resolve against it (the root layout's `metadataBase`). Next inlines
  * NEXT_PUBLIC_APP_URL at build time, so each environment's image is built with its own (the
- * Dockerfile's build argument). The fallback is the one the article page always used.
+ * Dockerfile's build argument). The fallback is the public domain, timesprime247.com (the owner's
+ * senior, 16 Nov 2026).
  */
-export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://timesprimenews.com").replace(/\/+$/, "");
+export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://timesprime247.com").replace(/\/+$/, "");
 
 /**
  * True for a build that search engines must not index: staging, or any copy that is not the

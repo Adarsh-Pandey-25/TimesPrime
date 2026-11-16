@@ -53,7 +53,7 @@ test("the sitemap lists the site's own pages, on its origin; a trailing slash on
   ]);
 });
 
-test("without NEXT_PUBLIC_APP_URL, the origin the article page always fell back to", async () => {
+test("without NEXT_PUBLIC_APP_URL, the public domain", async () => {
   const { site } = await load({ NEXT_PUBLIC_APP_URL: undefined });
-  expect(site.SITE_URL).toBe("https://timesprimenews.com");
+  expect(site.SITE_URL).toBe("https://timesprime247.com");
 });
