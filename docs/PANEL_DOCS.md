@@ -495,10 +495,10 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 
 **Status: in progress.** Built so far: M1a (the stories backend's core), M1b (the Desk API, PRs #17
 and #18) and the two-person restore. M1 is complete. M2's code is complete (the editor package, the
-Desk's screens, the story's revisions on screen); the Hindi typing check still closes it. M3 is under
-way: the reader's story page (PR #23), the preview in the back office (decision 7, PR #24),
-scheduled publishing (PR #25) and corrections are built (below). Started before Panel 1 at the
-owner's request (17 Nov 2026);
+Desk's screens, the story's revisions on screen); the Hindi typing check still closes it. M3's code
+is complete: the reader's story page (PR #23), the preview in the back office (decision 7, PR #24),
+scheduled publishing (PR #25), corrections (PR #26) and the takedown alert list (below); the owner
+sees M3 before M4 starts. Started before Panel 1 at the owner's request (17 Nov 2026);
 [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -516,7 +516,8 @@ owner's request (17 Nov 2026);
   - `stories/[id]/restore`: POST, to ask for a restore;
   - `stories/[id]/correct`: POST, a live story's public correction note (published at once, or
     asked for);
-  - `pending/[actionId]/decide`: POST, to approve or decline a restore or a correction request.
+  - `pending/[actionId]/decide`: POST, to approve or decline a restore or a correction request;
+  - `alerts`: GET, the takedowns of the last 30 days in the caller's desks.
 
   The screens (M2): `/admin/desk` (the list), `/admin/desk/new` and `/admin/desk/[id]` (the story),
   linked from the back office's top bar; and (M3) `/admin/desk/[id]/preview`, the story's preview.
@@ -676,11 +677,19 @@ aggregator's `articles` and its 7-day purge.
     says which kind it is.
   - **`/api/admin/me`** now reports the matrix's A as `"ask"` (beside `"act"` and `"read"`), so the
     screen offers asking only to those who may. The dashboard counts only `act` and `read` as reads.
+- **Built (M3, fifth part): the takedown alert list** (design §8, owner decision 5).
+  - **Where:** at the top of the Desk's list, for whoever may take stories down
+    (`article.unpublish`): the Managing Editor and Legal in every desk, a Desk Editor in theirs.
+  - **What:** every story unpublished or retracted in the last 30 days (at most 50, newest first):
+    its headline (linking to the story), "Taken down" or "Retracted", the reason code and note, who
+    took it down and when, its desk, and "Live again" once restored.
+  - **How:** `GET /api/admin/desk/alerts` reads the history in three plain queries (the moves, their
+    stories, the names of who made them) and keeps to the caller's desks in code. Email waits for
+    an email service; the audit log has every takedown too.
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
-  - the Desk's alert list for takedowns (design §8; the audit log has them), M3's last part;
   - media and bylines (M4).
 
 #### Access permissions and authorization rules
@@ -705,7 +714,7 @@ embargo 409.
 | `database/migrations/2026-11-02-access-2-catalog.sql` (regenerated) | Adds `author.manage` and `media.manage` (41 permissions, 140 cells) | Re-apply the previous version | **Yes, 17 Nov 2026** (41 and 140 checked) |
 | `database/migrations/2026-11-17-desk-1-stories.sql` | The ten Desk tables, the append-only triggers, the three `desk_*` functions, RLS and column grants for readers | In the file; only before the first real story | **Yes, 17 Nov 2026**, checks passed |
 | `database/migrations/2026-11-17-desk-2-restore.sql` | One open request per story and action; `desk_decide_pending`, which decides a restore and puts the story back live in one transaction | In the file | **Yes, 17 Nov 2026**, checks passed |
-| `database/migrations/2026-11-17-desk-3-corrections.sql` | `desk_decide_pending` decides a correction request too: approved, the live story's note is the request's, with its history row, in one transaction | Run desk-2 again | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 4) |
+| `database/migrations/2026-11-17-desk-3-corrections.sql` | `desk_decide_pending` decides a correction request too: approved, the live story's note is the request's, with its history row, in one transaction | Run desk-2 again | **Yes, 17 Nov 2026**, checks passed (`decides_corrections` true, `anon_may_call` false) |
 
 #### Tests and verification
 
@@ -734,6 +743,9 @@ embargo 409.
 | `packages/server/src/repositories/deskSchema.test.ts` | Migration desk-3: one transaction; `desk_decide_pending` decides restores and corrections only; an approved correction sets the note from the request, only on a live story, with its history row; the restore branch unchanged; caller's rights, empty search path | Only `service_role` may call it; a decided request and the requester still refused |
 | `packages/server/src/repositories/stories.test.ts` (`requestCorrection`) | A correction request with the note as its payload and reason | A second open request answers 409 |
 | `apps/admin/src/app/api/admin/me/route.test.ts` | The matrix's A reported as `"ask"` | Nothing held in an aal1 session, A included |
+| `apps/admin/src/app/api/admin/access.test.ts` (alerts) | A Desk Editor sees their desk's takedowns, with who took each down; Legal sees every desk's | A Sub-editor and a Writer (no `article.unpublish`) are refused before any read |
+| `packages/server/src/repositories/stories.test.ts` (`listTakedowns`) | Unpublish and retract of the last 30 days, newest first; only the caller's desks; the headline, the state now and the name of who took it down | No scope reads nothing; no takedown reads no further; a name not known falls back to the history label; a database error is thrown |
+| `apps/admin/src/components/desk/desk.test.tsx` (alerts) | Each takedown: its kind, its story (linked, in its language), why, who, and "Live again" once restored; an empty list says so | Without `article.unpublish` there is no alert list, and it is never asked for |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 
 The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
@@ -741,10 +753,9 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** the Desk's alert list for takedowns (design §8), M3's last part. The Hindi typing check
-  still closes M2.
-- **Until the owner applies desk-3,** deciding a Sub-editor's correction request fails with the
-  database's refusal; a Desk Editor or the Managing Editor still publishes a correction at once.
+- **Next:** the owner sees M3, then M4 (the media library and bylines), which needs the manager's
+  S3 bucket, IAM and CloudFront `/media/*` work (design §9, item 6). The Hindi typing check still
+  closes M2.
 - **Deciding a correction passes the decide route's own gate first,** `article.restore` (A or
   better): every holder of `correction.publish` at S or F holds it today (Desk Editor, Managing
   Editor). A future role with the one but not the other would need the rule changed.
