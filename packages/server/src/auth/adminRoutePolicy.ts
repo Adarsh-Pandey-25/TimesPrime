@@ -118,6 +118,9 @@ export const ADMIN_ROUTE_RULES = {
     POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
     DELETE: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
   },
+  "/api/admin/desk/stories/[id]/details": {
+    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+  },
   "/api/admin/desk/stories/[id]/assign": {
     POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
   },

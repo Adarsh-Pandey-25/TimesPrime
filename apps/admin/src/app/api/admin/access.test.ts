@@ -77,6 +77,7 @@ import * as deskPublishDirect from "./desk/stories/[id]/publish-direct/route";
 import * as deskUnpublish from "./desk/stories/[id]/unpublish/route";
 import * as deskRetract from "./desk/stories/[id]/retract/route";
 import * as deskKill from "./desk/stories/[id]/kill/route";
+import * as deskDetails from "./desk/stories/[id]/details/route";
 import * as deskRestore from "./desk/stories/[id]/restore/route";
 import * as deskDecide from "./desk/pending/[actionId]/decide/route";
 
@@ -540,6 +541,44 @@ const RESTORE_CASES: Case[] = [
   },
 ];
 CASES.push(...RESTORE_CASES);
+
+// The story's details (slug, embargo, legal-review flag), before publication.
+const DETAILS_CASE: Case = {
+  path: `${S}/details`, method: "POST", handler: withId(deskDetails.POST), body: { slug: "match-report" },
+  allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story({ created_by: "u-1" }), ...moved }, changes: true,
+};
+CASES.push(DETAILS_CASE);
+
+describe("a story's details (Panel 2 design §3)", () => {
+  async function call(data: Case["data"], body: unknown, caller: Grantee = HI_WRITER) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...DETAILS_CASE, allowed: caller });
+    const res = await DETAILS_CASE.handler(request({ ...DETAILS_CASE, body }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+
+  test("a malformed slug is refused", async () => {
+    expect((await call(DETAILS_CASE.data, { slug: "Bad Slug!" })).status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a live story's details are fixed", async () => {
+    expect((await call({ stories: story({ created_by: "u-1", workflow_state: "published", published_revision_id: "r-1" }) }, { slug: "x" })).status).toBe(409);
+  });
+
+  test("changing an approved story's details voids the approval", async () => {
+    await call({ stories: story({ created_by: "u-1", workflow_state: "approved", approved_revision_id: "r-1" }), ...moved }, { slug: "new-slug" });
+    expect(supabase.rpc).toHaveBeenCalledWith("desk_transition", expect.objectContaining({ p_from: "approved", p_to: "desk_review", p_fields: expect.objectContaining({ approved_by: null, approved_revision_id: null, slug: "new-slug" }) }));
+  });
+
+  test("only a holder of article.approve clears the legal-review flag", async () => {
+    const flagged = { stories: story({ created_by: "u-1", legal_review_required: true }), ...moved };
+    const writer = await call(flagged, { legal_review_required: false });
+    expect(writer.status).toBe(403);
+    expect(writer.json.required).toBe("article.approve");
+    expect((await call(flagged, { legal_review_required: false }, HI_DESK)).status).toBe(200);
+  });
+});
 
 describe("the two-person restore (Panel 2 design §3)", () => {
   const restoreCase = RESTORE_CASES[0];
