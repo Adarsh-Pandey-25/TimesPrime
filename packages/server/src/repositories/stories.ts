@@ -1,6 +1,7 @@
 import "server-only";
 
-import type { StoryFormat, StoryLanguage, StoryState } from "@timesprime/shared/config/desk";
+import { embargoed, type StoryFormat, type StoryLanguage, type StoryState } from "@timesprime/shared/config/desk";
+import type { PublishedStory } from "@timesprime/shared/types";
 import { supabase } from "../lib/supabase";
 
 /**
@@ -204,6 +205,67 @@ export async function hasCounterpart(story: Pick<StoryRow, "id" | "language" | "
     .neq("workflow_state", "killed");
   if (error) throw storeError(error);
   return (count ?? 0) > 0;
+}
+
+/**
+ * A reader's read (design §6): the columns the database grants readers (desk-1 migration), the
+ * published revision through its own foreign key, and the bylines. Never `*`, so no staff ids or
+ * desk flags leave the store on this path.
+ */
+const READER_SELECT = [
+  "id, public_id, language, section, format, slug, correction_note, first_published_at, published_at,",
+  "workflow_state, embargo_until, published_revision_id,",
+  "revision:story_revisions!stories_published_revision_fk(id, story_id, headline, dek, seo_title, seo_description, body),",
+  "bylines:story_authors(role, position, author:authors(display_name_en, display_name_hi, active))",
+].join(" ");
+
+interface ReaderRow extends Omit<PublishedStory, "revision" | "bylines"> {
+  workflow_state: string;
+  embargo_until: string | null;
+  published_revision_id: string | null;
+  revision: (PublishedStory["revision"] & { id: string; story_id: string }) | null;
+  bylines: Array<{ role: PublishedStory["bylines"][number]["role"]; position: number; author: { display_name_en: string; display_name_hi: string | null; active: boolean } | null }> | null;
+}
+
+/**
+ * A published story by its number, as a reader may see it, or null: unknown, not published, or
+ * still under embargo. The rules of the database's reader policies are applied twice, in the query
+ * and again on the row, so a store that ignored a filter would still show only a live story. Only
+ * active authors are credited, as the reader policy on `authors` has it.
+ */
+export async function getPublishedStory(publicId: number, now: Date = new Date()): Promise<PublishedStory | null> {
+  if (!Number.isSafeInteger(publicId) || publicId < 1) return null;
+  const { data, error } = await supabase
+    .from("stories")
+    .select(READER_SELECT)
+    .eq("public_id", publicId)
+    .eq("workflow_state", "published")
+    .or(`embargo_until.is.null,embargo_until.lte."${now.toISOString()}"`)
+    .limit(1);
+  if (error) throw storeError(error);
+  // The select is built from parts, so supabase-js cannot type the row from it.
+  const row = (data?.[0] ?? null) as unknown as ReaderRow | null;
+  if (!row || row.public_id !== publicId || row.workflow_state !== "published" || embargoed(row.embargo_until, now)) return null;
+  const revision = row.revision;
+  if (!revision || revision.id !== row.published_revision_id || revision.story_id !== row.id) return null;
+  const bylines = (row.bylines ?? [])
+    .filter((b) => b.author?.active)
+    .sort((a, b) => a.position - b.position)
+    .map((b) => ({ role: b.role, name: (row.language === "hi" && b.author?.display_name_hi) || (b.author?.display_name_en ?? "") }))
+    .filter((b) => b.name.trim().length > 0);
+  return {
+    id: row.id,
+    public_id: row.public_id,
+    language: row.language,
+    section: row.section,
+    format: row.format,
+    slug: row.slug,
+    correction_note: row.correction_note,
+    first_published_at: row.first_published_at,
+    published_at: row.published_at,
+    revision: { headline: revision.headline, dek: revision.dek, seo_title: revision.seo_title, seo_description: revision.seo_description, body: revision.body },
+    bylines,
+  };
 }
 
 async function call(fn: string, args: Record<string, unknown>): Promise<StoryRow> {

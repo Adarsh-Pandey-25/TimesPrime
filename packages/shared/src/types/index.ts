@@ -1,3 +1,28 @@
+/**
+ * A Desk story as a reader sees it (Panel 2 design §6): only what is live. The revision is the
+ * published one, never a draft; the fields are those the database grants readers (desk-1
+ * migration), so no staff ids or desk flags.
+ */
+export interface PublishedStory {
+  id: string;
+  public_id: number;
+  language: "en" | "hi";
+  section: string;
+  format: string;
+  slug: string | null;
+  correction_note: string | null;
+  first_published_at: string | null;
+  published_at: string | null;
+  revision: {
+    headline: string;
+    dek: string | null;
+    seo_title: string | null;
+    seo_description: string | null;
+    body: unknown;
+  };
+  bylines: Array<{ name: string; role: "byline" | "additional_reporting" | "translated_by" }>;
+}
+
 export interface Article {
   article_id: string;
   title: string;

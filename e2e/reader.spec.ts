@@ -65,6 +65,36 @@ test("the menu links the sections' URLs", async ({ page }) => {
   expect(await page.locator('a[href^="/?category="]').count()).toBe(0);
 });
 
+// Panel 2 (M3): the Desk's own stories, at /{section}/{slug}-{number} in English and under /hi/ in
+// Hindi. The stand-in has one of each; the real database's published stories are not known in advance.
+test("a Desk story's page answers 200 at its own address, uncached, in its language", async ({ page }) => {
+  test.skip(!process.env.CI, "needs the stand-in's published story");
+  const response = await page.goto("/india/parliament-debates-the-budget-101");
+  expect(response?.status()).toBe(200);
+  expect(response?.headers()["cache-control"]).toContain("no-store");
+  await expect(page.locator('article[lang="en"] h1')).toHaveText("Parliament debates the budget");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/india\/parliament-debates-the-budget-101$/);
+});
+
+test("a Hindi Desk story is under /hi/, marked as Hindi", async ({ page }) => {
+  test.skip(!process.env.CI, "needs the stand-in's published story");
+  const response = await page.goto("/hi/india/sansad-mein-bajat-par-bahas-102");
+  expect(response?.status()).toBe(200);
+  await expect(page.locator('article[lang="hi"] h1')).toHaveText("संसद में बजट पर बहस");
+});
+
+test("another address of a Desk story redirects (308) to its own", async ({ request }) => {
+  test.skip(!process.env.CI, "needs the stand-in's published story");
+  const response = await request.get("/india/an-old-slug-101", { maxRedirects: 0 });
+  expect(response.status()).toBe(308);
+  expect(response.headers()["location"]).toBe("/india/parliament-debates-the-budget-101");
+});
+
+test("an unknown Desk story answers 404, in English and in Hindi", async ({ request }) => {
+  expect((await request.get("/india/no-such-story-999999999", { maxRedirects: 0 })).status()).toBe(404);
+  expect((await request.get("/hi/india/no-such-story-999999999", { maxRedirects: 0 })).status()).toBe(404);
+});
+
 // R2: the publisher's structured data on the home page.
 test("the home page describes the publisher as a NewsMediaOrganization", async ({ page }) => {
   await page.goto("/");
