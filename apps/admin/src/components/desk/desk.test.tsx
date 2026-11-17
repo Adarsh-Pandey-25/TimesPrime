@@ -106,7 +106,7 @@ test("a new story is created in its desk and opens in the editor", async () => {
 
 describe("the story screen", () => {
   const STORY = {
-    id: "s-1", language: "en", section: "india", workflow_state: "desk_review", slug: null, embargo_until: null,
+    id: "s-1", public_id: 1024, language: "en", section: "india", workflow_state: "desk_review", slug: null, embargo_until: null,
     legal_review_required: false, current_revision_id: "r-1", published_revision_id: null, scheduled_at: null, post_hoc_review_due: false,
   };
   const revision = (id: string, headline: string, at: string, ...paragraphs: string[]) => ({
@@ -141,6 +141,15 @@ describe("the story screen", () => {
     expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
     expect(screen.getByText(/create/)).toBeInTheDocument();
     expect(await screen.findByText(/Only one revision so far/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /View on the site/ })).not.toBeInTheDocument();
+  });
+
+  test("a live story links to its page on the site, at its own address", async () => {
+    serveStory({ "article.view_admin": "read" }, { workflow_state: "published", published_revision_id: "r-1", slug: "budget-passes" });
+    await act(async () => render(<StoryEditor id="s-1" />));
+    const link = await screen.findByRole("link", { name: /View on the site/ });
+    expect(link.getAttribute("href")).toMatch(/^https?:\/\/[^/]+\/india\/budget-passes-1024$/);
+    expect(link).toHaveAttribute("target", "_blank");
   });
 
   test("a person without article.edit sees the story read-only, with no Save", async () => {

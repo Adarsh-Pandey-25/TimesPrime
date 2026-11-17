@@ -6,7 +6,8 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { embedProvider, isAllowedHref, storyExtensions, EMPTY_DOC } from "@timesprime/editor/schema";
 import { wordCount } from "@timesprime/editor/text";
 import { checklist, move, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
-import { storySlug } from "@timesprime/shared/lib/storyUrl";
+import { SITE_URL } from "@timesprime/shared/config/site";
+import { deskStoryPath, storySlug } from "@timesprime/shared/lib/storyUrl";
 import { canAct, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
 import RevisionsPanel, { type FullRevision } from "./RevisionsPanel";
 
@@ -16,6 +17,7 @@ import RevisionsPanel, { type FullRevision } from "./RevisionsPanel";
 
 interface Story {
   id: string;
+  public_id: number;
   language: "en" | "hi";
   section: string;
   workflow_state: StoryState;
@@ -332,6 +334,11 @@ export default function StoryEditor({ id }: { id: string }) {
           <Link href="/admin/desk" className="text-sm text-blue-700 hover:underline dark:text-blue-300">← Desk</Link>
           <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATE_STYLES[story.workflow_state]}`}>{STATE_LABELS[story.workflow_state]}</span>
           <span className="text-sm text-slate-500">{story.language === "hi" ? "Hindi" : "English"} · {story.section}</span>
+          {story.workflow_state === "published" && (
+            <a href={`${SITE_URL}${deskStoryPath(story)}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-700 hover:underline dark:text-blue-300">
+              View on the site ↗
+            </a>
+          )}
           {dirty && <span className="text-xs font-bold text-amber-700 dark:text-amber-300">Unsaved changes</span>}
         </div>
 
