@@ -106,6 +106,11 @@ async function check(actor: Actor, rule: RouteRule, target: Target | typeof ANY_
       actor.kind === "legacy"
         ? decideLegacy(permission)
         : decide({ staff: actor.record, aal: actor.aal ?? "aal1", permission, mode: rule.mode, target, now });
+    // A two-person route lets a holder of A ask, or decide another's request (see RouteRule.twoPerson).
+    if (!decision.allowed && rule.twoPerson && decision.code === "needs_approval") {
+      actor.via = [];
+      continue;
+    }
     if (!decision.allowed) {
       await auditDenial(actor, permission, decision.code, target);
       return {

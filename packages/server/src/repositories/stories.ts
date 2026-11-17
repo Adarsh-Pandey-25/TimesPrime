@@ -85,6 +85,8 @@ export function storeError(error: { code?: string; message: string }): DeskStore
   switch (error.code) {
     case "40001": // serialization_failure: the story moved since the caller read it
       return new DeskStoreError(409, "The story changed since you opened it. Reload it and try again.");
+    case "23505": // unique_violation: an open request already exists
+      return new DeskStoreError(409, "There is already an open request for this story.");
     case "P0002": // no_data_found
       return new DeskStoreError(404, "Story not found.");
     case "23514": // check_violation
@@ -326,4 +328,54 @@ export async function writeLock(storyId: string, holderId: string, at: Date): Pr
 export async function releaseLock(storyId: string, holderId: string): Promise<void> {
   const { error } = await supabase.from("story_locks").delete().eq("story_id", storyId).eq("holder_id", holderId);
   if (error) throw storeError(error);
+}
+
+// ---- two-person requests (design §3, the matrix's A): one person asks, a different one decides ----
+
+export interface PendingRow {
+  id: string;
+  story_id: string;
+  action: "restore" | "correction";
+  requested_by: string;
+  reason: string;
+  payload: unknown;
+  requested_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  outcome: "approved" | "declined" | null;
+}
+
+/** Asks to restore a taken-down story. A second open request for the story answers 409. */
+export async function requestRestore(storyId: string, requestedBy: string, reason: string): Promise<PendingRow> {
+  const { data, error } = await supabase
+    .from("pending_actions")
+    .insert({ story_id: storyId, action: "restore", requested_by: requestedBy, reason })
+    .select("*")
+    .single();
+  if (error) throw storeError(error);
+  return data as PendingRow;
+}
+
+export async function getPending(id: string): Promise<PendingRow | null> {
+  const { data, error } = await supabase.from("pending_actions").select("*").eq("id", id).maybeSingle();
+  if (error) throw storeError(error);
+  return (data as PendingRow | null) ?? null;
+}
+
+/** A story's undecided requests. */
+export async function listOpenPending(storyId: string): Promise<PendingRow[]> {
+  const { data, error } = await supabase.from("pending_actions").select("*").eq("story_id", storyId).is("decided_at", null);
+  if (error) throw storeError(error);
+  return (data ?? []) as PendingRow[];
+}
+
+/** Decides a restore request in one transaction (desk_decide_pending, database/migrations/2026-11-17-desk-2-restore.sql). */
+export function decidePending(input: { actionId: string; deciderId: string; deciderLabel: string; outcome: "approved" | "declined"; reason: string | null }): Promise<StoryRow> {
+  return call("desk_decide_pending", {
+    p_action: input.actionId,
+    p_decider: input.deciderId,
+    p_decider_label: input.deciderLabel,
+    p_outcome: input.outcome,
+    p_reason: input.reason,
+  });
 }
