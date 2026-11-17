@@ -276,18 +276,31 @@ answers before CloudFront points at it.
       | `/api/*` | CachingDisabled | AllViewerExceptHostHeader |
       | default (`*`) | UseOriginCacheControlHeaders-QueryStrings | AllViewerExceptHostHeader |
 
-    - **CloudFront Function** `www-to-apex`, on viewer request for every behaviour:
+    - **CloudFront Function** `www-to-apex`, on viewer request for every behaviour. It keeps the
+      query string (`?search=`), building it as AWS's own example does
+      (aws-samples/amazon-cloudfront-functions, normalize-query-string-parameters):
 
       ```js
       function handler(event) {
-        var host = event.request.headers.host.value;
-        if (host.indexOf('www.') === 0) {
-          return { statusCode: 301, statusDescription: 'Moved Permanently',
-            headers: { location: { value: 'https://' + host.slice(4) + event.request.uri } } };
+        var request = event.request;
+        var host = request.headers.host.value;
+        if (host.indexOf('www.') !== 0) return request;
+        var parts = [];
+        for (var key in request.querystring) {
+          var entry = request.querystring[key];
+          var values = entry.multiValue || [entry];
+          for (var i = 0; i < values.length; i++) parts.push(key + '=' + values[i].value);
         }
-        return event.request;
+        var location = 'https://' + host.slice(4) + request.uri + (parts.length ? '?' + parts.join('&') : '');
+        return { statusCode: 301, statusDescription: 'Moved Permanently',
+          headers: { location: { value: location } } };
       }
       ```
+
+      **Before publishing,** use the function's **Test** tab with a viewer request to
+      `www.timesprime247.com`, URI `/` and query string `search=new%20delhi`. The location
+      should be `https://timesprime247.com/?search=new%20delhi`. Then test URI `/about` with no
+      query string; the location should be `https://timesprime247.com/about`.
 
     - **Standard logging (v2)** to `timesprime-logs-<suffix>`.
 
