@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Header from "@/components/news/Header";
 import Footer from "@/components/news/Footer";
@@ -528,16 +529,18 @@ export default function HomeClient({
                     ? "इस श्रेणी में अभी कोई खबर नहीं है। थोड़ी देर बाद देखें, या सभी खबरें देखें।"
                     : "There are no stories in this view yet. Check back shortly, or see all the news."}
                 </p>
-                <button
+                {/* The top stories are the home page (R2), not a state of this one. */}
+                <Link
+                  href="/"
                   onClick={() => {
                     setCategory("general");
                     setSearchQuery("");
                     fetchNews("general", "", language);
                   }}
-                  className="rounded-xl bg-red-600 px-6 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors"
+                  className="inline-block rounded-xl bg-red-600 px-6 py-2 text-xs font-bold text-white hover:bg-red-700 transition-colors"
                 >
                   {language === "hi" ? "सभी खबरें देखें" : "Show all news"}
-                </button>
+                </Link>
               </div>
             )}
           </>

@@ -8,6 +8,7 @@
     "/contact/page": 723968,
     "/grievance/page": 718848,
     "/(feed)/page": 750592,
+    "/[section]/page": 745472,
     "/privacy/page": 719872,
     "/(feed)/saved/page": 737280,
     "/terms/page": 719872

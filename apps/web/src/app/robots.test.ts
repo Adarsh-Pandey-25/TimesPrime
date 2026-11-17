@@ -46,6 +46,14 @@ test("the sitemap lists the site's own pages, on its origin; a trailing slash on
   const { sitemap } = await load({ NEXT_PUBLIC_APP_URL: "https://news.example/" });
   expect(sitemap().map((e) => e.url)).toEqual([
     "https://news.example/",
+    "https://news.example/india",
+    "https://news.example/world",
+    "https://news.example/tech",
+    "https://news.example/business",
+    "https://news.example/sports",
+    "https://news.example/entertainment",
+    "https://news.example/health",
+    "https://news.example/science",
     "https://news.example/about",
     "https://news.example/contact",
     "https://news.example/privacy",

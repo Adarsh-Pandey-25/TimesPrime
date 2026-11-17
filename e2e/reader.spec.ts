@@ -39,3 +39,28 @@ test("an old ?url= address redirects (308) to the story's address", async ({ req
   expect(response.status()).toBe(308);
   expect(response.headers()["location"]).toBe("/article/parliament-passes-the-annual-budget-stub0001");
 });
+
+// R2: each section at its own URL.
+test("a section's page answers 200 with its own title and canonical link", async ({ page }) => {
+  const response = await page.goto("/sports");
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveTitle(/^Sports News/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/sports$/);
+});
+
+test("the old category view redirects (308) to the section's URL", async ({ request }) => {
+  const response = await request.get("/?category=world", { maxRedirects: 0 });
+  expect(response.status()).toBe(308);
+  expect(response.headers()["location"]).toMatch(/^\/world(\?|$)/);
+});
+
+test("an unknown section answers 404", async ({ request }) => {
+  const response = await request.get("/no-such-section", { maxRedirects: 0 });
+  expect(response.status()).toBe(404);
+});
+
+test("the menu links the sections' URLs", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator('header a[href="/india"]').first()).toBeAttached();
+  expect(await page.locator('a[href^="/?category="]').count()).toBe(0);
+});

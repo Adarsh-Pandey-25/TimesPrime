@@ -87,6 +87,11 @@ const eslintConfig = defineConfig([
       },
     },
   },
+  // Each app's files are checked against its own routes only. With both roots, @next/next's
+  // no-html-link-for-pages matched the back office's /admin/... links against the reader site's
+  // one-segment /[section] route (R2) and asked for next/link across apps.
+  { files: ["apps/web/**"], settings: { next: { rootDir: "apps/web/" } } },
+  { files: ["apps/admin/**"], settings: { next: { rootDir: "apps/admin/" } } },
   {
     files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
     plugins: { boundaries: { rules: { "server-only-first": serverOnlyFirst } } },
