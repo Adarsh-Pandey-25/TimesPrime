@@ -23,6 +23,12 @@ export interface RouteRule {
    * list holds (Panel 2's Desk, design §0: it cannot be an author, an editor or an approver).
    */
   staffOnly?: boolean;
+  /**
+   * A two-person route (the matrix's A): a holder of A passes the gate, because the route only lets them
+   * ask, or decide what someone else asked (Panel 2's restore). It still needs their second factor
+   * (decide() answers mfa_required first) and their scope.
+   */
+  twoPerson?: boolean;
 }
 
 type Method = "GET" | "POST" | "PATCH" | "DELETE";
@@ -142,6 +148,12 @@ export const ADMIN_ROUTE_RULES = {
   },
   "/api/admin/desk/stories/[id]/retract": {
     POST: { permissions: ["article.unpublish"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/restore": {
+    POST: { permissions: ["article.restore"], mode: "act", target: "story", staffOnly: true, twoPerson: true },
+  },
+  "/api/admin/desk/pending/[actionId]/decide": {
+    POST: { permissions: ["article.restore"], mode: "act", target: "story", staffOnly: true, twoPerson: true },
   },
   "/api/admin/desk/stories/[id]/kill": {
     POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },

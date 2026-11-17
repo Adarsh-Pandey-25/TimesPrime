@@ -77,6 +77,8 @@ import * as deskPublishDirect from "./desk/stories/[id]/publish-direct/route";
 import * as deskUnpublish from "./desk/stories/[id]/unpublish/route";
 import * as deskRetract from "./desk/stories/[id]/retract/route";
 import * as deskKill from "./desk/stories/[id]/kill/route";
+import * as deskRestore from "./desk/stories/[id]/restore/route";
+import * as deskDecide from "./desk/pending/[actionId]/decide/route";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
 
@@ -515,6 +517,87 @@ describe("the Desk's own rules (Panel 2 design §3)", () => {
     const c = caseFor("GET", "/api/admin/desk/stories");
     await call(c, HI_WRITER, { stories: { data: [], error: null, count: 0 } });
     expect(calls.filter(([t, m]) => t === "stories" && m === "or").map(([, , a]) => a)).toEqual([["and(language.eq.hi,section.eq.sports)"]]);
+  });
+});
+
+
+// ---- the two-person restore (the matrix's A: Desk Editor, Managing Editor, Legal) ----
+const PENDING_ROW = {
+  id: "p-1", story_id: "s-1", action: "restore", requested_by: "u-9", reason: "Cleared by legal.", payload: {},
+  requested_at: "2026-11-17T10:00:00Z", decided_by: null, decided_at: null, outcome: null,
+};
+const TAKEN_DOWN = { stories: story({ workflow_state: "unpublished", published_revision_id: "r-1" }) };
+const RESTORE_CASES: Case[] = [
+  {
+    path: `${S}/restore`, method: "POST", handler: withId(deskRestore.POST), body: { reason: "Cleared by legal." },
+    allowed: HI_DESK, wrongScope: EN_DESK, data: { ...TAKEN_DOWN, pending_actions: { data: PENDING_ROW, error: null } }, changes: true,
+  },
+  {
+    path: "/api/admin/desk/pending/[actionId]/decide", method: "POST", handler: withId(deskDecide.POST, { actionId: "p-1" }), body: { outcome: "approved" },
+    allowed: HI_DESK, wrongScope: EN_DESK,
+    data: { ...TAKEN_DOWN, pending_actions: { data: PENDING_ROW, error: null }, "rpc:desk_decide_pending": story({ workflow_state: "published", published_revision_id: "r-1" }) },
+    changes: true,
+  },
+];
+CASES.push(...RESTORE_CASES);
+
+describe("the two-person restore (Panel 2 design §3)", () => {
+  const restoreCase = RESTORE_CASES[0];
+  const decideCase = RESTORE_CASES[1];
+  async function call(c: Case, data: Case["data"], body?: unknown, caller: Grantee = HI_DESK) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, body: body ?? c.body }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+
+  test("a Desk Editor (A) may ask, with a reason, and the request is audited", async () => {
+    const r = await call(restoreCase, restoreCase.data);
+    expect(r.status).toBe(201);
+    expect(r.json.request.id).toBe("p-1");
+    expect((recordAudit as jest.Mock).mock.calls.map(([row]) => [row.action, row.outcome])).toEqual([
+      ["story.restore_request", "attempted"],
+      ["story.restore_request", "succeeded"],
+    ]);
+  });
+
+  test("only a story that was taken down can be restored; a reason is required", async () => {
+    expect((await call(restoreCase, { stories: story({ workflow_state: "published", published_revision_id: "r-1" }) })).status).toBe(409);
+    expect((await call(restoreCase, restoreCase.data, { reason: " " })).status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("the person who asked cannot decide their own request", async () => {
+    const r = await call(decideCase, { ...TAKEN_DOWN, pending_actions: { data: { ...PENDING_ROW, requested_by: "u-1" }, error: null } });
+    expect(r.status).toBe(403);
+    expect(r.json.code).toBe("four_eyes");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a decided request is not decided again", async () => {
+    const decided = { ...PENDING_ROW, decided_by: "u-7", decided_at: "2026-11-17T11:00:00Z", outcome: "approved" };
+    const r = await call(decideCase, { ...TAKEN_DOWN, pending_actions: { data: decided, error: null } });
+    expect(r.status).toBe(409);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a decline is recorded as its own action", async () => {
+    const r = await call(decideCase, decideCase.data, { outcome: "declined" });
+    expect(r.status).toBe(200);
+    expect((recordAudit as jest.Mock).mock.calls.map(([row]) => row.action)).toEqual(["story.restore_decline", "story.restore_decline"]);
+    expect(supabase.rpc).toHaveBeenCalledWith("desk_decide_pending", expect.objectContaining({ p_outcome: "declined", p_decider: "u-1" }));
+  });
+
+  test("an outcome other than approved or declined is refused before anything is read", async () => {
+    const r = await call(decideCase, decideCase.data, { outcome: "maybe" });
+    expect(r.status).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  test("a Writer (no restore cell) is refused", async () => {
+    const r = await call(restoreCase, restoreCase.data, undefined, HI_WRITER);
+    expect(r.status).toBe(403);
+    expect(wrote()).toEqual([]);
   });
 });
 

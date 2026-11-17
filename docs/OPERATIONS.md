@@ -1111,6 +1111,12 @@ the app applies SQL.
    - readers cannot call `desk_transition`.
 
    Its `BEGIN … ROLLBACK` smoke test runs on a test project only, never on production data.
+   **Done by the owner on 17 Nov 2026,** with every check passing.
+3. **Apply `database/migrations/2026-11-17-desk-2-restore.sql`** (the two-person restore).
+   **Check:**
+   - `SELECT indexname FROM pg_indexes WHERE indexname = 'pending_actions_one_open';` → one row;
+   - `SELECT has_function_privilege('anon', 'public.desk_decide_pending(uuid,uuid,text,text,text)', 'EXECUTE');`
+     → false.
 
 **Undo.** The rollback at the end of the file, only before the first real story: stories are the
 newsroom's record and are never dropped after that.
@@ -1291,6 +1297,7 @@ owner's, by hand: [`staff-access.md`](#staff-access-switching-on-panel-0-and-get
 paused for the release. **Its SQL is partly applied** (the owner, 17 Nov 2026):
 - B1 is done: the foundation and the catalogue (41 permissions, 140 cells).
 - The first Super Admin is bootstrapped.
+- The Desk's stories migration (desk-1) is applied and checked.
 - Still to do: their second factor, the second Super Admin, the deploy (B2) and the `admin_logs`
   freeze (B5). Its database-level checks (the two-admin trigger,
 the audit hash chain, the bootstrap) are **unverified**: the owner verifies them against the real
@@ -1341,8 +1348,9 @@ phases were done:
    - the F-002 fallback check.
 6. **The Publisher (Panel 2, the Desk)**, started before Panel 1 at the owner's request
    (17 Nov 2026); `NEWSROOM_PLAN.md` is unchanged. Its [design](PANEL_DOCS.md#panel-2-design-the-desk-publisher)
-   is approved. M1a (the stories backend's core) is in PR #17; M1b (the Desk API) is on
-   `panel-2-desk-api`. Then Panel 1, on `panel-1-administration`.
+   is approved. M1a and M1b (the stories backend and the Desk API) were merged on 17 Nov 2026
+   (PRs #17, #18). The two-person restore is on `panel-2-desk-restore`. Then M2, the screens and
+   the editor; then Panel 1, on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
