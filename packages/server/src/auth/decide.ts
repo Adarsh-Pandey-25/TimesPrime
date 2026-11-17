@@ -96,11 +96,18 @@ export function decide(input: {
     const ownItem =
       grant.access === "Own" &&
       (target === ANY_SCOPE || (target !== undefined && target.ownerId != null && target.ownerId === staff.userId));
+    const mfaMissing = (a.requiresAal2 || staff.mfaRequired) && aal !== "aal2";
     if (!ALLOWS[mode].has(grant.access) && !ownItem) {
-      if (mode === "act" && grant.access === "A") needsApproval = true;
+      // A: a second person approves, and the one who asks still needs their second factor. A
+      // two-person route treats needs_approval as "may ask" (Panel 2's restore), so it must never
+      // reach a session without MFA.
+      if (mode === "act" && grant.access === "A") {
+        if (mfaMissing) needsMfa = true;
+        else needsApproval = true;
+      }
       continue;
     }
-    if ((a.requiresAal2 || staff.mfaRequired) && aal !== "aal2") {
+    if (mfaMissing) {
       needsMfa = true;
       continue;
     }

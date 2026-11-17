@@ -129,6 +129,10 @@ describe("the cell codes (design §2)", () => {
     expect(decide({ staff: writer, aal: "aal2", permission: "article.edit", mode: "act", target: ANY_SCOPE, now: NOW })).toMatchObject({ allowed: true });
   });
 
+  test("A without a second factor is mfa_required, not needs_approval: asking still needs MFA", () => {
+    expect(act(withCode("A"), "sync.run", HI_SPORTS, "aal1")).toEqual({ allowed: false, status: 403, code: "mfa_required" });
+  });
+
   test("A is refused with needs_approval: the approval flow comes with its panel", () => {
     expect(act(withCode("A"), "sync.run")).toEqual({ allowed: false, status: 403, code: "needs_approval" });
   });
