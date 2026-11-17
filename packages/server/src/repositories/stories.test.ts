@@ -10,6 +10,7 @@ jest.mock("../lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn(
 import {
   createStory,
   DeskStoreError,
+  getPublishedStory,
   hasCounterpart,
   listHistory,
   listStories,
@@ -135,4 +136,98 @@ test.each([
   const e = storeError({ code, message: "m" });
   expect(e).toBeInstanceOf(DeskStoreError);
   expect(e.status).toBe(status);
+});
+
+describe("getPublishedStory: the reader's read", () => {
+  const NOW = new Date("2026-11-17T10:00:00.000Z");
+  const row = (over: Record<string, unknown> = {}) => ({
+    id: "s-1",
+    public_id: 1024,
+    language: "hi",
+    section: "india",
+    format: "news",
+    slug: "sansad-mein-bajat",
+    correction_note: null,
+    first_published_at: "2026-11-17T08:00:00Z",
+    published_at: "2026-11-17T09:00:00Z",
+    workflow_state: "published",
+    embargo_until: null,
+    published_revision_id: "r-2",
+    revision: { id: "r-2", story_id: "s-1", headline: "संसद में बजट पास", dek: "d", seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
+    bylines: [
+      { role: "byline", position: 1, author: { display_name_en: "Vikram Singh", display_name_hi: "विक्रम सिंह", active: true } },
+      { role: "byline", position: 0, author: { display_name_en: "Asha Rao", display_name_hi: null, active: true } },
+      { role: "byline", position: 2, author: { display_name_en: "Gone", display_name_hi: null, active: false } },
+    ],
+    ...over,
+  });
+  const read = (rows: unknown[], calls: Array<[string, unknown[]]> = []) => {
+    supabase.from.mockReturnValue(query({ data: rows, error: null }, calls));
+    return getPublishedStory(1024, NOW);
+  };
+
+  test("asks for one published story past its embargo, with the reader's columns only", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    await read([row()], calls);
+    expect(supabase.from).toHaveBeenCalledWith("stories");
+    const select = String(calls.find(([m]) => m === "select")![1][0]);
+    expect(select).not.toContain("*");
+    expect(select).toContain("story_revisions!stories_published_revision_fk(");
+    for (const hidden of ["created_by", "approved_by", "current_revision_id", "legal_review_required", "editor_id"]) expect(select).not.toContain(hidden);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        ["eq", ["public_id", 1024]],
+        ["eq", ["workflow_state", "published"]],
+        ["or", ['embargo_until.is.null,embargo_until.lte."2026-11-17T10:00:00.000Z"']],
+        ["limit", [1]],
+      ])
+    );
+  });
+
+  test("returns the published revision, and the active bylines in order, in the story's language", async () => {
+    const story = await read([row()]);
+    expect(story).toEqual({
+      id: "s-1",
+      public_id: 1024,
+      language: "hi",
+      section: "india",
+      format: "news",
+      slug: "sansad-mein-bajat",
+      correction_note: null,
+      first_published_at: "2026-11-17T08:00:00Z",
+      published_at: "2026-11-17T09:00:00Z",
+      revision: { headline: "संसद में बजट पास", dek: "d", seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
+      bylines: [
+        { role: "byline", name: "Asha Rao" },
+        { role: "byline", name: "विक्रम सिंह" },
+      ],
+    });
+  });
+
+  test.each([
+    ["no such story", []],
+    ["another story's row", [row({ public_id: 1025 })]],
+    ["a draft", [row({ workflow_state: "draft" })]],
+    ["a story taken down", [row({ workflow_state: "unpublished" })]],
+    ["a story under embargo", [row({ embargo_until: "2026-11-17T10:00:01Z" })]],
+    ["a revision that is not the published one", [row({ published_revision_id: "r-3" })]],
+    ["another story's revision", [row({ revision: { ...row().revision, story_id: "s-9" } })]],
+    ["no revision", [row({ revision: null })]],
+  ])("%s is not shown (null), even if the store ignored a filter", async (_case, rows) => {
+    expect(await read(rows)).toBeNull();
+  });
+
+  test("an embargo that has passed does not hide the story", async () => {
+    expect(await read([row({ embargo_until: "2026-11-17T09:59:59Z" })])).not.toBeNull();
+  });
+
+  test("a number that cannot be a story is not looked up", async () => {
+    for (const n of [0, -1, 1.5, Number.NaN, 2 ** 60]) expect(await getPublishedStory(n, NOW)).toBeNull();
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  test("a database error is thrown, not shown as a missing story", async () => {
+    supabase.from.mockReturnValue(query({ data: null, error: { code: "57014", message: "timeout" } }, []));
+    await expect(getPublishedStory(1024, NOW)).rejects.toBeInstanceOf(DeskStoreError);
+  });
 });
