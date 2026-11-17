@@ -11,6 +11,8 @@ import { useTheme } from "@timesprime/ui/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 
 import { assignPlaceholders } from "@timesprime/shared/config/categoryPlaceholders";
+import { sectionPath } from "@timesprime/shared/config/sections";
+import { storyPath } from "@timesprime/shared/lib/storyUrl";
 
 interface CategoryMegaMenuProps {
   category: string;
@@ -121,7 +123,7 @@ export default function CategoryMegaMenu({
           }`}
         >
           <Link
-            href={`/?category=${category}`}
+            href={sectionPath(category)}
             onClick={() => handleCategoryClick(category)}
             className="flex items-center space-x-2 group cursor-pointer"
           >
@@ -135,7 +137,7 @@ export default function CategoryMegaMenu({
             {subTopics.map((sub, idx) => (
               <li key={idx}>
                 <Link
-                  href={`/?category=${category}&search=${encodeURIComponent(sub)}`}
+                  href={sectionPath(category, sub)}
                   onClick={() => handleCategoryClick(category, sub)}
                   className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all group ${
                     isDark
@@ -159,7 +161,7 @@ export default function CategoryMegaMenu({
               Latest in {categoryLabel}
             </span>
             <Link
-              href={`/?category=${category}`}
+              href={sectionPath(category)}
               onClick={() => handleCategoryClick(category)}
               className={`text-xs font-bold transition-colors ${isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"}`}
             >
@@ -180,14 +182,13 @@ export default function CategoryMegaMenu({
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 pt-2">
               {categoryArticles.map((art, idx) => {
-                const slug = encodeURIComponent(art.article_id || art.title.slice(0, 30));
                 const titleText = art.title;
                 const imgSrc = dedupedImages.get(art)!;
 
                 return (
                   <Link
                     key={art.article_id || idx}
-                    href={`/article/${slug}?url=${encodeURIComponent(art.link)}`}
+                    href={storyPath(art)}
                     onClick={onClose}
                     className={`group flex flex-col justify-between overflow-hidden rounded-xl border p-2.5 transition-all shadow-xs ${
                       isDark

@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Globe, Menu, X, Sun, Moon, Search, ChevronDown, Bookmark } from "lucide-react";
 import { Language, TRANSLATIONS } from "@timesprime/shared/config/translations";
+import { sectionPath } from "@timesprime/shared/config/sections";
 import CategoryMegaMenu from "./CategoryMegaMenu";
 import { Article } from "@timesprime/shared/types";
 import { useTheme } from "@timesprime/ui/ThemeContext";
@@ -390,7 +391,7 @@ export default function Header({
                     return (
                       <Link
                         key={catId}
-                        href={`/?category=${catId}`}
+                        href={sectionPath(catId)}
                         onClick={() => {
                           if (onSelectCategory) onSelectCategory(catId);
                           setMobileMenuOpen(false);
@@ -509,7 +510,7 @@ export default function Header({
                 className="relative py-0.5 shrink-0"
               >
                 <Link
-                  href={`/?category=${catId}`}
+                  href={sectionPath(catId)}
                   onClick={() => {
                     if (onSelectCategory) onSelectCategory(catId);
                     setHoveredCategory(null);

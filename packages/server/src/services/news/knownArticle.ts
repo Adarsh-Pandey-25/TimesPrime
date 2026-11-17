@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Article } from "@timesprime/shared/types";
-import { findArticleByLink } from "../../repositories/db";
+import { findArticleById, findArticleByLink } from "../../repositories/db";
 
 /**
  * The stored story whose link is exactly `link`, or null: only a story we stored may be shown on
@@ -12,4 +12,10 @@ import { findArticleByLink } from "../../repositories/db";
 export async function findKnownArticle(link: string | undefined | null): Promise<Article | null> {
   if (!link) return null;
   return findArticleByLink(link);
+}
+
+/** The stored story with NewsData's article_id, or null: the story URLs (R2, storyUrl.ts). */
+export async function findKnownArticleById(articleId: string | undefined | null): Promise<Article | null> {
+  if (!articleId) return null;
+  return findArticleById(articleId);
 }

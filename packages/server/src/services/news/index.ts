@@ -13,7 +13,7 @@ export {
   getDBStats,
   NEWS_FRESHNESS_WINDOW_MS,
 } from "../../repositories/db";
-export { findKnownArticle } from "./knownArticle";
+export { findKnownArticle, findKnownArticleById } from "./knownArticle";
 export { fetchNewsDataArticles } from "./newsdata";
 export {
   mapCategory,

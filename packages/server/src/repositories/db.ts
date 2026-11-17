@@ -644,39 +644,40 @@ export async function getDBStats() {
 }
 
 /**
- * The stored article whose link is exactly `link`, or null (F-005). The
- * article page trusts its `?url=` only when it names an article we stored:
- * the app's own links carry the stored value unchanged, so an exact match
- * is enough, and anything else is treated as absent. Read-only. The query
- * relies on an index on `link` (database/migrations, F-018) to stay cheap.
+ * The stored story whose `column` is exactly `value`, or null: the article page shows only a story
+ * we stored (F-005). By link for the old `?url=` addresses, by NewsData's article_id for the
+ * story URLs (R2). Exact match: the app's link builders pass the stored value unchanged, so
+ * anything else is treated as absent. Read-only, and cheap: `link` has an index (F-018) and
+ * `article_id` is unique (database/schema.sql).
  *
- * It returns what the outside-story page shows (B-05): the headline, NewsData's
- * short summary, the source, the time, the category and the language. The
- * content column, where the retired scraper kept a story's full text, is not read.
+ * It returns what the outside-story page shows (B-05): the headline, NewsData's short summary, the
+ * source, the time, the category and the language. The content column, where the retired scraper
+ * kept a story's full text, is not read.
  */
-export async function findArticleByLink(link: string): Promise<Article | null> {
-  if (!isSupabaseConfigured() || !link) return null;
+async function findArticleWhere(column: "link" | "article_id", value: string): Promise<Article | null> {
+  if (!isSupabaseConfigured() || !value) return null;
+  const operation = column === "link" ? "findArticleByLink" : "findArticleById";
 
   try {
     const { data, error } = await supabase
       .from("articles")
       .select("article_id, title, link, description, source_id, source_name, pub_date, category, language")
-      .eq("link", link)
+      .eq(column, value)
       .limit(1);
     if (error) {
       console.error("Supabase Article Lookup Error:", error.message);
-      reportSupabaseFailure("findArticleByLink", (suppressed) =>
+      reportSupabaseFailure(operation, (suppressed) =>
         Sentry.captureMessage(`Supabase article lookup error: ${error.message}`, {
           tags: { source: "supabase" },
-          extra: { operation: "findArticleByLink", ...suppressed },
+          extra: { operation, ...suppressed },
         })
       );
       return null;
     }
     const row = data?.[0] as Partial<ArticleRow> | undefined;
-    if (row?.link !== link) return null;
+    if (!row || row[column] !== value || !row.link) return null;
     return {
-      article_id: row.article_id ?? link,
+      article_id: row.article_id ?? row.link,
       title: row.title ?? "",
       link: row.link,
       description: row.description ?? null,
@@ -687,10 +688,19 @@ export async function findArticleByLink(link: string): Promise<Article | null> {
       language: row.language ?? undefined,
     };
   } catch (err) {
-    console.error("Failed to look up an article by link:", err);
-    reportSupabaseFailure("findArticleByLink", (suppressed) =>
-      Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation: "findArticleByLink", ...suppressed } })
+    console.error(`Failed to look up an article by ${column}:`, err);
+    reportSupabaseFailure(operation, (suppressed) =>
+      Sentry.captureException(err, { tags: { source: "supabase" }, extra: { operation, ...suppressed } })
     );
     return null;
   }
+}
+
+export function findArticleByLink(link: string): Promise<Article | null> {
+  return findArticleWhere("link", link);
+}
+
+/** The stored story with NewsData's `article_id` (the story URLs, R2), or null. */
+export function findArticleById(articleId: string): Promise<Article | null> {
+  return findArticleWhere("article_id", articleId);
 }

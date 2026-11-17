@@ -4,6 +4,7 @@ import { loadEnvConfig } from "@next/env";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { securityHeaders } from "@timesprime/shared/config/securityHeaders";
 import { siteNoindex } from "@timesprime/shared/config/site";
+import { SECTION_IDS } from "@timesprime/shared/config/sections";
 
 // One set of env files for every app, at the repository root. Next has already loaded this app's
 // folder (none there) before it evaluates this file, and @next/env returns that cached result to a
@@ -42,6 +43,20 @@ const nextConfig: NextConfig = {
   async headers() {
     const noindex = siteNoindex() ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] : [];
     return [{ source: "/(.*)", headers: [...securityHeaders({ dev: process.env.NODE_ENV !== "production" }), ...noindex] }];
+  },
+  // R2: each section has its own URL. The old view, /?category=<section>, answers 308 there, so
+  // bookmarks and outside links keep working. Next passes the query string on, so the section page
+  // sees ?category= too and ignores it; its canonical link has no query. /?category=general stays
+  // at /, which is the top stories (a redirect to / would match again).
+  async redirects() {
+    return [
+      {
+        source: "/",
+        has: [{ type: "query" as const, key: "category", value: `(?<section>${SECTION_IDS.join("|")})` }],
+        destination: "/:section",
+        permanent: true,
+      },
+    ];
   },
   images: {
     // No outside image is fetched or served (B-03, Phase B): stories show our own category

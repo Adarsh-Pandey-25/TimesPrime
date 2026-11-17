@@ -147,11 +147,13 @@ Four restructures, each recorded in an ADR with the alternatives it rejected.
 ```
 apps/
   web/                     the reader site (Next.js 16)
-    src/app/               home, article, about, contact, grievance, privacy, terms, saved; public APIs:
-                           /api/news/{top-headlines, breaking-news, check-new, scrape-article},
-                           /api/chat, /api/translate, /api/health
+    src/app/               (feed)/ (home and saved, under the one loading file), [section]/ (R2),
+                           article/[slug] (/article/{headline-slug}-{article_id}), _feed/ (the
+                           feed's server component), about, contact, grievance, privacy, terms;
+                           public APIs: /api/news/{top-headlines, breaking-news, check-new},
+                           /api/chat, /api/health
     src/components/        news/ (cards, masthead, footer, menu, ticker, banner), home/, article/,
-                           chat/, ui/
+                           chat/, seo/ (the JSON-LD script), ui/
     src/context/           LanguageContext
     src/lib/               bookmarks (saved articles, in the browser)
   admin/                   the back office (Next.js 16); keeps the /admin and /api/admin paths

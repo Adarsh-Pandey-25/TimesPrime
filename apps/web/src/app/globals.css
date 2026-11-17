@@ -9,6 +9,9 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
+  /* The brand colours (packages/shared/src/config/brand.ts). */
+  --color-brand: #E7000B;
+  --color-brand-dark: #C10007;
   --font-sans: var(--font-serif), "PT Serif", var(--font-devanagari), Georgia, Cambria, serif;
   --font-serif: var(--font-serif), "PT Serif", var(--font-devanagari), Georgia, Cambria, serif;
 }
@@ -78,19 +81,19 @@ html, body {
 
 /* Accessible focus ring for keyboard navigation */
 :focus-visible {
-  outline: 2px solid #dc2626;
+  outline: 2px solid var(--color-brand);
   outline-offset: 2px;
   border-radius: 2px;
 }
 
 /* Brand-colored text selection */
 ::selection {
-  background: #dc2626;
+  background: var(--color-brand);
   color: #ffffff;
 }
 
 ::-moz-selection {
-  background: #dc2626;
+  background: var(--color-brand);
   color: #ffffff;
 }
 
@@ -141,8 +144,8 @@ html, body {
 
 /* Flashing red background for the ticker's BREAKING NEWS label */
 @keyframes flash-bg {
-  0%, 100% { background-color: #dc2626; }
-  50% { background-color: #b91c1c; }
+  0%, 100% { background-color: var(--color-brand); }
+  50% { background-color: var(--color-brand-dark); }
 }
 
 .animate-flash-bg {

@@ -109,19 +109,19 @@ export default function Footer({ language: propsLang }: FooterProps) {
                 {t.footer.newsHeading}
               </h3>
               <div className="flex flex-col gap-2 text-sm font-medium">
-                <Link href="/?category=general" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                <Link href="/" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.categories.general}
                 </Link>
-                <Link href="/?category=india" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                <Link href="/india" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.categories.india}
                 </Link>
-                <Link href="/?category=world" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                <Link href="/world" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.categories.world}
                 </Link>
-                <Link href="/?category=tech" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                <Link href="/tech" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.categories.tech}
                 </Link>
-                <Link href="/?category=business" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                <Link href="/business" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.categories.business}
                 </Link>
               </div>
@@ -133,16 +133,16 @@ export default function Footer({ language: propsLang }: FooterProps) {
                 {t.footer.moreNewsHeading}
               </h3>
               <div className="flex flex-col gap-2 text-sm font-medium">
-                <Link href="/?category=sports" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                <Link href="/sports" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.categories.sports}
                 </Link>
-                <Link href="/?category=entertainment" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                <Link href="/entertainment" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.categories.entertainment}
                 </Link>
-                <Link href="/?category=health" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                <Link href="/health" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.categories.health}
                 </Link>
-                <Link href="/?category=science" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                <Link href="/science" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.categories.science}
                 </Link>
                 <Link href="/saved" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">

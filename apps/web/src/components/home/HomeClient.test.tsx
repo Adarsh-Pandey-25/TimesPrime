@@ -257,7 +257,7 @@ describe("an empty feed", () => {
       renderHome([]);
     });
     expect(screen.getByText("No stories right now")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Show all news" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Show all news" })).toBeInTheDocument();
   });
 
   test("and in Hindi", async () => {
@@ -266,6 +266,6 @@ describe("an empty feed", () => {
       renderHome([]);
     });
     expect(screen.getByText("अभी कोई खबर नहीं है")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "सभी खबरें देखें" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "सभी खबरें देखें" })).toBeInTheDocument();
   });
 });

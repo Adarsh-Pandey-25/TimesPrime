@@ -10,7 +10,7 @@ jest.mock("@sentry/nextjs", () => ({ captureMessage: jest.fn(), captureException
 jest.mock("../services/classify/categoryClassifier", () => ({ classifyCategoryRelevance: jest.fn(() => Promise.resolve()) }));
 jest.mock("../lib/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
 
-import { findArticleByLink, getDBArticles, getLatestArticleTimestamp, saveArticlesToDB } from "./db";
+import { findArticleById, findArticleByLink, getDBArticles, getLatestArticleTimestamp, saveArticlesToDB } from "./db";
 import { FALLBACK_REPORT_WINDOW_MS } from "../lib/reportFallback";
 import type { Article } from "@timesprime/shared/types";
 
@@ -221,6 +221,25 @@ describe("findArticleByLink (F-005)", () => {
     await expect(findArticleByLink("https://publisher.example/none")).resolves.toBeNull();
     supabase.from.mockImplementation(() => failingQuery(OUTAGE));
     await expect(findArticleByLink("https://publisher.example/none")).resolves.toBeNull();
+  });
+
+  // R2: the story URLs find a story by NewsData's article_id.
+  test("by article_id: an exact match, read-only, the same fields", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    supabase.from.mockImplementation(() => answering([{ article_id: "3f9a0c21", title: "Budget", link: "https://publisher.example/a" }], calls));
+    await expect(findArticleById("3f9a0c21")).resolves.toMatchObject({ article_id: "3f9a0c21", title: "Budget", link: "https://publisher.example/a" });
+    expect(calls).toContainEqual(["eq", ["article_id", "3f9a0c21"]]);
+    expect(calls.map(([m]) => m)).not.toEqual(expect.arrayContaining(["delete", "update", "upsert", "insert"]));
+    expect(calls.find(([m]) => m === "select")?.[1][0]).not.toMatch(/content/);
+  });
+
+  test("by article_id: another row, a row with no link, or no row is not a match", async () => {
+    supabase.from.mockImplementation(() => answering([{ article_id: "other", title: "x", link: "https://publisher.example/x" }], []));
+    await expect(findArticleById("3f9a0c21")).resolves.toBeNull();
+    supabase.from.mockImplementation(() => answering([{ article_id: "3f9a0c21", title: "x", link: null }], []));
+    await expect(findArticleById("3f9a0c21")).resolves.toBeNull();
+    supabase.from.mockImplementation(() => answering([], []));
+    await expect(findArticleById("3f9a0c21")).resolves.toBeNull();
   });
 });
 
