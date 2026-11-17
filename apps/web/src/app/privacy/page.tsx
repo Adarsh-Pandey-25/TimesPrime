@@ -3,6 +3,7 @@ import Header from "@/components/news/Header";
 import Footer from "@/components/news/Footer";
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
+import { CONTACT_EMAIL, GRIEVANCE_OFFICER, OFFICE_ADDRESS } from "@timesprime/shared/config/site";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -14,15 +15,15 @@ const SECTIONS = [
   {
     heading: "Information We Collect",
     body: [
-      "We collect information you provide directly, such as your email address when you subscribe to our newsletter or submit the contact form.",
+      "If you email us, we receive your email address and what you write, and use them only to reply.",
       "We also collect limited technical information automatically — like your browser type, device, and general usage patterns — to help us understand how TimesPrime is used and to improve the product.",
-      "Articles you bookmark are stored locally in your browser and are not transmitted to our servers unless you are signed in to a synced account.",
+      "Articles you save are stored only in your browser and are not sent to our servers.",
     ],
   },
   {
     heading: "How We Use Your Information",
     body: [
-      "We use the information we collect to operate and improve TimesPrime, personalize your news feed, respond to inquiries, and send occasional updates if you've opted in to our newsletter.",
+      "We use the information we collect to operate and improve TimesPrime and to reply to your emails.",
       "We do not sell your personal information to third parties.",
     ],
   },
@@ -36,7 +37,7 @@ const SECTIONS = [
   {
     heading: "Third Party Services",
     body: [
-      "TimesPrime aggregates headlines and articles using NewsData.io, a third-party news API. Article content, images, and metadata displayed on this site originate from the publishers indexed by that service.",
+      "TimesPrime shows the headlines and short summaries of outside stories using NewsData.io, a third-party news API. They come from the publishers indexed by that service, and each links to the publisher's own page.",
       "We use Supabase for our backend database and authentication infrastructure. These providers may process limited technical data as part of delivering their services to us.",
     ],
   },
@@ -51,13 +52,18 @@ const SECTIONS = [
     heading: "Your Rights",
     body: [
       "You may request access to, correction of, or deletion of any personal information we hold about you by contacting us using the details below.",
-      "You can unsubscribe from newsletter emails at any time using the link provided in those emails.",
+    ],
+  },
+  {
+    heading: "Grievance Officer",
+    body: [
+      `Complaints about this policy, or about how we handle your information, can be sent to our Grievance Officer, ${GRIEVANCE_OFFICER.name}, at ${GRIEVANCE_OFFICER.email}, or by post to ${OFFICE_ADDRESS.join(", ")}. The Grievance Redressal page says how a complaint is handled.`,
     ],
   },
   {
     heading: "Contact Us",
     body: [
-      "If you have questions about this Privacy Policy, please reach out to us at contact@timesprime.in.",
+      `If you have questions about this Privacy Policy, please write to us at ${CONTACT_EMAIL}.`,
     ],
   },
 ] as const;
@@ -83,7 +89,7 @@ export default function PrivacyPolicyPage() {
             </h1>
             <div className="mt-4 h-1 w-14 rounded-full bg-red-600" />
             <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-slate-300">
-              Last updated: August 2026
+              Last updated: November 2026
             </p>
           </div>
         </div>
