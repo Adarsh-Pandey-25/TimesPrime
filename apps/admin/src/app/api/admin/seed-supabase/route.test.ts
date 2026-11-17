@@ -17,6 +17,7 @@ jest.mock("@timesprime/server/auth/requirePermission", () => ({
 }));
 
 import { NextRequest } from "next/server";
+import { ADMIN_SYNC_CALLS } from "@timesprime/shared/config/newsRefresh";
 import { POST as handler } from "./route";
 
 const POST = () => handler(new NextRequest("http://localhost:3000/api/admin/seed-supabase", { method: "POST" }));
@@ -56,4 +57,12 @@ test("NEWSDATA_API_KEY is the key sent to NewsData.io, in the X-ACCESS-KEY heade
     expect(String(url)).not.toMatch(/apikey|server-key|public-prefixed-key/);
     expect(init.headers).toEqual({ "X-ACCESS-KEY": "server-key" });
   }
+});
+
+// The free plan's arithmetic counts each "Sync now" as ADMIN_SYNC_CALLS (newsRefresh.ts), so the
+// sync must make exactly that many NewsData calls.
+test("one sync makes ADMIN_SYNC_CALLS NewsData calls", async () => {
+  process.env.NEWSDATA_API_KEY = "server-key";
+  await POST();
+  expect(global.fetch).toHaveBeenCalledTimes(ADMIN_SYNC_CALLS);
 });

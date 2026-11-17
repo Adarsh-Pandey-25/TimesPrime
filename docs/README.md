@@ -167,8 +167,8 @@ Run from the repository root.
 
 ## Architecture in one paragraph
 
-A worker job (`refresh-news`, on the server's 15-minute timer, running once its interval of 60
-minutes has passed) pulls each category, in English and Hindi, from NewsData.io, filters out
+A worker job (`refresh-news`, on the server's 15-minute timer, running once its interval of 120
+minutes has passed; 60 once the NewsData Basic plan is bought) pulls each category, in English and Hindi, from NewsData.io, filters out
 paywalled, horoscope, wire-spam and non-news sources, and upserts into Supabase. Readers read only
 the database (R1-12): `/api/news/top-headlines` tries the Redis cache, then Supabase, and never
 NewsData.io; there are no mock articles. The `X-Data-Source` response header (`cache` or

@@ -16,7 +16,7 @@ holds the server-only code, `packages/shared` the client-safe config, types and 
 Three independent flows, each with its own failure posture.
 
 ```
-INGEST ─ the server's timer starts the worker every 15 minutes; it refreshes every 60 (R12-04)
+INGEST ─ the server's timer starts the worker every 15 minutes; it refreshes every 120 (60 on Basic)
   npm run job -- refresh-news   (apps/worker; exit 0 clean or skipped, 1 failed, 2 unknown job)
     → skip unless the interval has passed since the last start (a state file on a volume)
     → NewsData.io, one request per category, in English then Hindi: 14, sequential
@@ -122,7 +122,7 @@ conclusions (see [the gotchas](OPERATIONS.md#3-gotchas-that-have-already-burned-
     3.27).
   - **The refresh:** `vercel.json` is gone. The server's systemd timer starts the worker every 15
     minutes, and the job runs at the one interval in `packages/shared/src/config/newsRefresh.ts`
-    (60 minutes).
+    (120 minutes on NewsData's free plan, 60 once the Basic plan is bought).
 
 ## 3. How the structure got here
 
@@ -378,7 +378,8 @@ same day (PRs #4 to #9); the runbook is [OPERATIONS.md, Deployment](OPERATIONS.m
   - our own placeholder per category;
   - noindex on outside-story pages;
   - AI chat off behind a flag.
-- **The refresh:** English and Hindi every 60 minutes (336 calls a day). Option (c), several
+- **The refresh:** English and Hindi every 60 minutes (336 calls a day); every 120 minutes (168 a
+  day) while the site runs on NewsData's free plan (the owner, 17 Nov 2026). Option (c), several
   categories per call, is built and switched to every 15 minutes only after the NewsData Basic plan
   is bought and a dry run passes. The admin refresh-interval setting is designed, not built
   (permission `settings.manage`).

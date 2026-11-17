@@ -37,15 +37,16 @@ describe("refreshNews", () => {
   // run, times the runs a day. A change to the interval or the categories changes this number on
   // purpose; before go-live it is checked against 70% of the plan's daily limit.
   // R12-02: the worker fetches English and Hindi, 7 categories each, so 14 calls a run.
-  // R12-04: every 60 minutes, the senior's figure. 336 calls a day is 50% of the NewsData Basic
-  // plan (20,000 a month, about 666 a day); the ceiling is 70%.
-  test("the scheduled job's NewsData calls a day: 14 a run, every 60 minutes, 336", async () => {
+  // The owner, 17 Nov 2026: every 120 minutes while on NewsData's free plan, 200 calls a day. 168
+  // calls a day leaves room for four admin syncs (newsRefresh.test.ts). On the Basic plan it goes
+  // back to the senior's 60 minutes: 336 a day, 50% of Basic, whose ceiling is 70%.
+  test("the scheduled job's NewsData calls a day: 14 a run, every 120 minutes, 168", async () => {
     await refreshNews();
     const callsPerRun = newsdata.fetchNewsDataArticles.mock.calls.length;
     expect(callsPerRun).toBe(14);
-    expect(NEWS_REFRESH_INTERVAL_MINUTES).toBe(60);
-    expect(NEWS_REFRESH_RUNS_PER_DAY).toBe(24);
-    expect(callsPerRun * NEWS_REFRESH_RUNS_PER_DAY).toBe(336);
+    expect(NEWS_REFRESH_INTERVAL_MINUTES).toBe(120);
+    expect(NEWS_REFRESH_RUNS_PER_DAY).toBe(12);
+    expect(callsPerRun * NEWS_REFRESH_RUNS_PER_DAY).toBe(168);
   });
 
   test("a run purges once, and refreshes every category in English and in Hindi", async () => {
