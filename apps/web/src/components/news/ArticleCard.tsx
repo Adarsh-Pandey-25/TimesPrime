@@ -14,6 +14,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { placeholderFor } from "@timesprime/shared/config/categoryPlaceholders";
 import { getCategoryColor, getCategoryBadgeBgClass, getCategoryBorderClass } from "@timesprime/shared/config/categoryColors";
 import { mapCategory } from "@timesprime/shared/config/newsConfig";
+import { storyPath } from "@timesprime/shared/lib/storyUrl";
 
 // NewsData.io returns this literal string as the description (and
 // sometimes the title) for articles whose full content requires a paid
@@ -121,10 +122,7 @@ export default function ArticleCard({
     : rawBody;
   const displayDesc = cleanBody;
 
-  const articleSlug = encodeURIComponent(
-    article.article_id || article.title.slice(0, 30)
-  );
-  const detailUrl = `/article/${articleSlug}?url=${encodeURIComponent(article.link)}`;
+  const detailUrl = storyPath(article);
 
   const handleBookmarkClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -136,10 +134,7 @@ export default function ArticleCard({
   const handleSubStoryClick = (e: React.MouseEvent, relArt: Article) => {
     e.preventDefault();
     e.stopPropagation();
-    const relSlug = encodeURIComponent(
-      relArt.article_id || relArt.title.slice(0, 30)
-    );
-    router.push(`/article/${relSlug}?url=${encodeURIComponent(relArt.link)}`);
+    router.push(storyPath(relArt));
   };
 
   // "general"/"top" is deliberately excluded from the override: forcing

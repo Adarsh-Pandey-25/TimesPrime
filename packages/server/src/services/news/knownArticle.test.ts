@@ -6,13 +6,19 @@
  * articles any more (B-04, Phase B).
  */
 
-jest.mock("../../repositories/db", () => ({ findArticleByLink: jest.fn() }));
+jest.mock("../../repositories/db", () => ({ findArticleByLink: jest.fn(), findArticleById: jest.fn() }));
 
-import { findKnownArticle } from "./knownArticle";
+import { findKnownArticle, findKnownArticleById } from "./knownArticle";
 
-const { findArticleByLink } = jest.requireMock("../../repositories/db") as { findArticleByLink: jest.Mock };
+const { findArticleByLink, findArticleById } = jest.requireMock("../../repositories/db") as {
+  findArticleByLink: jest.Mock;
+  findArticleById: jest.Mock;
+};
 
-beforeEach(() => findArticleByLink.mockReset().mockResolvedValue(null));
+beforeEach(() => {
+  findArticleByLink.mockReset().mockResolvedValue(null);
+  findArticleById.mockReset().mockResolvedValue(null);
+});
 
 test("a stored article is known", async () => {
   findArticleByLink.mockResolvedValue({ title: "Budget passes", link: "https://publisher.example/story" });
@@ -32,4 +38,14 @@ test("anything else is unknown", async () => {
 test.each([undefined, null, ""])("no link (%j) is unknown, and costs no query", async (link) => {
   await expect(findKnownArticle(link)).resolves.toBeNull();
   expect(findArticleByLink).not.toHaveBeenCalled();
+});
+
+// R2: the story URLs carry NewsData's article_id.
+test("by id: a stored story is known, and no id costs no query", async () => {
+  findArticleById.mockResolvedValue({ article_id: "3f9a", title: "Budget passes", link: "https://publisher.example/story" });
+  await expect(findKnownArticleById("3f9a")).resolves.toMatchObject({ title: "Budget passes" });
+  expect(findArticleById).toHaveBeenCalledWith("3f9a");
+  findArticleById.mockClear();
+  await expect(findKnownArticleById(null)).resolves.toBeNull();
+  expect(findArticleById).not.toHaveBeenCalled();
 });

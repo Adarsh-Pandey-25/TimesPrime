@@ -12,6 +12,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useTheme } from "@timesprime/ui/ThemeContext";
 import { assignPlaceholders, thumbnailFor } from "@timesprime/shared/config/categoryPlaceholders";
 import { safePublisherHref } from "@timesprime/shared/lib/urlValidation";
+import { storyPath } from "@timesprime/shared/lib/storyUrl";
 import { aiChatEnabled } from "@timesprime/shared/config/aiChat";
 
 /** Bare hostname (no "www."), the source's name when the row carries none. */
@@ -104,8 +105,7 @@ export default function ArticleDetailView({ story, allArticles }: ArticleDetailV
   const dedupedImages = assignPlaceholders([story, ...relatedNews, ...trending, ...suggested]);
   const heroImage = dedupedImages.get(story)!;
 
-  const storyHref = (art: Article) =>
-    `/article/${encodeURIComponent(art.article_id || art.title.slice(0, 30))}?url=${encodeURIComponent(art.link)}`;
+  const storyHref = (art: Article) => storyPath(art);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);

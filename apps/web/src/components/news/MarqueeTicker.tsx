@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Article } from "@timesprime/shared/types";
+import { storyPath } from "@timesprime/shared/lib/storyUrl";
 import { Zap } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -138,12 +139,10 @@ export default function MarqueeTicker({ articles }: MarqueeTickerProps) {
       <div className="flex flex-1 overflow-hidden">
         <div className="animate-marquee space-x-4 flex items-center [transform:translateZ(0)] will-change-transform">
           {marqueeItems.map((article, idx) => {
-            const slug = encodeURIComponent(article.article_id || article.title.slice(0, 30));
-
             return (
               <span key={`${article.article_id}-${idx}`} className="inline-flex items-center space-x-4 shrink-0">
                 <Link
-                  href={`/article/${slug}?url=${encodeURIComponent(article.link)}`}
+                  href={storyPath(article)}
                   className="inline-flex items-center space-x-3 text-[13px] font-bold transition-colors whitespace-nowrap text-slate-200 hover:text-red-400 [text-shadow:0_1px_2px_rgb(0_0_0_/_40%)]"
                 >
                   <span className="h-2 w-2 rounded-full bg-red-600 shrink-0" />

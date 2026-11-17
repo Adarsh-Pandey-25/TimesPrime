@@ -14,7 +14,8 @@ const now = Date.now();
 
 const story = (n, title, category) => ({
   id: `00000000-0000-4000-8000-00000000000${n}`,
-  article_id: `stub-${n}`,
+  // Letters and digits, like NewsData's ids, so the stories get R2's addresses.
+  article_id: `stub000${n}`,
   title,
   link: `https://publisher.example/stub-${n}`,
   description: `${title}: a fixed story for the browser tests.`,
@@ -38,8 +39,15 @@ const ARTICLES = [
 
 http
   .createServer((req, res) => {
-    const isArticles = (req.url || "").startsWith("/rest/v1/articles");
-    const rows = req.method === "GET" && isArticles ? ARTICLES : [];
+    const url = new URL(req.url || "/", "http://stub");
+    const isArticles = url.pathname === "/rest/v1/articles";
+    // The article page's lookups ask for one story by an exact link or article_id (?link=eq.<v>):
+    // honour those, so an unknown story is not found. The feed's reads take every story.
+    let rows = req.method === "GET" && isArticles ? ARTICLES : [];
+    for (const column of ["link", "article_id"]) {
+      const filter = url.searchParams.get(column);
+      if (filter?.startsWith("eq.")) rows = rows.filter((row) => row[column] === filter.slice(3));
+    }
     res.writeHead(200, {
       "Content-Type": "application/json",
       "Content-Range": rows.length ? `0-${rows.length - 1}/${rows.length}` : "*/0",

@@ -11,6 +11,7 @@ import { useTheme } from "@timesprime/ui/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 
 import { assignPlaceholders } from "@timesprime/shared/config/categoryPlaceholders";
+import { storyPath } from "@timesprime/shared/lib/storyUrl";
 
 interface CategoryMegaMenuProps {
   category: string;
@@ -180,14 +181,13 @@ export default function CategoryMegaMenu({
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 pt-2">
               {categoryArticles.map((art, idx) => {
-                const slug = encodeURIComponent(art.article_id || art.title.slice(0, 30));
                 const titleText = art.title;
                 const imgSrc = dedupedImages.get(art)!;
 
                 return (
                   <Link
                     key={art.article_id || idx}
-                    href={`/article/${slug}?url=${encodeURIComponent(art.link)}`}
+                    href={storyPath(art)}
                     onClick={onClose}
                     className={`group flex flex-col justify-between overflow-hidden rounded-xl border p-2.5 transition-all shadow-xs ${
                       isDark
