@@ -47,8 +47,9 @@ export type DenyCode = "not_staff" | "suspended" | "mfa_required" | "needs_appro
 
 export type Decision = { allowed: true; via: string[] } | { allowed: false; status: 403; code: DenyCode };
 
-// R and M are read-only; Own needs the item's owner, which Panel 2 adds; A needs a second person,
-// whose approval flow comes with the panel that uses it. Until then both are refused.
+// R and M are read-only. Own allows the item's owner only (Panel 2): the target names its owner, and
+// it must be the caller. A needs a second person: decide() answers needs_approval, and the route that
+// supports it (Panel 2's restore and correction) turns that into a request a different person decides.
 const ALLOWS: Record<Mode, ReadonlySet<AccessCode>> = {
   read: new Set<AccessCode>(["F", "S", "R", "M"]),
   act: new Set<AccessCode>(["F", "S"]),
@@ -89,7 +90,12 @@ export function decide(input: {
     if (!grant) continue;
     if (grant.breakGlassOnly && !a.isBreakGlass) continue;
     if (target && target !== ANY_SCOPE && !covers(a, target)) continue;
-    if (!ALLOWS[mode].has(grant.access)) {
+    // Own: the caller's own item. Before the route has loaded its target (ANY_SCOPE), holding Own
+    // is enough to go on; the route then decides again with the item's owner.
+    const ownItem =
+      grant.access === "Own" &&
+      (target === ANY_SCOPE || (target !== undefined && target.ownerId != null && target.ownerId === staff.userId));
+    if (!ALLOWS[mode].has(grant.access) && !ownItem) {
       if (mode === "act" && grant.access === "A") needsApproval = true;
       continue;
     }

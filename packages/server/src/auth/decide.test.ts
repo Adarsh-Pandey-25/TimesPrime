@@ -113,6 +113,22 @@ describe("the cell codes (design §2)", () => {
     expect(act(withCode(code), "sync.run").allowed).toBe(canAct);
   });
 
+  // Panel 2: Own allows the item's owner, in scope, and nobody else.
+  test("Own: allowed on the caller's own item in scope; refused on another's, on an item with no owner, or out of scope", () => {
+    const writer = staff([assignment({ role: "writer", language: "hi", section: "sports", grants: [["article.edit", "Own"]] })]);
+    const mine = { ...HI_SPORTS, ownerId: "u-1" };
+    expect(act(writer, "article.edit", mine)).toMatchObject({ allowed: true });
+    expect(act(writer, "article.edit", { ...HI_SPORTS, ownerId: "u-2" })).toMatchObject({ allowed: false, code: "forbidden" });
+    expect(act(writer, "article.edit", HI_SPORTS)).toMatchObject({ allowed: false, code: "forbidden" });
+    expect(act(writer, "article.edit", { language: "en", section: "sports", ownerId: "u-1" })).toMatchObject({ allowed: false });
+    expect(decide({ staff: writer, aal: "aal2", permission: "article.edit", mode: "read", target: mine, now: NOW })).toMatchObject({ allowed: true });
+  });
+
+  test("Own passes the ANY_SCOPE pre-check, so the route can load the item and decide again", () => {
+    const writer = staff([assignment({ role: "writer", grants: [["article.edit", "Own"]] })]);
+    expect(decide({ staff: writer, aal: "aal2", permission: "article.edit", mode: "act", target: ANY_SCOPE, now: NOW })).toMatchObject({ allowed: true });
+  });
+
   test("A is refused with needs_approval: the approval flow comes with its panel", () => {
     expect(act(withCode("A"), "sync.run")).toEqual({ allowed: false, status: 403, code: "needs_approval" });
   });
