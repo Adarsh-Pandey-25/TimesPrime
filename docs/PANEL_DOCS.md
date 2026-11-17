@@ -496,8 +496,8 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 **Status: in progress.** Built so far: M1a (the stories backend's core), M1b (the Desk API, PRs #17
 and #18) and the two-person restore. M1 is complete. M2's code is complete (the editor package, the
 Desk's screens, the story's revisions on screen); the Hindi typing check still closes it. M3 is under
-way: the reader's story page (PR #23) and the preview in the back office (decision 7) are built
-(below). Started before Panel 1 at the owner's request (17 Nov 2026);
+way: the reader's story page (PR #23), the preview in the back office (decision 7, PR #24) and
+scheduled publishing are built (below). Started before Panel 1 at the owner's request (17 Nov 2026);
 [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -525,6 +525,9 @@ way: the reader's story page (PR #23) and the preview in the back office (decisi
     embargo;
   - `packages/shared/src/lib/storyUrl.ts`: a story's address (`deskStoryPath`, `deskStoryIdFrom`);
   - `packages/server/src/services/desk/fourEyes.ts`;
+  - `packages/server/src/services/desk/publish.ts` (publishing's rules, shared by the Publish route
+    and the scheduler) and `scheduler.ts` (the worker's `publish-scheduled` job, in
+    `apps/worker/src/jobs.ts`), started by `deploy/systemd/timesprime-publish.timer`;
   - `packages/server/src/repositories/stories.ts`, including the reader's read, `getPublishedStory`;
   - `packages/editor/src/render.ts`: the reader's renderer;
   - the reader's pages: `apps/web/src/app/_story/storyPage.tsx`, used by `[section]/[story]` and
@@ -634,11 +637,32 @@ aggregator's `articles` and its 7-day purge.
     `PREVIEW_SECRET`.
   - **Hindi:** the back office now loads the reader site's Devanagari face (Noto Serif Devanagari,
     not preloaded), so Hindi looks the same on the Desk, in its editor and in the preview.
+- **Built (M3, third part): scheduled publishing.**
+  - **The job:** the worker's `publish-scheduled`, started every 5 minutes by a systemd timer in
+    `deploy/` (owner decision 3), publishes every scheduled story whose time has come, oldest
+    first, at most 50 a run. A story scheduled for 10:00 goes live at the 10:00 run or the next.
+  - **By the Publish route's own rules:** Publish Guard and the embargo (`services/desk/publish.ts`,
+    which the route now uses too). A story still under embargo waits for a later run.
+  - **On behalf of the editor who scheduled it:** the history names them; the story records them as
+    its publisher. The audit log's actor is `system:scheduler`, with them as `on_behalf_of`,
+    attempted first and refused if it cannot be written.
+  - **Only while they still may** (as built, beyond the design): their access is decided again at
+    publication, as if they pressed Publish. If they were suspended, or their assignment expired,
+    was revoked or no longer covers the story's desk, the story goes back to approved, with the
+    reason in its history, for an editor who may to schedule or publish it.
+  - **Never twice:** a story published or unscheduled by hand meanwhile is refused by the database
+    and counted as moved. One story's failure does not hold up the others, and fails the run
+    (exit 1) so the journal shows it.
+  - **On the Desk:** the schedule field says the server publishes within 5 minutes after the time,
+    if the editor may still publish then.
+  - **Deploying it:** `deploy.sh` now installs and starts every timer in the kit, and stops one an
+    older kit installed that the kit does not carry (OPERATIONS.md, Deployment).
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
-  - the worker's scheduling and corrections (M3);
+  - corrections (M3);
+  - the Desk's alert list for takedowns (design §8; the audit log has them);
   - media and bylines (M4).
 
 #### Access permissions and authorization rules
@@ -679,6 +703,11 @@ embargo 409.
 | `apps/web/src/app/_story/storyPage.test.tsx` | Both routes render on every request; a story at its address, in its language, with its metadata (SEO title, canonical, `og:locale`) | Another slug, section or language: 308 to its own address; not a section, no number, or not shown by the store: 404 without a read where none is needed; a store failure is an error, not a 404 |
 | `packages/ui/src/StoryArticle.test.tsx` | Section, headline, dek, times, bylines and credits, the correction note; a Hindi story labelled in Hindi; in the preview, the section named, not linked | No byline and no update shown when there is none |
 | `e2e/reader.spec.ts` (Desk stories) | From the stand-in: an English story at its address, `no-store`, `lang="en"` and its canonical; a Hindi one under `/hi/` | Another address: 308; an unknown story: 404 in both languages (this one also against the real database, locally) |
+| `packages/server/src/services/desk/publish.test.ts` | An approved revision past its embargo goes live; what publishing sets, keeping the first publication's time | Before the embargo; no approved revision, or one already live |
+| `packages/server/src/services/desk/scheduler.test.ts` | A due story goes live on behalf of the editor who last scheduled it, audited as `system:scheduler`, attempt first; a story under embargo waits; one failure does not hold up the others | The attempt cannot be written (nothing published); the scheduler revoked, expired, suspended, no longer staff or out of the desk (back to approved, never live); moved meanwhile (counted, not failed); no scheduler on record; the due list cannot be read |
+| `packages/server/src/repositories/stories.test.ts` (`listDueScheduled`) | Scheduled stories whose time has come, oldest first, a batch at a time | A database error is thrown |
+| `apps/worker/src/jobs.test.ts` (`publish-scheduled`) | A clean run exits 0 and logs what it did; it never runs the news refresh | A failed story exits 1 and is named; an unreadable list fails the job |
+| `scripts/deploy.test.ts` (scheduled publishing) | The timer fires every `PUBLISH_TICK_MINUTES` (5) and runs `publish-scheduled`; a run times out before the next tick; `deploy.sh` installs and starts every timer in the kit | A timer the kit does not carry is stopped |
 | `apps/admin/src/app/api/admin/access.test.ts` (details) | A Writer sets their story's slug | A malformed slug; a live story; a Writer clearing the legal flag (needs `article.approve`); approval voided by a change |
 | `apps/admin/src/app/api/admin/access.test.ts` (restore) | A Desk Editor (A) asks, with a reason; a different one approves or declines | The requester deciding their own request; a story that is not down; no reason; a decided request; a Writer; an A holder without MFA |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
@@ -688,8 +717,9 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** M3's scheduling (the `publish-scheduled` job and its 5-minute timer) and corrections.
-  The Hindi typing check still closes M2.
+- **Next:** M3's corrections. The Hindi typing check still closes M2.
+- **Scheduled stories go live only once the server runs the timer:** the deploy installs it. On a
+  laptop nothing publishes them; the job is never run from a session (it writes to the database).
 - **The reader's story page is reached by its address only:** stories join the home and section
   pages in Panel 3, and the news sitemaps and NewsArticle markup in Phase F (design §12).
 - **Bylines** show once authors exist (M4); until then a story shows none.

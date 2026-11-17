@@ -27,6 +27,16 @@ INGEST ─ the server's timer starts the worker every 15 minutes; it refreshes e
   code: apps/worker/src/jobs.ts → packages/server/src/services/news/refreshNews.ts
         → packages/server/src/repositories/db.ts, auditLog.ts
 
+PUBLISH ─ the server's timer starts the worker every 5 minutes (Panel 2, the Desk's own stories)
+  npm run job -- publish-scheduled   (exit 0 clean, 1 a story failed or the read failed)
+    → scheduled stories whose time has come, oldest first, at most 50 a run
+    → each on behalf of the editor who scheduled it, while they still may publish it there;
+      otherwise back to approved, with the reason in its history
+    → the Publish route's own rules (Publish Guard, the embargo); audit_log as system:scheduler,
+      attempted first
+  code: apps/worker/src/jobs.ts → packages/server/src/services/desk/scheduler.ts, publish.ts
+        → packages/server/src/repositories/stories.ts, staff.ts, auditLog.ts
+
 SERVE ─ per reader request (apps/web); readers read the database only (R1-12)
   /api/news/top-headlines, the home page and the article page
     1. Redis cache        15 min TTL                 → X-Data-Source: cache
@@ -165,13 +175,15 @@ apps/
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list,
                            a new story, the story editor and its revisions, the preview)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
-    src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand)
+    src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
+                           publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes)
 packages/
   server/                  @timesprime/server: server-only, every module opens with import "server-only"
     src/auth/              the access foundation (Panel 0): requirePermission (the gate), decide, scope,
                            adminRoutePolicy, staffSession, supabaseServer, mfa, adminSession
     src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk)
-    src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes)
+    src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
+                           publishing's rules, the scheduler)
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase, …
   shared/                  @timesprime/shared: client-safe config, types and lib (urlValidation, sentryScrub)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and

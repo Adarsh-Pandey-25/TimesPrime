@@ -101,7 +101,8 @@ an EC2 t3.medium (x86_64, Ubuntu 24.04 LTS) in `ap-south-1` (Mumbai), running Do
 - **Images:** built on a laptop and pushed to ECR. The server only pulls; it never builds.
 - **Deploys:** manual, each approved by Adarsh, with a one-command rollback.
 - **Not used:** ECS, ALB, EventBridge, NAT.
-- **The kit is `deploy/`:** compose file, Nginx, the refresh timer, scripts and env templates
+- **The kit is `deploy/`:** compose file, Nginx, the timers (the news refresh, and the Desk's
+  scheduled publishing every 5 minutes), scripts and env templates
   ([where new code goes](README.md#where-new-code-goes)). `scripts/deploy.test.ts` checks it.
 
 The plan's Phase I ([`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md)) adds what the full launch needs
@@ -161,8 +162,9 @@ deploy/scripts/run-local.sh <tag>            # the same images: http://localhost
    rights on the three ECR repositories; Docker's build cache makes this second build quick.
 3. **Deploy on the server.** Open EC2 → the instance → Connect → Session Manager, and run
    `sudo bash /opt/timesprime/current/scripts/deploy.sh <tag>`.
-   - It takes the tag's kit from the worker image, records the previous tag, installs the timer,
-     pulls, starts, and waits up to three minutes for web and admin to report healthy.
+   - It takes the tag's kit from the worker image, records the previous tag, installs the kit's
+     timers (and stops one an older kit installed that this kit does not carry), pulls, starts,
+     and waits up to three minutes for web and admin to report healthy.
 4. **Clear CloudFront's copy of the pages:**
    `aws cloudfront create-invalidation --distribution-id <id> --paths "/*"`.
    - Static pages (`/about`, `/privacy`, `/terms`, `/contact`, `/saved`) are sent with
@@ -174,6 +176,9 @@ deploy/scripts/run-local.sh <tag>            # the same images: http://localhost
 6. **If anything is wrong,** roll back: `sudo bash /opt/timesprime/current/scripts/rollback.sh`.
    - It deploys the previous tag with that tag's own kit. Run it again to come back.
    - Then invalidate CloudFront again, as in step 4.
+   - Back to a tag from before the scheduled-publishing timer (Panel 2, M3)? That tag's
+     `deploy.sh` does not know the timer, so stop it by hand:
+     `sudo systemctl disable --now timesprime-publish.timer`. Kits from M3 on do this themselves.
 
 ### The AWS resources, in order
 
@@ -366,8 +371,9 @@ bash /tmp/deploy.sh <tag>
 ```
 
 From then on every deploy is `sudo bash /opt/timesprime/current/scripts/deploy.sh <tag>`. Check
-the timer with `systemctl list-timers timesprime-refresh.timer`, and a run with
-`journalctl -u timesprime-refresh.service -n 20`.
+the timers with `systemctl list-timers 'timesprime-*'` (the news refresh every 15 minutes, the
+Desk's scheduled publishing every 5), and a run with `journalctl -u timesprime-refresh.service -n 20`
+or `journalctl -u timesprime-publish.service -n 20`.
 
 ### Weekly: the Supabase backup
 
@@ -560,6 +566,9 @@ After every deploy, from a browser and a shell:
 - **The refresh:** `journalctl -u timesprime-refresh.service` shows a run or a skip within 15
   minutes. A run's `audit_log` row (`system:cron`, `cron.refresh_news`) carries the purge count
   (F-015).
+- **Scheduled publishing:** `journalctl -u timesprime-publish.service` shows a run every 5 minutes,
+  each a JSON line (`"due":0` when nothing is scheduled). A story it publishes has `audit_log` rows
+  `story.publish` by `system:scheduler`, with the editor who scheduled it as `on_behalf_of`.
 - **The origin is locked:** `https://origin.timesprime247.com:8443/` without the header answers 403
   (from a team IP; anything else does not even connect).
 - **The back office:** `https://admin.timesprime247.com/` redirects to `/admin`. Its files load
@@ -1372,9 +1381,10 @@ phases were done:
    (PRs #17, #18), the two-person restore (PR #19), the editor package (PR #20), the Desk's
    screens (PR #21) and revisions on the story screen (PR #22). M2's code is complete; the Hindi
    typing check still closes it. M3 (approved by the owner, 17 Nov 2026): the reader's story page
-   was merged (PR #23); the preview, moved into the back office by the owner (design decision 7, so
-   no `PREVIEW_SECRET`), is on `panel-2-desk-preview`; then scheduling and corrections. Panel 1 will
-   be built on `panel-1-administration`.
+   was merged (PR #23), and the preview, moved into the back office by the owner (design decision 7,
+   so no `PREVIEW_SECRET`, PR #24). Scheduled publishing (the worker's `publish-scheduled` job and
+   its 5-minute timer in `deploy/`) is on `panel-2-desk-schedule`; then corrections. Panel 1 will be
+   built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
@@ -1900,7 +1910,7 @@ in [`ARCHITECTURE.md`](ARCHITECTURE.md#architecture). The tree, in short:
 ```
 apps/web/        the reader site: src/app (pages, public APIs) · src/components · src/context · src/lib
 apps/admin/      the back office: src/proxy.ts · src/app/admin · src/app/api/admin · src/components
-apps/worker/     scheduled jobs: src/jobs.ts (refresh-news)
+apps/worker/     scheduled jobs: src/jobs.ts (refresh-news, publish-scheduled)
 packages/server/ auth/ · repositories/ · services/{news,scrape,translate,classify,health} · lib/
 packages/shared/ config/ · types/ · lib/      what both apps import
 packages/ui/     ThemeContext · StoryArticle and story.css (a Desk story's view, both apps)
