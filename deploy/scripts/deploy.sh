@@ -7,7 +7,8 @@
 # (docs/OPERATIONS.md, Deployment). It:
 #   1. pulls the tag's worker image and copies its deploy kit (this folder) to kits/<tag>;
 #   2. records the tag, and the one it replaces, in release.env (rollback.sh uses that);
-#   3. points current/ at the kit and installs the refresh timer;
+#   3. points current/ at the kit and installs its timers (the news refresh, scheduled publishing),
+#      stopping any timer an older kit installed that this one does not carry;
 #   4. pulls the tag's images and starts them;
 #   5. waits for the reader site and the back office to report healthy.
 # The server only pulls: images are never built here.
@@ -46,11 +47,19 @@ COMPOSE_PROFILES=edge
 EOF
 mv "$BASE/release.env.new" "$BASE/release.env"
 
-# 3. current/ is this kit; the refresh timer comes from it.
+# 3. current/ is this kit; its timers come from it. A timer installed by another kit that this one
+# does not carry is stopped first, so a rollback never leaves a job running that its image lacks.
 ln -sfn "$KIT" "$BASE/current"
-install -m 0644 "$KIT/systemd/timesprime-refresh.service" "$KIT/systemd/timesprime-refresh.timer" /etc/systemd/system/
+for installed in /etc/systemd/system/timesprime-*.timer; do
+  [ -e "$installed" ] || continue
+  name="$(basename "$installed")"
+  [ -e "$KIT/systemd/$name" ] || systemctl disable --now "$name" >/dev/null 2>&1 || true
+done
+install -m 0644 "$KIT"/systemd/timesprime-*.service "$KIT"/systemd/timesprime-*.timer /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now timesprime-refresh.timer >/dev/null
+for timer in "$KIT"/systemd/timesprime-*.timer; do
+  systemctl enable --now "$(basename "$timer")" >/dev/null
+done
 
 # 4. Start this tag.
 cd "$BASE/current"

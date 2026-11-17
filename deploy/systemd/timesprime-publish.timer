@@ -1,0 +1,15 @@
+# The server's timer for the Desk's scheduled stories: every 5 minutes, on the five-minute marks
+# (owner decision 3 of the Panel 2 design; PUBLISH_TICK_MINUTES in
+# packages/shared/src/config/desk.ts, which a test keeps equal). A story scheduled for 10:00 goes
+# live at the 10:00 run, or the first one after.
+
+[Unit]
+Description=TimesPrime scheduled publishing, every 5 minutes
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

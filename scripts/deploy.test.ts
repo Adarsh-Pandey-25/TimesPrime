@@ -4,12 +4,13 @@
  * The deploy kit (deploy/; E-08, E-06, E-09): the single-EC2 release the owner's senior approved on
  * 16 Nov 2026. Read as text, so no YAML library is needed. What it keeps true: images pinned,
  * only Nginx reachable, Redis on an internal network, the trusted-proxy counts, Nginx's header
- * rules the app's audit log relies on, the refresh timer's tick, and no secret in the repository.
+ * rules the app's audit log relies on, the timers' ticks, and no secret in the repository.
  */
 
 import fs from "fs";
 import path from "path";
 import { NEWS_REFRESH_TICK_MINUTES } from "@timesprime/shared/config/newsRefresh";
+import { PUBLISH_TICK_MINUTES } from "@timesprime/shared/config/desk";
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (file: string) => fs.readFileSync(path.join(ROOT, file), "utf8").replace(/\r\n/g, "\n");
@@ -123,6 +124,29 @@ describe("the refresh timer", () => {
     expect(NEWS_REFRESH_TICK_MINUTES).toBe(15);
     expect(read("deploy/systemd/timesprime-refresh.timer")).toContain(`OnCalendar=*:0/${NEWS_REFRESH_TICK_MINUTES}`);
     expect(read("deploy/systemd/timesprime-refresh.service")).toMatch(/--profile jobs run --rm worker refresh-news/);
+  });
+});
+
+// Panel 2 (design §6, owner decision 3): the Desk's scheduled stories.
+describe("the scheduled-publishing timer", () => {
+  test("fires every PUBLISH_TICK_MINUTES (5), and runs the worker's publish-scheduled", () => {
+    expect(PUBLISH_TICK_MINUTES).toBe(5);
+    expect(read("deploy/systemd/timesprime-publish.timer")).toContain(`OnCalendar=*:0/${PUBLISH_TICK_MINUTES}`);
+    expect(read("deploy/systemd/timesprime-publish.service")).toMatch(/--profile jobs run --rm worker publish-scheduled/);
+  });
+
+  test("a run times out before the next tick could start", () => {
+    const timeout = Number(/^TimeoutStartSec=(\d+)$/m.exec(read("deploy/systemd/timesprime-publish.service"))?.[1]);
+    expect(timeout).toBeGreaterThan(0);
+    expect(timeout).toBeLessThan(PUBLISH_TICK_MINUTES * 60);
+  });
+
+  test("deploy.sh installs and starts every timer in the kit, and stops one the kit does not carry", () => {
+    const deploy = read("deploy/scripts/deploy.sh");
+    expect(deploy).toContain('install -m 0644 "$KIT"/systemd/timesprime-*.service "$KIT"/systemd/timesprime-*.timer /etc/systemd/system/');
+    expect(deploy).toContain('for timer in "$KIT"/systemd/timesprime-*.timer; do');
+    expect(deploy).toContain('systemctl enable --now "$(basename "$timer")"');
+    expect(deploy).toContain('[ -e "$KIT/systemd/$name" ] || systemctl disable --now "$name"');
   });
 });
 
