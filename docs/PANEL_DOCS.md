@@ -494,7 +494,8 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 ### Panel 2: Desk (the Publisher)
 
 **Status: in progress.** Built so far: M1a (the stories backend's core), M1b (the Desk API, PRs #17
-and #18) and the two-person restore. M1 is complete. M2 is under way: the editor package and the Desk's screens (below). Started before Panel 1 at the
+and #18) and the two-person restore. M1 is complete. M2 is under way: the editor package, the
+Desk's screens and the story's revisions on screen (below). Started before Panel 1 at the
 owner's request (17 Nov 2026); [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -585,8 +586,15 @@ aggregator's `articles` and its 7-day purge.
     answer, refusals included. The shared password is told to sign in with a staff account.
   - **JS:** the story screen carries Tiptap, about 1.05 MB of raw JS. It is back-office only, under
     its own budget; no reader page loads it.
+- **Built (M2, third part): the story's revisions, on its screen.**
+  - **Compare any two:** the revisions are numbered from the first draft, with the current and the
+    live one marked. Two picked show what changed in the headline, the dek and the SEO fields, and
+    in the text paragraph by paragraph, then word by word; unchanged paragraphs fold into a count.
+  - **Bring one back:** its text fills the editor, unsaved, and Save adds it as a new revision, so
+    nothing is overwritten and a save's rules (the lock, a save meanwhile) still apply. Offered only
+    to someone who may edit the story now; unsaved changes are replaced only after a yes. This is
+    not the two-person restore, which puts a taken-down story back live.
 - **Not yet:**
-  - the revision diff and a restore to a revision on the screen (the diff code is built);
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
@@ -623,7 +631,7 @@ embargo 409.
 | `packages/server/src/services/desk/fourEyes.test.ts` | A third person may approve | The creator and every editor since the last approval may not; a breaking story's publisher may not review it |
 | `packages/server/src/auth/decide.test.ts` | Own allows the caller's own story in scope | Another's story, an ownerless one, one out of scope |
 | `packages/server/src/repositories/stories.test.ts` | Writes go through the `desk_*` functions; lists stay in scope | A malformed scope matches nothing; a moved story answers 409 |
-| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only); a story not found |
+| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds, opens with no unsaved changes, and keeps unsaved text when the details are saved; two revisions compared field by field and word by word; a revision brought back fills the editor, and only Save sends it, as a new revision | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only, and no Bring back); a story not found; unsaved changes kept when bringing one back is declined |
 | `e2e/admin-access.spec.ts` | Signed out, `/admin/desk` and a story's screen go to sign-in; three Desk API calls answer 401 | (all refused) |
 | `apps/admin/src/app/api/admin/access.test.ts` (details) | A Writer sets their story's slug | A malformed slug; a live story; a Writer clearing the legal flag (needs `article.approve`); approval voided by a change |
 | `apps/admin/src/app/api/admin/access.test.ts` (restore) | A Desk Editor (A) asks, with a reason; a different one approves or declines | The requester deciding their own request; a story that is not down; no reason; a decided request; a Writer; an A holder without MFA |
@@ -634,7 +642,10 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next: M2,** the screens and the editor.
+- **Next:** the Hindi typing check, which closes M2; then M3, once the owner has seen M2.
+- **The design's "restore to a revision"** is built as bringing one back into the editor: Save
+  then copies it into a new revision, through the save route and its checks, so it needs no route
+  of its own.
 - **As built, for the restore:**
   - the deciding route is `pending/[actionId]/decide`, not `…/approve`, because it also declines;
   - a route rule can be `twoPerson`, which lets a holder of A pass the gate to ask or to decide;

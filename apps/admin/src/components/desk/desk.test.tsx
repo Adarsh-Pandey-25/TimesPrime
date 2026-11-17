@@ -9,7 +9,7 @@ const mockRouter = { push: jest.fn() };
 jest.mock("next/navigation", () => ({ useRouter: () => mockRouter, useParams: () => ({ id: "s-1" }) }));
 const push = mockRouter.push;
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import DeskList from "./DeskList";
 import NewStoryForm from "./NewStoryForm";
 import StoryEditor from "./StoryEditor";
@@ -97,7 +97,6 @@ test("a new story is created in its desk and opens in the editor", async () => {
     headline.focus();
     (headline as HTMLInputElement).value = "";
   });
-  const { fireEvent } = await import("@testing-library/react");
   fireEvent.change(headline, { target: { value: "Budget passes" } });
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create and open" })));
   await waitFor(() => expect(push).toHaveBeenCalledWith("/admin/desk/s-9"));
@@ -110,13 +109,24 @@ describe("the story screen", () => {
     id: "s-1", language: "en", section: "india", workflow_state: "desk_review", slug: null, embargo_until: null,
     legal_review_required: false, current_revision_id: "r-1", published_revision_id: null, scheduled_at: null, post_hoc_review_due: false,
   };
-  const REVISION = { id: "r-1", headline: "Budget passes", dek: "", seo_title: "", seo_description: "", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "The house voted." }] }] } };
+  const revision = (id: string, headline: string, at: string, ...paragraphs: string[]) => ({
+    id, headline, dek: "", seo_title: "", seo_description: "", editor_id: "u-9", is_substantive: false, created_at: at,
+    body: { type: "doc", content: paragraphs.map((text) => ({ type: "paragraph", content: [{ type: "text", text }] })) },
+  });
+  type Revision = ReturnType<typeof revision>;
+  const REVISION = revision("r-1", "Budget passes", "2026-11-17T09:00:00Z", "The house voted.");
 
-  function serveStory(permissions: Record<string, "act" | "read">, over: Record<string, unknown> = {}) {
-    serve((url) => {
+  /** The story's routes; `extra` answers first, for the writes a test makes. Revisions newest first. */
+  function serveStory(permissions: Record<string, "act" | "read">, over: Record<string, unknown> = {}, extra?: Route, revisions: Revision[] = [REVISION]) {
+    serve((url, init) => {
+      const answer = extra?.(url, init);
+      if (answer) return answer;
       if (url === "/api/admin/me") return { status: 200, body: staffMe(permissions) };
-      if (url === "/api/admin/desk/stories/s-1") return { status: 200, body: { story: { ...STORY, ...over }, revision: REVISION, history: [{ action: "create", to_state: "draft", actor_label: "staff:u-9", reason: null, at: "2026-11-17T09:00:00Z" }], lock: null, pending: [] } };
+      if (url === "/api/admin/desk/stories/s-1") return { status: 200, body: { story: { ...STORY, current_revision_id: revisions[0].id, ...over }, revision: revisions[0], history: [{ action: "create", to_state: "draft", actor_label: "staff:u-9", reason: null, at: "2026-11-17T09:00:00Z" }], lock: null, pending: [] } };
       if (url === "/api/admin/desk/stories/s-1/lock") return { status: 200, body: { lock: {} } };
+      if (url === "/api/admin/desk/stories/s-1/revisions") return { status: 200, body: { revisions: revisions.map((r) => ({ ...r, body: undefined })) } };
+      const one = revisions.find((r) => url === `/api/admin/desk/stories/s-1/revisions/${r.id}`);
+      if (one) return { status: 200, body: { revision: one } };
     });
   }
 
@@ -130,6 +140,7 @@ describe("the story screen", () => {
     expect(screen.getByRole("button", { name: "Send back" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
     expect(screen.getByText(/create/)).toBeInTheDocument();
+    expect(await screen.findByText(/Only one revision so far/)).toBeInTheDocument();
   });
 
   test("a person without article.edit sees the story read-only, with no Save", async () => {
@@ -138,6 +149,82 @@ describe("the story screen", () => {
     expect(await screen.findByDisplayValue("Budget passes")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     expect(screen.getByText("Nothing for you to do on this story now.")).toBeInTheDocument();
+  });
+
+  test("opening a story shows no unsaved changes, before or after the editor becomes editable", async () => {
+    serveStory({ "article.view_admin": "read", "article.edit": "act" });
+    await act(async () => render(<StoryEditor id="s-1" />));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Headline" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Story text" })).toHaveAttribute("contenteditable", "true"));
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+  });
+
+  test("saving the details keeps unsaved text: only a new revision resets the fields", async () => {
+    serveStory({ "article.view_admin": "read", "article.edit": "act" }, {}, (url, init) =>
+      url === "/api/admin/desk/stories/s-1/details" && init?.method === "POST" ? { status: 200, body: { story: STORY } } : undefined
+    );
+    await act(async () => render(<StoryEditor id="s-1" />));
+    const headline = await screen.findByRole("textbox", { name: "Headline" });
+    await waitFor(() => expect(headline).toBeEnabled());
+    fireEvent.change(headline, { target: { value: "Budget passes, 300 to 120" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save details" })));
+    expect(await screen.findByText("Details saved.")).toBeInTheDocument();
+    expect(headline).toHaveValue("Budget passes, 300 to 120");
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+  });
+
+  describe("revisions", () => {
+    const OLD = revision("r-1", "Budget passes", "2026-11-17T09:00:00Z", "The house voted on Monday.", "The opposition walked out.");
+    const NEW = revision("r-2", "Budget passes easily", "2026-11-17T10:00:00Z", "The house passed it on Monday.", "The opposition walked out.");
+    const marked = (tag: "ins" | "del") => Array.from(document.querySelectorAll(tag), (n) => n.textContent).join(" | ");
+    const saves = () =>
+      (global.fetch as jest.Mock).mock.calls.filter(([url, init]) => url === "/api/admin/desk/stories/s-1/revisions" && init?.method === "POST");
+
+    test("comparing two shows what changed, field by field and word by word; a reader cannot bring one back", async () => {
+      serveStory({ "article.view_admin": "read" }, {}, undefined, [NEW, OLD]);
+      await act(async () => render(<StoryEditor id="s-1" />));
+      const compare = await screen.findByRole("button", { name: "Compare" });
+      expect(screen.getByRole("combobox", { name: /^From/ })).toHaveValue("r-1");
+      expect(screen.getByRole("combobox", { name: /^To/ })).toHaveValue("r-2");
+      expect(screen.queryByRole("button", { name: /Bring back/ })).not.toBeInTheDocument();
+      await act(async () => fireEvent.click(compare));
+      expect(await screen.findByRole("heading", { name: "Changes from revision 1 to revision 2" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Headline" })).toBeInTheDocument();
+      expect(marked("ins")).toMatch(/easily/);
+      expect(marked("ins")).toMatch(/passed/);
+      expect(marked("del")).toMatch(/voted/);
+      expect(screen.getByText("1 paragraph unchanged")).toBeInTheDocument();
+    });
+
+    test("bringing one back fills the editor, unsaved, and only Save adds it as a new revision", async () => {
+      serveStory({ "article.view_admin": "read", "article.edit": "act" }, {}, (url, init) =>
+        url === "/api/admin/desk/stories/s-1/revisions" && init?.method === "POST" ? { status: 200, body: { story: STORY } } : undefined, [NEW, OLD]);
+      await act(async () => render(<StoryEditor id="s-1" />));
+      await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Bring back revision 1" })));
+      expect(await screen.findByText(/Revision 1 is in the editor/)).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "Headline" })).toHaveValue("Budget passes");
+      expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+      expect(saves()).toHaveLength(0);
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save" })));
+      await waitFor(() => expect(saves()).toHaveLength(1));
+      const sent = JSON.parse(saves()[0][1].body);
+      expect(sent).toMatchObject({ expected_revision_id: "r-2", headline: "Budget passes" });
+      expect(JSON.stringify(sent.body)).toContain("The house voted on Monday.");
+    });
+
+    test("with unsaved changes, bringing one back asks first, and No keeps them", async () => {
+      serveStory({ "article.view_admin": "read", "article.edit": "act" }, {}, undefined, [NEW, OLD]);
+      await act(async () => render(<StoryEditor id="s-1" />));
+      const bringBack = await screen.findByRole("button", { name: "Bring back revision 1" });
+      const headline = screen.getByRole("textbox", { name: "Headline" });
+      fireEvent.change(headline, { target: { value: "Budget passes, 300 to 120" } });
+      const confirm = jest.spyOn(window, "confirm").mockReturnValue(false);
+      await act(async () => fireEvent.click(bringBack));
+      await waitFor(() => expect(confirm).toHaveBeenCalledWith("You have unsaved changes. Replace them with revision 1?"));
+      expect(headline).toHaveValue("Budget passes, 300 to 120");
+      expect(screen.queryByText(/Revision 1 is in the editor/)).not.toBeInTheDocument();
+      confirm.mockRestore();
+    });
   });
 
   test("a story the server cannot find shows its message", async () => {

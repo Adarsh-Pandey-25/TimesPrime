@@ -1369,9 +1369,10 @@ phases were done:
 6. **The Publisher (Panel 2, the Desk)**, started before Panel 1 at the owner's request
    (17 Nov 2026); `NEWSROOM_PLAN.md` is unchanged. Its [design](PANEL_DOCS.md#panel-2-design-the-desk-publisher)
    is approved. M1a and M1b (the stories backend and the Desk API) were merged on 17 Nov 2026
-   (PRs #17, #18), the two-person restore (PR #19) and the editor package (PR #20). The Desk's
-   screens are on `panel-2-desk-editor`; then the revision diff on the screen and the Hindi typing
-   check (M2); then Panel 1, on `panel-1-administration`.
+   (PRs #17, #18), the two-person restore (PR #19), the editor package (PR #20) and the Desk's
+   screens (PR #21). Revisions on the story screen (compare any two, bring one back) are on
+   `panel-2-desk-diff`; then the Hindi typing check closes M2, and M3 follows once the owner has
+   seen M2. Panel 1 will be built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
@@ -1825,6 +1826,13 @@ and the fixed version. The error text also suggests an upgrade command; the sess
 it, since a dependency change needs approval. 16.4.3 → 16.4.6 for GHSA-mfr8-8qww-v76h was the first.
 The build also fetches its Google fonts: "Failed to fetch ... from Google Fonts" is the network,
 and a retry passes.
+
+#### 3.37 Tiptap's `setEditable` sends an update event
+
+`editor.setEditable(value)` emits `update` unless its second argument is `false`, so an `onUpdate`
+that marks the story as changed fires with nothing edited. The Desk's story screen showed "Unsaved
+changes" on every story until 17 Nov 2026; it now calls `setEditable(value, false)`. `setContent`
+emits `update` by default too, which is wanted when a revision is brought back into the editor.
 
 ### 4. Commits — restructure 2, then audit Phases 2–5
 

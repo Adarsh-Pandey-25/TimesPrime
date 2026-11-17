@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { embedProvider, isAllowedHref, storyExtensions, EMPTY_DOC } from "@timesprime/editor/schema";
@@ -8,10 +8,11 @@ import { wordCount } from "@timesprime/editor/text";
 import { checklist, move, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
 import { storySlug } from "@timesprime/shared/lib/storyUrl";
 import { canAct, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
+import RevisionsPanel, { type FullRevision } from "./RevisionsPanel";
 
 // The story screen (Panel 2 design §4 and §5): the editor, the story's details, the pre-publish
-// checklist, the moves its state allows, its open two-person requests and its history. The server
-// decides every request; this screen only shows what the signed-in person might do.
+// checklist, the moves its state allows, its open two-person requests, its revisions and its
+// history. The server decides every request; this screen only shows what the person might do.
 
 interface Story {
   id: string;
@@ -144,17 +145,24 @@ export default function StoryEditor({ id }: { id: string }) {
   const [slug, setSlug] = useState("");
   const [embargo, setEmbargo] = useState("");
 
+  // The text fields follow the story's current revision, as the editor's body does (it is rebuilt
+  // when that revision changes). A details change or a move adds no revision, so it leaves unsaved
+  // text alone instead of resetting the fields while the body keeps its changes.
+  const shownRevision = useRef<string | null | undefined>(undefined);
   const load = useCallback(async () => {
     const res = await deskCall<Loaded>(`/api/admin/desk/stories/${id}`);
     if (!res.ok || !res.data) return setLoadError(res.error ?? "Could not load the story.");
     const data = { ...res.data, history: res.data.history ?? [], pending: res.data.pending ?? [] };
     setLoaded(data);
+    setSlug(data.story.slug ?? "");
+    setEmbargo(data.story.embargo_until ? data.story.embargo_until.slice(0, 16) : "");
+    const revisionId = data.revision?.id ?? null;
+    if (shownRevision.current === revisionId) return;
+    shownRevision.current = revisionId;
     setHeadline(data.revision?.headline ?? "");
     setDek(data.revision?.dek ?? "");
     setSeoTitle(data.revision?.seo_title ?? "");
     setSeoDescription(data.revision?.seo_description ?? "");
-    setSlug(data.story.slug ?? "");
-    setEmbargo(data.story.embargo_until ? data.story.embargo_until.slice(0, 16) : "");
     setDirty(false);
   }, [id]);
 
@@ -213,7 +221,9 @@ export default function StoryEditor({ id }: { id: string }) {
     [revisionKey]
   );
   useEffect(() => {
-    editor?.setEditable(editable);
+    // false: no update event. Tiptap sends one by default, and onUpdate would mark an untouched
+    // story as having unsaved changes.
+    editor?.setEditable(editable, false);
   }, [editor, editable]);
 
   async function save() {
@@ -238,6 +248,19 @@ export default function StoryEditor({ id }: { id: string }) {
     } else {
       setMessage({ ok: false, text: res.status === 409 && !res.data ? res.error ?? "" : res.error ?? "Not saved." });
     }
+  }
+
+  /** An old revision back in the editor, unsaved: Save adds it as a new revision (design §3). */
+  function bringBack(revision: FullRevision, number: number): boolean {
+    if (dirty && !window.confirm(`You have unsaved changes. Replace them with revision ${number}?`)) return false;
+    setHeadline(revision.headline);
+    setDek(revision.dek ?? "");
+    setSeoTitle(revision.seo_title ?? "");
+    setSeoDescription(revision.seo_description ?? "");
+    editor?.commands.setContent((revision.body as object | null) ?? EMPTY_DOC);
+    setDirty(true);
+    setMessage(null);
+    return true;
   }
 
   async function saveDetails() {
@@ -346,6 +369,15 @@ export default function StoryEditor({ id }: { id: string }) {
           <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={substantive} onChange={(e) => setSubstantive(e.target.checked)} /> A substantive change</label>
         </div>
         {message && <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>{message.text}</p>}
+
+        <RevisionsPanel
+          storyId={story.id}
+          currentRevisionId={story.current_revision_id}
+          publishedRevisionId={story.published_revision_id}
+          language={story.language}
+          canBringBack={editable}
+          onBringBack={bringBack}
+        />
       </div>
 
       <aside className="space-y-5" aria-label="The story's workflow">
