@@ -30,7 +30,7 @@ export interface TranslationDictionary {
     companyHeading: string;
     aboutUs: string;
     contactUs: string;
-    advertiseWithUs: string;
+    grievance: string;
     privacyPolicy: string;
     termsOfUse: string;
     backToTop: string;
@@ -71,7 +71,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
       companyHeading: "Company",
       aboutUs: "About Us",
       contactUs: "Contact Us",
-      advertiseWithUs: "Advertise With Us",
+      grievance: "Grievance Redressal",
       privacyPolicy: "Privacy Policy",
       termsOfUse: "Terms of Use",
       backToTop: "Back to top",
@@ -110,7 +110,7 @@ export const TRANSLATIONS: Record<Language, TranslationDictionary> = {
       companyHeading: "कंपनी",
       aboutUs: "हमारे बारे में",
       contactUs: "संपर्क करें",
-      advertiseWithUs: "विज्ञापन दें",
+      grievance: "शिकायत निवारण",
       privacyPolicy: "गोपनीयता नीति",
       termsOfUse: "उपयोग की शर्तें",
       backToTop: "ऊपर जाएं",
