@@ -494,7 +494,7 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 ### Panel 2: Desk (the Publisher)
 
 **Status: in progress.** Built so far: M1a (the stories backend's core), M1b (the Desk API, PRs #17
-and #18) and the two-person restore. M1 is complete. M2 has begun: the editor package (below). Started before Panel 1 at the
+and #18) and the two-person restore. M1 is complete. M2 is under way: the editor package and the Desk's screens (below). Started before Panel 1 at the
 owner's request (17 Nov 2026); [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -508,10 +508,12 @@ owner's request (17 Nov 2026); [the design](#panel-2-design-the-desk-publisher) 
   - `stories/[id]/lock`: POST (take, renew, or `take_over`) and DELETE;
   - `stories/[id]/` plus `assign`, `submit`, `send-back`, `approve`, `schedule`, `unschedule`,
     `publish`, `publish-direct`, `unpublish`, `retract` and `kill`: POST;
+  - `stories/[id]/details`: POST (the slug, the embargo and the legal-review flag, before publication);
   - `stories/[id]/restore`: POST, to ask for a restore;
   - `pending/[actionId]/decide`: POST, to approve or decline it.
 
-  The screens arrive with M2.
+  The screens (M2): `/admin/desk` (the list), `/admin/desk/new` and `/admin/desk/[id]` (the story),
+  linked from the back office's top bar.
 - **Code:**
   - `packages/shared/src/config/desk.ts`: the states, the table of moves, the checklist, the
     embargo;
@@ -566,8 +568,28 @@ aggregator's `articles` and its 7-day purge.
     Instagram only, rendered as a plain link) and an ad-slot placeholder.
   - **The body's plain text and word count,** read from the stored JSON without Tiptap.
   - **The revision diff:** blocks first, then words inside a changed block. It is our own code.
+- **Built (M2, second part): the Desk's screens.**
+  - **The list:** the stories of the person's desks, with filters (language, section, state, mine,
+    needs post-hoc review), paging, and loading, empty and error states.
+  - **New story:** its desk, format, pitch or draft, and a working headline.
+  - **The story screen:**
+    - the Tiptap editor with the schema's blocks, and the headline, dek and SEO fields;
+    - Save, which adds a revision and is refused if someone saved meanwhile;
+    - the soft lock, renewed every 30 seconds, with an audited take-over;
+    - the details (slug, with a suggestion from the headline; the embargo; the legal-review flag);
+    - the pre-publish checklist;
+    - the moves the person holds for the story's state;
+    - asking for and deciding a restore;
+    - the history.
+  - **Shown, never decided:** every button is the server's to allow, and the screen shows the server's
+    answer, refusals included. The shared password is told to sign in with a staff account.
+  - **JS:** the story screen carries Tiptap, about 1.05 MB of raw JS. It is back-office only, under
+    its own budget; no reader page loads it.
 - **Not yet:**
-  - the screens and the editor component (the rest of M2);
+  - the revision diff and a restore to a revision on the screen (the diff code is built);
+  - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
+  - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
+    owner's two typists;
   - preview, the worker's scheduling, corrections and the reader page (M3);
   - media and bylines (M4).
 
@@ -591,7 +613,7 @@ embargo 409.
 |---|---|---|---|
 | `database/migrations/2026-11-02-access-2-catalog.sql` (regenerated) | Adds `author.manage` and `media.manage` (41 permissions, 140 cells) | Re-apply the previous version | **Yes, 17 Nov 2026** (41 and 140 checked) |
 | `database/migrations/2026-11-17-desk-1-stories.sql` | The ten Desk tables, the append-only triggers, the three `desk_*` functions, RLS and column grants for readers | In the file; only before the first real story | **Yes, 17 Nov 2026**, checks passed |
-| `database/migrations/2026-11-17-desk-2-restore.sql` | One open request per story and action; `desk_decide_pending`, which decides a restore and puts the story back live in one transaction | In the file | No |
+| `database/migrations/2026-11-17-desk-2-restore.sql` | One open request per story and action; `desk_decide_pending`, which decides a restore and puts the story back live in one transaction | In the file | **Yes, 17 Nov 2026**, checks passed |
 
 #### Tests and verification
 
@@ -601,6 +623,9 @@ embargo 409.
 | `packages/server/src/services/desk/fourEyes.test.ts` | A third person may approve | The creator and every editor since the last approval may not; a breaking story's publisher may not review it |
 | `packages/server/src/auth/decide.test.ts` | Own allows the caller's own story in scope | Another's story, an ownerless one, one out of scope |
 | `packages/server/src/repositories/stories.test.ts` | Writes go through the `desk_*` functions; lists stay in scope | A malformed scope matches nothing; a moved story answers 409 |
+| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only); a story not found |
+| `e2e/admin-access.spec.ts` | Signed out, `/admin/desk` and a story's screen go to sign-in; three Desk API calls answer 401 | (all refused) |
+| `apps/admin/src/app/api/admin/access.test.ts` (details) | A Writer sets their story's slug | A malformed slug; a live story; a Writer clearing the legal flag (needs `article.approve`); approval voided by a change |
 | `apps/admin/src/app/api/admin/access.test.ts` (restore) | A Desk Editor (A) asks, with a reason; a different one approves or declines | The requester deciding their own request; a story that is not down; no reason; a decided request; a Writer; an A holder without MFA |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 

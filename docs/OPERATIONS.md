@@ -1180,7 +1180,27 @@ COMMIT;
 **Check.** The person signs in at `/admin/login` and sets up their second factor. Then
 `GET /api/admin/desk/stories` answers 200 with the stories of their desk.
 
-**Undo.** Revoke the assignment (rows are history, never deleted):
+#### The Desk's Hindi typing check (M2, week 1)
+
+The design's first checkpoint. If Devanagari input fails and cannot be fixed, the work stops and the
+owner decides; the fallback is Quintype (research D3).
+
+**Before:**
+- Each tester has a staff account with a second factor.
+- Each tester holds a Desk role for Hindi: the SQL above, with `v_language = 'hi'` (Writer or Desk
+  Editor).
+
+**On `/admin/desk/new`,** choose Hindi and open the story. Type into the headline, the dek and the body
+with **InScript** and with a **phonetic** keyboard (Google Input Tools, or the phone's own):
+1. Matras, halant and conjuncts: क्ष, त्र, ज्ञ, श्र, द्ध, and a word like विद्यार्थी.
+2. Nukta letters (क़, ज़, फ़), chandrabindu and anusvara (हँसना, संसद), and the danda (।).
+3. A paragraph pasted from Word or WhatsApp.
+4. Select, delete and retype inside a conjunct; undo and redo.
+5. **Save, then reload the page.** The text must come back exactly as typed.
+
+**Record:** each tester, the keyboard, and pass or fail per step, with a screenshot of any failure.
+
+**Undo** (for the role grant above). Revoke the assignment (rows are history, never deleted):
 `UPDATE public.role_assignments SET revoked_at = now(), revoke_reason = '<why>' WHERE id = '<id>';`
 
 ### Staff sign-in or an admin action is failing
@@ -1297,7 +1317,7 @@ owner's, by hand: [`staff-access.md`](#staff-access-switching-on-panel-0-and-get
 paused for the release. **Its SQL is partly applied** (the owner, 17 Nov 2026):
 - B1 is done: the foundation and the catalogue (41 permissions, 140 cells).
 - The first Super Admin is bootstrapped.
-- The Desk's stories migration (desk-1) is applied and checked.
+- The Desk's migrations (desk-1, the stories; desk-2, the restore) are applied and checked.
 - Still to do: their second factor, the second Super Admin, the deploy (B2) and the `admin_logs`
   freeze (B5). Its database-level checks (the two-admin trigger,
 the audit hash chain, the bootstrap) are **unverified**: the owner verifies them against the real
@@ -1349,8 +1369,9 @@ phases were done:
 6. **The Publisher (Panel 2, the Desk)**, started before Panel 1 at the owner's request
    (17 Nov 2026); `NEWSROOM_PLAN.md` is unchanged. Its [design](PANEL_DOCS.md#panel-2-design-the-desk-publisher)
    is approved. M1a and M1b (the stories backend and the Desk API) were merged on 17 Nov 2026
-   (PRs #17, #18). The two-person restore is on `panel-2-desk-restore`. Then M2, the screens and
-   the editor; then Panel 1, on `panel-1-administration`.
+   (PRs #17, #18), the two-person restore (PR #19) and the editor package (PR #20). The Desk's
+   screens are on `panel-2-desk-editor`; then the revision diff on the screen and the Hindi typing
+   check (M2); then Panel 1, on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
