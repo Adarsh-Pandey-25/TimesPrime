@@ -420,6 +420,76 @@ days.
     password can never hold `settings.manage`. **Until then, the interval changes only by changing
     `NEWS_REFRESH_INTERVAL_MINUTES` and deploying.**
 
+### R2 design: brand colour, section and story URLs, structured data
+
+**Status:** proposed 17 Nov 2026, awaiting the owner's approval. Branch `site/brand-design`. The
+owner decided two things on 17 Nov 2026:
+- Hindi keeps its reader setting; `/hi/` URLs come with Phase F.
+- Outside stories move to `/article/{headline-slug}-{article_id}`.
+
+R2 is the release's share of Phase F, for a site whose stories are still all outside ones. What
+Phase F needs our own stories for (NewsArticle markup, news sitemaps, IndexNow, author and tag
+pages) waits for Panel 2.
+
+1. **The brand colour, `#E7000B`.**
+   - Tailwind 4's `red-600` is already this colour (`oklch(57.7% 0.245 27.325)`), and the reader
+     site uses it 112 times.
+   - Fourteen places still hard-code Tailwind 3's `#dc2626`: both apps' `globals.css` and
+     `global-error.tsx`, and `categoryColors.ts`.
+   - They move to one token, `--color-brand: #E7000B` (`@theme`), with a test that no `#dc2626`
+     is left.
+   - No other visual change: a redesign needs a design from the owner first.
+2. **Section URLs.**
+   - Each section gets its own URL: `/india`, `/world`, `/tech`, `/business`, `/sports`,
+     `/entertainment`, `/health` and `/science`. The top stories stay at `/`.
+   - Each section page is server-rendered, has a self-canonical link and its own title and
+     description, and is listed in the sitemap.
+   - `/?category=<section>` answers 308 to the section's URL, so old links and bookmarks keep
+     working.
+   - The menu, the footer, the ticker and the home feed link the new URLs, and the feed follows
+     the path, not `?category=`.
+   - Search stays `/?search=`, with its canonical pointing to `/`.
+   - An unknown section answers 404.
+3. **Story URLs (BL-042).**
+   - An outside story's page moves from `/article/<slug>?url=<publisher link>` to
+     `/article/{headline-slug}-{article_id}`. It resolves by `article_id` (NewsData's id, unique in
+     `articles`), so a changed headline still resolves, and the page 308s to its current slug.
+   - The publisher's link no longer travels in our URLs.
+   - An old `?url=` link answers 308 to the new URL while the story is stored, and 404 once it is
+     not.
+   - **A real 404 (BL-042).** The root `loading.tsx` moves into a route group `(feed)` with the
+     home page, the sections and `/saved`, so the article route has no loading boundary. Next can
+     then still send 404 when `notFound()` runs (bundled docs: file-conventions/loading.md, "When
+     does streaming start?"). No URL changes, and no Proxy lookup.
+   - The page keeps noindex, follow, and stays out of the sitemap. Its canonical and `og:url` are
+     its own new URL.
+4. **Structured data.**
+   - The home page and About carry `NewsMediaOrganization` and `WebSite` JSON-LD:
+     - the name, the URL and the logo (`logo-light.png`);
+     - the address and the contact email from `site.ts` (R3);
+     - the grievance page, as `publishingPrinciples` is not yet written.
+   - No `NewsArticle` on outside stories: they are not ours and are noindex. It comes with our own
+     stories (Phase F).
+   - Every string is escaped for `<script>` (`<` as `<`), with a test.
+5. **Not in R2:**
+   - `/hi/` URLs and server-rendered Hindi (Phase F, owner);
+   - news sitemaps and IndexNow (our own stories, Phase F);
+   - a visual redesign (needs the owner's design).
+
+**Commits** (each one green on `npm run verify`):
+1. the brand token;
+2. the route group and the real 404;
+3. story URLs and the redirects;
+4. section URLs and the redirects;
+5. structured data;
+6. docs.
+
+**Checks:**
+- jest tests for every redirect, 404 and canonical;
+- the read-only browser tests extended to a section page, a story page by its new URL, an old
+  `?url=` link and an unknown story's 404;
+- `check-js-budget` before and after.
+
 ### Go-live gates
 
 The site is public only when **all** of these hold:
