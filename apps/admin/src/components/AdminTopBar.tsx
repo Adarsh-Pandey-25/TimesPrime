@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
 
@@ -12,9 +13,15 @@ export default function AdminTopBar() {
   return (
     <header className="border-b border-slate-200 bg-white dark:border-[#2b2f36] dark:bg-[#202327]">
       <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between px-4 py-3 sm:px-8 lg:px-10">
-        <span className="font-serif text-lg font-extrabold text-slate-900 dark:text-white">
-          TimesPrime <span className="text-blue-600 dark:text-blue-400">Admin</span>
-        </span>
+        <div className="flex items-center gap-5">
+          <span className="font-serif text-lg font-extrabold text-slate-900 dark:text-white">
+            TimesPrime <span className="text-blue-600 dark:text-blue-400">Admin</span>
+          </span>
+          <nav aria-label="Back office" className="flex gap-3 text-sm font-semibold">
+            <Link href="/admin" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Dashboard</Link>
+            <Link href="/admin/desk" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Desk</Link>
+          </nav>
+        </div>
         <button
           type="button"
           onClick={toggleTheme}
