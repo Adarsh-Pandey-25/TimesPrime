@@ -10,8 +10,10 @@ jest.mock("../lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn(
 import {
   createStory,
   DeskStoreError,
+  DUE_BATCH,
   getPublishedStory,
   hasCounterpart,
+  listDueScheduled,
   listHistory,
   listStories,
   saveRevision,
@@ -229,5 +231,28 @@ describe("getPublishedStory: the reader's read", () => {
   test("a database error is thrown, not shown as a missing story", async () => {
     supabase.from.mockReturnValue(query({ data: null, error: { code: "57014", message: "timeout" } }, []));
     await expect(getPublishedStory(1024, NOW)).rejects.toBeInstanceOf(DeskStoreError);
+  });
+});
+
+describe("listDueScheduled: the publish-scheduled job's read", () => {
+  test("scheduled stories whose time has come, oldest first, a batch at a time", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    supabase.from.mockReturnValue(query({ data: [{ id: "s-1" }], error: null }, calls));
+    const now = new Date("2026-11-17T10:00:00.000Z");
+    expect(await listDueScheduled(now)).toEqual([{ id: "s-1" }]);
+    expect(supabase.from).toHaveBeenCalledWith("stories");
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        ["eq", ["workflow_state", "scheduled"]],
+        ["lte", ["scheduled_at", "2026-11-17T10:00:00.000Z"]],
+        ["order", ["scheduled_at", { ascending: true }]],
+        ["limit", [DUE_BATCH]],
+      ])
+    );
+  });
+
+  test("a database error is thrown", async () => {
+    supabase.from.mockReturnValue(query({ data: null, error: { code: "57014", message: "timeout" } }, []));
+    await expect(listDueScheduled(new Date())).rejects.toBeInstanceOf(DeskStoreError);
   });
 });

@@ -194,6 +194,22 @@ export async function listHistory(storyId: string): Promise<HistoryEntry[]> {
   return (data ?? []) as HistoryEntry[];
 }
 
+/** How many scheduled stories one run of the publish-scheduled job takes, oldest time first. */
+export const DUE_BATCH = 50;
+
+/** Scheduled stories whose time has come (the worker's publish-scheduled job, design §6), oldest first. */
+export async function listDueScheduled(now: Date, limit: number = DUE_BATCH): Promise<StoryRow[]> {
+  const { data, error } = await supabase
+    .from("stories")
+    .select("*")
+    .eq("workflow_state", "scheduled")
+    .lte("scheduled_at", now.toISOString())
+    .order("scheduled_at", { ascending: true })
+    .limit(limit);
+  if (error) throw storeError(error);
+  return (data ?? []) as StoryRow[];
+}
+
 /** Whether the story's other-language version exists (the checklist's translation item). */
 export async function hasCounterpart(story: Pick<StoryRow, "id" | "language" | "translation_group_id">): Promise<boolean> {
   if (!story.translation_group_id) return true;
