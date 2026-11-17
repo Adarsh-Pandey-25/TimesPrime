@@ -16,6 +16,7 @@ import {
   listDueScheduled,
   listHistory,
   listStories,
+  requestCorrection,
   saveRevision,
   scopeFilter,
   storeError,
@@ -254,5 +255,26 @@ describe("listDueScheduled: the publish-scheduled job's read", () => {
   test("a database error is thrown", async () => {
     supabase.from.mockReturnValue(query({ data: null, error: { code: "57014", message: "timeout" } }, []));
     await expect(listDueScheduled(new Date())).rejects.toBeInstanceOf(DeskStoreError);
+  });
+});
+
+describe("requestCorrection: a Sub-editor's request (the matrix's A)", () => {
+  test("a correction request, the note as its payload and its reason", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    supabase.from.mockReturnValue(query({ data: { id: "p-2" }, error: null }, calls));
+    expect(await requestCorrection("s-1", "u-3", "An earlier version gave the wrong score.")).toEqual({ id: "p-2" });
+    expect(supabase.from).toHaveBeenCalledWith("pending_actions");
+    expect(calls.find(([m]) => m === "insert")?.[1][0]).toEqual({
+      story_id: "s-1",
+      action: "correction",
+      requested_by: "u-3",
+      reason: "An earlier version gave the wrong score.",
+      payload: { note: "An earlier version gave the wrong score." },
+    });
+  });
+
+  test("a second open correction request answers 409", async () => {
+    supabase.from.mockReturnValue(query({ data: null, error: { code: "23505", message: "duplicate key" } }, []));
+    await expect(requestCorrection("s-1", "u-3", "n")).rejects.toMatchObject({ status: 409 });
   });
 });

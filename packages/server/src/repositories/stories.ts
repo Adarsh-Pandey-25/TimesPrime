@@ -434,6 +434,20 @@ export async function requestRestore(storyId: string, requestedBy: string, reaso
   return data as PendingRow;
 }
 
+/**
+ * Asks for a public correction note on a live story (the matrix's A: a Sub-editor). The note is the
+ * request's payload, and its reason. A second open correction request for the story answers 409.
+ */
+export async function requestCorrection(storyId: string, requestedBy: string, note: string): Promise<PendingRow> {
+  const { data, error } = await supabase
+    .from("pending_actions")
+    .insert({ story_id: storyId, action: "correction", requested_by: requestedBy, reason: note, payload: { note } })
+    .select("*")
+    .single();
+  if (error) throw storeError(error);
+  return data as PendingRow;
+}
+
 export async function getPending(id: string): Promise<PendingRow | null> {
   const { data, error } = await supabase.from("pending_actions").select("*").eq("id", id).maybeSingle();
   if (error) throw storeError(error);
@@ -447,7 +461,10 @@ export async function listOpenPending(storyId: string): Promise<PendingRow[]> {
   return (data ?? []) as PendingRow[];
 }
 
-/** Decides a restore request in one transaction (desk_decide_pending, database/migrations/2026-11-17-desk-2-restore.sql). */
+/**
+ * Decides a restore or correction request in one transaction (desk_decide_pending:
+ * database/migrations/2026-11-17-desk-2-restore.sql, and desk-3-corrections.sql for corrections).
+ */
 export function decidePending(input: { actionId: string; deciderId: string; deciderLabel: string; outcome: "approved" | "declined"; reason: string | null }): Promise<StoryRow> {
   return call("desk_decide_pending", {
     p_action: input.actionId,

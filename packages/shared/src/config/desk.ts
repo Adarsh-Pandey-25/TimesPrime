@@ -65,6 +65,9 @@ export const LOCK_TTL_MS = 2 * 60_000;
  */
 export const PUBLISH_TICK_MINUTES = 5;
 
+/** The longest public correction note a live story may carry (design §3), in characters. */
+export const CORRECTION_NOTE_MAX = 600;
+
 /** The actions that move a story, by name, as the routes and the audit log call them. */
 export type DeskAction =
   | "assign"
