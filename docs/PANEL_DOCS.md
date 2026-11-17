@@ -493,7 +493,8 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 
 ### Panel 2: Desk (the Publisher)
 
-**Status: in progress.** Built so far: M1a, the stories backend's core, and M1b, the Desk API. Started before Panel 1 at the
+**Status: in progress.** Built so far: M1a (the stories backend's core), M1b (the Desk API, PRs #17
+and #18) and the two-person restore. M1 is complete. Started before Panel 1 at the
 owner's request (17 Nov 2026); [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -506,7 +507,9 @@ owner's request (17 Nov 2026); [the design](#panel-2-design-the-desk-publisher) 
   - `stories/[id]/revisions/[revisionId]`: GET;
   - `stories/[id]/lock`: POST (take, renew, or `take_over`) and DELETE;
   - `stories/[id]/` plus `assign`, `submit`, `send-back`, `approve`, `schedule`, `unschedule`,
-    `publish`, `publish-direct`, `unpublish`, `retract` and `kill`: POST.
+    `publish`, `publish-direct`, `unpublish`, `retract` and `kill`: POST;
+  - `stories/[id]/restore`: POST, to ask for a restore;
+  - `pending/[actionId]/decide`: POST, to approve or decline it.
 
   The screens arrive with M2.
 - **Code:**
@@ -551,8 +554,13 @@ aggregator's `articles` and its 7-day purge.
     embargo on publishing; a reason code and a note on a takedown; the lock on a save.
   - Every change is audited, attempted then outcome.
   - The shared password is refused (`staff_only`).
+- **Built: the two-person restore.**
+  - A holder of `article.restore` (A: Desk Editor, Managing Editor, Legal) asks, with a reason.
+  - A different holder decides it, in the story's desk: approved puts the story back live with its
+    revision, declined leaves it down.
+  - One open request per story. The database refuses a requester deciding their own request.
+  - Both steps are audited.
 - **Not yet:**
-  - restore and its second approver (the next PR);
   - the screens and the editor (M2);
   - preview, the worker's scheduling, corrections and the reader page (M3);
   - media and bylines (M4).
@@ -575,8 +583,9 @@ embargo 409.
 
 | Migration file | What it does | Rollback | Applied by the owner |
 |---|---|---|---|
-| `database/migrations/2026-11-02-access-2-catalog.sql` (regenerated) | Adds `author.manage` and `media.manage` (41 permissions, 140 cells) | Re-apply the previous version | No |
-| `database/migrations/2026-11-17-desk-1-stories.sql` | The ten Desk tables, the append-only triggers, the three `desk_*` functions, RLS and column grants for readers | In the file; only before the first real story | No |
+| `database/migrations/2026-11-02-access-2-catalog.sql` (regenerated) | Adds `author.manage` and `media.manage` (41 permissions, 140 cells) | Re-apply the previous version | **Yes, 17 Nov 2026** (41 and 140 checked) |
+| `database/migrations/2026-11-17-desk-1-stories.sql` | The ten Desk tables, the append-only triggers, the three `desk_*` functions, RLS and column grants for readers | In the file; only before the first real story | **Yes, 17 Nov 2026**, checks passed |
+| `database/migrations/2026-11-17-desk-2-restore.sql` | One open request per story and action; `desk_decide_pending`, which decides a restore and puts the story back live in one transaction | In the file | No |
 
 #### Tests and verification
 
@@ -586,6 +595,7 @@ embargo 409.
 | `packages/server/src/services/desk/fourEyes.test.ts` | A third person may approve | The creator and every editor since the last approval may not; a breaking story's publisher may not review it |
 | `packages/server/src/auth/decide.test.ts` | Own allows the caller's own story in scope | Another's story, an ownerless one, one out of scope |
 | `packages/server/src/repositories/stories.test.ts` | Writes go through the `desk_*` functions; lists stay in scope | A malformed scope matches nothing; a moved story answers 409 |
+| `apps/admin/src/app/api/admin/access.test.ts` (restore) | A Desk Editor (A) asks, with a reason; a different one approves or declines | The requester deciding their own request; a story that is not down; no reason; a decided request; a Writer; an A holder without MFA |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 
 The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
@@ -593,7 +603,12 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** restore with its second approver (`pending_actions`), in the PR after M1b.
+- **Next: M2,** the screens and the editor.
+- **As built, for the restore:**
+  - the deciding route is `pending/[actionId]/decide`, not `…/approve`, because it also declines;
+  - a route rule can be `twoPerson`, which lets a holder of A pass the gate to ask or to decide;
+  - `decide()` now answers `mfa_required` before `needs_approval`, so an A holder without a second
+    factor can never ask.
 - **M2 to M4:** as the design says.
 - **As built, beyond the design's table:**
   - an `unschedule` move (`scheduled` → `approved`, `article.publish`);
