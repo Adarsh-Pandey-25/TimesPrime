@@ -494,9 +494,10 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 ### Panel 2: Desk (the Publisher)
 
 **Status: in progress.** Built so far: M1a (the stories backend's core), M1b (the Desk API, PRs #17
-and #18) and the two-person restore. M1 is complete. M2 is under way: the editor package, the
-Desk's screens and the story's revisions on screen (below). Started before Panel 1 at the
-owner's request (17 Nov 2026); [the design](#panel-2-design-the-desk-publisher) is approved.
+and #18) and the two-person restore. M1 is complete. M2's code is complete (the editor package, the
+Desk's screens, the story's revisions on screen); the Hindi typing check still closes it. M3 is under
+way: the reader's story page (below). Started before Panel 1 at the owner's request (17 Nov 2026);
+[the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
 
@@ -515,11 +516,18 @@ owner's request (17 Nov 2026); [the design](#panel-2-design-the-desk-publisher) 
 
   The screens (M2): `/admin/desk` (the list), `/admin/desk/new` and `/admin/desk/[id]` (the story),
   linked from the back office's top bar.
+
+  The reader's story pages (M3): `/{section}/{slug}-{number}` in English and
+  `/hi/{section}/{slug}-{number}` in Hindi, where the number is the story's `public_id`.
 - **Code:**
   - `packages/shared/src/config/desk.ts`: the states, the table of moves, the checklist, the
     embargo;
+  - `packages/shared/src/lib/storyUrl.ts`: a story's address (`deskStoryPath`, `deskStoryIdFrom`);
   - `packages/server/src/services/desk/fourEyes.ts`;
-  - `packages/server/src/repositories/stories.ts`;
+  - `packages/server/src/repositories/stories.ts`, including the reader's read, `getPublishedStory`;
+  - `packages/editor/src/render.ts`: the reader's renderer;
+  - the reader's pages: `apps/web/src/app/_story/storyPage.tsx`, used by `[section]/[story]` and
+    `hi/[section]/[story]`, and `apps/web/src/components/story/StoryArticle.tsx`;
   - `packages/server/src/auth/decide.ts`: the Own code;
   - `database/migrations/2026-11-17-desk-1-stories.sql`;
   - the routes in `apps/admin/src/app/api/admin/desk/`, with their shared steps in
@@ -594,11 +602,25 @@ aggregator's `articles` and its 7-day purge.
     nothing is overwritten and a save's rules (the lock, a save meanwhile) still apply. Offered only
     to someone who may edit the story now; unsaved changes are replaced only after a yes. This is
     not the two-person restore, which puts a taken-down story back live.
+- **Built (M3, first part): the reader's story page.**
+  - **What it shows:** the published revision only: the section, headline, dek, bylines, the times
+    of first publication and of the last update, the text and the correction note. It is labelled
+    in the story's language, and its `<article>` carries that `lang`.
+  - **Not live means 404:** an unknown story, a draft, a story taken down and one under embargo.
+    The read applies the database's reader rules twice, in the query and on the row, and asks only
+    for the columns readers are granted.
+  - **Its own address:** another slug, section or language for the same story answers 308 there.
+  - **Never cached:** the page renders on every request (`force-dynamic`, so `no-store` at
+    CloudFront), so publishing and taking down show at once.
+  - **The text** is drawn on the server by the story schema's own `renderHTML`. Only known tags
+    and attributes reach the page, every link is checked again, and no editor code is sent to
+    readers (each page's client JS is smaller than the article page's).
+  - **On the Desk:** a published story's screen links to its page ("View on the site").
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
-  - preview, the worker's scheduling, corrections and the reader page (M3);
+  - preview, the worker's scheduling and corrections (M3);
   - media and bylines (M4).
 
 #### Access permissions and authorization rules
@@ -631,8 +653,14 @@ embargo 409.
 | `packages/server/src/services/desk/fourEyes.test.ts` | A third person may approve | The creator and every editor since the last approval may not; a breaking story's publisher may not review it |
 | `packages/server/src/auth/decide.test.ts` | Own allows the caller's own story in scope | Another's story, an ownerless one, one out of scope |
 | `packages/server/src/repositories/stories.test.ts` | Writes go through the `desk_*` functions; lists stay in scope | A malformed scope matches nothing; a moved story answers 409 |
-| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds, opens with no unsaved changes, and keeps unsaved text when the details are saved; two revisions compared field by field and word by word; a revision brought back fills the editor, and only Save sends it, as a new revision | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only, and no Bring back); a story not found; unsaved changes kept when bringing one back is declined |
+| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds, opens with no unsaved changes, and keeps unsaved text when the details are saved; two revisions compared field by field and word by word; a revision brought back fills the editor, and only Save sends it, as a new revision; a live story links to its page | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only, and no Bring back); a story not found; unsaved changes kept when bringing one back is declined; no link before publication |
 | `e2e/admin-access.spec.ts` | Signed out, `/admin/desk` and a story's screen go to sign-in; three Desk API calls answer 401 | (all refused) |
+| `packages/server/src/repositories/stories.test.ts` (`getPublishedStory`) | One published story past its embargo, with the reader's columns only; the published revision; active bylines in order, in the story's language | No such story; another story's row; a draft; a story taken down; one under embargo; a revision that is not the published one, or another story's; a number that cannot be a story; a database error (thrown, not a 404) |
+| `packages/editor/src/render.test.tsx` | Every block of the design, drawn by the schema; a site link followed, an https one nofollow; Hindi text as it is; every node and mark of the schema draws only allowed tags | `javascript:`, `data:` and plain-http links; an embed from another site; unknown nodes, marks and attributes; markup in the text (escaped); anything but a document; nesting past the limit; no h1 |
+| `packages/shared/src/lib/storyUrl.test.ts` (Desk) | The English and Hindi addresses, and the number read back from them | A segment with no number, a zero, a leading zero, too many digits |
+| `apps/web/src/app/_story/storyPage.test.tsx` | Both routes render on every request; a story at its address, in its language, with its metadata (SEO title, canonical, `og:locale`) | Another slug, section or language: 308 to its own address; not a section, no number, or not shown by the store: 404 without a read where none is needed; a store failure is an error, not a 404 |
+| `apps/web/src/components/story/StoryArticle.test.tsx` | Section, headline, dek, times, bylines and credits, the correction note; a Hindi story labelled in Hindi | No byline and no update shown when there is none |
+| `e2e/reader.spec.ts` (Desk stories) | From the stand-in: an English story at its address, `no-store`, `lang="en"` and its canonical; a Hindi one under `/hi/` | Another address: 308; an unknown story: 404 in both languages (this one also against the real database, locally) |
 | `apps/admin/src/app/api/admin/access.test.ts` (details) | A Writer sets their story's slug | A malformed slug; a live story; a Writer clearing the legal flag (needs `article.approve`); approval voided by a change |
 | `apps/admin/src/app/api/admin/access.test.ts` (restore) | A Desk Editor (A) asks, with a reason; a different one approves or declines | The requester deciding their own request; a story that is not down; no reason; a decided request; a Writer; an A holder without MFA |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
@@ -642,7 +670,10 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** the Hindi typing check, which closes M2; then M3, once the owner has seen M2.
+- **Next:** M3's preview, scheduling and corrections. The Hindi typing check still closes M2.
+- **The reader's story page is reached by its address only:** stories join the home and section
+  pages in Panel 3, and the news sitemaps and NewsArticle markup in Phase F (design §12).
+- **Bylines** show once authors exist (M4); until then a story shows none.
 - **The design's "restore to a revision"** is built as bringing one back into the editor: Save
   then copies it into a new revision, through the save route and its checks, so it needs no route
   of its own.

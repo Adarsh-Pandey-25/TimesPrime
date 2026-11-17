@@ -167,7 +167,7 @@ deploy/scripts/run-local.sh <tag>            # the same images: http://localhost
    `aws cloudfront create-invalidation --distribution-id <id> --paths "/*"`.
    - Static pages (`/about`, `/privacy`, `/terms`, `/contact`, `/saved`) are sent with
      `s-maxage=31536000`, so CloudFront keeps them for a year.
-   - The home and article pages are `no-store`.
+   - The home and article pages, and the Desk's story pages (Panel 2), are `no-store`.
    - `/_next/static` files have hashed names and are immutable.
    - One `/*` path counts once against the monthly allowance.
 5. **Run the [smoke test](#smoke-test).**
@@ -1369,10 +1369,11 @@ phases were done:
 6. **The Publisher (Panel 2, the Desk)**, started before Panel 1 at the owner's request
    (17 Nov 2026); `NEWSROOM_PLAN.md` is unchanged. Its [design](PANEL_DOCS.md#panel-2-design-the-desk-publisher)
    is approved. M1a and M1b (the stories backend and the Desk API) were merged on 17 Nov 2026
-   (PRs #17, #18), the two-person restore (PR #19), the editor package (PR #20) and the Desk's
-   screens (PR #21). Revisions on the story screen (compare any two, bring one back) are on
-   `panel-2-desk-diff`; then the Hindi typing check closes M2, and M3 follows once the owner has
-   seen M2. Panel 1 will be built on `panel-1-administration`.
+   (PRs #17, #18), the two-person restore (PR #19), the editor package (PR #20), the Desk's
+   screens (PR #21) and revisions on the story screen (PR #22). M2's code is complete; the Hindi
+   typing check still closes it. M3 (approved by the owner, 17 Nov 2026): the reader's story page
+   is on `panel-2-desk-reader`; then preview, scheduling and corrections. Panel 1 will be built on
+   `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
