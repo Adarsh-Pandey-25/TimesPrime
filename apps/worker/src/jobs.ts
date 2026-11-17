@@ -1,5 +1,6 @@
 import "server-only";
 
+import { publishDueStories } from "@timesprime/server/services/desk/scheduler";
 import { refreshNews } from "@timesprime/server/services/news/refreshNews";
 import { dryRunRefresh } from "@timesprime/server/services/news/refreshDryRun";
 import { isRefreshDue, NEWS_REFRESH_INTERVAL_MINUTES } from "@timesprime/shared/config/newsRefresh";
@@ -54,9 +55,23 @@ async function refreshNewsDryRunJob(): Promise<number> {
   return failures.length === 0 ? 0 : 1;
 }
 
+/**
+ * Panel 2 (design §6): publishes the Desk's scheduled stories whose time has come
+ * (packages/server/src/services/desk/scheduler.ts). The server's timer starts it every
+ * PUBLISH_TICK_MINUTES (deploy/systemd/timesprime-publish.timer). Exits 1 when a story failed, or
+ * when the due stories could not be read, so the journal and the worker's log group see it.
+ */
+async function publishScheduledJob(): Promise<number> {
+  const run = await publishDueStories();
+  console.log(JSON.stringify(run));
+  for (const failure of run.failed) console.error(`failed: ${failure.id}: ${failure.error}`);
+  return run.failed.length === 0 ? 0 : 1;
+}
+
 export const JOBS: Record<string, Job> = {
   "refresh-news": refreshNewsJob,
   "refresh-news-dry-run": refreshNewsDryRunJob,
+  "publish-scheduled": publishScheduledJob,
 };
 
 export async function runJob(name: string | undefined, jobs: Record<string, Job> = JOBS): Promise<number> {

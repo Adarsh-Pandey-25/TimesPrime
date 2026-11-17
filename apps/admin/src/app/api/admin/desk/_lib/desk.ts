@@ -5,8 +5,8 @@ import * as Sentry from "@sentry/nextjs";
 import { ANY_SCOPE } from "@timesprime/server/auth/decide";
 import type { RouteRule } from "@timesprime/server/auth/adminRoutePolicy";
 import { auditUnavailable, beginAudit, finishAudit, requirePermission, requireTarget, type Actor } from "@timesprime/server/auth/requirePermission";
-import type { Target } from "@timesprime/server/auth/scope";
 import { mayApprove, mayReviewPostHoc } from "@timesprime/server/services/desk/fourEyes";
+import { publishFields, publishRefusal, storyTarget } from "@timesprime/server/services/desk/publish";
 import {
   DeskStoreError,
   getRevision,
@@ -26,10 +26,8 @@ import { checklist, embargoed, move, TAKEDOWN_REASONS, type DeskAction } from "@
 
 export type Params = { params: Promise<Record<string, string>> };
 
-/** A story as a permission target: its desk, and its creator for Own. */
-export function storyTarget(story: Pick<StoryRow, "language" | "section" | "created_by">): Target {
-  return { language: story.language, section: story.section, ownerId: story.created_by };
-}
+/** A story as a permission target: its desk, and its creator for Own (shared with the worker). */
+export { storyTarget };
 
 /** The history label of a staff member, as the database functions write it. */
 export const staffLabel = (actor: Actor) => `staff:${actor.userId}`;
@@ -176,18 +174,10 @@ async function prepare(action: DeskAction, story: StoryRow, actor: Actor, body: 
     case "unschedule":
       return { scheduled_at: null };
     case "publish": {
-      const embargo = embargoHolds(story, now);
-      if (embargo) return embargo;
-      if (!story.approved_revision_id || story.approved_revision_id === story.published_revision_id) {
-        return conflict("Only an approved revision can be published.", "not_approved");
-      }
-      return {
-        published_by: actor.userId,
-        published_revision_id: story.approved_revision_id,
-        published_at: nowIso,
-        first_published_at: story.first_published_at ?? nowIso,
-        scheduled_at: null,
-      };
+      // The rules the worker's publish-scheduled job applies too (services/desk/publish.ts).
+      const refusal = publishRefusal(story, now);
+      if (refusal) return conflict(refusal.message, refusal.code);
+      return publishFields(story, actor.userId as string, now);
     }
     case "publish_direct": {
       const embargo = embargoHolds(story, now);

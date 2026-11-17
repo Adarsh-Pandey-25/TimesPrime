@@ -58,6 +58,13 @@ export const SEO_TITLE_MAX = 65;
 /** A soft lock lapses this long after its holder's last heartbeat (design §2). */
 export const LOCK_TTL_MS = 2 * 60_000;
 
+/**
+ * How often the server's timer starts the worker's publish-scheduled job (owner decision 3 of the
+ * Panel 2 design), in minutes: a scheduled story goes live within this long after its time. The
+ * timer in deploy/systemd/timesprime-publish.timer says the same; a test keeps the two equal.
+ */
+export const PUBLISH_TICK_MINUTES = 5;
+
 /** The actions that move a story, by name, as the routes and the audit log call them. */
 export type DeskAction =
   | "assign"

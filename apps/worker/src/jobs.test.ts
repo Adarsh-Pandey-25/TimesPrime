@@ -7,6 +7,7 @@
 
 jest.mock("@timesprime/server/services/news/refreshNews", () => ({ refreshNews: jest.fn() }));
 jest.mock("@timesprime/server/services/news/refreshDryRun", () => ({ dryRunRefresh: jest.fn() }));
+jest.mock("@timesprime/server/services/desk/scheduler", () => ({ publishDueStories: jest.fn() }));
 
 import fs from "fs";
 import os from "os";
@@ -16,6 +17,7 @@ import { JOBS, runJob } from "./jobs";
 
 const { refreshNews } = jest.requireMock("@timesprime/server/services/news/refreshNews") as { refreshNews: jest.Mock };
 const { dryRunRefresh } = jest.requireMock("@timesprime/server/services/news/refreshDryRun") as { dryRunRefresh: jest.Mock };
+const { publishDueStories } = jest.requireMock("@timesprime/server/services/desk/scheduler") as { publishDueStories: jest.Mock };
 const result = (failed: number) => ({ ok: true, result: { refreshed: 7 - failed, failed, purged: 0, timestamp: "t", details: [] } });
 
 const env = { ...process.env };
@@ -132,5 +134,33 @@ describe("refresh-news-dry-run", () => {
 });
 
 test("the job list is exactly the jobs the worker may start", () => {
-  expect(Object.keys(JOBS)).toEqual(["refresh-news", "refresh-news-dry-run"]);
+  expect(Object.keys(JOBS)).toEqual(["refresh-news", "refresh-news-dry-run", "publish-scheduled"]);
+});
+
+// Panel 2 (design §6): the Desk's scheduled stories, every 5 minutes.
+describe("publish-scheduled", () => {
+  const run = (over: Record<string, unknown> = {}) => ({ due: 2, published: ["s-1"], waiting: [], unscheduled: ["s-2"], moved: [], failed: [], ...over });
+
+  test("a run with no failure exits 0 and logs what it did", async () => {
+    publishDueStories.mockResolvedValue(run());
+    await expect(runJob("publish-scheduled")).resolves.toBe(0);
+    expect(console.log).toHaveBeenCalledWith(JSON.stringify(run()));
+  });
+
+  test("a story that failed exits 1 and is named", async () => {
+    publishDueStories.mockResolvedValue(run({ failed: [{ id: "s-3", error: "database unavailable" }] }));
+    await expect(runJob("publish-scheduled")).resolves.toBe(1);
+    expect(console.error).toHaveBeenCalledWith("failed: s-3: database unavailable");
+  });
+
+  test("when the due stories cannot be read, the job fails (index.ts exits 1)", async () => {
+    publishDueStories.mockRejectedValue(new Error("database unavailable"));
+    await expect(runJob("publish-scheduled")).rejects.toThrow("database unavailable");
+  });
+
+  test("it never runs the news refresh", async () => {
+    publishDueStories.mockResolvedValue(run());
+    await runJob("publish-scheduled");
+    expect(refreshNews).not.toHaveBeenCalled();
+  });
 });

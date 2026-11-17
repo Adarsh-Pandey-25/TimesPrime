@@ -1,0 +1,16 @@
+# One tick of the Desk's scheduled publishing (Panel 2, design §6): runs the worker's
+# publish-scheduled job, which publishes every scheduled story whose time has come, and exits. A
+# story that failed exits 1, which the journal and the worker's log group record.
+# Installed by deploy/scripts/deploy.sh into /etc/systemd/system.
+
+[Unit]
+Description=TimesPrime scheduled publishing (one tick)
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/timesprime/current
+ExecStart=/usr/bin/docker compose --env-file /opt/timesprime/release.env --profile jobs run --rm worker publish-scheduled
+# Under the timer's 5 minutes, so a slow run ends before the next would start.
+TimeoutStartSec=240
