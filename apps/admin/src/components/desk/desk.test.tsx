@@ -81,6 +81,45 @@ describe("the story list", () => {
     expect(await screen.findByText(/own staff account/)).toBeInTheDocument();
   });
 
+  describe("the alert list of takedowns", () => {
+    const ALERTS = [
+      { id: 2, action: "retract", reason: "legal: Court order.", at: "2026-11-17T09:00:00Z", by: "Ravi", story: { id: "s-1", language: "hi", section: "sports", workflow_state: "retracted", headline: "मैच रिपोर्ट" } },
+      { id: 1, action: "unpublish", reason: "error: Wrong score.", at: "2026-11-16T09:00:00Z", by: "Asha", story: { id: "s-2", language: "en", section: "world", workflow_state: "published", headline: "Talks" } },
+    ];
+    const listOf = (permissions: Record<string, "act" | "read" | "ask">, alerts: unknown[] = ALERTS) =>
+      serve((url) => {
+        if (url === "/api/admin/me") return { status: 200, body: staffMe(permissions) };
+        if (url.startsWith("/api/admin/desk/stories?")) return { status: 200, body: { stories: [], total: 0 } };
+        if (url === "/api/admin/desk/alerts") return { status: 200, body: { alerts, days: 30 } };
+      });
+
+    test("whoever may take stories down sees each takedown: what, which story, why, who, and whether it is live again", async () => {
+      listOf({ "article.view_admin": "read", "article.unpublish": "act" });
+      await act(async () => render(<DeskList />));
+      expect(await screen.findByRole("heading", { name: "Alerts: stories taken down in the last 30 days" })).toBeInTheDocument();
+      const story = screen.getByRole("link", { name: "मैच रिपोर्ट" });
+      expect(story).toHaveAttribute("href", "/admin/desk/s-1");
+      expect(story).toHaveAttribute("lang", "hi");
+      expect(screen.getByText(/legal: Court order\. · by Ravi/)).toBeInTheDocument();
+      expect(screen.getByText("Retracted", { selector: "span" })).toBeInTheDocument();
+      expect(screen.getAllByText("Live again")).toHaveLength(1);
+    });
+
+    test("an empty list says so", async () => {
+      listOf({ "article.view_admin": "read", "article.unpublish": "act" }, []);
+      await act(async () => render(<DeskList />));
+      expect(await screen.findByText("No story was taken down in your desks.")).toBeInTheDocument();
+    });
+
+    test("without article.unpublish there is no alert list, and it is never asked for", async () => {
+      listOf({ "article.view_admin": "read", "article.create": "act" });
+      await act(async () => render(<DeskList />));
+      await screen.findByText(/No stories here yet/);
+      expect(screen.queryByRole("heading", { name: /Alerts/ })).not.toBeInTheDocument();
+      expect((global.fetch as jest.Mock).mock.calls.some(([url]) => url === "/api/admin/desk/alerts")).toBe(false);
+    });
+  });
+
   test("no session sends the browser to sign in", async () => {
     serve(() => ({ status: 401, body: { error: "Unauthorized" } }));
     await act(async () => render(<DeskList />));

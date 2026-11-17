@@ -5,10 +5,12 @@ import Link from "next/link";
 import { Plus, RefreshCw } from "lucide-react";
 import { STORY_LANGUAGES, STORY_STATES, type StoryLanguage, type StoryState } from "@timesprime/shared/config/desk";
 import { SECTION_IDS } from "@timesprime/shared/config/sections";
+import AlertList from "./AlertList";
 import { canAct, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
 
 // The Desk's story list (Panel 2 design §4): the stories of the caller's desks, newest change first,
 // with filters for language, section, state, the caller's own and those waiting for a post-hoc review.
+// Above it, for whoever may take stories down, the alert list of recent takedowns (design §8).
 
 interface ListRow {
   id: string;
@@ -81,6 +83,8 @@ export default function DeskList() {
           )}
         </div>
       </div>
+
+      {canAct(me, "article.unpublish") && <AlertList />}
 
       <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => e.preventDefault()} aria-label="Filter the stories">
         <label className="flex flex-col text-xs font-semibold">
