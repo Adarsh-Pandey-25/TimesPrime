@@ -4,9 +4,10 @@ import { TRANSLATIONS } from "@timesprime/shared/config/translations";
 import { isSection } from "@timesprime/shared/config/sections";
 import type { PublishedStory } from "@timesprime/shared/types";
 
-// A Desk story as readers see it (Panel 2 design §6): the published revision's headline, dek and
-// text, the bylines, the times and the correction note, in the story's own language. A server
-// component: the body is drawn on the server from the story schema, so no editor code is sent.
+// A Desk story as readers see it (Panel 2 design §6): the revision's headline, dek and text, the
+// bylines, the times and the correction note, in the story's own language. The reader site's story
+// page renders it on the server, so no editor code reaches readers; the Desk's preview renders the
+// same view in the back office (owner decision 7), so an editor sees what readers will.
 
 const LABELS = {
   en: { by: "By", and: "and", additional_reporting: "Additional reporting by", translated_by: "Translated by", published: "Published", updated: "Updated", correction: "Correction" },
@@ -35,7 +36,11 @@ function updatedSince(first: string | null, latest: string | null): boolean {
   return Boolean(first && latest && Date.parse(latest) - Date.parse(first) > 60_000);
 }
 
-export default function StoryArticle({ story }: { story: PublishedStory }) {
+/**
+ * `sectionLink`: the section's name links to its page on the reader site; the Desk's preview, in
+ * the back office, shows the name alone.
+ */
+export default function StoryArticle({ story, sectionLink = true }: { story: PublishedStory; sectionLink?: boolean }) {
   const { revision, language } = story;
   const labels = LABELS[language];
   const credits = (role: PublishedStory["bylines"][number]["role"]) => story.bylines.filter((b) => b.role === role).map((b) => b.name);
@@ -44,9 +49,13 @@ export default function StoryArticle({ story }: { story: PublishedStory }) {
 
   return (
     <article lang={language} className="mx-auto max-w-3xl px-4 py-8">
-      <Link href={`/${story.section}`} className="text-xs font-bold uppercase tracking-wide text-brand hover:underline">
-        {sectionLabel}
-      </Link>
+      {sectionLink ? (
+        <Link href={`/${story.section}`} className="text-xs font-bold uppercase tracking-wide text-brand hover:underline">
+          {sectionLabel}
+        </Link>
+      ) : (
+        <span className="text-xs font-bold uppercase tracking-wide text-brand">{sectionLabel}</span>
+      )}
       <h1 className="mt-2 font-serif text-3xl font-extrabold leading-tight md:text-4xl">{revision.headline}</h1>
       {revision.dek && <p className="mt-3 text-lg leading-relaxed text-slate-600 dark:text-slate-300">{revision.dek}</p>}
 

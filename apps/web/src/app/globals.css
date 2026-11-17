@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* The Desk story's text, shared with the other app (Panel 2). */
+@import "../../../../packages/ui/src/story.css";
 
 /* Automatic detection scans this app's folder, the build's working directory. The shared
    packages hold class names too, so they are added here. Paths resolve from this
@@ -14,19 +16,6 @@
   --color-brand-dark: #C10007;
   --font-sans: var(--font-serif), "PT Serif", var(--font-devanagari), Georgia, Cambria, serif;
   --font-serif: var(--font-serif), "PT Serif", var(--font-devanagari), Georgia, Cambria, serif;
-}
-
-/* Devanagari's matras rise above, and its vowel signs hang below, the Latin line box. At Latin line
-   heights they were cut off wherever text is clamped (line-clamp hides overflow). Hindi pages set
-   <html lang="hi"> (LanguageContext), so the tight leadings open up there only. */
-:lang(hi) .leading-none,
-:lang(hi) .leading-tight,
-:lang(hi) .leading-snug {
-  line-height: 1.5;
-}
-:lang(hi) .leading-normal,
-:lang(hi) .leading-relaxed {
-  line-height: 1.7;
 }
 
 body {
@@ -253,73 +242,4 @@ html.dark .img-skeleton {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* A Desk story's body on its page (Panel 2, components/story/StoryArticle.tsx). Its HTML comes
-   from the story schema (packages/editor/src/render.ts), which carries no class names, so it is
-   styled by element here. */
-.story-body > * + * {
-  margin-top: 1.1em;
-}
-.story-body h2 {
-  font-size: 1.5rem;
-  font-weight: 800;
-  line-height: 1.3;
-  margin-top: 1.6em;
-}
-.story-body h3 {
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1.35;
-  margin-top: 1.4em;
-}
-.story-body ul {
-  list-style: disc;
-  padding-left: 1.5em;
-}
-.story-body ol {
-  list-style: decimal;
-  padding-left: 1.5em;
-}
-.story-body li + li {
-  margin-top: 0.4em;
-}
-.story-body blockquote {
-  border-left: 4px solid var(--color-brand);
-  padding-left: 1em;
-  font-style: italic;
-}
-.story-body a {
-  color: #1d4ed8;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-html.dark .story-body a {
-  color: #93c5fd;
-}
-.story-body aside[data-type="factbox"] {
-  border: 1px solid #cbd5e1;
-  border-radius: 0.5rem;
-  background: #f8fafc;
-  padding: 1em 1.25em;
-}
-.story-body aside[data-type="related-link"] {
-  border-top: 1px solid #cbd5e1;
-  border-bottom: 1px solid #cbd5e1;
-  padding: 0.75em 0;
-  font-weight: 700;
-}
-.story-body div[data-type="embed"] {
-  border: 1px dashed #94a3b8;
-  border-radius: 0.5rem;
-  padding: 1em;
-  overflow-wrap: anywhere;
-}
-html.dark .story-body aside[data-type="factbox"] {
-  border-color: #3a3f47;
-  background: #25282d;
-}
-html.dark .story-body aside[data-type="related-link"],
-html.dark .story-body div[data-type="embed"] {
-  border-color: #3a3f47;
 }
