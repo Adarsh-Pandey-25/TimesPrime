@@ -10,7 +10,7 @@ import AskAboutArticle from "@/components/article/AskAboutArticle";
 
 import { useLanguage } from "@/context/LanguageContext";
 import { useTheme } from "@timesprime/ui/ThemeContext";
-import { assignPlaceholders } from "@timesprime/shared/config/categoryPlaceholders";
+import { assignPlaceholders, thumbnailFor } from "@timesprime/shared/config/categoryPlaceholders";
 import { safePublisherHref } from "@timesprime/shared/lib/urlValidation";
 import { aiChatEnabled } from "@timesprime/shared/config/aiChat";
 
@@ -155,7 +155,7 @@ export default function ArticleDetailView({ story, allArticles }: ArticleDetailV
                   >
                     <span className="mt-0.5 shrink-0 text-xs font-black text-red-600 dark:text-red-400 w-4">{idx + 1}.</span>
                     <div className="relative h-11 w-14 shrink-0 overflow-hidden rounded-lg">
-                      <Image src={dedupedImages.get(art)!} alt="" fill sizes="56px" className="object-cover" />
+                      <Image src={thumbnailFor(art)} alt="" fill sizes="56px" className="object-cover" />
                     </div>
                     <div className="space-y-1 min-w-0">
                       <h4 className="text-xs font-bold leading-snug text-slate-800 dark:text-slate-200 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors line-clamp-2">
@@ -266,7 +266,7 @@ export default function ArticleDetailView({ story, allArticles }: ArticleDetailV
                     className="group flex items-center space-x-3 border-b border-slate-100 dark:border-[#2b2f36] last:border-0 pb-3.5 last:pb-0"
                   >
                     <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-lg">
-                      <Image src={dedupedImages.get(art)!} alt="" fill sizes="64px" className="object-cover" />
+                      <Image src={thumbnailFor(art)} alt="" fill sizes="64px" className="object-cover" />
                     </div>
                     <div className="space-y-0.5 flex-1 min-w-0">
                       <h4 className="line-clamp-2 text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors leading-snug">

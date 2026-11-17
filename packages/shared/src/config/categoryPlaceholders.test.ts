@@ -7,7 +7,7 @@
 
 import fs from "fs";
 import path from "path";
-import { assignPlaceholders, PLACEHOLDER_KEYS, placeholderFor, placeholderKey } from "./categoryPlaceholders";
+import { assignPlaceholders, PLACEHOLDER_KEYS, placeholderFor, placeholderKey, thumbnailFor } from "./categoryPlaceholders";
 import type { Article } from "../types";
 
 const story = (category?: string[], country?: string[], image_url?: string): Article => ({
@@ -47,13 +47,30 @@ test("a list gets one image per story", () => {
   expect(images.get(b)).toBe("/placeholders/health.svg");
 });
 
-test("every drawing exists, is our own SVG and loads nothing from elsewhere", () => {
+test("a small thumbnail gets the same category's drawing without its label (BL-045)", () => {
+  expect(thumbnailFor(story(["business"]))).toBe("/placeholders/business-thumb.svg");
+  expect(thumbnailFor(story(["top"], ["in"]))).toBe("/placeholders/india-thumb.svg");
+  expect(thumbnailFor(story(undefined, undefined, "https://publisher.example/photo.jpg"))).toBe("/placeholders/general-thumb.svg");
+});
+
+test("a thumbnail has no label to crop: 4:3, and no text but the TP mark", () => {
   const dir = path.resolve(__dirname, "../../../../apps/web/public/placeholders");
   for (const key of PLACEHOLDER_KEYS) {
-    const svg = fs.readFileSync(path.join(dir, `${key}.svg`), "utf8");
+    const svg = fs.readFileSync(path.join(dir, `${key}-thumb.svg`), "utf8");
+    expect(svg).toContain('viewBox="0 0 400 300"');
+    const texts = [...svg.matchAll(/<text[^>]*>(.*?)<\/text>/g)].map((m) => m[1].replace(/<[^>]+>/g, ""));
+    expect(texts).toEqual(["TP"]);
+  }
+});
+
+test("every drawing and thumbnail exists, is our own SVG and loads nothing from elsewhere", () => {
+  const dir = path.resolve(__dirname, "../../../../apps/web/public/placeholders");
+  const files = PLACEHOLDER_KEYS.flatMap((key) => [`${key}.svg`, `${key}-thumb.svg`]);
+  for (const file of files) {
+    const svg = fs.readFileSync(path.join(dir, file), "utf8");
     expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
     expect(svg).toContain("TimesPrime");
     expect(svg).not.toMatch(/<script|<image|href=|url\((?!#)/i);
   }
-  expect(fs.readdirSync(dir).sort()).toEqual(PLACEHOLDER_KEYS.map((k) => `${k}.svg`).sort());
+  expect(fs.readdirSync(dir).sort()).toEqual(files.sort());
 });

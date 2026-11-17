@@ -84,7 +84,23 @@ export function filterArticlesByLanguageScript(articles: Article[], language: st
 // the "legitimate news article that happens to mention a ritual/festival
 // term" failure mode this needs to avoid, not just ritual filler. Rather
 // than guess at a workaround, that sub-pattern is left out entirely.
-const HOROSCOPE_FILLER_TERMS = ["राशिफल", "टैरो", "कुंडली", "rashifal", "horoscope", "tarot"];
+//
+// BL-044 (16 Nov 2026): "What Cosmic Changes Await Us? Astrological Insights for 2023 and Beyond"
+// got through. Added, as narrowly: "astrological", "ज्योतिषीय" (its Hindi) and "zodiac sign".
+// Not "astrology" or "astrologer" alone: "astrology app raises funding" and "police arrest
+// astrologer" are news. The feed's read path (db.ts) applies the same filter, so stored rows
+// these terms match stop showing; wording they still miss needs a look at the table (BL-044).
+const HOROSCOPE_FILLER_TERMS = [
+  "राशिफल",
+  "टैरो",
+  "कुंडली",
+  "rashifal",
+  "horoscope",
+  "tarot",
+  "astrological",
+  "ज्योतिषीय",
+  "zodiac sign",
+];
 
 /**
  * True for horoscope/tarot filler content (daily rashifal, tarot card

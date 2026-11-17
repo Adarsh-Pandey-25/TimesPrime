@@ -91,7 +91,7 @@ conclusions (see [the gotchas](OPERATIONS.md#3-gotchas-that-have-already-burned-
   the config file (CR-06; OPERATIONS gotcha 3.30).
 - The reader site loads **no remote image** (Phase B): `images.remotePatterns` is empty, and story
   pictures are the SVG category drawings in `apps/web/public/placeholders`, which next/image serves
-  as they are.
+  as they are. Thumbnails under 100 pixels use each drawing's label-free `-thumb.svg` (BL-045).
 - Turbopack compiles the workspace packages without `transpilePackages`, and finds the repository
   root from the single `package-lock.json`.
 - **The release runs on one EC2 server in Mumbai** with Docker Compose (owner's senior, 16 Nov
