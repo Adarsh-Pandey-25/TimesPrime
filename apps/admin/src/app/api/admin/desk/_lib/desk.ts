@@ -14,10 +14,12 @@ import {
   hasCounterpart,
   listHistory,
   transition,
+  type DeskScope,
   type MoveFields,
   type StoryRow,
 } from "@timesprime/server/repositories/stories";
 import { checklist, embargoed, move, TAKEDOWN_REASONS, type DeskAction } from "@timesprime/shared/config/desk";
+import type { AccessCode, PermissionKey } from "@timesprime/shared/config/permissions";
 
 // The Desk's routes (Panel 2 design §3 and §4) share these steps: the gate (requirePermission, with
 // the shared password refused by the rule's staffOnly), the story, its scope (language, section, and
@@ -28,6 +30,18 @@ export type Params = { params: Promise<Record<string, string>> };
 
 /** A story as a permission target: its desk, and its creator for Own (shared with the worker). */
 export { storyTarget };
+
+/**
+ * The desks in which the caller holds a permission at one of the codes: the scope of each live
+ * assignment (not revoked, not expired) whose role grants it, break-glass grants only on a
+ * break-glass assignment. What a list keeps to.
+ */
+export function scopesFor(actor: Actor, permission: PermissionKey, codes: readonly AccessCode[], now: Date): DeskScope[] {
+  return (actor.record?.assignments ?? [])
+    .filter((a) => a.revokedAt === null && Date.parse(a.expiresAt) > now.getTime())
+    .filter((a) => a.grants.some((g) => g.permission === permission && codes.includes(g.access) && (!g.breakGlassOnly || a.isBreakGlass)))
+    .map((a) => ({ language: a.language, section: a.section }));
+}
 
 /** The history label of a staff member, as the database functions write it. */
 export const staffLabel = (actor: Actor) => `staff:${actor.userId}`;
