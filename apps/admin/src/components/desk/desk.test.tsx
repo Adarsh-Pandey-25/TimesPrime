@@ -142,6 +142,14 @@ describe("the story screen", () => {
     expect(screen.getByText("Nothing for you to do on this story now.")).toBeInTheDocument();
   });
 
+  test("opening a story shows no unsaved changes, before or after the editor becomes editable", async () => {
+    serveStory({ "article.view_admin": "read", "article.edit": "act" });
+    await act(async () => render(<StoryEditor id="s-1" />));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Headline" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Story text" })).toHaveAttribute("contenteditable", "true"));
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+  });
+
   test("saving the details keeps unsaved text: only a new revision resets the fields", async () => {
     serveStory({ "article.view_admin": "read", "article.edit": "act" }, {}, (url, init) =>
       url === "/api/admin/desk/stories/s-1/details" && init?.method === "POST" ? { status: 200, body: { story: STORY } } : undefined

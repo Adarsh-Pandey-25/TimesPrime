@@ -220,7 +220,9 @@ export default function StoryEditor({ id }: { id: string }) {
     [revisionKey]
   );
   useEffect(() => {
-    editor?.setEditable(editable);
+    // false: no update event. Tiptap sends one by default, and onUpdate would mark an untouched
+    // story as having unsaved changes.
+    editor?.setEditable(editable, false);
   }, [editor, editable]);
 
   async function save() {
