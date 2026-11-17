@@ -3,26 +3,29 @@
 import Link from "next/link";
 import Header from "@/components/news/Header";
 import Footer from "@/components/news/Footer";
-import { ArrowLeft, Mail, Megaphone, MapPin } from "lucide-react";
+import { ArrowLeft, Mail, MapPin, ShieldCheck } from "lucide-react";
+import { CONTACT_EMAIL, GRIEVANCE_OFFICER, OFFICE_ADDRESS } from "@timesprime/shared/config/site";
 
+// R3: the one confirmed mailbox for every enquiry, the office address, and the way to the
+// Grievance Officer (packages/shared/src/config/site.ts). No phone number.
 const CONTACT_INFO = [
   {
     icon: Mail,
     label: "Email",
-    value: "contact@timesprime.in",
-    href: "mailto:contact@timesprime.in",
-  },
-  {
-    icon: Megaphone,
-    label: "For Advertising",
-    value: "ads@timesprime.in",
-    href: "mailto:ads@timesprime.in",
+    value: CONTACT_EMAIL,
+    href: `mailto:${CONTACT_EMAIL}`,
   },
   {
     icon: MapPin,
-    label: "Location",
-    value: "India",
+    label: "Office",
+    value: OFFICE_ADDRESS.join(", "),
     href: undefined,
+  },
+  {
+    icon: ShieldCheck,
+    label: "Grievances",
+    value: `Grievance Officer: ${GRIEVANCE_OFFICER.name}`,
+    href: "/grievance",
   },
 ] as const;
 
@@ -62,7 +65,7 @@ export default function ContactPage() {
                   <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
                     {label}
                   </span>
-                  <span className="text-sm font-semibold break-all">{value}</span>
+                  <span className={`text-sm font-semibold ${href?.startsWith("mailto:") ? "break-all" : ""}`}>{value}</span>
                 </>
               );
               const className =

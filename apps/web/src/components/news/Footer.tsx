@@ -163,14 +163,14 @@ export default function Footer({ language: propsLang }: FooterProps) {
                 <Link href="/contact" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.footer.contactUs}
                 </Link>
-                <Link href="#" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
-                  <span>›</span> {t.footer.advertiseWithUs}
-                </Link>
                 <Link href="/privacy" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.footer.privacyPolicy}
                 </Link>
                 <Link href="/terms" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.footer.termsOfUse}
+                </Link>
+                <Link href="/grievance" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                  <span>›</span> {t.footer.grievance}
                 </Link>
               </div>
             </div>

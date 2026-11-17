@@ -8,6 +8,23 @@
 export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://timesprime247.com").replace(/\/+$/, "");
 
 /**
+ * The publisher's contact details (R3; the owner's senior, 16 Nov 2026), shown by the grievance,
+ * contact, privacy and terms pages. One person is the Grievance Officer under the IT Rules, 2021
+ * and the CERT-In point of contact, and the one confirmed mailbox serves every enquiry (owner,
+ * 17 Nov 2026). No phone number is published or kept in the repository.
+ */
+export const GRIEVANCE_OFFICER = {
+  name: "Adarsh Pandey",
+  email: "adarsh@timesprime247.com",
+} as const;
+
+/** The one mailbox the site shows for every enquiry until others exist. */
+export const CONTACT_EMAIL = GRIEVANCE_OFFICER.email;
+
+/** The office's postal address, one line per entry. */
+export const OFFICE_ADDRESS = ["704A-704B, Iris Tech Park", "Sector 48", "Gurgaon 122018", "Haryana, India"] as const;
+
+/**
  * True for a build that search engines must not index: staging, or any copy that is not the
  * public site. Set NEXT_PUBLIC_SITE_NOINDEX=1 when building it: robots.txt then disallows
  * everything and every response carries X-Robots-Tag: noindex.

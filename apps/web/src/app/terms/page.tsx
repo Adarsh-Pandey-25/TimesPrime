@@ -3,6 +3,7 @@ import Header from "@/components/news/Header";
 import Footer from "@/components/news/Footer";
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
+import { CONTACT_EMAIL, GRIEVANCE_OFFICER } from "@timesprime/shared/config/site";
 
 export const metadata: Metadata = {
   title: "Terms of Use",
@@ -27,7 +28,7 @@ const SECTIONS = [
   {
     heading: "Content and Intellectual Property",
     body: [
-      "Headlines, article excerpts, and images displayed on TimesPrime are sourced from third-party publishers via NewsData.io and remain the property of their respective owners. TimesPrime does not claim ownership of this third-party content.",
+      "The headlines and short summaries of outside stories shown on TimesPrime come from third-party publishers via NewsData.io, link to the publishers' own pages, and remain the property of their respective owners. TimesPrime does not claim ownership of this third-party content.",
       "The TimesPrime name, logo, and site design are the property of Spaxads Digital Media Pvt Ltd and may not be used without permission.",
     ],
   },
@@ -52,7 +53,7 @@ const SECTIONS = [
   {
     heading: "Contact",
     body: [
-      "Questions about these Terms of Use can be sent to contact@timesprime.in.",
+      `Questions about these Terms of Use can be sent to ${CONTACT_EMAIL}. Complaints about content go to our Grievance Officer, ${GRIEVANCE_OFFICER.name}, as the Grievance Redressal page describes.`,
     ],
   },
 ] as const;
@@ -78,7 +79,7 @@ export default function TermsOfUsePage() {
             </h1>
             <div className="mt-4 h-1 w-14 rounded-full bg-red-600" />
             <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-slate-300">
-              Last updated: August 2026
+              Last updated: November 2026
             </p>
           </div>
         </div>
