@@ -64,8 +64,8 @@ function sqlRows(table: string): string[][] {
 const { keys, cells } = matrixCells();
 
 describe("the permission catalogue matches the matrix in the access rules (docs/PANEL_DOCS.md)", () => {
-  test("the matrix has 31 rows naming 39 permission keys, and the constant lists them in order", () => {
-    expect(keys).toHaveLength(39);
+  test("the matrix has 33 rows naming 41 permission keys, and the constant lists them in order", () => {
+    expect(keys).toHaveLength(41);
     expect([...PERMISSION_KEYS]).toEqual(keys);
   });
 
@@ -86,7 +86,7 @@ describe("the permission catalogue matches the matrix in the access rules (docs/
     expect(flagged("scoped")).toEqual(["desk_editor", "sub_editor", "writer"]);
   });
 
-  test("the SQL seeds exactly the 39 permissions", () => {
+  test("the SQL seeds exactly the 41 permissions", () => {
     expect(sqlRows("permissions").map(([key]) => key)).toEqual(keys);
   });
 
@@ -96,7 +96,7 @@ describe("the permission catalogue matches the matrix in the access rules (docs/
     );
     const fromPlan = cells.map((c) => JSON.stringify(c));
     expect([...fromSql].sort()).toEqual([...fromPlan].sort());
-    expect(fromSql).toHaveLength(136);
+    expect(fromSql).toHaveLength(140);
   });
 
   test("spot checks against the plan's text", () => {
@@ -109,4 +109,11 @@ describe("the permission catalogue matches the matrix in the access rules (docs/
     // user.manage for Managing Editor is scoped, with the plan's limit as its note.
     expect(has("managing_editor", "role.assign")).toMatchObject({ access: "S", note: "assign ≤ Desk Editor in own scope" });
   });
+});
+
+// Panel 2 design, approval 2 (owner, 17 Nov 2026): two rows for the Desk's authors and media.
+test("author.manage and media.manage are the approved cells and nothing else", () => {
+  const of = (permission: string) => cells.filter((c) => c.permission === permission).map((c) => `${c.role}:${c.access}`).sort();
+  expect(of("author.manage")).toEqual(["desk_editor:F", "managing_editor:F"]);
+  expect(of("media.manage")).toEqual(["desk_editor:S", "managing_editor:F"]);
 });

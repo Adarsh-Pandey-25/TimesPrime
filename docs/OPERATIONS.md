@@ -919,15 +919,16 @@ on the root `.env`), and again at the AWS deployment.
 Then in SQL Editor → New query, run each file whole, in this order:
 1. `database/migrations/2026-11-02-access-1-foundation.sql`: the six tables, their triggers and
    grants.
-2. `database/migrations/2026-11-02-access-2-catalog.sql`: the 15 roles, 39 permissions and the
-   matrix (generated from the access rules (`docs/PANEL_DOCS.md`)).
+2. `database/migrations/2026-11-02-access-2-catalog.sql`: the 15 roles, 41 permissions and the
+   matrix (generated from the access rules (`docs/PANEL_DOCS.md`)). It is idempotent: when the
+   matrix changes (Panel 2 added `author.manage` and `media.manage`, 17 Nov 2026), apply it again.
 
 **Check.** The verification queries at the end of each file, each with its expected answer. In short:
 
 ```sql
 SELECT count(*) FROM public.roles;             -- 15
-SELECT count(*) FROM public.permissions;       -- 39
-SELECT count(*) FROM public.role_permissions;  -- 136
+SELECT count(*) FROM public.permissions;       -- 41
+SELECT count(*) FROM public.role_permissions;  -- 140
 SELECT has_table_privilege('authenticated', 'public.audit_log', 'SELECT');  -- false
 SELECT has_table_privilege('service_role', 'public.audit_log', 'UPDATE');   -- false
 SELECT public.audit_verify_chain();            -- NULL (an empty chain is intact)

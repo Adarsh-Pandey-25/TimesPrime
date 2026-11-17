@@ -61,7 +61,8 @@ the four-eyes, takedown and MFA rules, and the data model behind them. The build
 
 **Where it came from:** the owner's `PANEL_PLAN.md` (2 Nov 2026), retired on 4 Nov 2026 when the
 owner approved `NEWSROOM_PLAN.md`. The sections below are copied from it unchanged, except where
-a note says otherwise. The supporting publisher research is in [`RESEARCH.md`](RESEARCH.md) and in
+a note says otherwise. *Note (17 Nov 2026):* the rows `author.manage` and `media.manage` were added
+with the owner's approval of the Panel 2 design. The supporting publisher research is in [`RESEARCH.md`](RESEARCH.md) and in
 git history (`git log --all -- docs/PANEL_PLAN.md`).
 
 **The matrix is canonical.** `scripts/generate-access-catalog.mjs` turns the matrix below into
@@ -106,6 +107,8 @@ The matrix uses these codes: **F** = full, **S** = within assigned language/sect
 | article.unpublish / takedown | F (break-glass) | F | S | — | — | — | — | — | F | — | — | — | — | — | — |
 | article.restore | — | A | A | — | — | — | — | — | A | — | — | — | — | — | — |
 | article.bulk_action | — | F | S | — | — | — | — | — | — | — | — | — | — | — | — |
+| author.manage | — | F | F | — | — | — | — | — | — | — | — | — | — | — | — |
+| media.manage | — | F | S | — | — | — | — | — | — | — | — | — | — | — | — |
 | breaking_banner.manage / push.send | — | F | S | — | — | — | — | — | — | — | — | — | — | — | — |
 | homepage.curate | — | F | S | — | — | — | — | — | — | — | — | — | — | — | — |
 | correction.publish | — | F | S | A | — | — | — | R | R | — | — | — | — | — | — |
@@ -398,7 +401,7 @@ suspension applies to the next request.
 | File | What it does | Rollback | Applied by the owner |
 |---|---|---|---|
 | `database/migrations/2026-11-02-access-1-foundation.sql` | `staff_profiles`, `roles`, `permissions`, `role_permissions`, `role_assignments`, `audit_log`; triggers (two-admin rule, bootstrap only as postgres, assignments are history, audit append-only and hash-chained); RLS on, nothing for `anon`/`authenticated` | At the end of the file, before go-live only | **No** |
-| `database/migrations/2026-11-02-access-2-catalog.sql` | The 15 roles, 39 permissions, 136 matrix rows, generated from the matrix (then in `PANEL_PLAN.md`, now the access rules (`PANEL_DOCS.md`)) | Re-run the previous version, or the foundation rollback | **No** |
+| `database/migrations/2026-11-02-access-2-catalog.sql` | The 15 roles, 41 permissions, 140 matrix rows (39 and 136 until Panel 2 added two rows, 17 Nov 2026), generated from the matrix (then in `PANEL_PLAN.md`, now the access rules (`PANEL_DOCS.md`)) | Re-run the previous version, or the foundation rollback | **No** |
 | `database/migrations/2026-11-02-access-3-freeze-admin-logs.sql` | `admin_logs` read-only (after the deploy) | `GRANT ALL ... TO service_role` | **No** |
 | `database/bootstrap/super-admin.sql` | One invited user becomes a Super Admin, audited as `bootstrap` | Revoke, in the file | **No** |
 
