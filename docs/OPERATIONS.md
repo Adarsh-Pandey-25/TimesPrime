@@ -1580,6 +1580,17 @@ A path from Git Bash's `$PWD` (`/c/Users/...`) given to Docker Desktop, in a com
 for instance, is read as relative to the compose file. `pwd -W` gives `C:/Users/...`
 (`deploy/scripts/run-local.sh` uses it, and falls back to `pwd` on Linux and macOS).
 
+#### 3.36 `next build` stops on a Next.js version with a published advisory
+
+`next build` checks npm's advisory list (first seen 17 Nov 2026) and fails with `SecurityFatalError` when
+the installed `next` is affected, even if the code never uses the affected feature. Then `npm run
+verify` and CI fail on every branch until `next` (and `eslint-config-next`, kept at the same
+version) moves to the fixed release, on a `fix/` branch through a PR. `npm audit` names the advisory
+and the fixed version. The error text also suggests an upgrade command; the session does not run
+it, since a dependency change needs approval. 16.4.3 → 16.4.6 for GHSA-mfr8-8qww-v76h was the first.
+The build also fetches its Google fonts: "Failed to fetch ... from Google Fonts" is the network,
+and a retry passes.
+
 ### 4. Commits — restructure 2, then audit Phases 2–5
 
 `f260d3e` closed audit Phase 1. Everything after it is restructure 2. Restructure 1 and Phase 1 are
@@ -2645,7 +2656,7 @@ listed in [Deployment](#deployment).
 
 | ID | Sev | Finding | Status | Evidence / current location | DEF |
 |---|---|---|---|---|---|
-| F-001 | Crit | Next.js 16.3.0 advisories, incl. 4 critical unauthenticated RCE | **Resolved** | `47e62ae`: `next` and `eslint-config-next` 16.4.3, the current latest. Four of the 13 advisories reached 16.4.0, so the 16.3.8 patch line was not enough. `npm audit` no longer lists `next`; route table identical; `next start` smoke test passed | DEF-11 |
+| F-001 | Crit | Next.js 16.3.0 advisories, incl. 4 critical unauthenticated RCE | **Resolved** | `47e62ae`: `next` and `eslint-config-next` 16.4.3, the current latest. Four of the 13 advisories reached 16.4.0, so the 16.3.8 patch line was not enough. `npm audit` no longer lists `next`; route table identical; `next start` smoke test passed. 17 Nov 2026 (`fix/next-16.4.6`): 16.4.6 for GHSA-mfr8-8qww-v76h (moderate; the code uses neither `unstable_cache` nor `"use cache"`), as the build refused 16.4.3 (gotcha 3.36) | DEF-11 |
 | F-002 | Crit | Every Supabase call fails; app silently serves NewsData.io | **Pending verification** | **Connection:** working on 2026-10-30 with no code change — one real request returned HTTP 200, the app's own client path (service-role key) read 78 rows with the newest 13 min old, and the feed answered `X-Data-Source: supabase`, then `cache`. The earlier failure no longer reproduces, so its `err.cause` could not be captured. **Visibility:** `57fe578` adds `/api/health` (status only, 200/503) and `/api/admin/health` (detail, behind the session); `679c72e` reports each Supabase→NewsData fallback to Sentry, rate-limited (D5). **Needs:** in production, `/api/health` answering 200, and Sentry — with `NEXT_PUBLIC_SENTRY_DSN` set, which it is not locally — receiving a fallback event | DEF-01 |
 | F-003 | **Crit** (audit: High) | Scraper follows up to 21 redirects, none revalidated | **Resolved** | `2e383cb`: the guard (`packages/shared/src/lib/urlValidation.ts`) now judges IPv6 literals directly, the IPv4 embedded in mapped/compatible/NAT64/6to4 forms, Teredo, documentation, multicast and 240/4, and rejects credentials; it returns the addresses it validated. `1145bca`: `packages/server/src/services/scrape/fetchPage.ts` follows at most 5 redirects by hand (`maxRedirects: 0`), revalidating every hop, and pins each connection to its hop's validated addresses through axios's `lookup`, so DNS rebinding is closed, not documented; a refused hop is 400. Proven against the real axios with a local server, including a negative control. The article page no longer sends an unverified `url` to the scraper at all (`8d0b775`, F-005), which narrows this surface further | DEF-02 |
 | F-004 | High | Admin login unthrottled; password compare leaks length | **Resolved** | `487eb47` (tests first), `7eb9253`: `verifyAdminPassword` (`packages/server/src/auth/adminSession.ts`) compares SHA-256 digests with `timingSafeEqual`, so no length check leaks; `POST /api/admin/login` allows 10 attempts per 15 minutes per IP (owner decision D1: Redis fixed window via `checkRateLimit`, in-memory fallback, logged), 429 with Retry-After. README's "compared in constant time" is now true (N-02). Production behaviour on Redis is a deployment check | DEF-06 |
