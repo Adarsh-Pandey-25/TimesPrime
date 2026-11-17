@@ -16,6 +16,9 @@
   "admin": {
     "/_global-error/page": 632832,
     "/_not-found/page": 633856,
+    "/admin/desk/[id]/page": 1097728,
+    "/admin/desk/new/page": 658432,
+    "/admin/desk/page": 662528,
     "/admin/login/page": 643072,
     "/admin/page": 702464
   }
