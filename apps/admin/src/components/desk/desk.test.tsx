@@ -15,7 +15,7 @@ import NewStoryForm from "./NewStoryForm";
 import StoryEditor from "./StoryEditor";
 import StoryPreview from "./StoryPreview";
 
-const staffMe = (permissions: Record<string, "act" | "read">) => ({
+const staffMe = (permissions: Record<string, "act" | "read" | "ask">) => ({
   kind: "staff",
   displayName: "Asha",
   aal: "aal2",
@@ -118,7 +118,7 @@ describe("the story screen", () => {
   const REVISION = revision("r-1", "Budget passes", "2026-11-17T09:00:00Z", "The house voted.");
 
   /** The story's routes; `extra` answers first, for the writes a test makes. Revisions newest first. */
-  function serveStory(permissions: Record<string, "act" | "read">, over: Record<string, unknown> = {}, extra?: Route, revisions: Revision[] = [REVISION]) {
+  function serveStory(permissions: Record<string, "act" | "read" | "ask">, over: Record<string, unknown> = {}, extra?: Route, revisions: Revision[] = [REVISION]) {
     serve((url, init) => {
       const answer = extra?.(url, init);
       if (answer) return answer;
@@ -242,6 +242,57 @@ describe("the story screen", () => {
       expect(headline).toHaveValue("Budget passes, 300 to 120");
       expect(screen.queryByText(/Revision 1 is in the editor/)).not.toBeInTheDocument();
       confirm.mockRestore();
+    });
+  });
+
+  describe("a correction on a live story", () => {
+    const LIVE = { workflow_state: "published", published_revision_id: "r-1" };
+    const NOTE = "An earlier version gave the wrong vote count.";
+    const corrections = () =>
+      (global.fetch as jest.Mock).mock.calls.filter(([url, init]) => url === "/api/admin/desk/stories/s-1/correct" && init?.method === "POST");
+
+    test("a Desk Editor (S) publishes the note at once, and sees what readers see", async () => {
+      serveStory({ "article.view_admin": "read", "correction.publish": "act" }, { ...LIVE, correction_note: "An older note." }, (url, init) =>
+        url === "/api/admin/desk/stories/s-1/correct" && init?.method === "POST" ? { status: 200, body: { story: STORY } } : undefined
+      );
+      await act(async () => render(<StoryEditor id="s-1" />));
+      expect(await screen.findByText("An older note.")).toBeInTheDocument();
+      fireEvent.change(screen.getByRole("textbox", { name: /Correction note/ }), { target: { value: NOTE } });
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Publish correction" })));
+      expect(JSON.parse(corrections()[0][1].body)).toEqual({ note: NOTE });
+      expect(await screen.findByText("Correction published. Readers see it under the story.")).toBeInTheDocument();
+    });
+
+    test("a Sub-editor (A) asks instead, and is told a second person decides", async () => {
+      serveStory({ "article.view_admin": "read", "correction.publish": "ask" }, LIVE, (url, init) =>
+        url === "/api/admin/desk/stories/s-1/correct" && init?.method === "POST" ? { status: 201, body: { request: { id: "p-2" } } } : undefined
+      );
+      await act(async () => render(<StoryEditor id="s-1" />));
+      fireEvent.change(await screen.findByRole("textbox", { name: /Correction note/ }), { target: { value: NOTE } });
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Ask for a correction" })));
+      expect(await screen.findByText(/Correction requested\. A Desk Editor or the Managing Editor decides it\./)).toBeInTheDocument();
+    });
+
+    test("nothing is offered without correction.publish, nor before the story is live", async () => {
+      serveStory({ "article.view_admin": "read", "article.edit": "act" }, LIVE);
+      await act(async () => render(<StoryEditor id="s-1" />));
+      await screen.findByDisplayValue("Budget passes");
+      expect(screen.queryByRole("heading", { name: "Correction" })).not.toBeInTheDocument();
+    });
+
+    test("an open correction request names itself, and approving it publishes the note", async () => {
+      serve((url, init) => {
+        if (url === "/api/admin/me") return { status: 200, body: staffMe({ "article.view_admin": "read", "correction.publish": "act" }) };
+        if (url === "/api/admin/desk/stories/s-1") {
+          return { status: 200, body: { story: { ...STORY, ...LIVE }, revision: REVISION, history: [], lock: null, pending: [{ id: "p-2", action: "correction", requested_by: "u-3", reason: NOTE }] } };
+        }
+        if (url === "/api/admin/desk/pending/p-2/decide" && init?.method === "POST") return { status: 200, body: { story: STORY } };
+        if (url === "/api/admin/desk/stories/s-1/revisions") return { status: 200, body: { revisions: [] } };
+      });
+      await act(async () => render(<StoryEditor id="s-1" />));
+      expect(await screen.findByText(`Correction requested: ${NOTE}`)).toBeInTheDocument();
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Approve" })));
+      expect(await screen.findByText("Correction published.")).toBeInTheDocument();
     });
   });
 

@@ -59,6 +59,11 @@ export function canAct(me: AdminMe | null, permission: string): boolean {
   return Boolean(me && me.kind === "staff" && me.permissions[permission] === "act");
 }
 
+/** The matrix's A: the person may ask, and a second person decides. */
+export function canAsk(me: AdminMe | null, permission: string): boolean {
+  return Boolean(me && me.kind === "staff" && me.permissions[permission] === "ask");
+}
+
 export const STATE_LABELS: Record<StoryState, string> = {
   pitch: "Pitch",
   assigned: "Assigned",
