@@ -5,7 +5,7 @@ import Link from "next/link";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { embedProvider, isAllowedHref, storyExtensions, EMPTY_DOC } from "@timesprime/editor/schema";
 import { wordCount } from "@timesprime/editor/text";
-import { checklist, move, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
+import { checklist, move, PUBLISH_TICK_MINUTES, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
 import { SITE_URL } from "@timesprime/shared/config/site";
 import { deskStoryPath, storySlug } from "@timesprime/shared/lib/storyUrl";
 import { canAct, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
@@ -435,7 +435,15 @@ export default function StoryEditor({ id }: { id: string }) {
             </label>
           )}
           {moves.some((m) => m.needs === "schedule") && (
-            <label className="block text-sm">Publish at (IST)<input type="datetime-local" className={field} value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} /></label>
+            <div>
+              <label className="block text-sm">
+                Publish at (IST)
+                <input type="datetime-local" className={field} value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} aria-describedby="schedule-hint" />
+              </label>
+              <p id="schedule-hint" className="mt-1 text-xs text-slate-500">
+                The server publishes it within {PUBLISH_TICK_MINUTES} minutes after this time, if you may still publish it then.
+              </p>
+            </div>
           )}
           <div className="flex flex-wrap gap-2">
             {moves.map((m) => (

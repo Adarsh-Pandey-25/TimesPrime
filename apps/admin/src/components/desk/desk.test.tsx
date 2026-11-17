@@ -145,6 +145,14 @@ describe("the story screen", () => {
     expect(screen.queryByRole("link", { name: /View on the site/ })).not.toBeInTheDocument();
   });
 
+  test("scheduling says when the server publishes: within 5 minutes, if the editor may still publish", async () => {
+    serveStory({ "article.view_admin": "read", "article.publish": "act" }, { workflow_state: "approved", approved_revision_id: "r-1" });
+    await act(async () => render(<StoryEditor id="s-1" />));
+    expect(await screen.findByRole("button", { name: "Schedule" })).toBeInTheDocument();
+    const when = screen.getByLabelText("Publish at (IST)");
+    expect(when).toHaveAccessibleDescription("The server publishes it within 5 minutes after this time, if you may still publish it then.");
+  });
+
   test("a live story links to its page on the site, at its own address", async () => {
     serveStory({ "article.view_admin": "read" }, { workflow_state: "published", published_revision_id: "r-1", slug: "budget-passes" });
     await act(async () => render(<StoryEditor id="s-1" />));
