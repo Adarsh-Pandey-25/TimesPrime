@@ -99,6 +99,10 @@ export const ADMIN_ROUTE_RULES = {
     GET: { permissions: ["stats.view"], mode: "read", target: "none" },
   },
   // ---- Panel 2, the Desk (design §4): staff only, every story checked against its own desk ----
+  // The alert list (design §8): takedowns, for whoever may take stories down, inside their desks.
+  "/api/admin/desk/alerts": {
+    GET: { permissions: ["article.unpublish"], mode: "read", target: "none", staffOnly: true },
+  },
   "/api/admin/desk/stories": {
     // The list is filtered to the caller's scopes in the route.
     GET: { permissions: ["article.view_admin"], mode: "read", target: "none", staffOnly: true },

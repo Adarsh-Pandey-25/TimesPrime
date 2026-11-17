@@ -210,6 +210,86 @@ export async function listDueScheduled(now: Date, limit: number = DUE_BATCH): Pr
   return (data ?? []) as StoryRow[];
 }
 
+/** How far back the Desk's alert list looks (design §8): takedowns of the last 30 days. */
+export const ALERT_DAYS = 30;
+/** The most takedowns the alert list shows, newest first. */
+export const ALERT_LIMIT = 50;
+/** The most recent takedowns read before the scope filter: far more than a newsroom makes in a month. */
+const TAKEDOWNS_READ = 100;
+
+export interface TakedownAlert {
+  /** The move's own id (workflow_transitions). */
+  id: number;
+  action: "unpublish" | "retract";
+  /** "<reason code>: <note>", as the takedown recorded it. */
+  reason: string | null;
+  at: string;
+  /** Who took it down: their display name, or their history label when the name is not known. */
+  by: string;
+  story: { id: string; language: StoryLanguage; section: string; workflow_state: StoryState; headline: string | null };
+}
+
+/** True when one of the scopes covers the desk; a null field means "all". */
+export function inScopes(desk: { language: string; section: string }, scopes: readonly DeskScope[]): boolean {
+  return scopes.some((s) => (s.language === null || s.language === desk.language) && (s.section === null || s.section === desk.section));
+}
+
+/**
+ * The Desk's alert list (design §8, owner decision 5): every unpublish and retract of the last
+ * ALERT_DAYS days, newest first, for stories inside the caller's scopes. Three plain reads (the
+ * moves, their stories, the names of who made them), filtered here, so nothing depends on a join
+ * the database has not served before.
+ */
+export async function listTakedowns(scopes: readonly DeskScope[], now: Date): Promise<TakedownAlert[]> {
+  if (scopes.length === 0) return [];
+  const since = new Date(now.getTime() - ALERT_DAYS * 86_400_000).toISOString();
+  const moves = await supabase
+    .from("workflow_transitions")
+    .select("id, story_id, action, actor_id, actor_label, reason, at")
+    .in("action", ["unpublish", "retract"])
+    .gte("at", since)
+    .order("at", { ascending: false })
+    .limit(TAKEDOWNS_READ);
+  if (moves.error) throw storeError(moves.error);
+  type Move = { id: number; story_id: string; action: "unpublish" | "retract"; actor_id: string | null; actor_label: string; reason: string | null; at: string };
+  const rows = (moves.data ?? []) as Move[];
+  if (rows.length === 0) return [];
+
+  const storyRead = await supabase
+    .from("stories")
+    .select("id, language, section, workflow_state, current:story_revisions!stories_current_revision_fk(headline)")
+    .in("id", [...new Set(rows.map((r) => r.story_id))]);
+  if (storyRead.error) throw storeError(storyRead.error);
+  type Story = { id: string; language: StoryLanguage; section: string; workflow_state: StoryState; current: { headline: string } | null };
+  const stories = new Map(((storyRead.data ?? []) as unknown as Story[]).map((s) => [s.id, s]));
+  const visible = rows.filter((r) => {
+    const story = stories.get(r.story_id);
+    return story !== undefined && inScopes(story, scopes);
+  }).slice(0, ALERT_LIMIT);
+
+  const names = new Map<string, string>();
+  const actorIds = [...new Set(visible.map((r) => r.actor_id).filter((id): id is string => id !== null))];
+  if (actorIds.length > 0) {
+    const people = await supabase.from("staff_profiles").select("user_id, display_name").in("user_id", actorIds);
+    if (people.error) throw storeError(people.error);
+    for (const p of (people.data ?? []) as Array<{ user_id: string; display_name: string | null }>) {
+      if (p.display_name) names.set(p.user_id, p.display_name);
+    }
+  }
+
+  return visible.map((r) => {
+    const story = stories.get(r.story_id) as Story;
+    return {
+      id: r.id,
+      action: r.action,
+      reason: r.reason,
+      at: r.at,
+      by: (r.actor_id && names.get(r.actor_id)) || r.actor_label,
+      story: { id: story.id, language: story.language, section: story.section, workflow_state: story.workflow_state, headline: story.current?.headline ?? null },
+    };
+  });
+}
+
 /** Whether the story's other-language version exists (the checklist's translation item). */
 export async function hasCounterpart(story: Pick<StoryRow, "id" | "language" | "translation_group_id">): Promise<boolean> {
   if (!story.translation_group_id) return true;

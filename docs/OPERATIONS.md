@@ -1136,7 +1136,7 @@ the app applies SQL.
    ```
    → `true`, `false`. Until it is applied, a Desk Editor or the Managing Editor still publishes a
    correction at once; only deciding a Sub-editor's request fails (the screen shows the database's
-   refusal).
+   refusal). **Done by the owner on 17 Nov 2026,** the check returning `true`, `false`.
 
 **Undo.** The rollback at the end of the file, only before the first real story: stories are the
 newsroom's record and are never dropped after that. desk-3's undo is to run desk-2 again.
@@ -1394,9 +1394,10 @@ phases were done:
    typing check still closes it. M3 (approved by the owner, 17 Nov 2026): the reader's story page
    was merged (PR #23), and the preview, moved into the back office by the owner (design decision 7,
    so no `PREVIEW_SECRET`, PR #24), and scheduled publishing (the worker's `publish-scheduled` job and
-   its 5-minute timer in `deploy/`, PR #25). Corrections are on `panel-2-desk-corrections`, with one
-   owner SQL step (desk-3, "The Desk (Panel 2): applying its tables", step 4); then the Desk's alert
-   list for takedowns, which completes M3. Panel 1 will be built on `panel-1-administration`.
+   its 5-minute timer in `deploy/`, PR #25), and corrections (PR #26; the owner applied desk-3 on 17
+   Nov 2026). The Desk's alert list for takedowns, which completes M3's code, is on
+   `panel-2-desk-alerts`; then the owner sees M3, and M4 (media and bylines) waits for the
+   manager's S3, IAM and CloudFront `/media/*` work. Panel 1 will be built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

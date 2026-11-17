@@ -172,8 +172,9 @@ apps/
     src/proxy.ts           the optimistic session check (§1)
     src/app/admin/         the dashboard and the staff sign-in; panels arrive as route folders
     src/app/api/admin/     every admin route handler, each gated by requirePermission; desk/ is Panel 2
-    src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list,
-                           a new story, the story editor and its revisions, the preview)
+    src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list
+                           with its takedown alerts, a new story, the story editor and its revisions,
+                           the preview)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes)

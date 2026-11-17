@@ -7,19 +7,14 @@ import { auditUnavailable, beginAudit, finishAudit, requirePermission, requireTa
 import { createStory, listStories, type DeskScope, type ListFilters } from "@timesprime/server/repositories/stories";
 import { DESK_FORMATS, STORY_LANGUAGES, STORY_STATES, type StoryFormat, type StoryLanguage, type StoryState } from "@timesprime/shared/config/desk";
 import { isSection } from "@timesprime/shared/config/sections";
-import { badRequest, deskFailure, readBody } from "../_lib/desk";
+import { badRequest, deskFailure, readBody, scopesFor } from "../_lib/desk";
 
 // The Desk's story list and new stories (Panel 2 design §4). Staff only: the rule refuses the shared
 // password. The list holds only stories inside the caller's scopes for article.view_admin.
 const RULES = ADMIN_ROUTE_RULES["/api/admin/desk/stories"];
 
 /** The desks the caller may read: each live assignment whose role grants article.view_admin to read. */
-function readableScopes(actor: Actor, now: Date): DeskScope[] {
-  return (actor.record?.assignments ?? [])
-    .filter((a) => a.revokedAt === null && Date.parse(a.expiresAt) > now.getTime())
-    .filter((a) => a.grants.some((g) => g.permission === "article.view_admin" && ["F", "S", "R"].includes(g.access)))
-    .map((a) => ({ language: a.language, section: a.section }));
-}
+const readableScopes = (actor: Actor, now: Date): DeskScope[] => scopesFor(actor, "article.view_admin", ["F", "S", "R"], now);
 
 const oneOf = <T extends string>(value: string | null, allowed: readonly T[]): T | undefined =>
   value && (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
