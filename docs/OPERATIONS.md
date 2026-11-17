@@ -422,7 +422,7 @@ days.
 
 ### R2 design: brand colour, section and story URLs, structured data
 
-**Status:** proposed 17 Nov 2026, awaiting the owner's approval. Branch `site/brand-design`. The
+**Status:** approved by the owner on 17 Nov 2026 and built on `site/brand-design` (in review). The
 owner decided two things on 17 Nov 2026:
 - Hindi keeps its reader setting; `/hi/` URLs come with Phase F.
 - Outside stories move to `/article/{headline-slug}-{article_id}`.
@@ -475,6 +475,14 @@ pages) waits for Panel 2.
    - `/hi/` URLs and server-rendered Hindi (Phase F, owner);
    - news sitemaps and IndexNow (our own stories, Phase F);
    - a visual redesign (needs the owner's design).
+
+**As built, two details differ from the text above:**
+- **The section route sits at the app's root** (`app/[section]`), not in the `(feed)` group: under
+  the group's loading file, an unknown section answered 200. The feed's own Suspense skeleton
+  still shows while a section loads.
+- **The 308 keeps the query string:** `/?category=world` goes to `/world?category=world`, because
+  Next passes a redirect's query on. The section page ignores `category`, and its canonical link
+  has no query.
 
 **Commits** (each one green on `npm run verify`):
 1. the brand token;
@@ -1135,7 +1143,7 @@ owner's, by hand: [`staff-access.md`](#staff-access-switching-on-panel-0-and-get
 > **The release first (owner, 2026-11-02; hosting decided 4 and 16 Nov 2026).** The owner's senior
 > asked for a deployment. The release runs on **one EC2 server in Mumbai with Docker Compose**
 > ([Deployment](#deployment)); panel work waits for it. Its code is on `main` (16 and 17 Nov
-> 2026, PRs #4 to #12), and the runbook below is what remains, for the owner's manager in the AWS console.
+> 2026, PRs #4 to #14), and the runbook below is what remains, for the owner's manager in the AWS console.
 >
 > **The real database (owner decision, 2026-11-02).** The env file (the root `.env`; `.env.local`
 > until 2026-11-04) holds the real database's credentials, and the app uses them. The local database
@@ -1199,12 +1207,16 @@ phases were done:
    ([the news refresh](#the-news-refresh-interval-calls-and-the-admin-setting)). Then the admin
    refresh-interval setting, once it is approved to build (its design is in the same section).
 3. **The rest of the release:**
-   - **R2:** the reader design with the brand colour `#E7000B`, the new article and section URLs
-     with BL-042's real 404, and the structured data. BL-039, BL-044 and BL-045 are on
-     `fix/r2-reader-bugs` (in review).
-   - **R3** (`site/grievance-details`, in review): the `/grievance` page, and the real email,
-     officer and office address on contact, privacy and terms, from one site-config value. The
-     footer links the grievance page and no longer shows "Advertise With Us". Next.js went to
+   - **R2** (`site/brand-design`, in review; [its design](#r2-design-brand-colour-section-and-story-urls-structured-data)):
+     - the brand colour as one token;
+     - section URLs (`/india` and the rest), with 308s from `/?category=`;
+     - story URLs (`/article/{headline-slug}-{article_id}`), with 308s from `?url=` and a real
+       404 (BL-042);
+     - the publisher's JSON-LD on home and About.
+
+     BL-039, BL-044 and BL-045 were merged on 17 Nov 2026 (PR #14).
+   - **R3** (PR #13, merged 17 Nov 2026): the `/grievance` page, and the real email, officer and
+     office address on contact, privacy and terms, from one site-config value. Next.js went to
      16.4.6 first (PR #12, gotcha 3.36).
    - **R4:** go-live.
 4. **Finish Panel 0** (the plan's Phase A): the owner applies the SQL and runs Part B; then the
@@ -1645,11 +1657,12 @@ package's `tsconfig.tsbuildinfo` (git-ignored, regenerated). CI starts clean and
 
 #### 3.34 `notFound()` after streaming has started answers 200, with noindex
 
-The root `loading.tsx` streams every page, so the article page's `notFound()` for an unknown link
-arrives after the status is sent: the not-found page renders with status 200, and Next adds
+Before BL-042 the root `loading.tsx` streamed every page, so the article page's `notFound()` for an
+unknown link arrived after the status was sent: the not-found page rendered with status 200, and Next added
 `<meta name="robots" content="noindex">` (bundled docs: functions/not-found.md, "Calling
-`notFound()` after streaming has started"). A real 404 needs the check before the body streams, in
-a Proxy (BL-042).
+`notFound()` after streaming has started"). A real 404 needs the check before the body streams.
+Since BL-042 the root loading file lives in the `(feed)` route group, so the article and section
+routes have none above them and answer a real 404. A page that must 404 stays outside that group.
 
 #### 3.35 Docker on Windows needs `C:/...`, not Git Bash's `/c/...`
 
@@ -2672,8 +2685,14 @@ full launch, with the lawyer's answer on which logs must stay in India (NEWSROOM
 
 ### BL-042 — An unknown article link answers 200 with noindex, not 404
 
-**Found:** Phase B's browser check (B-05, 16 Nov 2026) · **Status:** Open — R2, with the new
-article URLs
+**Found:** Phase B's browser check (B-05, 16 Nov 2026) · **Status:** Fixed (`site/brand-design`,
+17 Nov 2026)
+
+**The fix, without a Proxy:** the root `loading.tsx` moved into the `(feed)` route group (home
+and `/saved`), so neither the article route nor the section route has a loading file above it, and
+`notFound()` runs before anything streams. An unknown story or section answers 404
+(`routeLoading.test.ts` keeps loading files off both routes; the browser tests check both). The
+original note:
 
 The article page calls `notFound()` for a link we never stored, but the root `loading.tsx` has
 already started streaming, so the response keeps status 200; Next adds `noindex` (gotcha 3.34). It
