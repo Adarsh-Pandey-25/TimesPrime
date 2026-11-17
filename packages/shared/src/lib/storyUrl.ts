@@ -51,3 +51,28 @@ export function storyIdFrom(segment: string): string | null {
   const match = /(?:^|-)([A-Za-z0-9]{1,64})$/.exec(segment || "");
   return match ? match[1] : null;
 }
+
+/**
+ * The newsroom's own stories, written on the Desk (Panel 2 design §6, owner decision 1):
+ * /{section}/{slug}-{number} in English and /hi/{section}/{slug}-{number} in Hindi. The number is
+ * the story's public_id, which the page finds it by. The slug is set before publication and never
+ * changes after, and an address with another slug, section or language redirects to this one.
+ */
+export interface DeskStoryAddress {
+  language: "en" | "hi";
+  section: string;
+  slug: string | null;
+  public_id: number;
+}
+
+/** The path of a Desk story's page. */
+export function deskStoryPath(story: DeskStoryAddress): string {
+  const segment = story.slug ? `${story.slug}-${story.public_id}` : String(story.public_id);
+  return `${story.language === "hi" ? "/hi" : ""}/${story.section}/${segment}`;
+}
+
+/** The story number a Desk story's last path segment ends with, or null: at most 15 digits, no leading zero. */
+export function deskStoryIdFrom(segment: string): number | null {
+  const match = /(?:^|-)([1-9][0-9]{0,14})$/.exec(segment || "");
+  return match ? Number(match[1]) : null;
+}

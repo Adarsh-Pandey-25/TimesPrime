@@ -1,10 +1,11 @@
 /**
  * @jest-environment node
  *
- * R2: outside stories live at /article/{headline-slug}-{article_id}.
+ * R2: outside stories live at /article/{headline-slug}-{article_id}. Panel 2: the Desk's own stories
+ * live at /{section}/{slug}-{number}, and at /hi/{section}/{slug}-{number} in Hindi.
  */
 
-import { storyIdFrom, storyPath, storySegment, storySlug } from "./storyUrl";
+import { deskStoryIdFrom, deskStoryPath, storyIdFrom, storyPath, storySegment, storySlug } from "./storyUrl";
 
 const ID = "3f9a0c21b7d44e0e9a6b5c4d3e2f1a0b";
 const story = (title: string, article_id = ID) => ({ article_id, title, link: "https://publisher.example/a?b=1" });
@@ -54,4 +55,31 @@ test("the segment round-trips to the id", () => {
   const segment = storySegment(story("Markets close higher"))!;
   expect(segment).toBe(`markets-close-higher-${ID}`);
   expect(storyIdFrom(segment)).toBe(ID);
+});
+
+describe("the Desk's stories", () => {
+  test("English at /{section}/{slug}-{number}, Hindi under /hi/, and the number alone without a slug", () => {
+    expect(deskStoryPath({ language: "en", section: "india", slug: "budget-passes", public_id: 1024 })).toBe("/india/budget-passes-1024");
+    expect(deskStoryPath({ language: "hi", section: "sports", slug: "bharat-jeeta", public_id: 7 })).toBe("/hi/sports/bharat-jeeta-7");
+    expect(deskStoryPath({ language: "en", section: "world", slug: null, public_id: 8 })).toBe("/world/8");
+  });
+
+  test.each([
+    ["budget-passes-1024", 1024],
+    ["1024", 1024],
+    ["2026-budget-passes-15", 15],
+    ["budget-passes", null],
+    ["budget-passes-0", null],
+    ["budget-passes-007", null],
+    ["budget-passes-1234567890123456", null],
+    ["budget-passes-12a", null],
+    ["", null],
+  ])("the number in %j is %j", (segment, id) => {
+    expect(deskStoryIdFrom(segment)).toBe(id);
+  });
+
+  test("the path round-trips to the number", () => {
+    const path = deskStoryPath({ language: "hi", section: "india", slug: "sansad-mein-bajat", public_id: 31 });
+    expect(deskStoryIdFrom(path.split("/").pop()!)).toBe(31);
+  });
 });
