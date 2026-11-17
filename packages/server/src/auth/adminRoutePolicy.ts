@@ -17,7 +17,12 @@ import type { Mode } from "./decide";
 export interface RouteRule {
   permissions: readonly PermissionKey[];
   mode: Mode;
-  target: "article" | "articles" | "new_article" | "site" | "none";
+  target: "article" | "articles" | "new_article" | "story" | "new_story" | "site" | "none";
+  /**
+   * Only a named staff member may use the route: the shared password is refused, whatever its fixed
+   * list holds (Panel 2's Desk, design §0: it cannot be an author, an editor or an approver).
+   */
+  staffOnly?: boolean;
 }
 
 type Method = "GET" | "POST" | "PATCH" | "DELETE";
@@ -86,5 +91,59 @@ export const ADMIN_ROUTE_RULES = {
   },
   "/api/admin/stats": {
     GET: { permissions: ["stats.view"], mode: "read", target: "none" },
+  },
+  // ---- Panel 2, the Desk (design §4): staff only, every story checked against its own desk ----
+  "/api/admin/desk/stories": {
+    // The list is filtered to the caller's scopes in the route.
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "none", staffOnly: true },
+    POST: { permissions: ["article.create"], mode: "act", target: "new_story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]": {
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/revisions": {
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "story", staffOnly: true },
+    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/revisions/[revisionId]": {
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/lock": {
+    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+    DELETE: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/assign": {
+    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/submit": {
+    POST: { permissions: ["article.submit"], mode: "act", target: "story", staffOnly: true },
+  },
+  // From desk review the route also checks article.approve (MOVES in packages/shared/src/config/desk.ts).
+  "/api/admin/desk/stories/[id]/send-back": {
+    POST: { permissions: ["article.submit"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/approve": {
+    POST: { permissions: ["article.approve"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/schedule": {
+    POST: { permissions: ["article.publish"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/unschedule": {
+    POST: { permissions: ["article.publish"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/publish": {
+    POST: { permissions: ["article.publish"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/publish-direct": {
+    POST: { permissions: ["article.publish_direct"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/unpublish": {
+    POST: { permissions: ["article.unpublish"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/retract": {
+    POST: { permissions: ["article.unpublish"], mode: "act", target: "story", staffOnly: true },
+  },
+  "/api/admin/desk/stories/[id]/kill": {
+    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
   },
 } as const satisfies Record<string, Partial<Record<Method, RouteRule>>>;

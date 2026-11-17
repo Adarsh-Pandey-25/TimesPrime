@@ -159,7 +159,7 @@ apps/
   admin/                   the back office (Next.js 16); keeps the /admin and /api/admin paths
     src/proxy.ts           the optimistic session check (§1)
     src/app/admin/         the dashboard and the staff sign-in; panels arrive as route folders
-    src/app/api/admin/     every admin route handler, each gated by requirePermission
+    src/app/api/admin/     every admin route handler, each gated by requirePermission; desk/ is Panel 2
     src/components/        the dashboard widgets and AdminTopBar
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand)

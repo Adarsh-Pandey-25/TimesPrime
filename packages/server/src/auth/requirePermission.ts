@@ -53,6 +53,7 @@ const MESSAGES: Record<DenyCode, string> = {
   mfa_required: "This action needs a second factor. Finish signing in with your authenticator code.",
   needs_approval: "This action needs a second approver, and approvals are not available yet. Nothing was changed.",
   forbidden: "You don't have permission for this action.",
+  staff_only: "Sign in with your own staff account to use the Desk. The shared admin password cannot.",
 };
 
 const unauthorized = () => NextResponse.json({ error: "Unauthorized: please log in." }, { status: 401 });
@@ -96,6 +97,10 @@ async function auditDenial(actor: Actor, permission: PermissionKey | "auth.sessi
 
 /** Runs decide() for every permission the rule names; the first refusal wins. */
 async function check(actor: Actor, rule: RouteRule, target: Target | typeof ANY_SCOPE | undefined, now: Date): Promise<GateResult> {
+  if (actor.kind === "legacy" && rule.staffOnly) {
+    await auditDenial(actor, rule.permissions[0], "staff_only", target);
+    return { ok: false, response: NextResponse.json({ error: MESSAGES.staff_only, code: "staff_only" }, { status: 403 }) };
+  }
   for (const permission of rule.permissions) {
     const decision: Decision =
       actor.kind === "legacy"

@@ -972,8 +972,10 @@ Two of them, because granting any privileged role in the app needs two different
 there is no single-admin mode.
 
 For each person:
-1. Authentication → Users → **Invite user**, with their email. They open the email and set a
-   password.
+1. Authentication → Users → **Add user → Create new user**, with their email and a strong password,
+   and **Auto Confirm User** ticked. Hand the password over in person. Not **Invite user**: the admin
+   has no page yet where an invited person sets a password (it comes with Panel 1; found while
+   running B3, 17 Nov 2026). The script's own message still says "invite".
 2. Open `database/bootstrap/super-admin.sql`, fill in `v_email` and `v_name` at the top, and run it.
    It refuses to run with the placeholders, refuses if the person has not accepted the invite, and
    does nothing if they are already a Super Admin.
@@ -1113,6 +1115,68 @@ the app applies SQL.
 **Undo.** The rollback at the end of the file, only before the first real story: stories are the
 newsroom's record and are never dropped after that.
 
+#### Granting the first Desk roles, until Panel 1
+
+Panel 1 grants roles in the app. Until then the owner grants Writer, Sub-editor and Desk Editor
+with the SQL below, one person and one role at a time.
+- **Managing Editor** is privileged: the database takes it only from two different, active Super
+  Admins (`granted_by` and `approved_by`), so it waits for the second Super Admin.
+- **Create the person's account first:** Authentication → Users → Add user → Create new user, with
+  **Auto Confirm User** ticked (see B3 of the staff-access runbook).
+- Writer, Sub-editor and Desk Editor need a language (`en` or `hi`). The section may be one key
+  (`india`, `sports` …) or NULL for all.
+
+```sql
+BEGIN;
+DO $
+DECLARE
+  v_granter_email TEXT := 'adarsh@timesprime247.com';   -- you: an active Super Admin
+  v_email         TEXT := 'REPLACE_ME@example.com';     -- the staff member, created first
+  v_name          TEXT := 'REPLACE ME';
+  v_role          TEXT := 'writer';                     -- writer, sub_editor or desk_editor
+  v_language      TEXT := 'hi';                         -- en or hi: these roles need one
+  v_section       TEXT := NULL;                         -- one section key, or NULL for all
+  v_days          INT  := 180;                          -- the assignment expires
+  v_granter UUID;
+  v_user    UUID;
+  v_id      UUID;
+BEGIN
+  IF v_email LIKE 'REPLACE_ME%' OR v_name = 'REPLACE ME' THEN
+    RAISE EXCEPTION 'Fill in v_email and v_name first';
+  END IF;
+  IF v_role NOT IN ('writer', 'sub_editor', 'desk_editor') THEN
+    RAISE EXCEPTION 'This grants writer, sub_editor or desk_editor only';
+  END IF;
+  SELECT id INTO v_granter FROM auth.users WHERE lower(email) = lower(v_granter_email);
+  IF v_granter IS NULL OR NOT public.is_active_super_admin(v_granter) THEN
+    RAISE EXCEPTION '% is not an active Super Admin', v_granter_email;
+  END IF;
+  SELECT id INTO v_user FROM auth.users WHERE lower(email) = lower(v_email) AND email_confirmed_at IS NOT NULL;
+  IF v_user IS NULL THEN
+    RAISE EXCEPTION 'Create % first: Authentication -> Users -> Add user -> Create new user, Auto Confirm', v_email;
+  END IF;
+  INSERT INTO public.staff_profiles (user_id, display_name, status, mfa_required, created_by)
+    VALUES (v_user, v_name, 'active', true, v_granter)
+    ON CONFLICT (user_id) DO NOTHING;
+  INSERT INTO public.role_assignments (user_id, role_key, language, section, granted_by, reason, expires_at)
+    VALUES (v_user, v_role, v_language, v_section, v_granter, 'Desk role by SQL until Panel 1',
+            now() + make_interval(days => v_days))
+    RETURNING id INTO v_id;
+  INSERT INTO public.audit_log (actor_type, actor_label, action, outcome, entity_type, entity_id, after, reason)
+    VALUES ('bootstrap', 'owner:sql-editor:' || current_user, 'role.assign', 'succeeded', 'role_assignment', v_id::text,
+            jsonb_build_object('user_id', v_user, 'role_key', v_role, 'language', v_language, 'section', v_section),
+            'Desk role by SQL until Panel 1');
+  RAISE NOTICE '% is now % for %/%', v_email, v_role, v_language, coalesce(v_section, 'all sections');
+END $;
+COMMIT;
+```
+
+**Check.** The person signs in at `/admin/login` and sets up their second factor. Then
+`GET /api/admin/desk/stories` answers 200 with the stories of their desk.
+
+**Undo.** Revoke the assignment (rows are history, never deleted):
+`UPDATE public.role_assignments SET revoked_at = now(), revoke_reason = '<why>' WHERE id = '<id>';`
+
 ### Staff sign-in or an admin action is failing
 
 Panel 0's main flow is: email and password, then the authenticator code, then an admin action that
@@ -1224,7 +1288,11 @@ owner's, by hand: [`staff-access.md`](#staff-access-switching-on-panel-0-and-get
   deploy, rollback and local-run scripts.
 
 **Panel 0 (Access foundation) is complete in code** ([`PANEL_DOCS.md`](PANEL_DOCS.md), §4) and
-paused for the release. None of its SQL is applied. Its database-level checks (the two-admin trigger,
+paused for the release. **Its SQL is partly applied** (the owner, 17 Nov 2026):
+- B1 is done: the foundation and the catalogue (41 permissions, 140 cells).
+- The first Super Admin is bootstrapped.
+- Still to do: their second factor, the second Super Admin, the deploy (B2) and the `admin_logs`
+  freeze (B5). Its database-level checks (the two-admin trigger,
 the audit hash chain, the bootstrap) are **unverified**: the owner verifies them against the real
 database with [the staff-access runbook](#staff-access-switching-on-panel-0-and-getting-back-in),
 Part B; it is a [go-live gate](#go-live-gates). Before it, five restructures and all five audit
@@ -1273,8 +1341,8 @@ phases were done:
    - the F-002 fallback check.
 6. **The Publisher (Panel 2, the Desk)**, started before Panel 1 at the owner's request
    (17 Nov 2026); `NEWSROOM_PLAN.md` is unchanged. Its [design](PANEL_DOCS.md#panel-2-design-the-desk-publisher)
-   is approved; M1a (the stories backend's core) is on `panel-2-desk`. Then Panel 1, on
-   `panel-1-administration`.
+   is approved. M1a (the stories backend's core) is in PR #17; M1b (the Desk API) is on
+   `panel-2-desk-api`. Then Panel 1, on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

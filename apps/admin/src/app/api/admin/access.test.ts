@@ -26,7 +26,7 @@ jest.mock("@timesprime/server/repositories/auditLog", () => {
   class AuditWriteError extends Error {}
   return { recordAudit: jest.fn(async () => "audit-id"), recordSystemAudit: jest.fn(), AuditWriteError };
 });
-jest.mock("@timesprime/server/lib/supabase", () => ({ supabase: { from: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
+jest.mock("@timesprime/server/lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
 jest.mock("@timesprime/server/services/health/health", () => ({
   getHealth: jest.fn(async () => ({ status: "ok", checkedAt: "2026-11-10T00:00:00Z", dependencies: {} })),
 }));
@@ -61,8 +61,24 @@ import * as dbStats from "./db-stats/route";
 import * as stats from "./stats/route";
 import * as health from "./health/route";
 import * as logs from "./logs/route";
+import * as deskStories from "./desk/stories/route";
+import * as deskStory from "./desk/stories/[id]/route";
+import * as deskRevisions from "./desk/stories/[id]/revisions/route";
+import * as deskRevision from "./desk/stories/[id]/revisions/[revisionId]/route";
+import * as deskLock from "./desk/stories/[id]/lock/route";
+import * as deskAssign from "./desk/stories/[id]/assign/route";
+import * as deskSubmit from "./desk/stories/[id]/submit/route";
+import * as deskSendBack from "./desk/stories/[id]/send-back/route";
+import * as deskApprove from "./desk/stories/[id]/approve/route";
+import * as deskSchedule from "./desk/stories/[id]/schedule/route";
+import * as deskUnschedule from "./desk/stories/[id]/unschedule/route";
+import * as deskPublish from "./desk/stories/[id]/publish/route";
+import * as deskPublishDirect from "./desk/stories/[id]/publish-direct/route";
+import * as deskUnpublish from "./desk/stories/[id]/unpublish/route";
+import * as deskRetract from "./desk/stories/[id]/retract/route";
+import * as deskKill from "./desk/stories/[id]/kill/route";
 
-const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as { supabase: { from: jest.Mock } };
+const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
 
 // ---- the catalogue, read from the generated SQL (the matrix) -------------------------------
 
@@ -142,7 +158,8 @@ function signIn(caller: Caller, c: Case) {
 
 // ---- the database stand-in -----------------------------------------------------------------
 
-const WRITES = new Set(["insert", "update", "delete", "upsert"]);
+// A database function (rpc) counts as a write: the Desk changes stories only through its desk_* functions.
+const WRITES = new Set(["insert", "update", "delete", "upsert", "rpc"]);
 let tables: Record<string, { data: unknown; error: unknown; count?: number }>;
 let calls: Array<[string, string, unknown[]]>;
 
@@ -311,6 +328,196 @@ const CASES: Case[] = [
   },
 ];
 
+// ---- Panel 2, the Desk: one story in the Hindi sports desk, by someone else unless a case says so ----
+const STORY_ROW = {
+  id: "s-1", public_id: 1, language: "hi", section: "sports", format: "news", workflow_state: "draft",
+  translation_group_id: null, slug: "match-report", created_by: "u-9", assigned_to: null, last_edited_by: "u-9",
+  approved_by: null, approved_revision_id: null, published_by: null, current_revision_id: "r-1",
+  published_revision_id: null, scheduled_at: null, embargo_until: null, legal_hold: false,
+  legal_review_required: false, content_label: null, breaking: false, post_hoc_review_due: false,
+  correction_note: null, first_published_at: null, published_at: null,
+  created_at: "2026-11-17T09:00:00Z", updated_at: "2026-11-17T09:00:00Z",
+};
+const REVISION_ROW = {
+  id: "r-1", story_id: "s-1", body: { type: "doc", content: [] }, headline: "Match report", dek: "India won.",
+  seo_title: "Match report", seo_description: null, editor_id: "u-9", is_substantive: true, created_at: "2026-11-17T09:00:00Z",
+};
+const story = (over: Record<string, unknown> = {}) => ({ data: { ...STORY_ROW, ...over }, error: null });
+const IN_DESK = { story_revisions: { data: REVISION_ROW, error: null }, workflow_transitions: { data: [], error: null } };
+const moved = { "rpc:desk_transition": story({ workflow_state: "draft" }) };
+type DeskHandler = (r: NextRequest, c: { params: Promise<Record<string, string>> }) => Promise<Response>;
+const withId = (handler: DeskHandler, params: Record<string, string> = { id: "s-1" }) => (r: NextRequest) =>
+  handler(r, { params: Promise.resolve(params) });
+const HI_WRITER: Grantee = { role: "writer", language: "hi", section: "sports" };
+const EN_WRITER: Grantee = { role: "writer", language: "en", section: "sports" };
+const HI_SUB: Grantee = { role: "sub_editor", language: "hi", section: "sports" };
+const EN_SUB: Grantee = { role: "sub_editor", language: "en", section: "sports" };
+const HI_DESK: Grantee = { role: "desk_editor", language: "hi", section: "sports" };
+const EN_DESK: Grantee = { role: "desk_editor", language: "en", section: "sports" };
+const S = "/api/admin/desk/stories/[id]" as const;
+const FUTURE_AT = "2099-01-01T00:00:00.000Z";
+
+const DESK_CASES: Case[] = [
+  { path: "/api/admin/desk/stories", method: "GET", handler: deskStories.GET, allowed: { role: "writer", language: "en" }, data: { stories: { data: [], error: null, count: 0 } }, changes: false },
+  {
+    path: "/api/admin/desk/stories", method: "POST", handler: deskStories.POST, body: { language: "hi", section: "sports", headline: "Match report" },
+    allowed: HI_WRITER, wrongScope: EN_WRITER, data: { "rpc:desk_create_story": story({ created_by: "u-1" }) }, changes: true,
+  },
+  { path: S, method: "GET", handler: withId(deskStory.GET), allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story(), ...IN_DESK }, changes: false },
+  { path: `${S}/revisions`, method: "GET", handler: withId(deskRevisions.GET), allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story(), story_revisions: { data: [], error: null } }, changes: false },
+  {
+    path: `${S}/revisions`, method: "POST", handler: withId(deskRevisions.POST), body: { headline: "Match report", body: { type: "doc" }, expected_revision_id: "r-1" },
+    allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story({ created_by: "u-1" }), "rpc:desk_save_revision": story({ created_by: "u-1" }) }, changes: true,
+  },
+  {
+    path: `${S}/revisions/[revisionId]`, method: "GET", handler: withId(deskRevision.GET, { id: "s-1", revisionId: "r-1" }),
+    allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story(), ...IN_DESK }, changes: false,
+  },
+  { path: `${S}/lock`, method: "POST", handler: withId(deskLock.POST), allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story({ created_by: "u-1" }) }, changes: false },
+  { path: `${S}/lock`, method: "DELETE", handler: withId(deskLock.DELETE), allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story({ created_by: "u-1" }) }, changes: false },
+  {
+    path: `${S}/assign`, method: "POST", handler: withId(deskAssign.POST), body: { assignee: "u-2" },
+    allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story({ created_by: "u-1", workflow_state: "pitch" }), ...moved }, changes: true,
+  },
+  { path: `${S}/submit`, method: "POST", handler: withId(deskSubmit.POST), allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story({ created_by: "u-1" }), ...moved }, changes: true },
+  {
+    path: `${S}/send-back`, method: "POST", handler: withId(deskSendBack.POST), body: { reason: "Needs a second source." },
+    allowed: HI_SUB, wrongScope: EN_SUB, data: { stories: story({ workflow_state: "in_review" }), ...moved }, changes: true,
+  },
+  { path: `${S}/approve`, method: "POST", handler: withId(deskApprove.POST), allowed: HI_DESK, wrongScope: EN_DESK, data: { stories: story({ workflow_state: "desk_review" }), ...IN_DESK, ...moved }, changes: true },
+  {
+    path: `${S}/schedule`, method: "POST", handler: withId(deskSchedule.POST), body: { scheduled_at: FUTURE_AT },
+    allowed: HI_SUB, wrongScope: EN_SUB, data: { stories: story({ workflow_state: "approved", approved_revision_id: "r-1" }), ...moved }, changes: true,
+  },
+  {
+    path: `${S}/unschedule`, method: "POST", handler: withId(deskUnschedule.POST),
+    allowed: HI_SUB, wrongScope: EN_SUB, data: { stories: story({ workflow_state: "scheduled", scheduled_at: FUTURE_AT, approved_revision_id: "r-1" }), ...moved }, changes: true,
+  },
+  {
+    path: `${S}/publish`, method: "POST", handler: withId(deskPublish.POST),
+    allowed: HI_SUB, wrongScope: EN_SUB, data: { stories: story({ workflow_state: "approved", approved_revision_id: "r-1" }), ...moved }, changes: true,
+  },
+  { path: `${S}/publish-direct`, method: "POST", handler: withId(deskPublishDirect.POST), allowed: HI_DESK, wrongScope: EN_DESK, data: { stories: story(), ...IN_DESK, ...moved }, changes: true },
+  {
+    path: `${S}/unpublish`, method: "POST", handler: withId(deskUnpublish.POST), body: { reason_code: "error", reason: "Wrong score." },
+    allowed: HI_DESK, wrongScope: EN_DESK, data: { stories: story({ workflow_state: "published", published_revision_id: "r-1" }), ...moved }, changes: true,
+  },
+  {
+    path: `${S}/retract`, method: "POST", handler: withId(deskRetract.POST), body: { reason_code: "legal", reason: "Court order." },
+    allowed: HI_DESK, wrongScope: EN_DESK, data: { stories: story({ workflow_state: "published", published_revision_id: "r-1" }), ...moved }, changes: true,
+  },
+  { path: `${S}/kill`, method: "POST", handler: withId(deskKill.POST), body: { reason: "Dropped." }, allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story({ created_by: "u-1" }), ...moved }, changes: true },
+];
+CASES.push(...DESK_CASES);
+
+describe("the Desk's own rules (Panel 2 design §3)", () => {
+  const caseFor = (method: Method, path: string) => DESK_CASES.find((c) => c.method === method && c.path === path) as Case;
+  async function call(c: Case, caller: Grantee, data: Case["data"], body?: unknown) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, body: body ?? c.body }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+
+  test("four-eyes: the story's creator may not approve it, and nothing is written", async () => {
+    const c = caseFor("POST", `${S}/approve`);
+    const r = await call(c, HI_DESK, { stories: story({ workflow_state: "desk_review", created_by: "u-1" }), ...IN_DESK, ...moved });
+    expect(r.status).toBe(403);
+    expect(r.json.code).toBe("four_eyes");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("four-eyes: whoever saved the version may not approve it", async () => {
+    const c = caseFor("POST", `${S}/approve`);
+    const history = { data: [{ action: "create", actor_id: "u-9" }, { action: "save", actor_id: "u-1" }], error: null };
+    const r = await call(c, HI_DESK, { stories: story({ workflow_state: "desk_review" }), story_revisions: IN_DESK.story_revisions, workflow_transitions: history, ...moved });
+    expect(r.json.code).toBe("four_eyes");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("the checklist blocks approval and names what is missing", async () => {
+    const c = caseFor("POST", `${S}/approve`);
+    const r = await call(c, HI_DESK, { stories: story({ workflow_state: "desk_review", slug: null }), story_revisions: { data: { ...REVISION_ROW, dek: null }, error: null }, workflow_transitions: IN_DESK.workflow_transitions });
+    expect(r.status).toBe(422);
+    expect(r.json.problems).toEqual(["dek_missing", "slug_missing"]);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("Publish Guard: a draft cannot be published (409), only an approved story can", async () => {
+    const c = caseFor("POST", `${S}/publish`);
+    const r = await call(c, HI_SUB, { stories: story({ workflow_state: "draft" }), ...moved });
+    expect(r.status).toBe(409);
+    expect(r.json.code).toBe("wrong_state");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("an embargo holds: nothing publishes before it", async () => {
+    const c = caseFor("POST", `${S}/publish`);
+    const r = await call(c, HI_SUB, { stories: story({ workflow_state: "approved", approved_revision_id: "r-1", embargo_until: FUTURE_AT }), ...moved });
+    expect(r.status).toBe(409);
+    expect(r.json.code).toBe("embargo");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a takedown needs a reason code and a note", async () => {
+    const c = caseFor("POST", `${S}/unpublish`);
+    const published = { stories: story({ workflow_state: "published", published_revision_id: "r-1" }), ...moved };
+    expect((await call(c, HI_DESK, published, { reason_code: "error" })).status).toBe(400);
+    expect((await call(c, HI_DESK, published, { reason_code: "whim", reason: "x" })).status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("Own: a Writer may not touch another writer's story, even in their own desk", async () => {
+    const c = caseFor("POST", `${S}/submit`);
+    const r = await call(c, HI_WRITER, { stories: story({ created_by: "u-9" }), ...moved });
+    expect(r.status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("send back from desk review also needs article.approve: a Sub-editor is refused", async () => {
+    const c = caseFor("POST", `${S}/send-back`);
+    const r = await call(c, HI_SUB, { stories: story({ workflow_state: "desk_review" }), ...moved });
+    expect(r.status).toBe(403);
+    expect(r.json.required).toBe("article.approve");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("the shared password is refused on the Desk with its own code", async () => {
+    const c = caseFor("GET", "/api/admin/desk/stories");
+    tables = {};
+    (readSession as jest.Mock).mockResolvedValue({ kind: "legacy" });
+    const res = await c.handler(request(c));
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe("staff_only");
+  });
+
+  test("a save is refused while someone else holds a live lock", async () => {
+    const c = caseFor("POST", `${S}/revisions`);
+    const lock = { data: { story_id: "s-1", holder_id: "u-7", heartbeat_at: new Date().toISOString() }, error: null };
+    const r = await call(c, HI_WRITER, { stories: story({ created_by: "u-1" }), story_locks: lock, ...moved });
+    expect(r.status).toBe(409);
+    expect(r.json.code).toBe("locked");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("taking over a live lock is audited", async () => {
+    const c = caseFor("POST", `${S}/lock`);
+    const lock = { data: { story_id: "s-1", holder_id: "u-7", heartbeat_at: new Date().toISOString() }, error: null };
+    const r = await call(c, HI_WRITER, { stories: story({ created_by: "u-1" }), story_locks: lock }, { take_over: true });
+    expect(r.status).toBe(200);
+    expect((recordAudit as jest.Mock).mock.calls.map(([row]) => [row.action, row.outcome])).toEqual([
+      ["story.lock_take_over", "attempted"],
+      ["story.lock_take_over", "succeeded"],
+    ]);
+  });
+
+  test("the list keeps a scoped caller to their own desk", async () => {
+    const c = caseFor("GET", "/api/admin/desk/stories");
+    await call(c, HI_WRITER, { stories: { data: [], error: null, count: 0 } });
+    expect(calls.filter(([t, m]) => t === "stories" && m === "or").map(([, , a]) => a)).toEqual([["and(language.eq.hi,section.eq.sports)"]]);
+  });
+});
+
 /**
  * Routes no one may use yet: every holder's cell is A (a second person approves), and the approval
  * flow comes with a later panel. Refused for every caller, with nothing written.
@@ -345,6 +552,10 @@ beforeEach(() => {
   calls = [];
   tables = {};
   supabase.from.mockImplementation((name: string) => table(name));
+  supabase.rpc.mockImplementation(async (fn: string, args: unknown) => {
+    calls.push([fn, "rpc", [args]]);
+    return tables[`rpc:${fn}`] ?? { data: null, error: null };
+  });
   (recordAudit as jest.Mock).mockResolvedValue("audit-id");
   jest.spyOn(console, "error").mockImplementation(() => {});
   // The sync route calls NewsData.io; a stand-in answers with one article per category.
@@ -599,7 +810,8 @@ describe.each(CASES.map((c) => [`${c.method} ${c.path}`, c] as const))("%s", (_n
     });
   }
 
-  const legacyAllowed = rule(c).permissions.every((p) => LEGACY_PERMISSIONS.has(p));
+  // A staff-only route (the Desk) refuses the shared password whatever its fixed list holds.
+  const legacyAllowed = !rule(c).staffOnly && rule(c).permissions.every((p) => LEGACY_PERMISSIONS.has(p));
   test(`legacy shared password: ${legacyAllowed ? "allowed" : "403"}`, async () => {
     const r = await run("legacy");
     if (legacyAllowed) {
