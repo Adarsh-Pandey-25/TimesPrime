@@ -491,6 +491,91 @@ On `main` (the design and the first half): `e9bce19`, `6bcfb4e`, `38ac276`, `b69
 `6eb0b8e`, `16175b1`, `0bb4fbb`, `bb0bd2c`, `0b3d09f`, `f357d71`, `c35637f`. On `panel-0-access` (the
 second half): `d1bff91` through this entry, listed in the current status (`docs/OPERATIONS.md`), section 4.
 
+### Panel 2: Desk (the Publisher)
+
+**Status: in progress.** Built so far: M1a, the stories backend's core. Started before Panel 1 at the
+owner's request (17 Nov 2026); [the design](#panel-2-design-the-desk-publisher) is approved.
+
+#### Panel
+
+- **Name:** Desk, the Publisher.
+- **URLs:** none yet. The Desk API arrives with M1b, the screens with M2.
+- **Code:**
+  - `packages/shared/src/config/desk.ts`: the states, the table of moves, the checklist, the
+    embargo;
+  - `packages/server/src/services/desk/fourEyes.ts`;
+  - `packages/server/src/repositories/stories.ts`;
+  - `packages/server/src/auth/decide.ts`: the Own code;
+  - `database/migrations/2026-11-17-desk-1-stories.sql`.
+
+#### Purpose
+
+The newsroom's own stories, in English and Hindi: written, checked, approved by a second person,
+scheduled, published, corrected and taken down. They live in their own tables, apart from the
+aggregator's `articles` and its 7-day purge.
+
+#### Roles and responsibilities
+
+| Role | What they do in this panel |
+|---|---|
+| Writer | Creates and edits their own stories in their scope, and submits them |
+| Sub-editor | Edits any story in scope, passes it to the desk, publishes approved stories in scope |
+| Desk Editor | Approves (never their own work), publishes, publishes breaking news directly, takes down, in scope |
+| Managing Editor | All of the Desk Editor's work, in every language and section |
+| Legal/Compliance | Takes down; asks for or approves a restore |
+
+#### Features and functionality
+
+- **Built (M1a), no route uses it yet:**
+  - the database tables, history and atomic moves (owner action: apply the migration);
+  - the workflow table: from which states each action starts, where it leads, and its permission;
+  - Publish Guard, the reasons each move needs, the pre-publish checklist and the embargo check;
+  - four-eyes from the history;
+  - Own in the permission rule;
+  - the store, with lists kept inside the caller's scopes.
+- **Not yet:** the Desk API (M1b); the screens and the editor (M2); preview, scheduling and the
+  reader page (M3); media and bylines (M4).
+
+#### Access permissions and authorization rules
+
+Each action's permission is in the [design's workflow table](#3-workflow), mirrored in
+`MOVES` (`desk.ts`). The extra rules:
+- **Four-eyes on approval:** neither the creator nor anyone who saved since the last approval.
+- **Own for a Writer:** only stories they created.
+- **Two people for a restore:** the matrix's A.
+- **Single actor for a takedown:** with a reason.
+- **MFA:** every Desk write needs `aal2`.
+
+The routes that enforce them come with M1b.
+
+#### Database changes
+
+| Migration file | What it does | Rollback | Applied by the owner |
+|---|---|---|---|
+| `database/migrations/2026-11-02-access-2-catalog.sql` (regenerated) | Adds `author.manage` and `media.manage` (41 permissions, 140 cells) | Re-apply the previous version | No |
+| `database/migrations/2026-11-17-desk-1-stories.sql` | The ten Desk tables, the append-only triggers, the three `desk_*` functions, RLS and column grants for readers | In the file; only before the first real story | No |
+
+#### Tests and verification
+
+| Test file | What it proves | Denied case covered |
+|---|---|---|
+| `packages/shared/src/config/desk.test.ts` | Every move's start states, destination and permission; the checklist; the embargo | Publish from any state but approved, scheduled or live; nothing moves a killed, retracted or unpublished story |
+| `packages/server/src/services/desk/fourEyes.test.ts` | A third person may approve | The creator and every editor since the last approval may not; a breaking story's publisher may not review it |
+| `packages/server/src/auth/decide.test.ts` | Own allows the caller's own story in scope | Another's story, an ownerless one, one out of scope |
+| `packages/server/src/repositories/stories.test.ts` | Writes go through the `desk_*` functions; lists stay in scope | A malformed scope matches nothing; a moved story answers 409 |
+
+The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
+with the queries at the end of the migration (definition of done, item 7).
+
+#### Known limits and not yet built
+
+- **M1b:** the Desk API, its allowed and denied tests, the locks, the two-person requests, and the
+  runbook for granting the first Desk roles by SQL.
+- **M2 to M4:** as the design says.
+- **As built, beyond the design's table:**
+  - an `unschedule` move (`scheduled` → `approved`, `article.publish`);
+  - a scheduled story cannot be saved; it is unscheduled first.
+
 ## Panel 0 design: the access foundation
 
 **Status:** **Approved with conditions** by the owner on 2026-11-02 (STEP 2), and **built** (STEP 3):

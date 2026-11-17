@@ -1090,6 +1090,29 @@ Signing them out ends the session itself.
 doubt. NULL means intact. A number is the first row that does not verify. A rewrite of the whole
 chain is caught only by a copy of its head kept elsewhere ([BL-034](#backlog)).
 
+### The Desk (Panel 2): applying its tables
+
+For the owner, before the Desk's routes are deployed (M1b). It needs Panel 0's Part B, steps B1 to B3,
+first: the Desk's tables point at `staff_profiles` and reuse Panel 0's `reject_change()`. Nothing in
+the app applies SQL.
+
+1. **Re-apply the catalogue,** `database/migrations/2026-11-02-access-2-catalog.sql`. It is
+   idempotent, and adds `author.manage` and `media.manage`. **Check:**
+   `SELECT count(*) FROM public.permissions;` → 41, and
+   `SELECT count(*) FROM public.role_permissions;` → 140.
+2. **Apply `database/migrations/2026-11-17-desk-1-stories.sql`.** **Check:** the verify block at the
+   end of the file:
+   - eight sections;
+   - ten tables with RLS on;
+   - `service_role` cannot update a revision or delete a transition;
+   - readers cannot see `pending_actions` or `created_by`, but can see `slug`;
+   - readers cannot call `desk_transition`.
+
+   Its `BEGIN … ROLLBACK` smoke test runs on a test project only, never on production data.
+
+**Undo.** The rollback at the end of the file, only before the first real story: stories are the
+newsroom's record and are never dropped after that.
+
 ### Staff sign-in or an admin action is failing
 
 Panel 0's main flow is: email and password, then the authenticator code, then an admin action that
@@ -1248,8 +1271,10 @@ phases were done:
    - F-028 / BL-028 (theme ternaries);
    - the SQL checks for F-006, F-008 and F-018;
    - the F-002 fallback check.
-6. Then Panel 1, on `panel-1-administration`, and the Publisher (Panel 2) after it, as the plan
-   orders.
+6. **The Publisher (Panel 2, the Desk)**, started before Panel 1 at the owner's request
+   (17 Nov 2026); `NEWSROOM_PLAN.md` is unchanged. Its [design](PANEL_DOCS.md#panel-2-design-the-desk-publisher)
+   is approved; M1a (the stories backend's core) is on `panel-2-desk`. Then Panel 1, on
+   `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
