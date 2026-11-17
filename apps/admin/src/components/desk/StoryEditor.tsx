@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { embedProvider, isAllowedHref, storyExtensions, EMPTY_DOC } from "@timesprime/editor/schema";
@@ -144,17 +144,24 @@ export default function StoryEditor({ id }: { id: string }) {
   const [slug, setSlug] = useState("");
   const [embargo, setEmbargo] = useState("");
 
+  // The text fields follow the story's current revision, as the editor's body does (it is rebuilt
+  // when that revision changes). A details change or a move adds no revision, so it leaves unsaved
+  // text alone instead of resetting the fields while the body keeps its changes.
+  const shownRevision = useRef<string | null | undefined>(undefined);
   const load = useCallback(async () => {
     const res = await deskCall<Loaded>(`/api/admin/desk/stories/${id}`);
     if (!res.ok || !res.data) return setLoadError(res.error ?? "Could not load the story.");
     const data = { ...res.data, history: res.data.history ?? [], pending: res.data.pending ?? [] };
     setLoaded(data);
+    setSlug(data.story.slug ?? "");
+    setEmbargo(data.story.embargo_until ? data.story.embargo_until.slice(0, 16) : "");
+    const revisionId = data.revision?.id ?? null;
+    if (shownRevision.current === revisionId) return;
+    shownRevision.current = revisionId;
     setHeadline(data.revision?.headline ?? "");
     setDek(data.revision?.dek ?? "");
     setSeoTitle(data.revision?.seo_title ?? "");
     setSeoDescription(data.revision?.seo_description ?? "");
-    setSlug(data.story.slug ?? "");
-    setEmbargo(data.story.embargo_until ? data.story.embargo_until.slice(0, 16) : "");
     setDirty(false);
   }, [id]);
 

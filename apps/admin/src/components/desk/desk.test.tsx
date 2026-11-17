@@ -9,7 +9,7 @@ const mockRouter = { push: jest.fn() };
 jest.mock("next/navigation", () => ({ useRouter: () => mockRouter, useParams: () => ({ id: "s-1" }) }));
 const push = mockRouter.push;
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import DeskList from "./DeskList";
 import NewStoryForm from "./NewStoryForm";
 import StoryEditor from "./StoryEditor";
@@ -97,7 +97,6 @@ test("a new story is created in its desk and opens in the editor", async () => {
     headline.focus();
     (headline as HTMLInputElement).value = "";
   });
-  const { fireEvent } = await import("@testing-library/react");
   fireEvent.change(headline, { target: { value: "Budget passes" } });
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Create and open" })));
   await waitFor(() => expect(push).toHaveBeenCalledWith("/admin/desk/s-9"));
@@ -112,8 +111,11 @@ describe("the story screen", () => {
   };
   const REVISION = { id: "r-1", headline: "Budget passes", dek: "", seo_title: "", seo_description: "", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "The house voted." }] }] } };
 
-  function serveStory(permissions: Record<string, "act" | "read">, over: Record<string, unknown> = {}) {
-    serve((url) => {
+  /** The story's routes; `extra` answers first, for the writes a test makes. */
+  function serveStory(permissions: Record<string, "act" | "read">, over: Record<string, unknown> = {}, extra?: Route) {
+    serve((url, init) => {
+      const answer = extra?.(url, init);
+      if (answer) return answer;
       if (url === "/api/admin/me") return { status: 200, body: staffMe(permissions) };
       if (url === "/api/admin/desk/stories/s-1") return { status: 200, body: { story: { ...STORY, ...over }, revision: REVISION, history: [{ action: "create", to_state: "draft", actor_label: "staff:u-9", reason: null, at: "2026-11-17T09:00:00Z" }], lock: null, pending: [] } };
       if (url === "/api/admin/desk/stories/s-1/lock") return { status: 200, body: { lock: {} } };
@@ -138,6 +140,20 @@ describe("the story screen", () => {
     expect(await screen.findByDisplayValue("Budget passes")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     expect(screen.getByText("Nothing for you to do on this story now.")).toBeInTheDocument();
+  });
+
+  test("saving the details keeps unsaved text: only a new revision resets the fields", async () => {
+    serveStory({ "article.view_admin": "read", "article.edit": "act" }, {}, (url, init) =>
+      url === "/api/admin/desk/stories/s-1/details" && init?.method === "POST" ? { status: 200, body: { story: STORY } } : undefined
+    );
+    await act(async () => render(<StoryEditor id="s-1" />));
+    const headline = await screen.findByRole("textbox", { name: "Headline" });
+    await waitFor(() => expect(headline).toBeEnabled());
+    fireEvent.change(headline, { target: { value: "Budget passes, 300 to 120" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save details" })));
+    expect(await screen.findByText("Details saved.")).toBeInTheDocument();
+    expect(headline).toHaveValue("Budget passes, 300 to 120");
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
   });
 
   test("a story the server cannot find shows its message", async () => {
