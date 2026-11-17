@@ -81,6 +81,7 @@ import * as deskDetails from "./desk/stories/[id]/details/route";
 import * as deskRestore from "./desk/stories/[id]/restore/route";
 import * as deskDecide from "./desk/pending/[actionId]/decide/route";
 import * as deskCorrect from "./desk/stories/[id]/correct/route";
+import * as deskAlerts from "./desk/alerts/route";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
 
@@ -737,6 +738,54 @@ describe("corrections on a live story (Panel 2 design §3)", () => {
     expect(r.status).toBe(403);
     expect(r.json.code).toBe("four_eyes");
     expect(wrote()).toEqual([]);
+  });
+});
+
+// ---- the alert list: takedowns, for whoever may take stories down (article.unpublish) ----
+const TAKEDOWN = (id: number, story: string, action = "unpublish") => ({
+  id, story_id: story, action, actor_id: "u-9", actor_label: "staff:u-9", reason: "legal: Court order.", at: "2026-11-17T09:00:00Z",
+});
+const ALERTS_CASE: Case = {
+  path: "/api/admin/desk/alerts", method: "GET", handler: deskAlerts.GET,
+  allowed: HI_DESK, data: { workflow_transitions: { data: [], error: null } }, changes: false,
+};
+CASES.push(ALERTS_CASE);
+
+describe("the Desk's alert list (Panel 2 design §8)", () => {
+  const data = {
+    workflow_transitions: { data: [TAKEDOWN(2, "s-1", "retract"), TAKEDOWN(1, "s-2")], error: null },
+    stories: {
+      data: [
+        { id: "s-1", language: "hi", section: "sports", workflow_state: "retracted", current: { headline: "Match report" } },
+        { id: "s-2", language: "en", section: "world", workflow_state: "unpublished", current: { headline: "Talks" } },
+      ],
+      error: null,
+    },
+    staff_profiles: { data: [{ user_id: "u-9", display_name: "Ravi" }], error: null },
+  };
+  async function call(caller: Grantee) {
+    tables = { ...data };
+    signIn("allowed", { ...ALERTS_CASE, allowed: caller });
+    const res = await ALERTS_CASE.handler(request(ALERTS_CASE));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+
+  test("a Desk Editor sees their desk's takedowns only, with who took each down", async () => {
+    const r = await call(HI_DESK);
+    expect(r.status).toBe(200);
+    expect(r.json.days).toBe(30);
+    expect(r.json.alerts.map((a: { story: { id: string }; by: string; action: string }) => [a.story.id, a.action, a.by])).toEqual([["s-1", "retract", "Ravi"]]);
+  });
+
+  test("Legal sees every desk's takedowns", async () => {
+    const r = await call(LEGAL);
+    expect(r.json.alerts.map((a: { story: { id: string } }) => a.story.id)).toEqual(["s-1", "s-2"]);
+  });
+
+  test("whoever may not take stories down sees no alert list: a Sub-editor, a Writer", async () => {
+    expect((await call(HI_SUB)).status).toBe(403);
+    expect((await call(HI_WRITER)).status).toBe(403);
+    expect(calls).toEqual([]);
   });
 });
 

@@ -13,9 +13,11 @@ import {
   DUE_BATCH,
   getPublishedStory,
   hasCounterpart,
+  inScopes,
   listDueScheduled,
   listHistory,
   listStories,
+  listTakedowns,
   requestCorrection,
   saveRevision,
   scopeFilter,
@@ -276,5 +278,68 @@ describe("requestCorrection: a Sub-editor's request (the matrix's A)", () => {
   test("a second open correction request answers 409", async () => {
     supabase.from.mockReturnValue(query({ data: null, error: { code: "23505", message: "duplicate key" } }, []));
     await expect(requestCorrection("s-1", "u-3", "n")).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+describe("listTakedowns: the Desk's alert list", () => {
+  const NOW = new Date("2026-11-17T12:00:00.000Z");
+  const move = (id: number, story: string, action = "unpublish", actor: string | null = "u-1") => ({
+    id, story_id: story, action, actor_id: actor, actor_label: `staff:${actor}`, reason: "legal: Court order.", at: `2026-11-1${id}T09:00:00Z`,
+  });
+  const storyRow = (id: string, language: string, section: string, state = "unpublished") => ({
+    id, language, section, workflow_state: state, current: { headline: `Story ${id}` },
+  });
+  function serveTables(tables: Record<string, unknown>, calls: Array<[string, unknown[]]> = []) {
+    supabase.from.mockImplementation((table: string) => query({ data: tables[table] ?? [], error: null }, calls));
+    return calls;
+  }
+
+  test("unpublish and retract of the last 30 days, newest first", async () => {
+    const calls = serveTables({ workflow_transitions: [move(2, "s-1")], stories: [storyRow("s-1", "hi", "sports")], staff_profiles: [] });
+    await listTakedowns([{ language: null, section: null }], NOW);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        ["in", ["action", ["unpublish", "retract"]]],
+        ["gte", ["at", "2026-10-18T12:00:00.000Z"]],
+        ["order", ["at", { ascending: false }]],
+      ])
+    );
+  });
+
+  test("only stories inside the caller's scopes, with the headline, the state now and who took it down", async () => {
+    serveTables({
+      workflow_transitions: [move(3, "s-1", "retract", "u-1"), move(2, "s-2"), move(1, "s-3", "unpublish", null)],
+      stories: [storyRow("s-1", "hi", "sports", "published"), storyRow("s-2", "en", "sports"), storyRow("s-3", "hi", "india")],
+      staff_profiles: [{ user_id: "u-1", display_name: "Asha" }],
+    });
+    const alerts = await listTakedowns([{ language: "hi", section: null }], NOW);
+    expect(alerts.map((a) => [a.id, a.action, a.by, a.story.headline, a.story.workflow_state])).toEqual([
+      [3, "retract", "Asha", "Story s-1", "published"],
+      [1, "unpublish", "staff:null", "Story s-3", "unpublished"],
+    ]);
+  });
+
+  test("a name not known falls back to the history label", async () => {
+    serveTables({ workflow_transitions: [move(2, "s-1", "unpublish", "u-7")], stories: [storyRow("s-1", "hi", "sports")], staff_profiles: [] });
+    expect((await listTakedowns([{ language: null, section: null }], NOW))[0].by).toBe("staff:u-7");
+  });
+
+  test("no scope, nothing read; no takedown, no further read", async () => {
+    expect(await listTakedowns([], NOW)).toEqual([]);
+    expect(supabase.from).not.toHaveBeenCalled();
+    serveTables({ workflow_transitions: [] });
+    expect(await listTakedowns([{ language: null, section: null }], NOW)).toEqual([]);
+    expect(supabase.from).toHaveBeenCalledTimes(1);
+  });
+
+  test("inScopes: a null field means all", () => {
+    expect(inScopes({ language: "hi", section: "sports" }, [{ language: null, section: null }])).toBe(true);
+    expect(inScopes({ language: "hi", section: "sports" }, [{ language: "hi", section: "india" }, { language: "en", section: null }])).toBe(false);
+    expect(inScopes({ language: "hi", section: "sports" }, [{ language: "en", section: null }, { language: null, section: "sports" }])).toBe(true);
+  });
+
+  test("a database error is thrown", async () => {
+    supabase.from.mockReturnValue(query({ data: null, error: { code: "57014", message: "timeout" } }, []));
+    await expect(listTakedowns([{ language: null, section: null }], NOW)).rejects.toBeInstanceOf(DeskStoreError);
   });
 });
