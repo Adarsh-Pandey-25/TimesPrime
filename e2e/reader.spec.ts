@@ -64,3 +64,11 @@ test("the menu links the sections' URLs", async ({ page }) => {
   await expect(page.locator('header a[href="/india"]').first()).toBeAttached();
   expect(await page.locator('a[href^="/?category="]').count()).toBe(0);
 });
+
+// R2: the publisher's structured data on the home page.
+test("the home page describes the publisher as a NewsMediaOrganization", async ({ page }) => {
+  await page.goto("/");
+  const texts = await page.locator('script[type="application/ld+json"]').allTextContents();
+  const types = texts.flatMap((t) => (JSON.parse(t)["@graph"] ?? []).map((n: { "@type": string }) => n["@type"]));
+  expect(types).toEqual(expect.arrayContaining(["NewsMediaOrganization", "WebSite"]));
+});

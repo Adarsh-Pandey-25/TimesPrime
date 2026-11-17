@@ -3,6 +3,7 @@ import Header from "@/components/news/Header";
 import Footer from "@/components/news/Footer";
 import { ArrowLeft, Radio, Languages, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
+import SiteJsonLd from "@/components/seo/SiteJsonLd";
 
 export const metadata: Metadata = {
   title: "About Us",
@@ -32,6 +33,7 @@ const FEATURES = [
 export default function AboutPage() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#1a1c1e] text-slate-900 dark:text-slate-100 transition-colors duration-200">
+      <SiteJsonLd />
       <Header />
 
       <main className="flex-1">

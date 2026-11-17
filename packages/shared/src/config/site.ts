@@ -21,8 +21,20 @@ export const GRIEVANCE_OFFICER = {
 /** The one mailbox the site shows for every enquiry until others exist. */
 export const CONTACT_EMAIL = GRIEVANCE_OFFICER.email;
 
-/** The office's postal address, one line per entry. */
+/** The office's postal address, by part, as schema.org's PostalAddress names them (R2's markup). */
+export const OFFICE_POSTAL_ADDRESS = {
+  streetAddress: "704A-704B, Iris Tech Park, Sector 48",
+  addressLocality: "Gurgaon",
+  addressRegion: "Haryana",
+  postalCode: "122018",
+  addressCountry: "IN",
+} as const;
+
+/** The office's postal address, one line per entry, for the pages. */
 export const OFFICE_ADDRESS = ["704A-704B, Iris Tech Park", "Sector 48", "Gurgaon 122018", "Haryana, India"] as const;
+
+/** The publisher's name, as the pages and the structured data give it. */
+export const PUBLISHER_NAME = "TimesPrime";
 
 /**
  * True for a build that search engines must not index: staging, or any copy that is not the
