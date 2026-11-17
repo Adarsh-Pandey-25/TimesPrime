@@ -147,7 +147,7 @@ Four restructures, each recorded in an ADR with the alternatives it rejected.
 ```
 apps/
   web/                     the reader site (Next.js 16)
-    src/app/               home, article, about, contact, privacy, terms, saved; public APIs:
+    src/app/               home, article, about, contact, grievance, privacy, terms, saved; public APIs:
                            /api/news/{top-headlines, breaking-news, check-new, scrape-article},
                            /api/chat, /api/translate, /api/health
     src/components/        news/ (cards, masthead, footer, menu, ticker, banner), home/, article/,
@@ -395,12 +395,15 @@ same day (PRs #4 to #9); the runbook is [OPERATIONS.md, Deployment](OPERATIONS.m
   - **Brand colour:** the site's red, `#E7000B`.
   - **Grievance officer and CERT-In contact:** Adarsh Pandey (`adarsh@timesprime247.com`).
   - **Office:** 704A-704B, Iris Tech Park, Sector 48, Gurgaon 122018, in one site-config value
-    used by the grievance and contact pages (R3). No phone number in the repository.
+    (`OFFICE_ADDRESS`, with `GRIEVANCE_OFFICER` and `CONTACT_EMAIL`, in
+    `packages/shared/src/config/site.ts`) used by the grievance, contact, privacy and terms pages
+    (R3). The one confirmed mailbox serves every enquiry. No phone number in the repository.
 - **Process:** a session never merges into `main`, not even locally. Each branch is a PR the
   senior merges.
 
-**Follow-up the product decisions created:** the privacy policy still describes newsletter and
-contact-form collection that no longer happens. Legal copy, for the owner or legal review (BL-008).
+**Follow-up the product decisions created:** R3 removed the privacy policy's lines about newsletter
+and contact-form collection that no longer happens; the legal review of the policy and terms is the
+owner's or legal counsel's (BL-008).
 
 ### ADR 0001 — Feature-first structure with layer separation and a CI-enforced boundary (2026-10-30, superseded by 0002)
 

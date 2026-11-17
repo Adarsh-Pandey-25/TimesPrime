@@ -437,7 +437,9 @@ The site is public only when **all** of these hold:
    (`refresh-news-dry-run`) has been done first.
 6. **The grievance and contact pages show the real officer and address** (R3): Adarsh Pandey,
    `adarsh@timesprime247.com`, 704A-704B, Iris Tech Park, Sector 48, Gurgaon 122018. He is also
-   the CERT-In contact. No phone number in the repository.
+   the CERT-In contact. No phone number in the repository. Built on `site/grievance-details`
+   (`/grievance`, contact, privacy and terms, from `packages/shared/src/config/site.ts`); the
+   gate holds once that branch is in the deployed tag.
 7. **The smoke test passes,** and the alarms, the budget, UptimeRobot and the snapshots are in
    place.
 
@@ -477,7 +479,7 @@ After every deploy, from a browser and a shell:
 - **Infrastructure as code.**
 - **The incident runbook,** with CERT-In's 6-hour report.
 - **The Supabase log drain** (BL-041).
-- **Legal pages:** the privacy policy (BL-008).
+- **Legal pages:** a legal review of the privacy policy and terms (BL-008).
 
 ---
 
@@ -1062,8 +1064,8 @@ owner's, by hand: [`staff-access.md`](#staff-access-switching-on-panel-0-and-get
 
 > **The release first (owner, 2026-11-02; hosting decided 4 and 16 Nov 2026).** The owner's senior
 > asked for a deployment. The release runs on **one EC2 server in Mumbai with Docker Compose**
-> ([Deployment](#deployment)); panel work waits for it. Its code is on `main` (16 Nov 2026,
-> PRs #4 to #9), and the runbook below is what remains, for the owner's manager in the AWS console.
+> ([Deployment](#deployment)); panel work waits for it. Its code is on `main` (16 and 17 Nov
+> 2026, PRs #4 to #12), and the runbook below is what remains, for the owner's manager in the AWS console.
 >
 > **The real database (owner decision, 2026-11-02).** The env file (the root `.env`; `.env.local`
 > until 2026-11-04) holds the real database's credentials, and the app uses them. The local database
@@ -1121,7 +1123,7 @@ phases were done:
 **Next:**
 1. **The AWS setup and the first deploy** ([Deployment](#deployment)): the manager follows the
    runbook, then the [go-live gates](#go-live-gates).
-2. **R12-05** (`chore/newsdata-batched`, in review): several categories per NewsData call, behind
+2. **R12-05** (PR #11, merged 16 Nov 2026): several categories per NewsData call, behind
    `NEWS_REFRESH_BATCHED`, with the dry run `refresh-news-dry-run`. After the Basic plan is bought,
    the manager runs the dry run on the server and switches it on
    ([the news refresh](#the-news-refresh-interval-calls-and-the-admin-setting)). Then the admin
@@ -1129,8 +1131,10 @@ phases were done:
 3. **The rest of the release:**
    - **R2:** the reader design with the brand colour `#E7000B`, the new article and section URLs,
      the structured data, the lighter error pages (BL-039), and BL-042 to BL-045.
-   - **R3:** the grievance officer's details on the grievance and contact pages, and the legal
-     pages.
+   - **R3** (`site/grievance-details`, in review): the `/grievance` page, and the real email,
+     officer and office address on contact, privacy and terms, from one site-config value. The
+     footer links the grievance page and no longer shows "Advertise With Us". Next.js went to
+     16.4.6 first (PR #12, gotcha 3.36).
    - **R4:** go-live.
 4. **Finish Panel 0** (the plan's Phase A): the owner applies the SQL and runs Part B; then the
    owner approves Panel 0 as Done.
@@ -1724,7 +1728,7 @@ are resolved:
 - BL-004 (editorial publishing hardcodes `country: ["us"]`) and BL-006 (stored paraphrased titles,
   self-heals). BL-005, real contact and newsletter backends, is future feature work.
 - BL-007 (`next typegen` in `typecheck`, a one-line change) and BL-009 (two cosmetic leftovers).
-- BL-008 (privacy policy, needs the owner or legal).
+- BL-008 (privacy policy: the untrue lines are gone; the legal review remains).
 - BL-016's remainder (the suggestions fetch is still HTTP; no per-IP limit on its route).
 - BL-023 (signed links, only if needed), BL-024 (nullable columns, deployment phase), BL-025 (the
   anon-key fallback).
@@ -1981,9 +1985,14 @@ made here because it was outside the item that found it.
 
 ### BL-008 — Privacy policy describes data collection that no longer happens
 
-**Found:** `59b875d` (form removal) · **Status:** Open · **needs owner or legal
-review — not a code decision**
+**Found:** `59b875d` (form removal) · **Status:** Partly fixed (R3, 17 Nov 2026) · **the legal
+review is the owner's or legal counsel's**
 **Files:** `apps/web/src/app/privacy/page.tsx`
+
+**R3 (owner, 17 Nov 2026):** the lines below, and the "synced account" and "personalize your news
+feed" ones, were removed, and the Grievance Officer section added
+(`apps/web/src/app/contactDetails.test.tsx` keeps them out). A legal review of the whole policy and
+the terms is still open.
 
 The policy still says email addresses are collected "when you subscribe to our
 newsletter or submit the contact form", that updates are sent "if you've opted
