@@ -7,9 +7,9 @@
     "/article/[slug]/page": 766976,
     "/contact/page": 723968,
     "/grievance/page": 718848,
-    "/page": 750592,
+    "/(feed)/page": 750592,
     "/privacy/page": 719872,
-    "/saved/page": 737280,
+    "/(feed)/saved/page": 737280,
     "/terms/page": 719872
   },
   "admin": {
