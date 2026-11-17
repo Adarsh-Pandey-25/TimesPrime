@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { reportClientError } from "@timesprime/shared/lib/clientErrorReport";
+import { BRAND_COLOR } from "@timesprime/shared/config/brand";
 
 // An error in the back office's root layout itself (R1-07). It replaces the whole document, with
 // no global styles (bundled docs: file-conventions/error.md "Global Error"), so it carries its own.
@@ -20,7 +21,7 @@ export default function GlobalError({ error, retry }: { error: unknown; retry: (
           <button
             type="button"
             onClick={retry}
-            style={{ background: "#dc2626", color: "#fff", border: 0, borderRadius: 12, padding: "8px 16px", fontWeight: 700, cursor: "pointer" }}
+            style={{ background: BRAND_COLOR, color: "#fff", border: 0, borderRadius: 12, padding: "8px 16px", fontWeight: 700, cursor: "pointer" }}
           >
             Try again
           </button>

@@ -1,3 +1,5 @@
+import { BRAND_COLOR } from "./brand";
+
 /**
  * Per-category color system so different news types are visually distinct
  * at a glance (category badges, card accents, source-name dots).
@@ -16,8 +18,8 @@ interface CategoryColorDef {
 }
 
 const CATEGORY_COLORS: Record<string, CategoryColorDef> = {
-  general: { hex: "#DC2626", badgeBg: "bg-red-600/90" },
-  top: { hex: "#DC2626", badgeBg: "bg-red-600/90" },
+  general: { hex: BRAND_COLOR, badgeBg: "bg-red-600/90" },
+  top: { hex: BRAND_COLOR, badgeBg: "bg-red-600/90" },
   india: { hex: "#EA580C", badgeBg: "bg-orange-600/90" },
   world: { hex: "#2563EB", badgeBg: "bg-blue-600/90" },
   technology: { hex: "#0891B2", badgeBg: "bg-cyan-600/90" },
@@ -32,7 +34,7 @@ const CATEGORY_COLORS: Record<string, CategoryColorDef> = {
 };
 
 const DEFAULT_CATEGORY_COLOR: CategoryColorDef = {
-  hex: "#DC2626",
+  hex: BRAND_COLOR,
   badgeBg: "bg-red-600/90",
 };
 
