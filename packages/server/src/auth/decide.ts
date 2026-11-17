@@ -43,7 +43,8 @@ export interface StaffRecord {
   assignments: Assignment[];
 }
 
-export type DenyCode = "not_staff" | "suspended" | "mfa_required" | "needs_approval" | "forbidden";
+/** `staff_only`: a route only a named person may use, refused to the shared password (Panel 2's Desk). */
+export type DenyCode = "not_staff" | "suspended" | "mfa_required" | "needs_approval" | "forbidden" | "staff_only";
 
 export type Decision = { allowed: true; via: string[] } | { allowed: false; status: 403; code: DenyCode };
 

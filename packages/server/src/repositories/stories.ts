@@ -299,3 +299,31 @@ export function transition(input: {
     p_fields: input.fields,
   });
 }
+
+// ---- soft locks (design §2): one editor at a time; a lock lapses LOCK_TTL_MS after its heartbeat ----
+
+export interface LockRow {
+  story_id: string;
+  holder_id: string;
+  heartbeat_at: string;
+}
+
+export async function readLock(storyId: string): Promise<LockRow | null> {
+  const { data, error } = await supabase.from("story_locks").select("story_id, holder_id, heartbeat_at").eq("story_id", storyId).maybeSingle();
+  if (error) throw storeError(error);
+  return (data as LockRow | null) ?? null;
+}
+
+/** Takes, renews or takes over the lock. The route decides whether the caller may. */
+export async function writeLock(storyId: string, holderId: string, at: Date): Promise<void> {
+  const { error } = await supabase
+    .from("story_locks")
+    .upsert({ story_id: storyId, holder_id: holderId, heartbeat_at: at.toISOString() }, { onConflict: "story_id" });
+  if (error) throw storeError(error);
+}
+
+/** Releases the caller's own lock; someone else's stays. */
+export async function releaseLock(storyId: string, holderId: string): Promise<void> {
+  const { error } = await supabase.from("story_locks").delete().eq("story_id", storyId).eq("holder_id", holderId);
+  if (error) throw storeError(error);
+}
