@@ -37,6 +37,12 @@ test("an English story: its section, headline, dek and publication time", () => 
   expect(out).not.toContain("By ");
 });
 
+test("in the Desk's preview the section is named, not linked", () => {
+  const out = renderToStaticMarkup(<StoryArticle story={story()} sectionLink={false} />);
+  expect(out).toContain(">India</span>");
+  expect(out).not.toContain('href="/india"');
+});
+
 test("bylines in order, and the other credits, joined as a sentence", () => {
   const out = html(
     story({

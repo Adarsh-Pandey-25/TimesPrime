@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import Header from "@/components/news/Header";
 import Footer from "@/components/news/Footer";
-import StoryArticle from "@/components/story/StoryArticle";
+import StoryArticle from "@timesprime/ui/StoryArticle";
 import { getPublishedStory } from "@timesprime/server/repositories/stories";
 import { getTopHeadlines } from "@timesprime/server/services/news/topHeadlines";
 import { isSection } from "@timesprime/shared/config/sections";

@@ -155,8 +155,7 @@ apps/
                            public APIs: /api/news/{top-headlines, breaking-news, check-new},
                            /api/chat, /api/health
     src/components/        news/ (cards, masthead, footer, menu, ticker, banner), home/, article/,
-                           story/ (a Desk story as readers see it), chat/, seo/ (the JSON-LD
-                           script), ui/
+                           chat/, seo/ (the JSON-LD script), ui/
     src/context/           LanguageContext
     src/lib/               bookmarks (saved articles, in the browser)
   admin/                   the back office (Next.js 16); keeps the /admin and /api/admin paths
@@ -164,7 +163,7 @@ apps/
     src/app/admin/         the dashboard and the staff sign-in; panels arrive as route folders
     src/app/api/admin/     every admin route handler, each gated by requirePermission; desk/ is Panel 2
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list,
-                           a new story, the story editor and its revisions)
+                           a new story, the story editor and its revisions, the preview)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand)
 packages/
@@ -175,7 +174,8 @@ packages/
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes)
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase, …
   shared/                  @timesprime/shared: client-safe config, types and lib (urlValidation, sentryScrub)
-  ui/                      @timesprime/ui: React shared by both apps (ThemeContext)
+  ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and
+                           story.css, a Desk story's view for the reader's page and the Desk's preview)
   editor/                  @timesprime/editor: the story schema (Tiptap extensions), plain text, the revision diff,
                            the reader's server-side renderer
 database/                  schema.sql, policies.sql, migrations/, bootstrap/, seed/: applied by hand
@@ -1037,4 +1037,5 @@ Panel 2, when there is code to put in it.
 - Deployment has three units: two long-running apps and a scheduled worker (since 16 Nov 2026,
   three Compose services on one server; Phase I may change that).
 - `globals.css` exists in both apps; moving the shared base styles into `packages/ui` is a later
-  cleanup.
+  cleanup. The first shared stylesheet is `packages/ui/src/story.css` (Panel 2: a Desk story's text
+  and Hindi line heights), which both imports.

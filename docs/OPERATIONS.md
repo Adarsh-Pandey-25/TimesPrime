@@ -1372,8 +1372,9 @@ phases were done:
    (PRs #17, #18), the two-person restore (PR #19), the editor package (PR #20), the Desk's
    screens (PR #21) and revisions on the story screen (PR #22). M2's code is complete; the Hindi
    typing check still closes it. M3 (approved by the owner, 17 Nov 2026): the reader's story page
-   is on `panel-2-desk-reader`; then preview, scheduling and corrections. Panel 1 will be built on
-   `panel-1-administration`.
+   was merged (PR #23); the preview, moved into the back office by the owner (design decision 7, so
+   no `PREVIEW_SECRET`), is on `panel-2-desk-preview`; then scheduling and corrections. Panel 1 will
+   be built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
@@ -1902,7 +1903,7 @@ apps/admin/      the back office: src/proxy.ts · src/app/admin · src/app/api/a
 apps/worker/     scheduled jobs: src/jobs.ts (refresh-news)
 packages/server/ auth/ · repositories/ · services/{news,scrape,translate,classify,health} · lib/
 packages/shared/ config/ · types/ · lib/      what both apps import
-packages/ui/     ThemeContext
+packages/ui/     ThemeContext · StoryArticle and story.css (a Desk story's view, both apps)
 database/        schema.sql · policies.sql · migrations/ · bootstrap/ · seed/
 ```
 

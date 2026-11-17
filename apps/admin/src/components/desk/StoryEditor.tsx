@@ -334,6 +334,9 @@ export default function StoryEditor({ id }: { id: string }) {
           <Link href="/admin/desk" className="text-sm text-blue-700 hover:underline dark:text-blue-300">← Desk</Link>
           <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATE_STYLES[story.workflow_state]}`}>{STATE_LABELS[story.workflow_state]}</span>
           <span className="text-sm text-slate-500">{story.language === "hi" ? "Hindi" : "English"} · {story.section}</span>
+          <Link href={`/admin/desk/${id}/preview`} target="_blank" rel="noopener" className="text-sm text-blue-700 hover:underline dark:text-blue-300">
+            Preview ↗
+          </Link>
           {story.workflow_state === "published" && (
             <a href={`${SITE_URL}${deskStoryPath(story)}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-700 hover:underline dark:text-blue-300">
               View on the site ↗

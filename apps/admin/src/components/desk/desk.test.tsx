@@ -13,6 +13,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import DeskList from "./DeskList";
 import NewStoryForm from "./NewStoryForm";
 import StoryEditor from "./StoryEditor";
+import StoryPreview from "./StoryPreview";
 
 const staffMe = (permissions: Record<string, "act" | "read">) => ({
   kind: "staff",
@@ -233,6 +234,60 @@ describe("the story screen", () => {
       expect(headline).toHaveValue("Budget passes, 300 to 120");
       expect(screen.queryByText(/Revision 1 is in the editor/)).not.toBeInTheDocument();
       confirm.mockRestore();
+    });
+  });
+
+  describe("the preview", () => {
+    test("the story screen opens it in a new tab", async () => {
+      serveStory({ "article.view_admin": "read" });
+      await act(async () => render(<StoryEditor id="s-1" />));
+      const link = await screen.findByRole("link", { name: /Preview/ });
+      expect(link).toHaveAttribute("href", "/admin/desk/s-1/preview");
+      expect(link).toHaveAttribute("target", "_blank");
+    });
+
+    test("shows the last saved version in the reader's own view, marked as not published", async () => {
+      const saved = revision("r-2", "Budget passes easily", "2026-11-17T10:00:00Z", "The house passed it on Monday.");
+      serveStory({ "article.view_admin": "read" }, {}, undefined, [saved, REVISION]);
+      await act(async () => render(<StoryPreview id="s-1" />));
+      expect(await screen.findByRole("heading", { level: 1, name: "Budget passes easily" })).toBeInTheDocument();
+      expect(screen.getByText("The house passed it on Monday.")).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("Preview, not published");
+      expect(screen.getByRole("status")).toHaveTextContent("Desk review");
+      expect(document.querySelector("article")).toHaveAttribute("lang", "en");
+      expect(screen.queryByRole("link", { name: "India" })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Back to the story/ })).toHaveAttribute("href", "/admin/desk/s-1");
+    });
+
+    test("a Hindi story is shown in Hindi, as on the site", async () => {
+      const hindi = { ...revision("r-1", "संसद में बजट पास", "2026-11-17T09:00:00Z", "बहस देर रात तक चली।") };
+      serveStory({ "article.view_admin": "read" }, { language: "hi" }, undefined, [hindi]);
+      await act(async () => render(<StoryPreview id="s-1" />));
+      expect(await screen.findByRole("heading", { level: 1, name: "संसद में बजट पास" })).toBeInTheDocument();
+      expect(document.querySelector("article")).toHaveAttribute("lang", "hi");
+      expect(screen.getByText("भारत")).toBeInTheDocument();
+    });
+
+    test("a live story whose saved version is the published one says so", async () => {
+      serveStory({ "article.view_admin": "read" }, { workflow_state: "published", published_revision_id: "r-1" });
+      await act(async () => render(<StoryPreview id="s-1" />));
+      expect(await screen.findByRole("status")).toHaveTextContent("Preview of the live version");
+    });
+
+    test("the server's refusal is shown, and a story with no text says so", async () => {
+      serve((url) => {
+        if (url === "/api/admin/me") return { status: 200, body: staffMe({}) };
+        if (url === "/api/admin/desk/stories/s-1") return { status: 403, body: { error: "You don't have permission for this action." } };
+      });
+      await act(async () => render(<StoryPreview id="s-1" />));
+      expect(await screen.findByRole("alert")).toHaveTextContent("You don't have permission");
+
+      serve((url) => {
+        if (url === "/api/admin/me") return { status: 200, body: staffMe({ "article.view_admin": "read" }) };
+        if (url === "/api/admin/desk/stories/s-2") return { status: 200, body: { story: { ...STORY, id: "s-2" }, revision: null, history: [], pending: [] } };
+      });
+      await act(async () => render(<StoryPreview id="s-2" />));
+      expect(await screen.findByText("This story has no saved text yet.")).toBeInTheDocument();
     });
   });
 
