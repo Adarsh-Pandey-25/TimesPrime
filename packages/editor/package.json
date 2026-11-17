@@ -1,0 +1,10 @@
+{
+  "name": "@timesprime/editor",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./schema": "./src/schema.ts",
+    "./text": "./src/text.ts",
+    "./diff": "./src/diff.ts"
+  }
+}

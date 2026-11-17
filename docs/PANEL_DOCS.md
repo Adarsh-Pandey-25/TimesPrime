@@ -494,7 +494,7 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 ### Panel 2: Desk (the Publisher)
 
 **Status: in progress.** Built so far: M1a (the stories backend's core), M1b (the Desk API, PRs #17
-and #18) and the two-person restore. M1 is complete. Started before Panel 1 at the
+and #18) and the two-person restore. M1 is complete. M2 has begun: the editor package (below). Started before Panel 1 at the
 owner's request (17 Nov 2026); [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -560,8 +560,14 @@ aggregator's `articles` and its 7-day purge.
     revision, declined leaves it down.
   - One open request per story. The database refuses a requester deciding their own request.
   - Both steps are audited.
+- **Built (M2, first part): `packages/editor`.**
+  - **The story schema,** `storyExtensions()`: Tiptap 3.32.2's StarterKit with headings 2–3, no code,
+    and links only to https, site paths or mailto; plus factbox, related link, embed (YouTube, X and
+    Instagram only, rendered as a plain link) and an ad-slot placeholder.
+  - **The body's plain text and word count,** read from the stored JSON without Tiptap.
+  - **The revision diff:** blocks first, then words inside a changed block. It is our own code.
 - **Not yet:**
-  - the screens and the editor (M2);
+  - the screens and the editor component (the rest of M2);
   - preview, the worker's scheduling, corrections and the reader page (M3);
   - media and bylines (M4).
 

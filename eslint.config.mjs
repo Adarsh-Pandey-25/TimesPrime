@@ -31,6 +31,7 @@ const CLIENT_SAFE = [
   "./apps/admin/src/components",
   "./packages/shared",
   "./packages/ui",
+  "./packages/editor",
 ];
 const zones = [
   {
@@ -45,7 +46,7 @@ const zones = [
   },
   {
     target: ["./packages/server", "./packages/shared"],
-    from: "./packages/ui",
+    from: ["./packages/ui", "./packages/editor"],
     message: "packages/server and packages/shared import no React UI.",
   },
   {

@@ -11,6 +11,7 @@ const PACKAGES = {
   "^@timesprime/server/(.*)$": "<rootDir>/packages/server/src/$1",
   "^@timesprime/shared/(.*)$": "<rootDir>/packages/shared/src/$1",
   "^@timesprime/ui/(.*)$": "<rootDir>/packages/ui/src/$1",
+  "^@timesprime/editor/(.*)$": "<rootDir>/packages/editor/src/$1",
 };
 
 async function project(name: string, nextDir: string, root: string, alias?: string): Promise<Config> {
