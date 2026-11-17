@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" role="img" aria-label="INDIA · भारत · TimesPrime">
+  <!-- B-03 / BL-045: the small-thumbnail version of india.svg, with no label to crop at 56-64 pixels. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1E3A5F"/>
+      <stop offset="1" stop-color="#0F1F33"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <circle cx="330" cy="60" r="120" fill="#FF9933" fill-opacity="0.30"/>
+  <circle cx="370" cy="260" r="80" fill="#FF9933" fill-opacity="0.20"/>
+  <rect x="0" y="0" width="16" height="300" fill="#E7000B"/>
+  <text x="200" y="190" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="150" font-weight="700" fill="#E7000B" aria-hidden="true">T<tspan fill="#FFFFFF">P</tspan></text>
+</svg>

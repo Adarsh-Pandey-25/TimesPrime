@@ -50,6 +50,15 @@ export function placeholderFor(article: Pick<Article, "category" | "country">): 
   return `/placeholders/${placeholderKey(article)}.svg`;
 }
 
+/**
+ * The small-thumbnail image for a story (BL-045): the same category's drawing at 4:3 with no label,
+ * since at 56 to 64 pixels object-cover cuts the label ("USINESS"). For the article page's side
+ * lists; every larger card uses placeholderFor.
+ */
+export function thumbnailFor(article: Pick<Article, "category" | "country">): string {
+  return `/placeholders/${placeholderKey(article)}-thumb.svg`;
+}
+
 /** The image for each story of a list, keyed by the story, for components that render many. */
 export function assignPlaceholders(articles: Article[]): Map<Article, string> {
   return new Map(articles.map((article) => [article, placeholderFor(article)]));
