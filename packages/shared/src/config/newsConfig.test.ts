@@ -5,6 +5,7 @@ import {
   containsNonLatinIndicScript,
   filterArticlesByLanguageScript,
   dedupeArticlesByTitle,
+  isHoroscopeOrRitualFiller,
 } from "./newsConfig";
 import { Article } from "../types";
 
@@ -133,5 +134,32 @@ describe("dedupeArticlesByTitle", () => {
 
   it("returns an empty array for empty input", () => {
     expect(dedupeArticlesByTitle([])).toEqual([]);
+  });
+});
+
+describe("isHoroscopeOrRitualFiller", () => {
+  it.each([
+    "Aaj Ka Rashifal: 17 November 2026",
+    "आज का राशिफल 17 नवंबर",
+    "Tarot card reading for the week",
+    // BL-044: this one reached the feed.
+    "What Cosmic Changes Await Us? Astrological Insights for 2023 and Beyond",
+    "ग्रहों की चाल: ज्योतिषीय उपाय जो बदल देंगे किस्मत",
+    "Which zodiac sign will be luckiest this month?",
+  ])("drops %s", (title) => {
+    expect(isHoroscopeOrRitualFiller({ title })).toBe(true);
+  });
+
+  it("reads the description too", () => {
+    expect(isHoroscopeOrRitualFiller({ title: "Your week ahead", description: "Astrological predictions for each sign" })).toBe(true);
+  });
+
+  it.each([
+    "Police arrest astrologer accused of cheating devotees",
+    "Astrology app raises $10 million in funding",
+    "Lunar eclipse on Purnima: when and where to watch",
+    "Sensex rises 300 points as banks gain",
+  ])("keeps the news story %s", (title) => {
+    expect(isHoroscopeOrRitualFiller({ title })).toBe(false);
   });
 });
