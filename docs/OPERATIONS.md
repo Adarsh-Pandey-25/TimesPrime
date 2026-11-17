@@ -1129,8 +1129,9 @@ phases were done:
    ([the news refresh](#the-news-refresh-interval-calls-and-the-admin-setting)). Then the admin
    refresh-interval setting, once it is approved to build (its design is in the same section).
 3. **The rest of the release:**
-   - **R2:** the reader design with the brand colour `#E7000B`, the new article and section URLs,
-     the structured data, the lighter error pages (BL-039), and BL-042 to BL-045.
+   - **R2:** the reader design with the brand colour `#E7000B`, the new article and section URLs
+     with BL-042's real 404, and the structured data. BL-039, BL-044 and BL-045 are on
+     `fix/r2-reader-bugs` (in review).
    - **R3** (`site/grievance-details`, in review): the `/grievance` page, and the real email,
      officer and office address on contact, privacy and terms, from one site-config value. The
      footer links the grievance page and no longer shows "Advertise With Us". Next.js went to
@@ -1527,7 +1528,9 @@ Every page route loads the root error and not-found components, and Turbopack gi
 chunk its own copy of what it imports, even when the page's chunk has it already. In R1-07,
 `next/link` in the message component added 9 KB per copy, and `@sentry/nextjs` 12 KB a route (as
 a dynamic `import()`, 20 KB). The boundaries report through `clientErrorReport.ts` instead, and
-link with a plain `<a>`. Before a root special file imports anything, compare
+link with a plain `<a>`. Since BL-039, `not-found.tsx` is a server component, so it has no client
+chunk at all, and the message picks its language with CSS (`.tp-lang-en`, `.tp-lang-hi` and
+`<html lang>`), not the language context. Before a root special file imports anything, compare
 `node scripts/check-js-budget.mjs --print` before and after.
 
 #### 3.28 Tailwind turns words in comments into CSS
@@ -1735,11 +1738,11 @@ are resolved:
 - BL-028 (theme ternaries), BL-031 (the new moderate advisories), BL-032 (A2 for new pages).
 - BL-033 (the 7-day purge against Rule 19's 60 days; Panel 4 or 7), BL-034 (export the audit chain's
   head hash outside the database).
-- BL-039 (lighter root not-found and error pages, R2).
 - From the release (16 Nov 2026): BL-041 (Supabase's log drain, before the full launch), BL-042 (a
-  real 404 for unknown article links, R2), BL-043 (remove `axios` and `cheerio`, needs the owner),
-  BL-044 (an astrology story past the filler filter, R2), BL-045 (thumbnails crop the placeholder's
-  label, R2), BL-046 (rename the `supabase->newsdata` report).
+  real 404 for unknown article links, with R2's article URLs), BL-043 (remove `axios` and
+  `cheerio`, needs the owner), BL-046 (rename the `supabase->newsdata` report). BL-039, BL-044
+  and BL-045 were fixed on `fix/r2-reader-bugs` (17 Nov 2026); BL-044 leaves a look at the stored
+  rows.
 
 **Resolved:** BL-003, BL-010, BL-011, BL-012, BL-013, BL-014, BL-015, BL-017, BL-018, BL-020, BL-021,
 BL-027, BL-029, BL-038 (R1-05), BL-040 (E-07). Phase B (16 Nov 2026) resolved BL-019 (no remote image
@@ -2549,8 +2552,16 @@ guesser can send a new address with each attempt and never reach the limit. The 
 
 ### BL-039 — The root not-found and error pages cost every reader page 6.7 KB
 
-**Found:** R1-07 (2026-11-04) · **Status:** Open, for R2 (owner, STOP R1: the growth is accepted
-until then)
+**Found:** R1-07 (2026-11-04) · **Status:** Fixed (`fix/r2-reader-bugs`, 17 Nov 2026), in part:
+2,496 of the 6,707 bytes
+
+**The fix:** `ErrorMessage` reads no context and has no hook: it renders both languages, each in a
+span with its own `lang`, and `globals.css` shows the one `<html lang>` names. `not-found.tsx` is
+a server component with no client chunk; `error.tsx` passes its own message, so its chunk does not
+carry the not-found text. Every reader route went down 2,496 bytes (`/about` 683,940 → 681,444).
+The rest is the error boundary's own chunk (about 2.5 KB: the markup, the shared strings, the retry
+button and the Sentry hand-off), which must stay on the client. The design pass in R2 can revisit
+it. The original note:
 
 Every page route loads the root `not-found.tsx` and `error.tsx` components, and Turbopack gives each
 one's chunk its own copy of what it imports (gotcha 3.27). R1-07 kept the cost at +6,707 bytes a
@@ -2609,7 +2620,14 @@ install and the worker image, and takes two packages out of the advisory reviews
 
 ### BL-044 — An astrology story passed the filler filter
 
-**Found:** Phase B's browser check (16 Nov 2026) · **Status:** Open — R2
+**Found:** Phase B's browser check (16 Nov 2026) · **Status:** Fixed (`fix/r2-reader-bugs`, 17 Nov
+2026), but the stored rows are not checked
+
+**The fix:** the filter adds "astrological", "ज्योतिषीय" and "zodiac sign", not "astrology" or
+"astrologer" alone (an app's funding and an arrest are news), with tests both ways. The feed's read
+path runs the same filter, so stored rows it matches stop showing. A read-only search of the
+stored titles for other wording (astrolog, zodiac, ज्योतिष, numerolog, vastu) is still to do: the
+session's read script was refused by the permission check, so the owner runs it or allows it.
 
 "What Cosmic Changes Await Us? Astrological Insights for 2023 and Beyond" reached the feed:
 `isHoroscopeOrRitualFiller` (`packages/shared/src/config/newsConfig.ts`) misses this wording. Widen
@@ -2617,7 +2635,9 @@ it with a test for this title, and check the stored rows for others like it.
 
 ### BL-045 — The smallest thumbnails crop the category drawing's label
 
-**Found:** Phase B's browser check (16 Nov 2026) · **Status:** Open — R2
+**Found:** Phase B's browser check (16 Nov 2026) · **Status:** Fixed (`fix/r2-reader-bugs`, 17 Nov
+2026): each category has `<key>-thumb.svg`, a 4:3 drawing with the colours and a TP mark and no
+label, from `thumbnailFor()`; the article page's two side lists use it
 
 The placeholders (`apps/web/public/placeholders`) are drawn for 16:9 and 21:9 cards. In the 56–64
 pixel thumbnails of the article page's side lists, the label is cut ("USINESS"). In R2's design, a
