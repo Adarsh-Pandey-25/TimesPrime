@@ -5,10 +5,10 @@ import Link from "next/link";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { embedProvider, isAllowedHref, storyExtensions, EMPTY_DOC } from "@timesprime/editor/schema";
 import { wordCount } from "@timesprime/editor/text";
-import { checklist, move, PUBLISH_TICK_MINUTES, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
+import { checklist, CORRECTION_NOTE_MAX, move, PUBLISH_TICK_MINUTES, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
 import { SITE_URL } from "@timesprime/shared/config/site";
 import { deskStoryPath, storySlug } from "@timesprime/shared/lib/storyUrl";
-import { canAct, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
+import { canAct, canAsk, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
 import RevisionsPanel, { type FullRevision } from "./RevisionsPanel";
 
 // The story screen (Panel 2 design §4 and §5): the editor, the story's details, the pre-publish
@@ -28,6 +28,7 @@ interface Story {
   published_revision_id: string | null;
   scheduled_at: string | null;
   post_hoc_review_due: boolean;
+  correction_note: string | null;
 }
 interface Revision {
   id: string;
@@ -146,6 +147,7 @@ export default function StoryEditor({ id }: { id: string }) {
   const [scheduleAt, setScheduleAt] = useState("");
   const [slug, setSlug] = useState("");
   const [embargo, setEmbargo] = useState("");
+  const [correction, setCorrection] = useState("");
 
   // The text fields follow the story's current revision, as the editor's body does (it is rebuilt
   // when that revision changes). A details change or a move adds no revision, so it leaves unsaved
@@ -308,10 +310,25 @@ export default function StoryEditor({ id }: { id: string }) {
     if (res.ok) await load();
   }
 
-  async function decide(actionId: string, outcome: "approved" | "declined") {
-    const res = await deskCall(`/api/admin/desk/pending/${actionId}/decide`, { method: "POST", body: JSON.stringify({ outcome }) });
-    setMessage(res.ok ? { ok: true, text: outcome === "approved" ? "Restored." : "Request declined." } : { ok: false, text: res.error ?? "Not decided." });
+  async function decide(pending: Pending, outcome: "approved" | "declined") {
+    const res = await deskCall(`/api/admin/desk/pending/${pending.id}/decide`, { method: "POST", body: JSON.stringify({ outcome }) });
+    const done = pending.action === "correction" ? "Correction published." : "Restored.";
+    setMessage(res.ok ? { ok: true, text: outcome === "approved" ? done : "Request declined." } : { ok: false, text: res.error ?? "Not decided." });
     if (res.ok) await load();
+  }
+
+  /** A live story's public correction note: published at once (S or F), or asked for (A). */
+  async function publishCorrection() {
+    setBusy(true);
+    const res = await deskCall(`/api/admin/desk/stories/${id}/correct`, { method: "POST", body: JSON.stringify({ note: correction }) });
+    setBusy(false);
+    if (!res.ok) return setMessage({ ok: false, text: res.error ?? "Not done." });
+    setMessage({
+      ok: true,
+      text: res.status === 201 ? "Correction requested. A Desk Editor or the Managing Editor decides it." : "Correction published. Readers see it under the story.",
+    });
+    setCorrection("");
+    await load();
   }
 
   if (meError) return <p role="alert" className="text-sm text-red-700 dark:text-red-300">{meError}</p>;
@@ -449,21 +466,39 @@ export default function StoryEditor({ id }: { id: string }) {
             {moves.map((m) => (
               <button key={m.action} type="button" disabled={busy} className={button} onClick={() => void doMove(m.route, m.needs)}>{m.label}</button>
             ))}
-            {story.workflow_state === "unpublished" && loaded.pending.length === 0 && (
+            {story.workflow_state === "unpublished" && !loaded.pending.some((p) => p.action === "restore") && (
               <button type="button" className={button} disabled={busy || !reason.trim()} onClick={() => void askRestore()}>Ask to restore</button>
             )}
           </div>
         </section>
+
+        {story.workflow_state === "published" && (canAct(me, "correction.publish") || canAsk(me, "correction.publish")) && (
+          <section aria-labelledby="correction-heading" className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
+            <h2 id="correction-heading" className="text-sm font-bold">Correction</h2>
+            {story.correction_note ? (
+              <p className="text-sm">Readers see: <q lang={story.language}>{story.correction_note}</q></p>
+            ) : (
+              <p className="text-sm text-slate-500">No correction note on this story.</p>
+            )}
+            <label className="block text-sm">
+              Correction note, shown to readers under the story
+              <textarea className={field} rows={3} lang={story.language} maxLength={CORRECTION_NOTE_MAX} value={correction} onChange={(e) => setCorrection(e.target.value)} />
+            </label>
+            <button type="button" className={button} disabled={busy || !correction.trim()} onClick={() => void publishCorrection()}>
+              {canAct(me, "correction.publish") ? "Publish correction" : "Ask for a correction"}
+            </button>
+          </section>
+        )}
 
         {loaded.pending.length > 0 && (
           <section aria-labelledby="pending-heading" className="space-y-2 rounded-lg border border-amber-300 p-3 dark:border-amber-800">
             <h2 id="pending-heading" className="text-sm font-bold">Waiting for a second person</h2>
             {loaded.pending.map((p) => (
               <div key={p.id} className="space-y-1 text-sm">
-                <p>Restore requested: {p.reason}</p>
+                <p>{p.action === "correction" ? "Correction requested" : "Restore requested"}: {p.reason}</p>
                 <div className="flex gap-2">
-                  <button type="button" className={button} onClick={() => void decide(p.id, "approved")}>Approve</button>
-                  <button type="button" className={button} onClick={() => void decide(p.id, "declined")}>Decline</button>
+                  <button type="button" className={button} onClick={() => void decide(p, "approved")}>Approve</button>
+                  <button type="button" className={button} onClick={() => void decide(p, "declined")}>Decline</button>
                 </div>
               </div>
             ))}

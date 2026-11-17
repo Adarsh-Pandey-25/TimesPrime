@@ -1126,9 +1126,20 @@ the app applies SQL.
    - `SELECT indexname FROM pg_indexes WHERE indexname = 'pending_actions_one_open';` → one row;
    - `SELECT has_function_privilege('anon', 'public.desk_decide_pending(uuid,uuid,text,text,text)', 'EXECUTE');`
      → false.
+4. **Apply `database/migrations/2026-11-17-desk-3-corrections.sql`** (M3: a Sub-editor's correction
+   request, decided by a second person). It replaces `desk_decide_pending` with one that decides
+   corrections too; restores work as before. Paste the whole file into the SQL Editor and run it.
+   **Check,** in one query (the editor shows only the last result):
+   ```sql
+   SELECT position('correction' IN pg_get_functiondef('public.desk_decide_pending(uuid,uuid,text,text,text)'::regprocedure)) > 0 AS decides_corrections,
+          has_function_privilege('anon', 'public.desk_decide_pending(uuid,uuid,text,text,text)', 'EXECUTE') AS anon_may_call;
+   ```
+   → `true`, `false`. Until it is applied, a Desk Editor or the Managing Editor still publishes a
+   correction at once; only deciding a Sub-editor's request fails (the screen shows the database's
+   refusal).
 
 **Undo.** The rollback at the end of the file, only before the first real story: stories are the
-newsroom's record and are never dropped after that.
+newsroom's record and are never dropped after that. desk-3's undo is to run desk-2 again.
 
 #### Granting the first Desk roles, until Panel 1
 
@@ -1382,9 +1393,10 @@ phases were done:
    screens (PR #21) and revisions on the story screen (PR #22). M2's code is complete; the Hindi
    typing check still closes it. M3 (approved by the owner, 17 Nov 2026): the reader's story page
    was merged (PR #23), and the preview, moved into the back office by the owner (design decision 7,
-   so no `PREVIEW_SECRET`, PR #24). Scheduled publishing (the worker's `publish-scheduled` job and
-   its 5-minute timer in `deploy/`) is on `panel-2-desk-schedule`; then corrections. Panel 1 will be
-   built on `panel-1-administration`.
+   so no `PREVIEW_SECRET`, PR #24), and scheduled publishing (the worker's `publish-scheduled` job and
+   its 5-minute timer in `deploy/`, PR #25). Corrections are on `panel-2-desk-corrections`, with one
+   owner SQL step (desk-3, "The Desk (Panel 2): applying its tables", step 4); then the Desk's alert
+   list for takedowns, which completes M3. Panel 1 will be built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

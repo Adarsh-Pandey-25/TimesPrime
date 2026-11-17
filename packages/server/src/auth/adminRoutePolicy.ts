@@ -155,6 +155,11 @@ export const ADMIN_ROUTE_RULES = {
   "/api/admin/desk/stories/[id]/restore": {
     POST: { permissions: ["article.restore"], mode: "act", target: "story", staffOnly: true, twoPerson: true },
   },
+  // A live story's public correction note: S or F publishes it; A (a Sub-editor) asks, and a holder
+  // of S or F decides (pending/[actionId]/decide).
+  "/api/admin/desk/stories/[id]/correct": {
+    POST: { permissions: ["correction.publish"], mode: "act", target: "story", staffOnly: true, twoPerson: true },
+  },
   "/api/admin/desk/pending/[actionId]/decide": {
     POST: { permissions: ["article.restore"], mode: "act", target: "story", staffOnly: true, twoPerson: true },
   },

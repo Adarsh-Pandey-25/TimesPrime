@@ -496,8 +496,9 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 **Status: in progress.** Built so far: M1a (the stories backend's core), M1b (the Desk API, PRs #17
 and #18) and the two-person restore. M1 is complete. M2's code is complete (the editor package, the
 Desk's screens, the story's revisions on screen); the Hindi typing check still closes it. M3 is under
-way: the reader's story page (PR #23), the preview in the back office (decision 7, PR #24) and
-scheduled publishing are built (below). Started before Panel 1 at the owner's request (17 Nov 2026);
+way: the reader's story page (PR #23), the preview in the back office (decision 7, PR #24),
+scheduled publishing (PR #25) and corrections are built (below). Started before Panel 1 at the
+owner's request (17 Nov 2026);
 [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -513,7 +514,9 @@ scheduled publishing are built (below). Started before Panel 1 at the owner's re
     `publish`, `publish-direct`, `unpublish`, `retract` and `kill`: POST;
   - `stories/[id]/details`: POST (the slug, the embargo and the legal-review flag, before publication);
   - `stories/[id]/restore`: POST, to ask for a restore;
-  - `pending/[actionId]/decide`: POST, to approve or decline it.
+  - `stories/[id]/correct`: POST, a live story's public correction note (published at once, or
+    asked for);
+  - `pending/[actionId]/decide`: POST, to approve or decline a restore or a correction request.
 
   The screens (M2): `/admin/desk` (the list), `/admin/desk/new` and `/admin/desk/[id]` (the story),
   linked from the back office's top bar; and (M3) `/admin/desk/[id]/preview`, the story's preview.
@@ -657,12 +660,27 @@ aggregator's `articles` and its 7-day purge.
     if the editor may still publish then.
   - **Deploying it:** `deploy.sh` now installs and starts every timer in the kit, and stops one an
     older kit installed that the kit does not carry (OPERATIONS.md, Deployment).
+- **Built (M3, fourth part): corrections.**
+  - **What readers see:** a live story's correction note, under the story (the reader's page shows
+    it). The note is up to 600 characters; a new note replaces the old one on the page, and the
+    history and the audit log keep every note.
+  - **Who:** `correction.publish`. A Desk Editor (S) or the Managing Editor (F) publishes it at once
+    (`story.correct`, a `correct` move that keeps the story live). A Sub-editor (A) asks
+    (`story.correct_request`), and a holder of S or F, not the one who asked, approves or declines
+    it (`story.correct_approve`, `story.correct_decline`). Another A holder never decides, and
+    Legal and the Grievance Officer (R) only read.
+  - **In the database:** an approved request sets the note in the same transaction as the decision,
+    only while the story is live (`desk_decide_pending`, migration desk-3: an owner step).
+  - **On the Desk:** a live story's screen has a Correction section for whoever may publish or ask:
+    the note readers see now, and "Publish correction" or "Ask for a correction". An open request
+    says which kind it is.
+  - **`/api/admin/me`** now reports the matrix's A as `"ask"` (beside `"act"` and `"read"`), so the
+    screen offers asking only to those who may. The dashboard counts only `act` and `read` as reads.
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
-  - corrections (M3);
-  - the Desk's alert list for takedowns (design §8; the audit log has them);
+  - the Desk's alert list for takedowns (design §8; the audit log has them), M3's last part;
   - media and bylines (M4).
 
 #### Access permissions and authorization rules
@@ -672,6 +690,7 @@ Each action's permission is in the [design's workflow table](#3-workflow), mirro
 - **Four-eyes on approval:** neither the creator nor anyone who saved since the last approval.
 - **Own for a Writer:** only stories they created.
 - **Two people for a restore:** the matrix's A.
+- **Two people for a Sub-editor's correction:** the matrix's A; a holder of S or F decides.
 - **Single actor for a takedown:** with a reason.
 - **MFA:** every Desk write needs `aal2`.
 
@@ -686,6 +705,7 @@ embargo 409.
 | `database/migrations/2026-11-02-access-2-catalog.sql` (regenerated) | Adds `author.manage` and `media.manage` (41 permissions, 140 cells) | Re-apply the previous version | **Yes, 17 Nov 2026** (41 and 140 checked) |
 | `database/migrations/2026-11-17-desk-1-stories.sql` | The ten Desk tables, the append-only triggers, the three `desk_*` functions, RLS and column grants for readers | In the file; only before the first real story | **Yes, 17 Nov 2026**, checks passed |
 | `database/migrations/2026-11-17-desk-2-restore.sql` | One open request per story and action; `desk_decide_pending`, which decides a restore and puts the story back live in one transaction | In the file | **Yes, 17 Nov 2026**, checks passed |
+| `database/migrations/2026-11-17-desk-3-corrections.sql` | `desk_decide_pending` decides a correction request too: approved, the live story's note is the request's, with its history row, in one transaction | Run desk-2 again | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 4) |
 
 #### Tests and verification
 
@@ -695,7 +715,7 @@ embargo 409.
 | `packages/server/src/services/desk/fourEyes.test.ts` | A third person may approve | The creator and every editor since the last approval may not; a breaking story's publisher may not review it |
 | `packages/server/src/auth/decide.test.ts` | Own allows the caller's own story in scope | Another's story, an ownerless one, one out of scope |
 | `packages/server/src/repositories/stories.test.ts` | Writes go through the `desk_*` functions; lists stay in scope | A malformed scope matches nothing; a moved story answers 409 |
-| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds, opens with no unsaved changes, and keeps unsaved text when the details are saved; two revisions compared field by field and word by word; a revision brought back fills the editor, and only Save sends it, as a new revision; a live story links to its page; the preview opens in a new tab and shows the last saved version in the reader's view, in Hindi for a Hindi story, and says when it is the live version | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only, and no Bring back); a story not found; unsaved changes kept when bringing one back is declined; no link before publication; the preview showing the server's refusal, and a story with no text |
+| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds, opens with no unsaved changes, and keeps unsaved text when the details are saved; two revisions compared field by field and word by word; a revision brought back fills the editor, and only Save sends it, as a new revision; a live story links to its page; the preview opens in a new tab and shows the last saved version in the reader's view, in Hindi for a Hindi story, and says when it is the live version; the schedule field says when the server publishes; a Desk Editor publishes a correction and sees the note readers see; a Sub-editor asks for one; an open correction request names itself, and approving it publishes the note | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only, and no Bring back); a story not found; unsaved changes kept when bringing one back is declined; no link before publication; the preview showing the server's refusal, and a story with no text; no Correction section without `correction.publish` |
 | `e2e/admin-access.spec.ts` | Signed out, `/admin/desk`, a story's screen and its preview go to sign-in; three Desk API calls answer 401 | (all refused) |
 | `packages/server/src/repositories/stories.test.ts` (`getPublishedStory`) | One published story past its embargo, with the reader's columns only; the published revision; active bylines in order, in the story's language | No such story; another story's row; a draft; a story taken down; one under embargo; a revision that is not the published one, or another story's; a number that cannot be a story; a database error (thrown, not a 404) |
 | `packages/editor/src/render.test.tsx` | Every block of the design, drawn by the schema; a site link followed, an https one nofollow; Hindi text as it is; every node and mark of the schema draws only allowed tags | `javascript:`, `data:` and plain-http links; an embed from another site; unknown nodes, marks and attributes; markup in the text (escaped); anything but a document; nesting past the limit; no h1 |
@@ -710,6 +730,10 @@ embargo 409.
 | `scripts/deploy.test.ts` (scheduled publishing) | The timer fires every `PUBLISH_TICK_MINUTES` (5) and runs `publish-scheduled`; a run times out before the next tick; `deploy.sh` installs and starts every timer in the kit | A timer the kit does not carry is stopped |
 | `apps/admin/src/app/api/admin/access.test.ts` (details) | A Writer sets their story's slug | A malformed slug; a live story; a Writer clearing the legal flag (needs `article.approve`); approval voided by a change |
 | `apps/admin/src/app/api/admin/access.test.ts` (restore) | A Desk Editor (A) asks, with a reason; a different one approves or declines | The requester deciding their own request; a story that is not down; no reason; a decided request; a Writer; an A holder without MFA |
+| `apps/admin/src/app/api/admin/access.test.ts` (corrections) | A Desk Editor (S) publishes the note at once, through a move that keeps the story live; a Sub-editor (A) asks, the note in the request; a Desk Editor approves the request (the database sets the note); Legal still decides a restore | A story that is not live; an empty or over-long note; a Writer and Legal (R) cannot publish or ask; another Sub-editor (A) and Legal (R) cannot decide a correction; the requester cannot decide their own |
+| `packages/server/src/repositories/deskSchema.test.ts` | Migration desk-3: one transaction; `desk_decide_pending` decides restores and corrections only; an approved correction sets the note from the request, only on a live story, with its history row; the restore branch unchanged; caller's rights, empty search path | Only `service_role` may call it; a decided request and the requester still refused |
+| `packages/server/src/repositories/stories.test.ts` (`requestCorrection`) | A correction request with the note as its payload and reason | A second open request answers 409 |
+| `apps/admin/src/app/api/admin/me/route.test.ts` | The matrix's A reported as `"ask"` | Nothing held in an aal1 session, A included |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 
 The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
@@ -717,7 +741,13 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** M3's corrections. The Hindi typing check still closes M2.
+- **Next:** the Desk's alert list for takedowns (design §8), M3's last part. The Hindi typing check
+  still closes M2.
+- **Until the owner applies desk-3,** deciding a Sub-editor's correction request fails with the
+  database's refusal; a Desk Editor or the Managing Editor still publishes a correction at once.
+- **Deciding a correction passes the decide route's own gate first,** `article.restore` (A or
+  better): every holder of `correction.publish` at S or F holds it today (Desk Editor, Managing
+  Editor). A future role with the one but not the other would need the rule changed.
 - **Scheduled stories go live only once the server runs the timer:** the deploy installs it. On a
   laptop nothing publishes them; the job is never run from a session (it writes to the database).
 - **The reader's story page is reached by its address only:** stories join the home and section

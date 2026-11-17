@@ -80,6 +80,7 @@ import * as deskKill from "./desk/stories/[id]/kill/route";
 import * as deskDetails from "./desk/stories/[id]/details/route";
 import * as deskRestore from "./desk/stories/[id]/restore/route";
 import * as deskDecide from "./desk/pending/[actionId]/decide/route";
+import * as deskCorrect from "./desk/stories/[id]/correct/route";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
 
@@ -636,6 +637,105 @@ describe("the two-person restore (Panel 2 design §3)", () => {
   test("a Writer (no restore cell) is refused", async () => {
     const r = await call(restoreCase, restoreCase.data, undefined, HI_WRITER);
     expect(r.status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+});
+
+// ---- corrections: correction.publish is S for a Desk Editor, F for the Managing Editor, A for a Sub-editor ----
+const NOTE = "An earlier version gave the wrong score.";
+const LIVE = { stories: story({ workflow_state: "published", published_revision_id: "r-1" }) };
+const CORRECTION_PENDING = { ...PENDING_ROW, id: "p-2", action: "correction", requested_by: "u-9", reason: NOTE, payload: { note: NOTE } };
+const LEGAL: Grantee = { role: "legal_compliance", language: null };
+const CORRECT_CASE: Case = {
+  // The least-privileged holder is a Sub-editor (A): the route records the request.
+  path: `${S}/correct`, method: "POST", handler: withId(deskCorrect.POST), body: { note: NOTE },
+  allowed: HI_SUB, wrongScope: EN_SUB, data: { ...LIVE, pending_actions: { data: CORRECTION_PENDING, error: null } }, changes: true,
+};
+CASES.push(CORRECT_CASE);
+
+describe("corrections on a live story (Panel 2 design §3)", () => {
+  const decideCase = RESTORE_CASES[1];
+  async function call(c: Case, data: Case["data"], body: unknown, caller: Grantee) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, body }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const actions = () => (recordAudit as jest.Mock).mock.calls.map(([row]) => [row.action, row.outcome]);
+
+  test("a Desk Editor (S) publishes the note at once, through a move that keeps the story live", async () => {
+    const r = await call(CORRECT_CASE, { ...LIVE, "rpc:desk_transition": story({ workflow_state: "published", correction_note: NOTE }) }, { note: ` ${NOTE} ` }, HI_DESK);
+    expect(r.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "desk_transition",
+      expect.objectContaining({ p_action: "correct", p_from: "published", p_to: "published", p_reason: NOTE, p_fields: { correction_note: NOTE } })
+    );
+    expect(actions()).toEqual([
+      ["story.correct", "attempted"],
+      ["story.correct", "succeeded"],
+    ]);
+    expect(calls.some(([t]) => t === "pending_actions")).toBe(false);
+  });
+
+  test("a Sub-editor (A) asks: a request with the note, for a second person to decide", async () => {
+    const r = await call(CORRECT_CASE, CORRECT_CASE.data, { note: NOTE }, HI_SUB);
+    expect(r.status).toBe(201);
+    expect(r.json.request.id).toBe("p-2");
+    const insert = calls.find(([t, m]) => t === "pending_actions" && m === "insert");
+    expect(insert?.[2][0]).toEqual({ story_id: "s-1", action: "correction", requested_by: "u-1", reason: NOTE, payload: { note: NOTE } });
+    expect(supabase.rpc).not.toHaveBeenCalled();
+    expect(actions()).toEqual([
+      ["story.correct_request", "attempted"],
+      ["story.correct_request", "succeeded"],
+    ]);
+  });
+
+  test("only a live story takes a note, of 1 to 600 characters; nothing is written otherwise", async () => {
+    expect((await call(CORRECT_CASE, { stories: story({ workflow_state: "draft" }) }, { note: NOTE }, HI_DESK)).status).toBe(409);
+    expect((await call(CORRECT_CASE, LIVE, { note: "  " }, HI_DESK)).status).toBe(400);
+    expect((await call(CORRECT_CASE, LIVE, { note: "x".repeat(601) }, HI_DESK)).status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("no cell, or a read-only one, cannot publish or ask: a Writer, and Legal (R)", async () => {
+    expect((await call(CORRECT_CASE, LIVE, { note: NOTE }, HI_WRITER)).status).toBe(403);
+    expect((await call(CORRECT_CASE, LIVE, { note: NOTE }, LEGAL)).status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a Desk Editor approves a Sub-editor's request: the database sets the note, audited as its own action", async () => {
+    const data = { ...LIVE, pending_actions: { data: CORRECTION_PENDING, error: null }, "rpc:desk_decide_pending": story({ workflow_state: "published", correction_note: NOTE }) };
+    const r = await call(decideCase, data, { outcome: "approved" }, HI_DESK);
+    expect(r.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith("desk_decide_pending", expect.objectContaining({ p_action: "p-2", p_outcome: "approved", p_decider: "u-1" }));
+    expect(actions()).toEqual([
+      ["story.correct_approve", "attempted"],
+      ["story.correct_approve", "succeeded"],
+    ]);
+  });
+
+  test("a correction is decided only by S or F: never by another Sub-editor (A), nor by Legal (R)", async () => {
+    const data = { ...LIVE, pending_actions: { data: CORRECTION_PENDING, error: null } };
+    expect((await call(decideCase, data, { outcome: "approved" }, HI_SUB)).status).toBe(403);
+    const legal = await call(decideCase, data, { outcome: "approved" }, LEGAL);
+    expect(legal.status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("the refusal is the request's own rule: Legal still decides a restore (article.restore, A)", async () => {
+    const r = await call(decideCase, decideCase.data, { outcome: "declined" }, LEGAL);
+    expect(r.status).toBe(200);
+    expect(actions()).toEqual([
+      ["story.restore_decline", "attempted"],
+      ["story.restore_decline", "succeeded"],
+    ]);
+  });
+
+  test("the person who asked cannot decide their own correction", async () => {
+    const own = { ...LIVE, pending_actions: { data: { ...CORRECTION_PENDING, requested_by: "u-1" }, error: null } };
+    const r = await call(decideCase, own, { outcome: "approved" }, HI_DESK);
+    expect(r.status).toBe(403);
+    expect(r.json.code).toBe("four_eyes");
     expect(wrote()).toEqual([]);
   });
 });

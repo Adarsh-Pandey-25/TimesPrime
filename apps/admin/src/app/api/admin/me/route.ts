@@ -30,12 +30,15 @@ export async function GET(request: NextRequest) {
 
   const record = actor.record;
   const now = new Date();
-  const held = (permission: (typeof PERMISSION_KEYS)[number], mode: Mode) =>
-    decide({ staff: record, aal: actor.aal ?? "aal1", permission, mode, target: mode === "act" ? ANY_SCOPE : undefined, now }).allowed;
-  const permissions: Record<string, "act" | "read"> = {};
+  const decision = (permission: (typeof PERMISSION_KEYS)[number], mode: Mode) =>
+    decide({ staff: record, aal: actor.aal ?? "aal1", permission, mode, target: mode === "act" ? ANY_SCOPE : undefined, now });
+  const permissions: Record<string, "act" | "read" | "ask"> = {};
   for (const key of PERMISSION_KEYS) {
-    if (held(key, "act")) permissions[key] = "act";
-    else if (held(key, "read")) permissions[key] = "read";
+    const act = decision(key, "act");
+    if (act.allowed) permissions[key] = "act";
+    else if (decision(key, "read").allowed) permissions[key] = "read";
+    // The matrix's A: they may ask, and a second person decides (Panel 2's restore and correction).
+    else if (act.code === "needs_approval") permissions[key] = "ask";
   }
 
   const client = await createRouteClient();
