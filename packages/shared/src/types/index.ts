@@ -101,7 +101,8 @@ export type AdminAction =
 /**
  * GET /api/admin/me (Panel 0): who is signed in and what they hold, so the admin UI can hide what
  * they lack. UX only: every route checks again on the server. `permissions` maps each permission
- * key held now, in some scope, to "act" or "read" (keys: packages/shared/src/config/permissions.ts).
+ * key held now, in some scope, to "act", "read", or "ask" (the matrix's A: the person may ask, and
+ * a second person decides) (keys: packages/shared/src/config/permissions.ts).
  */
 export type AdminMe =
   | {
@@ -109,7 +110,7 @@ export type AdminMe =
       displayName: string;
       aal: "aal1" | "aal2";
       roles: Array<{ role: string; language: string | null; section: string | null; expiresAt: string }>;
-      permissions: Record<string, "act" | "read">;
+      permissions: Record<string, "act" | "read" | "ask">;
       /** required: this account needs aal2; enrolled: a TOTP factor is set up. */
       mfa: { required: boolean; enrolled: boolean };
     }
@@ -118,7 +119,7 @@ export type AdminMe =
       displayName: string;
       /** When the shared password stops working (ISO). */
       retiresAt: string;
-      permissions: Record<string, "act" | "read">;
+      permissions: Record<string, "act" | "read" | "ask">;
     };
 
 export interface AdminLog {

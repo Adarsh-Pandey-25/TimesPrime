@@ -81,9 +81,11 @@ export default function AdminDashboardPage() {
     };
   }, [router]);
 
-  /** Held now, in some scope: "act" for a change, any value for a read. */
-  const can = (permission: string, mode: "act" | "read" = "read") =>
-    Boolean(me && (mode === "read" ? me.permissions[permission] : me.permissions[permission] === "act"));
+  /** Held now, in some scope: "act" for a change, "act" or "read" for a read ("ask" is neither). */
+  const can = (permission: string, mode: "act" | "read" = "read") => {
+    const held = me?.permissions[permission];
+    return mode === "read" ? held === "act" || held === "read" : held === "act";
+  };
   const needsCode = me?.kind === "staff" && me.aal === "aal1" && me.mfa.required;
   const canStats = can("stats.view") && !needsCode;
 

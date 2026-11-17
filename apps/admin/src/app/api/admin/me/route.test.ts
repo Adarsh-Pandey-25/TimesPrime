@@ -57,7 +57,7 @@ test("no session: 401", async () => {
   expect((await get()).status).toBe(401);
 });
 
-test("staff, aal2: name, live roles, and each permission held now as act or read", async () => {
+test("staff, aal2: name, live roles, and each permission held now as act, read or ask", async () => {
   (readSession as jest.Mock).mockResolvedValue({ kind: "staff", userId: "u-1", aal: "aal2", sessionId: "s-1" });
   const res = await get();
   expect(res.status).toBe(200);
@@ -66,8 +66,8 @@ test("staff, aal2: name, live roles, and each permission held now as act or read
     displayName: "Asha",
     aal: "aal2",
     roles: [{ role: "desk_editor", language: "hi", section: "sports", expiresAt: "2099-01-01T00:00:00Z" }],
-    // A (restore) is not held until its approval flow exists; R is read-only.
-    permissions: { "article.edit": "act", "sync.view": "read" },
+    // R is read-only; A (restore) is "ask": they may ask, and a second person decides.
+    permissions: { "article.edit": "act", "sync.view": "read", "article.restore": "ask" },
     mfa: { required: true, enrolled: true },
   });
 });
