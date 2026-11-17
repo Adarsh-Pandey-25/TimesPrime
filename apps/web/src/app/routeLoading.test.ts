@@ -3,7 +3,8 @@
  *
  * BL-042: a loading.tsx starts streaming, and a response that has started streaming keeps its 200
  * when the page then calls notFound() (gotcha 3.34). So no loading file may sit above the article
- * or section routes: the root's lives in the (feed) route group, with the pages that want it.
+ * or section routes, nor above the Desk stories (Panel 2: [section]/[story] and hi/): the root's
+ * lives in the (feed) route group, with the pages that want it.
  */
 
 import fs from "fs";
@@ -16,7 +17,7 @@ test("the root has no loading file; the (feed) group has it", () => {
   expect(fs.existsSync(path.join(APP, "(feed)", "loading.tsx"))).toBe(true);
 });
 
-test.each(["article", "[section]"])("no loading file anywhere on the %s route's path", (route) => {
+test.each(["article", "[section]", "hi"])("no loading file anywhere on the %s route's path", (route) => {
   const found: string[] = [];
   const walk = (dir: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

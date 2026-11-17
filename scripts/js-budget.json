@@ -9,6 +9,8 @@
     "/grievance/page": 718848,
     "/(feed)/page": 750592,
     "/[section]/page": 745472,
+    "/[section]/[story]/page": 711680,
+    "/hi/[section]/[story]/page": 711680,
     "/privacy/page": 719872,
     "/(feed)/saved/page": 737280,
     "/terms/page": 719872
