@@ -191,7 +191,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 |--:|---|---|---|---|
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
 | 1 | Administration: users, role assignments with scope and expiry, access review | Planned | — | — |
-| 2 | Desk: articles (write, review, approve, publish, unpublish) | Planned | — | — |
+| 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
@@ -1226,3 +1226,310 @@ The revocation takes effect within 60 seconds (the permission cache). For an imm
 sign the user out of all sessions in the dashboard. Rolling back the whole access foundation
 (dropping the tables) is in the migration's own rollback section. It is safe only before go-live:
 once `audit_log` holds real rows, it is never dropped.
+
+## Panel 2 design: the Desk (Publisher)
+
+**Status:** **approved** by the owner on 17 Nov 2026, with the recommended answer to every question
+in §11 (recorded below). Branch `panel-2-desk`. **Started before Panel 1 at the owner's request**
+(17 Nov 2026); `NEWSROOM_PLAN.md` is unchanged.
+
+### Approval: decisions (17 Nov 2026)
+
+The section overrides anything later in this design that disagrees with it.
+1. **Hindi story URLs:** `/hi/{section}/{slug}-{public_id}`, for story pages only. The rest of `/hi/`
+   stays in Phase F.
+2. **Two new permissions,** added to the matrix in M1 and shipped as a catalogue migration:
+   - `author.manage`: Managing Editor F, Desk Editor F;
+   - `media.manage`: Managing Editor F, Desk Editor S.
+3. **Scheduling:** the worker checks for due stories every 5 minutes.
+4. **Dependencies:** `@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit` and the extensions the
+   block list needs, MIT, pinned at 3.32.2, added in M2. The revision diff is our own code.
+5. **Notifications** on unpublish and retract: the Desk's alert list and the audit log; email later.
+6. **Milestones** in the order M1 → M2 → M3 → M4, each shown to the owner before the next.
+
+**Plan:** [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md), Phase E (E1 to E6), and the
+[access rules](#access-rules): the `article.*` rows of the matrix, and "Four-eyes, takedown and MFA
+rules". **Done when** (the plan): two people can write, review, approve, schedule and correct one
+Hindi and one English story end to end; every action is audited; every allowed and denied path is
+tested with the database mocked and, read-only, in the browser; the owner checks the flow against
+the real database with the panel's runbook.
+
+The Desk is where the newsroom's own stories are written, checked, approved, scheduled, published,
+corrected and taken down, in English and Hindi. Its stories live in new tables of their own: the
+aggregator's `articles` table, with its 7-day purge, is not touched.
+
+### 0. What the docs and the code say, and what it changes
+
+- **Next 16, draft mode** (bundled docs: guides/draft-mode.md). `draft.enable()` sets the
+  `__prerender_bypass` cookie, and the entry route must check a secret and redirect only to a path
+  it trusts ("to avoid open redirect vulnerabilities"). Draft mode bypasses caches; it is **not**
+  access control. So a preview also carries a signed, short-lived cookie naming the one story it may
+  show (§6).
+- **Next 16, `revalidateTag`** (functions/revalidateTag.md). It runs in Route Handlers, and a call
+  from another service passes `{ expire: 0 }`. The reader site caches nothing about stories in
+  Panel 2 (§6), so Panel 2 needs no revalidation. Phase F adds caching with tags, as its plan says.
+- **Panel 0's `decide()`** (`packages/server/src/auth/decide.ts`) refuses the matrix codes **Own** and
+  **A** today: "Own needs the item's owner, which Panel 2 adds; A needs a second person, whose approval
+  flow comes with the panel that uses it". Panel 2 adds both (§3).
+- **The shared password** (`legacy:shared-password`) is not a person. It cannot be an author, an
+  editor or an approver, so every Desk route refuses it. Its fixed list (owner decision Q3) still
+  covers today's routes only.
+- **The app talks to Supabase as `service_role`** (Panel 0 approval): `requirePermission` is the only
+  gate on the request path. RLS on the new tables protects direct reads with the anon key: readers
+  may read published stories and nothing else.
+- **Before Panel 1, roles are granted by SQL.** Panel 0's runbook: "Granting editorial roles … in the
+  app is Panel 1". Until then the owner grants the Desk roles with a reviewed SQL snippet (§9).
+  Managing Editor is privileged, so the database asks for two Super Admins.
+- **Tiptap** (research D3; plan decision 1). The editor is Tiptap, MIT licensed, pinned at **3.32.2**
+  (released 30 Oct 2026, more than two weeks old). Stories are stored as Tiptap JSON. The reader
+  renders that JSON to HTML on the server with the same schema, so no editor code reaches readers.
+
+### 1. Milestones
+
+Panel 2 is the plan's largest phase (3 to 5 months, research estimate). It is built in four
+milestones. Each one is its own branch and pull request, green on `npm run verify`, and shown to the
+owner before the next starts.
+
+| Milestone | What it delivers | Rough size |
+|---|---|---|
+| **M1. Stories backend** | The tables (§2), the workflow (§3), the Desk API (§4), the audit (§8), with every permission tested allowed and denied | 2 to 3 weeks |
+| **M2. Desk screens and the editor** | The story list with filters, the story screen with the Tiptap editor (§5), revisions with a diff and a restore, the soft lock, the pre-publish checklist. **Week 1 checkpoint:** Hindi typists test the editor | 4 to 6 weeks |
+| **M3. Preview, publishing and the reader page** | The preview link (§6), the minimal reader story page, scheduling and embargo through the worker, unpublish, retract and correct | 2 to 3 weeks |
+| **M4. Media library and bylines** | Upload, credit, licence, alt text and renditions (§7); author records | 3 to 4 weeks |
+
+The Panel 2 entry in this file, the current status in `docs/OPERATIONS.md` and `docs/ARCHITECTURE.md`
+are updated in each milestone's pull request. The panel is marked Done only after M4, when all 13
+items of the [definition of done](#definition-of-done) hold.
+
+### 2. Data model (M1, and M4 for media)
+
+All of it is SQL in migration files that the owner applies (`database/migrations/`), each with a
+rollback section. The app never runs DDL.
+
+| Table | Key columns | Rules |
+|---|---|---|
+| `sections` | `key` (PK, `^[a-z_]+$`, the same keys as `role_assignments.section`), `label_en`, `label_hi`, `position`, `active` | Seeded with the reader site's eight: `india`, `world`, `tech`, `business`, `sports`, `entertainment`, `health`, `science` (R2). One taxonomy for scope, the desk and the URLs |
+| `stories` | `id` (uuid), `public_id` (bigint identity, for URLs), `language` (`en` or `hi`), `section` (→ `sections`), `format`, `workflow_state`, `translation_group_id`, `slug`, `created_by`, `assigned_to`, `last_edited_by`, `approved_by`, `approved_revision_id`, `published_by`, `current_revision_id`, `published_revision_id`, `scheduled_at`, `embargo_until`, `legal_hold`, `content_label`, `access` (`free`), `breaking`, `post_hoc_review_due`, `correction_note`, `first_published_at`, `published_at`, `created_at`, `updated_at` | `language` uses the scope codes `en` and `hi` directly, unlike `articles` (Panel 0's D5 mapping is not needed). CHECKs keep the state and its pointers consistent, for example `published` needs `published_revision_id` |
+| `story_revisions` | `id`, `story_id`, `body` (Tiptap JSON), `headline`, `dek`, `seo_title`, `seo_description`, `editor_id`, `is_substantive`, `created_at` | **Immutable:** a trigger refuses UPDATE and DELETE, as on `audit_log`. Also the 60-day content record (Rule 19) |
+| `workflow_transitions` | `id`, `story_id`, `from_state`, `to_state`, `action`, `actor_id`, `revision_id`, `reason`, `at` | Append-only (trigger). The four-eyes check reads it |
+| `pending_actions` | `id`, `story_id`, `action` (`restore`, `correction`), `requested_by`, `reason`, `requested_at`, `decided_by`, `decided_at`, `outcome` | The matrix's **A**: one person asks, a different one approves (§3) |
+| `story_locks` | `story_id` (PK), `holder_id`, `heartbeat_at` | Soft lock; it lapses 2 minutes after the last heartbeat. "Take over" is audited |
+| `authors`, `story_authors` | `authors`: `id`, `display_name_en`, `display_name_hi`, `kind` (staff, columnist, freelancer, agency), `staff_user_id`, `bio_en`, `bio_hi`, `beat`, `links`, `active`. `story_authors`: `story_id`, `author_id`, `role` (byline, additional reporting, translated by), `position` | Authors are not staff accounts. A translated story credits its translator (research D5) |
+| `tags`, `story_tags` | `tags`: `id`, `language`, `slug`, `label` | Per language |
+| `media_assets`, `asset_usages` (M4) | `credit`, `source` (staff, agency, stock, handout, social), `licence`, `licence_expires_at`, `cleared_by`, `alt_en`, `alt_hi`, `caption_en`, `caption_hi`, `storage_key`, `renditions` | Publishing is refused while a used image lacks credit, alt text or rights |
+
+- **Formats:** news, opinion, explainer, analysis, interview, live blog, gallery, video, fact-check
+  and sponsored are allowed by the CHECK. The API refuses `sponsored` (Panel 9, with
+  `sponsored.approve`) and `live blog` (Panel 3).
+- **Grants and RLS:** `service_role` has what the app needs, and no grant to UPDATE or DELETE
+  revisions, transitions or the audit log. `anon` and `authenticated` may SELECT a story only while it
+  is `published` and its embargo has passed, and a revision only when it is that story's
+  `published_revision_id`.
+- **Retention:** stories and revisions are never purged by the aggregator's 7-day job (another
+  table). Deleting a story is not offered; `killed` and `retracted` keep the record.
+
+### 3. Workflow
+
+States, from the plan: `pitch → assigned → draft → in_review → desk_review → approved → scheduled →
+published`. After publication a story can become `unpublished` or `retracted`, and abandoned work is
+`killed`. "Updated" is an event, not a state.
+
+| Action | From → to | Permission (matrix) | Extra rules |
+|---|---|---|---|
+| Create | → `pitch` or `draft` | `article.create`: Writer **Own**, Sub-editor and Desk Editor **S**, Managing Editor **F** | The creator is `created_by`. Target scope is the new story's language and section |
+| Assign | `pitch` → `assigned` | `article.edit` (S or F) | Names the writer |
+| Save (a new revision) | `pitch` to `approved` (stays, except that `approved` goes back to `desk_review`) | `article.edit`: Writer **Own** (only stories they created), others S or F | Needs the soft lock. Saving after approval voids the approval |
+| Submit | `draft` → `in_review`; `in_review` → `desk_review` | `article.submit` (Own, S or F) | Writer submits to the sub-editors; a Sub-editor passes it to the desk |
+| Send back | `in_review` or `desk_review` → `draft` | The permission that moves the story on from where it is (`article.submit` from `in_review`, `article.approve` from `desk_review`) | A reason is required |
+| Approve | `desk_review` → `approved` | `article.approve`: Desk Editor S, Managing Editor F | **Four-eyes:** the approver is neither `created_by` nor the editor of the revision being approved, nor anyone who saved it since its last approval (from `workflow_transitions`). The **pre-publish checklist** must pass. Approval binds to one revision (`approved_revision_id`) |
+| Schedule | `approved` → `scheduled` | `article.publish`: Sub-editor and Desk Editor S, Managing Editor F | `scheduled_at` in the future; the worker publishes it (§6) |
+| Publish | `approved` or `scheduled` → `published` | `article.publish` | Only the approved revision goes live. **Publish Guard:** the button exists only in `approved`, and the server refuses any other state. Refused before `embargo_until` |
+| Publish direct (breaking) | `draft` to `desk_review` → `published` | `article.publish_direct`: Desk Editor S, Managing Editor F | Sets `breaking` and `post_hoc_review_due`. A different editor must then approve the live revision; the list shows these stories until that happens |
+| Update a live story | `published` (stays) | `article.edit` to save, `article.approve` to approve the new revision, `article.publish` to put it live | The live revision stays until the new one is approved (four-eyes and the checklist, as for Approve) and published. A substantive update can carry a public **correction note** (`correction.publish`: Desk Editor S, Managing Editor F, Sub-editor **A**) |
+| Unpublish or retract | `published` → `unpublished` or `retracted` | `article.unpublish`: Desk Editor S, Managing Editor F, Legal F, Super Admin break-glass | **Single actor**, for speed. Reason code required (legal, error, duplicate, other) plus a note. MFA. The Managing Editor and Legal are notified (§8) |
+| Restore | `unpublished` → `published` | `article.restore`: **A** for Managing Editor, Desk Editor and Legal | **Two people:** one asks with a reason, a different one approves (`pending_actions`). Nobody holds F, so it is always two |
+| Kill | any state before `published` → `killed` | `article.edit` (Writer Own) | Reason required |
+
+- **Own and A in `decide()`.** A target gains `ownerId`. **Own** allows the action when
+  `ownerId` is the actor; it is never enough for another person's story. **A** still answers
+  `needs_approval`. The two A routes turn that into a request in `pending_actions`, and a second
+  holder of A or F, who is not the requester, approves it.
+- **MFA.** Every staff member signs in with a second factor (Panel 0, Q1). Desk Editor, Managing
+  Editor and Legal also require it by role. Every Desk write needs `aal2`.
+- **Pre-publish checklist** (blocks Approve; config values, tested):
+  - a headline of at most 110 characters;
+  - a dek;
+  - an SEO title of at most 65 characters;
+  - a slug (a Hindi story's is typed in Latin letters);
+  - alt text, credit and cleared rights for every image (M4);
+  - the other language's version, when the story is in a translation group;
+  - the legal-review flag cleared.
+- **Revisions:** a diff between any two (headline, dek and the body's text, word by word), and a
+  restore that copies an old revision into a new one. Nothing is ever overwritten.
+
+### 4. API and screens
+
+All under the back office's existing gate: `apps/admin/src/proxy.ts`, then `requirePermission` in
+every route body. Every route is listed in `ADMIN_ROUTE_RULES`
+(`packages/server/src/auth/adminRoutePolicy.ts`), and the route walk test covers each one.
+
+**Routes** (`/api/admin/desk/…`), one per action so each rule stays static:
+- `stories`: GET (the list, filtered to the caller's scopes) and POST (create);
+- `stories/[id]`: GET;
+- `stories/[id]/revisions`: GET and POST (save);
+- `stories/[id]/revisions/[revisionId]`: GET;
+- `stories/[id]/lock`: POST (take or renew), DELETE (release), and `take-over`;
+- one route each for `assign`, `submit`, `send-back`, `approve`, `schedule`, `publish`,
+  `publish-direct`, `unpublish`, `retract`, `kill`, `correct`, `restore`, and the A approval
+  `pending/[actionId]/approve`;
+- `stories/[id]/preview`: POST, returning a preview link (M3);
+- `authors` and `media` (M4).
+
+**Screens** (`apps/admin/src/app/admin/desk/…`), each with loading, error and empty states, and
+checked for keyboard use and labels:
+- `/admin/desk`: the list, with filters for language, section, state and author, plus "needs
+  post-hoc review" and "waiting for a second approver";
+- `/admin/desk/new`;
+- `/admin/desk/[id]`: the editor, the checklist, the state's buttons (only those the caller may
+  use, but the server decides), revisions and the diff, the transitions history.
+
+A person without the permission gets **403** with the Panel 0 message, and the screen shows it.
+A shared-password session gets 403: "Sign in with your own account to use the Desk."
+
+### 5. The editor (M2)
+
+- **Blocks:** paragraph, heading, list, link, image (from the media library, M4), gallery, embed
+  (YouTube, X, Instagram), quote, factbox, related link, ad-slot placeholder.
+- **Embeds on the reader site load nothing from the outside until the reader clicks.** YouTube then
+  uses `youtube-nocookie.com`. No third-party script arrives with the page (privacy and the CSP).
+- **The code lives in a new workspace package, `packages/editor`** (the plan): the schema, which both
+  the editor and the reader's renderer use, and the editor component, which only the back office
+  imports.
+- **Checkpoint, week 1 of M2:** Hindi typists test the editor with InScript and phonetic keyboards.
+  If Devanagari input fails and cannot be fixed, the work stops and the owner hears at once. The
+  fallback is Quintype (research D3).
+- **Checkpoint, about month 3:** if a usable Hindi and English editor with revisions is not working,
+  the owner prices Quintype (the plan).
+
+### 6. Preview, publishing and the reader page (M3)
+
+- **The reader's story page** is the minimum Panel 2 needs to preview and publish. It follows the
+  plan's URL scheme: **`/{section}/{slug}-{public_id}`** for English, under R2's `[section]` route,
+  and **`/hi/{section}/{slug}-{public_id}`** for Hindi (owner question 1). It shows the published
+  revision only: headline, dek, bylines, time, body, the correction note if any, and the story's
+  `lang` on its `<article>`. An unknown, unpublished or embargoed story is a 404. Phase F adds the
+  rest: NewsArticle markup, the news sitemaps, IndexNow, author and tag pages, and caching.
+- **No caching in Panel 2.** The page reads the database on each request, with no Next cache and
+  `no-store` at CloudFront, like the home page. Publishing and taking down are therefore seen at once.
+- **Preview:**
+  1. The Desk's preview button asks the back office for a link: an HMAC-signed token (secret
+     `PREVIEW_SECRET`, in both apps' server env) naming the story, valid for 15 minutes.
+  2. The reader's `GET /api/preview?token=…` checks it, calls `draft.enable()`, sets an HttpOnly
+     cookie naming that one story, and redirects to the story's own path, worked out on the server
+     (never from the query).
+  3. The page shows the latest revision only when draft mode is on **and** that cookie names this
+     story, with a "Preview, not published" bar and `noindex`.
+  4. `POST /api/preview/exit` ends it.
+- **Scheduling and embargo:** a new worker job, `publish-scheduled`, publishes due stories. Its
+  actor in the audit log is `system:scheduler`, on behalf of the editor who scheduled.
+  - A new systemd timer in `deploy/` runs it every **5 minutes** (owner question 3).
+  - `embargo_until` is enforced in the backend: Publish, Publish direct and the job all refuse
+    before it.
+- **The old editorial endpoint** `POST /api/admin/publish-article`, which wrote into `articles`
+  (BL-004), is removed once M3 is live, in its own commit.
+
+### 7. Media library and bylines (M4)
+
+- **Storage:**
+  - Images go to an **S3 bucket in Mumbai** (the plan), behind one storage interface.
+  - The server's role gets put and get on that bucket.
+  - CloudFront serves the files under `/media/*`.
+  - This is the manager's console work, listed in §9.
+- **Renditions:** the worker makes the fixed renditions (16:9, 4:3 and 1:1, in AVIF and WebP) with
+  `sharp`, already in the tree through Next.
+- **Required fields:** credit, source, licence, rights cleared by, and alt text and caption in each
+  language the story uses. Publishing refuses a story whose images lack them.
+- **Authors:** records with photo, bio, beat and links. Agency bylines (PTI, ANI and others) wait for
+  a wire licence (Phase K).
+
+### 8. Audit and notifications
+
+- **Every Desk write** writes `audit_log` first ("attempted, then outcome", Panel 0 Q2), and is
+  refused with 503 if it cannot.
+- **Action names:** `story.create`, `story.save`, `story.assign`, `story.submit`,
+  `story.send_back`, `story.approve`, `story.schedule`, `story.publish`, `story.publish_direct`,
+  `story.unpublish`, `story.retract`, `story.kill`, `story.correct`, `story.restore_request`,
+  `story.restore_approve`, `story.lock_take_over`, `story.preview_link`, and `author.*` and
+  `media.*` in M4.
+- **What each row holds:** the story's language and section, the state and revision before and
+  after, and the reason where one is required.
+- **Unpublish and retract notify** the Managing Editor and Legal through an alert list on the Desk,
+  and the audit log. Email waits for an email service (owner question 5).
+- **Failures reach Sentry** through the existing reporters.
+
+### 9. Owner actions
+
+1. **Panel 0's SQL and Part B** of the [staff-access runbook](OPERATIONS.md#staff-access-switching-on-panel-0-and-getting-back-in).
+   Without staff accounts nobody can use the Desk. It is already a go-live gate.
+2. **Apply the Desk migrations** (M1: stories; M4: media) and run their check queries.
+3. **Grant the first Desk roles by SQL** until Panel 1: a Managing Editor (two Super Admins), a
+   Desk Editor, a Sub-editor and a Writer, from a snippet in the runbook (M1).
+4. **Arrange two Hindi typists** for the editor checkpoint in week 1 of M2.
+5. **Set `PREVIEW_SECRET`** in the web and admin env files (M3).
+6. **M4: the media bucket,** its IAM permissions and the CloudFront `/media/*` behaviour (manager).
+7. **Approve the new dependencies** (question 4) and the access-rule additions (question 2).
+
+### 10. Tests
+
+- **Every route:**
+  - allowed;
+  - denied with no assignment, an expired one, the wrong scope, missing MFA, and a shared-password
+    session;
+  - Own allowed on the writer's own story and refused on another's.
+- **Workflow:**
+  - every transition from the table, allowed and refused from every other state;
+  - four-eyes: the author, the last editor and anyone who saved since the approval are refused;
+  - Publish Guard;
+  - embargo;
+  - A: the requester cannot approve their own request;
+  - approval voided by a later save.
+- **Database rules** (immutable revisions, append-only transitions, RLS) are in the migration's
+  check queries, run by the owner (definition of done, item 7).
+- **Preview:** a forged, expired or other-story token is refused; the draft cookie alone shows no
+  draft.
+- **Reader page:** published only; unpublished and embargoed answer 404.
+- **Browser tests, read-only:**
+  - the Desk list loads;
+  - a shared-password session is refused (the refused-access flow);
+  - the reader renders a published story from the Supabase stand-in.
+- **JS budgets** for every new route.
+
+### 11. Questions for the owner
+
+1. **Hindi story URLs:** `/hi/{section}/{slug}-{id}` now, for story pages only (the plan's scheme;
+   the rest of `/hi/` stays in Phase F)? **Recommended.** Or no `/hi/` prefix until Phase F?
+2. **Two new permissions** (an access-rule change). The matrix has none for authors or media:
+   - `author.manage`: Managing Editor F, Desk Editor F;
+   - `media.manage` (credit, licence, retiring an image): Managing Editor F, Desk Editor S.
+
+   Uploading an image to a story rides on `article.edit`. **Recommended.**
+3. **Scheduling:** check every **5 minutes** (recommended) or every minute? Every minute starts a
+   container 1,440 times a day on the one server.
+4. **New dependencies:** `@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit` and the extensions
+   the block list needs, all MIT and pinned at 3.32.2. The revision diff is our own code, so no
+   other package is needed. **Recommended.**
+5. **Notifications** on unpublish and retract: on the Desk and in the audit log now, email when an
+   email service exists? **Recommended.**
+6. **Milestones:** build in the order M1 → M2 → M3 → M4, showing each to the owner before the next?
+   **Recommended.**
+
+### 12. Not in Panel 2
+
+- **Phase F** (reader site): NewsArticle markup, news sitemaps, IndexNow, author and tag pages,
+  caching with tags, `/hi/` for the rest of the site.
+- **Panel 3:** stories on the home page and the section pages, pinned slots, live blogs.
+- **Panel 7:** the public corrections page and the grievance queue. Panel 2 stores the correction
+  note on the story.
+- **Panel 9:** sponsored stories. **Phase K:** agency copy and bylines.
+- **Bulk actions** (`article.bulk_action`) on stories, until the Desk needs them.
+- **AI help** in the editor.
