@@ -9,7 +9,6 @@ import { registerClientErrorReporter } from "@timesprime/shared/lib/clientErrorR
 import ErrorPage from "./error";
 import GlobalError from "./global-error";
 import NotFound, { metadata } from "./not-found";
-import { LanguageProvider } from "@/context/LanguageContext";
 
 test("error.tsx reports the error once, shows its digest, and retries on click", async () => {
   const error = Object.assign(new Error("boom"), { digest: "d-42" });
@@ -18,25 +17,17 @@ test("error.tsx reports the error once, shows its digest, and retries on click",
   const report = jest.fn();
   registerClientErrorReporter(report);
   await act(async () => {
-    render(
-      <LanguageProvider>
-        <ErrorPage error={error} retry={retry} />
-      </LanguageProvider>
-    );
+    render(<ErrorPage error={error} retry={retry} />);
   });
   expect(report).toHaveBeenCalledWith(error);
   expect(screen.getByText("Reference: d-42")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  fireEvent.click(screen.getByRole("button", { name: /Try again/ }));
   expect(retry).toHaveBeenCalledTimes(1);
 });
 
 test("a thrown value that is not an Error has no digest to show", async () => {
   await act(async () => {
-    render(
-      <LanguageProvider>
-        <ErrorPage error="a string" retry={() => {}} />
-      </LanguageProvider>
-    );
+    render(<ErrorPage error="a string" retry={() => {}} />);
   });
   expect(screen.queryByText(/Reference/)).not.toBeInTheDocument();
 });
@@ -50,10 +41,10 @@ test("global-error.tsx is a whole document, in both languages, with a retry", ()
   expect(html).toContain("Try again / फिर से कोशिश करें");
 });
 
-test("not-found.tsx: its title, and the not-found message", async () => {
+test("not-found.tsx: its title, and the not-found message, rendered on the server (BL-039)", () => {
   expect(metadata.title).toBe("Page not found");
-  await act(async () => {
-    render(<LanguageProvider>{NotFound()}</LanguageProvider>);
-  });
-  expect(screen.getByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+  // No provider: the page needs no client context, so it renders to plain HTML.
+  const html = renderToStaticMarkup(NotFound());
+  expect(html).toContain('<span lang="en" class="tp-lang-en">Page not found</span>');
+  expect(html).toContain('<span lang="hi" class="tp-lang-hi">पेज नहीं मिला</span>');
 });

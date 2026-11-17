@@ -2,7 +2,12 @@
 
 import { useEffect } from "react";
 import { reportClientError } from "@timesprime/shared/lib/clientErrorReport";
-import ErrorMessage from "@/components/errors/ErrorMessage";
+import ErrorMessage, { type Message } from "@/components/errors/ErrorMessage";
+
+const MESSAGE: Message = {
+  en: { title: "Something went wrong", body: "This page could not be loaded. Please try again." },
+  hi: { title: "कुछ गड़बड़ हो गई", body: "यह पेज लोड नहीं हो सका। कृपया फिर से कोशिश करें।" },
+};
 
 // An error while rendering a page, inside the root layout (R1-07; bundled docs:
 // file-conventions/error.md). A boundary catches the error, so nothing reports it unless this
@@ -14,5 +19,5 @@ export default function RouteError({ error, retry }: { error: unknown; retry: ()
     reportClientError(error);
   }, [error]);
   const digest = error instanceof Error ? (error as Error & { digest?: string }).digest : undefined;
-  return <ErrorMessage kind="error" onRetry={retry} digest={digest} />;
+  return <ErrorMessage message={MESSAGE} onRetry={retry} digest={digest} />;
 }
