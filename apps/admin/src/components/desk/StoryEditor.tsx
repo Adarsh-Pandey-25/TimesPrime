@@ -8,10 +8,11 @@ import { wordCount } from "@timesprime/editor/text";
 import { checklist, move, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
 import { storySlug } from "@timesprime/shared/lib/storyUrl";
 import { canAct, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
+import RevisionsPanel, { type FullRevision } from "./RevisionsPanel";
 
 // The story screen (Panel 2 design §4 and §5): the editor, the story's details, the pre-publish
-// checklist, the moves its state allows, its open two-person requests and its history. The server
-// decides every request; this screen only shows what the signed-in person might do.
+// checklist, the moves its state allows, its open two-person requests, its revisions and its
+// history. The server decides every request; this screen only shows what the person might do.
 
 interface Story {
   id: string;
@@ -249,6 +250,19 @@ export default function StoryEditor({ id }: { id: string }) {
     }
   }
 
+  /** An old revision back in the editor, unsaved: Save adds it as a new revision (design §3). */
+  function bringBack(revision: FullRevision, number: number): boolean {
+    if (dirty && !window.confirm(`You have unsaved changes. Replace them with revision ${number}?`)) return false;
+    setHeadline(revision.headline);
+    setDek(revision.dek ?? "");
+    setSeoTitle(revision.seo_title ?? "");
+    setSeoDescription(revision.seo_description ?? "");
+    editor?.commands.setContent((revision.body as object | null) ?? EMPTY_DOC);
+    setDirty(true);
+    setMessage(null);
+    return true;
+  }
+
   async function saveDetails() {
     if (!story) return;
     setBusy(true);
@@ -355,6 +369,15 @@ export default function StoryEditor({ id }: { id: string }) {
           <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={substantive} onChange={(e) => setSubstantive(e.target.checked)} /> A substantive change</label>
         </div>
         {message && <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>{message.text}</p>}
+
+        <RevisionsPanel
+          storyId={story.id}
+          currentRevisionId={story.current_revision_id}
+          publishedRevisionId={story.published_revision_id}
+          language={story.language}
+          canBringBack={editable}
+          onBringBack={bringBack}
+        />
       </div>
 
       <aside className="space-y-5" aria-label="The story's workflow">
