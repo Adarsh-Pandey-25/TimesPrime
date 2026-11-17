@@ -12,12 +12,12 @@
   /* The brand colours (packages/shared/src/config/brand.ts). */
   --color-brand: #E7000B;
   --color-brand-dark: #C10007;
-  --font-sans: var(--font-serif), "PT Serif", Georgia, Cambria, serif;
-  --font-serif: var(--font-serif), "PT Serif", Georgia, Cambria, serif;
+  --font-sans: var(--font-serif), "PT Serif", var(--font-devanagari), Georgia, Cambria, serif;
+  --font-serif: var(--font-serif), "PT Serif", var(--font-devanagari), Georgia, Cambria, serif;
 }
 
 body {
-  font-family: var(--font-serif), "PT Serif", Georgia, serif;
+  font-family: var(--font-serif), "PT Serif", var(--font-devanagari), Georgia, serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "kern" 1, "liga" 1, "calt" 1;

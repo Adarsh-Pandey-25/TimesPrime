@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { PT_Serif } from "next/font/google";
+import { Noto_Serif_Devanagari, PT_Serif } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@timesprime/ui/ThemeContext";
 import { THEME_INIT_SCRIPT } from "@timesprime/shared/config/theme";
@@ -10,6 +10,17 @@ const ptSerif = PT_Serif({
   subsets: ["latin"],
   variable: "--font-serif",
   display: "swap",
+});
+
+// The reader site's Devanagari face, so Hindi on the Desk (the editor, the list, the preview) looks
+// as it will on the site. It only draws Devanagari, after PT Serif in the font stack (globals.css),
+// and is not preloaded: a screen with no Hindi never downloads it.
+const notoSerifDevanagari = Noto_Serif_Devanagari({
+  weight: "variable",
+  subsets: ["devanagari"],
+  variable: "--font-devanagari",
+  display: "swap",
+  preload: false,
 });
 
 export const viewport: Viewport = {
@@ -37,7 +48,7 @@ export default function AdminRootLayout({
   return (
     <html
       lang="en"
-      className={`${ptSerif.variable} h-full antialiased`}
+      className={`${ptSerif.variable} ${notoSerifDevanagari.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
