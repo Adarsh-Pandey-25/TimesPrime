@@ -32,7 +32,8 @@ any code, and heed deprecation notices. (`next dev` no longer writes this into a
 
 - `apps/web` is the reader site, `apps/admin` the back office (every panel lives here), and
   `apps/worker` the scheduled jobs. `packages/server` holds the server-only code, `packages/shared`
-  the client-safe config, types and helpers, and `packages/ui` the React both apps share. They are
+  the client-safe config, types and helpers, `packages/ui` the React both apps share, and
+  `packages/editor` the story schema (Tiptap) the Desk writes with and the reader renders. They are
   npm workspaces, and all dependencies are declared in the root `package.json`.
 - From the root:
   - `npm run dev` starts the reader site on port 3000.

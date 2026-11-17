@@ -196,6 +196,7 @@ that breaks one, naming why.
 | A scheduled job | A function in `packages/server/src/services/...`, registered by name in `apps/worker/src/jobs.ts` | `refreshNews` and the `refresh-news` job |
 | A reader component | `apps/web/src/components/<area>/<Name>.tsx`, imported from its own file (no `index.ts` barrels) | `apps/web/src/components/news/ArticleCard.tsx` |
 | React both apps use | `packages/ui/src/<Name>.tsx`, exported as `@timesprime/ui/<Name>` | `packages/ui/src/ThemeContext.tsx` |
+| A story block (Panel 2) | `packages/editor/src/schema.ts`, in `storyExtensions()`, with a test that it renders nothing unsafe | `Embed` in `schema.ts` |
 | Server logic, e.g. a digest | `packages/server/src/services/digest/`, each file opening with `import "server-only";` | `packages/server/src/services/news/topHeadlines.ts` |
 | A database query | `packages/server/src/repositories/` (`db.ts` holds the article queries), using `supabase` from `packages/server/src/lib/supabase.ts` | `getDBStats` in `db.ts` |
 | A schema change | A migration in `database/migrations/` with its rollback, which the owner applies by hand | `database/migrations/2026-11-02-indexes.sql` |

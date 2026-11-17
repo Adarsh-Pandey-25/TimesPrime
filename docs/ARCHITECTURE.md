@@ -172,6 +172,7 @@ packages/
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase, …
   shared/                  @timesprime/shared: client-safe config, types and lib (urlValidation, sentryScrub)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext)
+  editor/                  @timesprime/editor: the story schema (Tiptap extensions), plain text, the revision diff
 database/                  schema.sql, policies.sql, migrations/, bootstrap/, seed/: applied by hand
 scripts/                   generate-access-catalog.mjs: the permission catalogue SQL from docs/PANEL_DOCS.md
 docs/
@@ -196,9 +197,9 @@ relative path to the same file are the same import.
 
 | Rule | Why |
 |---|---|
-| Client-safe code (each app's `components`, `context`, `lib`; `packages/shared`; `packages/ui`) never imports `packages/server` | A client bundle that reaches server code ships it to every reader. Server data reaches the UI as props from a page, or through a route handler |
+| Client-safe code (each app's `components`, `context`, `lib`; `packages/shared`; `packages/ui`; `packages/editor`) never imports `packages/server` | A client bundle that reaches server code ships it to every reader. Server data reaches the UI as props from a page, or through a route handler |
 | Every `packages/server` module starts with `import "server-only"` (`boundaries/server-only-first`) | Turns any client import of server code, direct or through another module, into a `next build` error. This is the check lint alone cannot do: it catches the transitive case |
-| Packages never import an app; `packages/server` and `packages/shared` import no React UI (`packages/ui`) | Both apps depend on the packages, so the packages depend on neither |
+| Packages never import an app; `packages/server` and `packages/shared` import no React UI (`packages/ui`, `packages/editor`) | Both apps depend on the packages, so the packages depend on neither |
 | No app imports another app (web, admin, worker) | What two apps need belongs in a package |
 | Components never import an app's `src/app` | A page imports its components, not the other way round |
 | `packages/shared/src/config/imageDomains.ts` imports nothing | `apps/web/next.config.ts` evaluates it at config-load time (CR-06) |
@@ -224,6 +225,7 @@ Node with the `react-server` condition, under which the package resolves to its 
 | `packages/server/src/lib` | Domain-free infrastructure: no `Article`, no category, no UI string | Import a product module |
 | `packages/shared` | Static data, editorial rules, types and helpers that run in every runtime | Import React, `server-only` or either side's code |
 | `packages/ui` | React shared by the apps (providers, later primitives) | Import `packages/server` |
+| `packages/editor` | The story schema (Panel 2): the Tiptap extensions both the Desk's editor and the reader's renderer use, plain text and the revision diff | Import `packages/server`; change the schema without a migration plan for stored bodies |
 | `database/` | The schema, the RLS policies, the migrations, the bootstrap and seed scripts, applied by hand | Be imported by code |
 
 ## Decisions
