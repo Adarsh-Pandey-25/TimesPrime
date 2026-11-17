@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* The Desk story's text, shared with the other app (Panel 2). */
+@import "../../../../packages/ui/src/story.css";
 
 /* Automatic detection scans this app's folder, the build's working directory. The shared
    packages hold class names too, so they are added here. Paths resolve from this
