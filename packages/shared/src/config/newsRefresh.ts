@@ -8,14 +8,16 @@
  * - The feed's freshness window: NEWS_FRESHNESS_WINDOW_MS in packages/server/src/repositories/db.ts.
  * - The back office's "next sync" estimate (apps/admin/src/components/SyncDashboard.tsx).
  *
- * 60 minutes is the owner's senior's figure (16 Nov 2026). Each run makes one NewsData call per
- * feed category in English and in Hindi, 14 (refreshNews.ts), so the job's calls a day are 14 times
- * NEWS_REFRESH_RUNS_PER_DAY = 336, 50% of the NewsData Basic plan (20,000 a month, about 666 a day);
- * refreshNews.test.ts pins the number. The ceiling is 70% of the plan (owner decision 7 of R0 v2).
- * A shorter interval needs the batched calls (R12-05) first. An admin setting may later override it
- * from the database, never below the timer's tick (design in docs/OPERATIONS.md).
+ * 120 minutes while the site runs on NewsData's free plan (the owner, 17 Nov 2026). Each run makes
+ * one NewsData call per feed category in English and in Hindi, 14 (refreshNews.ts), so the job's
+ * calls a day are 14 times NEWS_REFRESH_RUNS_PER_DAY = 168, under the free plan's 200, with room for
+ * four of the back office's "Sync now" (7 calls each); refreshNews.test.ts pins the number. Once
+ * the Basic plan is bought it goes back to 60 minutes, the owner's senior's figure (16 Nov 2026):
+ * 336 a day, 50% of Basic (20,000 a month, about 666 a day), whose ceiling is 70% (owner decision 7
+ * of R0 v2). A shorter interval needs the batched calls (R12-05) first. An admin setting may later
+ * override it from the database, never below the timer's tick (design in docs/OPERATIONS.md).
  */
-export const NEWS_REFRESH_INTERVAL_MINUTES = 60;
+export const NEWS_REFRESH_INTERVAL_MINUTES = 120;
 
 /** How often the server's timer starts the worker: also the shortest interval there can be. */
 export const NEWS_REFRESH_TICK_MINUTES = 15;
@@ -38,6 +40,12 @@ export function isRefreshDue(
   if (lastStartedAt === null || !Number.isFinite(lastStartedAt) || lastStartedAt > now) return true;
   return now - lastStartedAt >= (intervalMinutes - NEWS_REFRESH_GRACE_MINUTES) * 60_000;
 }
+
+/** NewsData's free plan, in calls a day: "200 API credits per day" (newsdata.io/pricing, 17 Nov 2026). */
+export const NEWSDATA_FREE_PLAN_DAILY_CALLS = 200;
+
+/** The NewsData calls of one "Sync now" in the back office: one per category, in English (seed-supabase). */
+export const ADMIN_SYNC_CALLS = 7;
 
 /** The NewsData Basic plan, in calls a day: 20,000 a month, about 666 a day. */
 export const NEWSDATA_PLAN_DAILY_CALLS = 666;

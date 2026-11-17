@@ -276,18 +276,31 @@ answers before CloudFront points at it.
       | `/api/*` | CachingDisabled | AllViewerExceptHostHeader |
       | default (`*`) | UseOriginCacheControlHeaders-QueryStrings | AllViewerExceptHostHeader |
 
-    - **CloudFront Function** `www-to-apex`, on viewer request for every behaviour:
+    - **CloudFront Function** `www-to-apex`, on viewer request for every behaviour. It keeps the
+      query string (`?search=`), building it as AWS's own example does
+      (aws-samples/amazon-cloudfront-functions, normalize-query-string-parameters):
 
       ```js
       function handler(event) {
-        var host = event.request.headers.host.value;
-        if (host.indexOf('www.') === 0) {
-          return { statusCode: 301, statusDescription: 'Moved Permanently',
-            headers: { location: { value: 'https://' + host.slice(4) + event.request.uri } } };
+        var request = event.request;
+        var host = request.headers.host.value;
+        if (host.indexOf('www.') !== 0) return request;
+        var parts = [];
+        for (var key in request.querystring) {
+          var entry = request.querystring[key];
+          var values = entry.multiValue || [entry];
+          for (var i = 0; i < values.length; i++) parts.push(key + '=' + values[i].value);
         }
-        return event.request;
+        var location = 'https://' + host.slice(4) + request.uri + (parts.length ? '?' + parts.join('&') : '');
+        return { statusCode: 301, statusDescription: 'Moved Permanently',
+          headers: { location: { value: location } } };
       }
       ```
+
+      **Before publishing,** use the function's **Test** tab with a viewer request to
+      `www.timesprime247.com`, URI `/` and query string `search=new%20delhi`. The location
+      should be `https://timesprime247.com/?search=new%20delhi`. Then test URI `/about` with no
+      query string; the location should be `https://timesprime247.com/about`.
 
     - **Standard logging (v2)** to `timesprime-logs-<suffix>`.
 
@@ -374,11 +387,18 @@ days.
 
 ### The news refresh: interval, calls and the admin setting
 
-- **Today: English and Hindi every 60 minutes.** 7 categories each, so 14 NewsData calls a run and
-  **336 a day**. That is 50% of the NewsData Basic plan (20,000 calls a month, about 666 a day).
-  - The ceiling is **70%** (owner decision 7 of R0 v2).
+- **Today: English and Hindi every 120 minutes, on NewsData's free plan** (the owner, 17 Nov 2026).
+  7 categories each, so 14 NewsData calls a run and **168 a day**, under the free plan's 200 a day
+  ("200 API credits per day", newsdata.io/pricing).
+  - **The back office's "Sync now" makes 7 calls**, so at most **4 syncs a day** fit. A fifth, or a
+    run of the dry run (18 calls), takes the day past 200, and the next refreshes fail until
+    NewsData's daily reset.
+  - **Once the Basic plan is bought,** the interval goes back to **60 minutes**, the senior's figure:
+    336 a day, 50% of Basic (20,000 a month, about 666 a day), under its **70%** ceiling (owner
+    decision 7 of R0 v2). That is a one-line change and a deploy.
   - The value is `NEWS_REFRESH_INTERVAL_MINUTES` in
-    `packages/shared/src/config/newsRefresh.ts`; `refreshNews.test.ts` pins the arithmetic.
+    `packages/shared/src/config/newsRefresh.ts`; `refreshNews.test.ts` and `newsRefresh.test.ts`
+    pin the arithmetic.
 - **The timer** fires every 15 minutes. The job runs only when the interval (less 2 minutes' grace)
   has passed since the last run started, and otherwise logs a skip.
 - **Every 15 minutes needs option (c) first** (R12-05, built, off by default): several categories
@@ -511,7 +531,9 @@ The site is public only when **all** of these hold:
    - no scraped full text, no Google Translate, no stock or publisher photos, no mock articles;
    - outside-story pages carry noindex;
    - the AI chat is off.
-5. **The NewsData Basic plan is bought.** If the refresh moves to option (c), the R12-05 dry run
+5. **The NewsData Basic plan is bought.** Until then the refresh runs every 120 minutes on the free
+   plan ([the news refresh](#the-news-refresh-interval-calls-and-the-admin-setting)); once it is
+   bought, the interval goes back to 60. If the refresh moves to option (c), the R12-05 dry run
    (`refresh-news-dry-run`) has been done first.
 6. **The grievance and contact pages show the real officer and address** (R3): Adarsh Pandey,
    `adarsh@timesprime247.com`, 704A-704B, Iris Tech Park, Sector 48, Gurgaon 122018. He is also

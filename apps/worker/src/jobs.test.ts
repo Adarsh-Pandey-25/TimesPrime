@@ -11,6 +11,7 @@ jest.mock("@timesprime/server/services/news/refreshDryRun", () => ({ dryRunRefre
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { NEWS_REFRESH_INTERVAL_MINUTES } from "@timesprime/shared/config/newsRefresh";
 import { JOBS, runJob } from "./jobs";
 
 const { refreshNews } = jest.requireMock("@timesprime/server/services/news/refreshNews") as { refreshNews: jest.Mock };
@@ -69,11 +70,14 @@ describe("refresh-news on the 15-minute timer", () => {
     expect(refreshNews).toHaveBeenCalledTimes(1);
   });
 
-  test("the tick an hour later runs again", async () => {
+  test("the tick an interval later runs again, and the one before it does not", async () => {
     jest.useFakeTimers({ now: t0 });
     refreshNews.mockResolvedValue(result(0));
     await runJob("refresh-news");
-    jest.setSystemTime(t0 + 60 * 60_000);
+    jest.setSystemTime(t0 + (NEWS_REFRESH_INTERVAL_MINUTES - 15) * 60_000);
+    await runJob("refresh-news");
+    expect(refreshNews).toHaveBeenCalledTimes(1);
+    jest.setSystemTime(t0 + NEWS_REFRESH_INTERVAL_MINUTES * 60_000);
     await runJob("refresh-news");
     expect(refreshNews).toHaveBeenCalledTimes(2);
   });
