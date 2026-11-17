@@ -29,7 +29,7 @@ export const ROLE_KEYS = [
 
 export type RoleKey = (typeof ROLE_KEYS)[number];
 
-/** The matrix's 31 rows, one key per verb a row names, in the matrix's order. */
+/** The matrix's 33 rows, one key per verb a row names, in the matrix's order. */
 export const PERMISSION_KEYS = [
   "article.view_admin",
   "article.create",
@@ -42,6 +42,8 @@ export const PERMISSION_KEYS = [
   "article.takedown",
   "article.restore",
   "article.bulk_action",
+  "author.manage",
+  "media.manage",
   "breaking_banner.manage",
   "push.send",
   "homepage.curate",

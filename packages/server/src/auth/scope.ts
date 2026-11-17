@@ -11,10 +11,14 @@ import type { ScopeLanguage } from "@timesprime/shared/config/permissions";
 // Section (D6, ADR 0003): an article's section is category[0], as stored. Not "any category", which
 // would let an editor bring any article into scope by adding their section to it.
 
-/** A permission target. A NULL field is covered only by an assignment with no limit on it. */
+/**
+ * A permission target. A NULL field is covered only by an assignment with no limit on it.
+ * `ownerId`: whose item it is (a story's `created_by`, Panel 2), for the matrix's Own cells.
+ */
 export interface Target {
   language: ScopeLanguage | null;
   section: string | null;
+  ownerId?: string | null;
 }
 
 /** An assignment's scope: a NULL field means "all". */

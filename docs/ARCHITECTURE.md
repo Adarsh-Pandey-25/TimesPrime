@@ -167,8 +167,8 @@ packages/
   server/                  @timesprime/server: server-only, every module opens with import "server-only"
     src/auth/              the access foundation (Panel 0): requirePermission (the gate), decide, scope,
                            adminRoutePolicy, staffSession, supabaseServer, mfa, adminSession
-    src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts
-    src/services/          news (feed read path, breaking news, refresh), scrape, translate, classify, health
+    src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk)
+    src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes)
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase, …
   shared/                  @timesprime/shared: client-safe config, types and lib (urlValidation, sentryScrub)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext)
@@ -220,7 +220,7 @@ Node with the `react-server` condition, under which the package resolves to its 
 | `apps/worker` | Scheduled and queued jobs, each a function in `packages/server` called by name | Serve HTTP; import an app |
 | `packages/server/src/auth` | Who is asking and what they may do: the session, the permission rule, the gate every admin route passes, the route policy, MFA, the shared password until it is retired | Trust an identity from a header, body or query |
 | `packages/server/src/repositories` | Supabase queries | Cache the staff record (revocation applies to the next request) |
-| `packages/server/src/services` | Domain logic: the feed read path, breaking news, the refresh, scraping, translation, classification, health | Return HTTP responses; that is the route handler's job |
+| `packages/server/src/services` | Domain logic: the feed read path, breaking news, the refresh, classification, health, the Desk's workflow checks | Return HTTP responses; that is the route handler's job |
 | `packages/server/src/lib` | Domain-free infrastructure: no `Article`, no category, no UI string | Import a product module |
 | `packages/shared` | Static data, editorial rules, types and helpers that run in every runtime | Import React, `server-only` or either side's code |
 | `packages/ui` | React shared by the apps (providers, later primitives) | Import `packages/server` |
