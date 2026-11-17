@@ -496,7 +496,8 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 **Status: in progress.** Built so far: M1a (the stories backend's core), M1b (the Desk API, PRs #17
 and #18) and the two-person restore. M1 is complete. M2's code is complete (the editor package, the
 Desk's screens, the story's revisions on screen); the Hindi typing check still closes it. M3 is under
-way: the reader's story page (below). Started before Panel 1 at the owner's request (17 Nov 2026);
+way: the reader's story page (PR #23) and the preview in the back office (decision 7) are built
+(below). Started before Panel 1 at the owner's request (17 Nov 2026);
 [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -515,7 +516,7 @@ way: the reader's story page (below). Started before Panel 1 at the owner's requ
   - `pending/[actionId]/decide`: POST, to approve or decline it.
 
   The screens (M2): `/admin/desk` (the list), `/admin/desk/new` and `/admin/desk/[id]` (the story),
-  linked from the back office's top bar.
+  linked from the back office's top bar; and (M3) `/admin/desk/[id]/preview`, the story's preview.
 
   The reader's story pages (M3): `/{section}/{slug}-{number}` in English and
   `/hi/{section}/{slug}-{number}` in Hindi, where the number is the story's `public_id`.
@@ -527,7 +528,10 @@ way: the reader's story page (below). Started before Panel 1 at the owner's requ
   - `packages/server/src/repositories/stories.ts`, including the reader's read, `getPublishedStory`;
   - `packages/editor/src/render.ts`: the reader's renderer;
   - the reader's pages: `apps/web/src/app/_story/storyPage.tsx`, used by `[section]/[story]` and
-    `hi/[section]/[story]`, and `apps/web/src/components/story/StoryArticle.tsx`;
+    `hi/[section]/[story]`;
+  - the story's view, shared by the reader's page and the Desk's preview:
+    `packages/ui/src/StoryArticle.tsx` and its text styles, `packages/ui/src/story.css`;
+  - the preview: `apps/admin/src/components/desk/StoryPreview.tsx`;
   - `packages/server/src/auth/decide.ts`: the Own code;
   - `database/migrations/2026-11-17-desk-1-stories.sql`;
   - the routes in `apps/admin/src/app/api/admin/desk/`, with their shared steps in
@@ -616,11 +620,25 @@ aggregator's `articles` and its 7-day purge.
     and attributes reach the page, every link is checked again, and no editor code is sent to
     readers (each page's client JS is smaller than the article page's).
   - **On the Desk:** a published story's screen links to its page ("View on the site").
+- **Built (M3, second part): the preview, in the back office** (design decision 7).
+  - **Where:** "Preview" on the story screen opens `/admin/desk/[id]/preview` in a new tab, so the
+    story screen and its lock stay as they are.
+  - **What it shows:** the story's last saved revision, in the reader site's own view: one
+    component (`StoryArticle`) and one stylesheet (`story.css`) in `packages/ui`, used by both
+    apps. The bar says "Preview, not published" (or "Preview of the live version" when the saved
+    revision is the published one), the state, and when the version was saved; unsaved changes on
+    the story screen are not in it.
+  - **Who:** whoever may open the story on the Desk. The preview reads it through the same route,
+    `GET /api/admin/desk/stories/[id]` (`article.view_admin`, in the story's desk), and the server's
+    refusal is shown. Nothing is published and no link leaves the back office, so there is no
+    `PREVIEW_SECRET`.
+  - **Hindi:** the back office now loads the reader site's Devanagari face (Noto Serif Devanagari,
+    not preloaded), so Hindi looks the same on the Desk, in its editor and in the preview.
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
-  - preview, the worker's scheduling and corrections (M3);
+  - the worker's scheduling and corrections (M3);
   - media and bylines (M4).
 
 #### Access permissions and authorization rules
@@ -653,13 +671,13 @@ embargo 409.
 | `packages/server/src/services/desk/fourEyes.test.ts` | A third person may approve | The creator and every editor since the last approval may not; a breaking story's publisher may not review it |
 | `packages/server/src/auth/decide.test.ts` | Own allows the caller's own story in scope | Another's story, an ownerless one, one out of scope |
 | `packages/server/src/repositories/stories.test.ts` | Writes go through the `desk_*` functions; lists stay in scope | A malformed scope matches nothing; a moved story answers 409 |
-| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds, opens with no unsaved changes, and keeps unsaved text when the details are saved; two revisions compared field by field and word by word; a revision brought back fills the editor, and only Save sends it, as a new revision; a live story links to its page | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only, and no Bring back); a story not found; unsaved changes kept when bringing one back is declined; no link before publication |
-| `e2e/admin-access.spec.ts` | Signed out, `/admin/desk` and a story's screen go to sign-in; three Desk API calls answer 401 | (all refused) |
+| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds, opens with no unsaved changes, and keeps unsaved text when the details are saved; two revisions compared field by field and word by word; a revision brought back fills the editor, and only Save sends it, as a new revision; a live story links to its page; the preview opens in a new tab and shows the last saved version in the reader's view, in Hindi for a Hindi story, and says when it is the live version | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only, and no Bring back); a story not found; unsaved changes kept when bringing one back is declined; no link before publication; the preview showing the server's refusal, and a story with no text |
+| `e2e/admin-access.spec.ts` | Signed out, `/admin/desk`, a story's screen and its preview go to sign-in; three Desk API calls answer 401 | (all refused) |
 | `packages/server/src/repositories/stories.test.ts` (`getPublishedStory`) | One published story past its embargo, with the reader's columns only; the published revision; active bylines in order, in the story's language | No such story; another story's row; a draft; a story taken down; one under embargo; a revision that is not the published one, or another story's; a number that cannot be a story; a database error (thrown, not a 404) |
 | `packages/editor/src/render.test.tsx` | Every block of the design, drawn by the schema; a site link followed, an https one nofollow; Hindi text as it is; every node and mark of the schema draws only allowed tags | `javascript:`, `data:` and plain-http links; an embed from another site; unknown nodes, marks and attributes; markup in the text (escaped); anything but a document; nesting past the limit; no h1 |
 | `packages/shared/src/lib/storyUrl.test.ts` (Desk) | The English and Hindi addresses, and the number read back from them | A segment with no number, a zero, a leading zero, too many digits |
 | `apps/web/src/app/_story/storyPage.test.tsx` | Both routes render on every request; a story at its address, in its language, with its metadata (SEO title, canonical, `og:locale`) | Another slug, section or language: 308 to its own address; not a section, no number, or not shown by the store: 404 without a read where none is needed; a store failure is an error, not a 404 |
-| `apps/web/src/components/story/StoryArticle.test.tsx` | Section, headline, dek, times, bylines and credits, the correction note; a Hindi story labelled in Hindi | No byline and no update shown when there is none |
+| `packages/ui/src/StoryArticle.test.tsx` | Section, headline, dek, times, bylines and credits, the correction note; a Hindi story labelled in Hindi; in the preview, the section named, not linked | No byline and no update shown when there is none |
 | `e2e/reader.spec.ts` (Desk stories) | From the stand-in: an English story at its address, `no-store`, `lang="en"` and its canonical; a Hindi one under `/hi/` | Another address: 308; an unknown story: 404 in both languages (this one also against the real database, locally) |
 | `apps/admin/src/app/api/admin/access.test.ts` (details) | A Writer sets their story's slug | A malformed slug; a live story; a Writer clearing the legal flag (needs `article.approve`); approval voided by a change |
 | `apps/admin/src/app/api/admin/access.test.ts` (restore) | A Desk Editor (A) asks, with a reason; a different one approves or declines | The requester deciding their own request; a story that is not down; no reason; a decided request; a Writer; an A holder without MFA |
@@ -670,7 +688,8 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** M3's preview, scheduling and corrections. The Hindi typing check still closes M2.
+- **Next:** M3's scheduling (the `publish-scheduled` job and its 5-minute timer) and corrections.
+  The Hindi typing check still closes M2.
 - **The reader's story page is reached by its address only:** stories join the home and section
   pages in Panel 3, and the news sitemaps and NewsArticle markup in Phase F (design §12).
 - **Bylines** show once authors exist (M4); until then a story shows none.
@@ -1445,6 +1464,15 @@ The section overrides anything later in this design that disagrees with it.
    block list needs, MIT, pinned at 3.32.2, added in M2. The revision diff is our own code.
 5. **Notifications** on unpublish and retract: the Desk's alert list and the audit log; email later.
 6. **Milestones** in the order M1 → M2 → M3 → M4, each shown to the owner before the next.
+7. **Preview in the back office** (owner, 17 Nov 2026, during M3, replacing the draft-mode preview
+   of §0, §4, §6, §8, §9 and §10). The design's preview needed the reader site to read unpublished
+   stories, while the audit's F-008 takes the reader site's full database key away
+   (`deploy/env/web.env.example`), leaving it published stories only. So the preview is a back-office
+   page, `/admin/desk/[id]/preview`: the story's last saved version drawn by the reader site's own
+   view (`StoryArticle`, with the same text styles and Devanagari face), behind the same session,
+   permission and desk as opening the story. No `PREVIEW_SECRET`, no draft mode, no link a reader
+   could follow. It differs from the plan's E6 ("a signed preview link renders a draft on the reader
+   site"); `NEWSROOM_PLAN.md` is unchanged at the owner's request.
 
 **Plan:** [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md), Phase E (E1 to E6), and the
 [access rules](#access-rules): the `article.*` rows of the matrix, and "Four-eyes, takedown and MFA
@@ -1463,7 +1491,7 @@ aggregator's `articles` table, with its 7-day purge, is not touched.
   `__prerender_bypass` cookie, and the entry route must check a secret and redirect only to a path
   it trusts ("to avoid open redirect vulnerabilities"). Draft mode bypasses caches; it is **not**
   access control. So a preview also carries a signed, short-lived cookie naming the one story it may
-  show (§6).
+  show (§6). *Not built: decision 7 moved the preview into the back office.*
 - **Next 16, `revalidateTag`** (functions/revalidateTag.md). It runs in Route Handlers, and a call
   from another service passes `{ expire: 0 }`. The reader site caches nothing about stories in
   Panel 2 (§6), so Panel 2 needs no revalidation. Phase F adds caching with tags, as its plan says.
@@ -1581,7 +1609,8 @@ every route body. Every route is listed in `ADMIN_ROUTE_RULES`
 - one route each for `assign`, `submit`, `send-back`, `approve`, `schedule`, `publish`,
   `publish-direct`, `unpublish`, `retract`, `kill`, `correct`, `restore`, and the A approval
   `pending/[actionId]/approve`;
-- `stories/[id]/preview`: POST, returning a preview link (M3);
+- ~~`stories/[id]/preview`: POST, returning a preview link (M3);~~ not needed: the preview is a
+  back-office screen that reads the story through `stories/[id]` (decision 7);
 - `authors` and `media` (M4).
 
 **Screens** (`apps/admin/src/app/admin/desk/…`), each with loading, error and empty states, and
@@ -1590,7 +1619,8 @@ checked for keyboard use and labels:
   post-hoc review" and "waiting for a second approver";
 - `/admin/desk/new`;
 - `/admin/desk/[id]`: the editor, the checklist, the state's buttons (only those the caller may
-  use, but the server decides), revisions and the diff, the transitions history.
+  use, but the server decides), revisions and the diff, the transitions history;
+- `/admin/desk/[id]/preview`: the story's last saved version in the reader site's view (decision 7).
 
 A person without the permission gets **403** with the Panel 0 message, and the screen shows it.
 A shared-password session gets 403: "Sign in with your own account to use the Desk."
@@ -1620,15 +1650,12 @@ A shared-password session gets 403: "Sign in with your own account to use the De
   rest: NewsArticle markup, the news sitemaps, IndexNow, author and tag pages, and caching.
 - **No caching in Panel 2.** The page reads the database on each request, with no Next cache and
   `no-store` at CloudFront, like the home page. Publishing and taking down are therefore seen at once.
-- **Preview:**
-  1. The Desk's preview button asks the back office for a link: an HMAC-signed token (secret
-     `PREVIEW_SECRET`, in both apps' server env) naming the story, valid for 15 minutes.
-  2. The reader's `GET /api/preview?token=…` checks it, calls `draft.enable()`, sets an HttpOnly
-     cookie naming that one story, and redirects to the story's own path, worked out on the server
-     (never from the query).
-  3. The page shows the latest revision only when draft mode is on **and** that cookie names this
-     story, with a "Preview, not published" bar and `noindex`.
-  4. `POST /api/preview/exit` ends it.
+- **Preview** (decision 7, replacing the draft-mode steps first designed here): the Desk's
+  "Preview" opens `/admin/desk/[id]/preview`, which shows the story's last saved revision in the
+  reader site's own view (`packages/ui`'s `StoryArticle` and `story.css`), under a "Preview, not
+  published" bar. It reads the story through `GET /api/admin/desk/stories/[id]`, so it needs that
+  route's permission (`article.view_admin`) in the story's desk, and never leaves the back office,
+  which is not indexed.
 - **Scheduling and embargo:** a new worker job, `publish-scheduled`, publishes due stories. Its
   actor in the audit log is `system:scheduler`, on behalf of the editor who scheduled.
   - A new systemd timer in `deploy/` runs it every **5 minutes** (owner question 3).
@@ -1658,8 +1685,9 @@ A shared-password session gets 403: "Sign in with your own account to use the De
 - **Action names:** `story.create`, `story.save`, `story.assign`, `story.submit`,
   `story.send_back`, `story.approve`, `story.schedule`, `story.publish`, `story.publish_direct`,
   `story.unpublish`, `story.retract`, `story.kill`, `story.correct`, `story.restore_request`,
-  `story.restore_approve`, `story.lock_take_over`, `story.preview_link`, and `author.*` and
-  `media.*` in M4.
+  `story.restore_approve`, `story.lock_take_over`, and `author.*` and `media.*` in M4.
+  (`story.preview_link` went with the preview link, decision 7: opening a preview reads the story,
+  as opening it on the Desk does, and reads are not audited.)
 - **What each row holds:** the story's language and section, the state and revision before and
   after, and the reason where one is required.
 - **Unpublish and retract notify** the Managing Editor and Legal through an alert list on the Desk,
@@ -1674,7 +1702,7 @@ A shared-password session gets 403: "Sign in with your own account to use the De
 3. **Grant the first Desk roles by SQL** until Panel 1: a Managing Editor (two Super Admins), a
    Desk Editor, a Sub-editor and a Writer, from a snippet in the runbook (M1).
 4. **Arrange two Hindi typists** for the editor checkpoint in week 1 of M2.
-5. **Set `PREVIEW_SECRET`** in the web and admin env files (M3).
+5. ~~**Set `PREVIEW_SECRET`** in the web and admin env files (M3).~~ Not needed (decision 7).
 6. **M4: the media bucket,** its IAM permissions and the CloudFront `/media/*` behaviour (manager).
 7. **Approve the new dependencies** (question 4) and the access-rule additions (question 2).
 
@@ -1694,8 +1722,8 @@ A shared-password session gets 403: "Sign in with your own account to use the De
   - approval voided by a later save.
 - **Database rules** (immutable revisions, append-only transitions, RLS) are in the migration's
   check queries, run by the owner (definition of done, item 7).
-- **Preview:** a forged, expired or other-story token is refused; the draft cookie alone shows no
-  draft.
+- **Preview** (decision 7): the last saved version in the reader's view; the route's refusal shown;
+  signed out, the preview goes to sign-in.
 - **Reader page:** published only; unpublished and embargoed answer 404.
 - **Browser tests, read-only:**
   - the Desk list loads;

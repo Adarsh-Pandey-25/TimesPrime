@@ -78,7 +78,8 @@ packages/
   server/     @timesprime/server: server-only code (auth, repositories, services, lib); every file
               imports "server-only"
   shared/     @timesprime/shared: client-safe config, types and helpers
-  ui/         @timesprime/ui: React both apps use (ThemeContext)
+  ui/         @timesprime/ui: React both apps use (ThemeContext; StoryArticle and story.css,
+              a Desk story's view)
 database/     schema.sql, policies.sql, migrations/, bootstrap/, seed/; applied by hand
 docs/         The plan, access rules, architecture, decision records, research, audit ledger,
               backlog, handoff, panels
