@@ -21,6 +21,8 @@ export interface AuthorRow {
   bio_hi: string | null;
   beat: string | null;
   links: string[];
+  /** A library image shown beside the byline (migration desk-8), or none. */
+  photo_id: string | null;
   active: boolean;
   created_at: string;
 }
@@ -34,10 +36,11 @@ export interface AuthorFields {
   bio_hi?: string | null;
   beat?: string | null;
   links?: string[];
+  photo_id?: string | null;
   active?: boolean;
 }
 
-const COLUMNS = "id, display_name_en, display_name_hi, kind, bio_en, bio_hi, beat, links, active, created_at";
+const COLUMNS = "id, display_name_en, display_name_hi, kind, bio_en, bio_hi, beat, links, photo_id, active, created_at";
 
 /** Every author, by English name; retired ones too when asked. */
 export async function listAuthors(includeRetired: boolean): Promise<AuthorRow[]> {

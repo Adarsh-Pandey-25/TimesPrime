@@ -3,7 +3,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
 import { getRevision, listCredits, listHistory, listOpenPending, readLock } from "@timesprime/server/repositories/stories";
-import { previewImages } from "@timesprime/server/services/desk/storyImages";
+import { previewImages, previewPhotos } from "@timesprime/server/services/desk/storyImages";
 import { deskFailure, gateStory, type Params } from "../../_lib/desk";
 import { originalUrl } from "../../_lib/media";
 
@@ -27,7 +27,9 @@ export async function GET(request: NextRequest, { params }: Params) {
     // The library's images the revision uses, for the preview and the editor: renditions once made,
     // else the original through the back office.
     const images = revision ? await previewImages(revision.body, story.language, originalUrl) : {};
-    return NextResponse.json({ story, revision, history, lock, pending, credits, images });
+    // The credited authors' photos, beside the byline as readers will see them (desk-8).
+    const photos = await previewPhotos(credits.filter((c) => c.author?.active).map((c) => ({ photoId: c.author?.photo_id ?? null })), story.language, originalUrl);
+    return NextResponse.json({ story, revision, history, lock, pending, credits, images, photos });
   } catch (err) {
     return deskFailure(err, "getStory");
   }

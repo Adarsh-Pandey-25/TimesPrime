@@ -13,7 +13,7 @@ import { deskCall } from "./deskClient";
 export interface Credit {
   author_id: string;
   role: CreditRole;
-  author: { display_name_en: string; display_name_hi: string | null; active: boolean } | null;
+  author: { display_name_en: string; display_name_hi: string | null; photo_id?: string | null; active: boolean } | null;
 }
 
 interface AuthorOption {

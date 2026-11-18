@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { renderStory } from "@timesprime/editor/render";
+import { isImageUrl, isSrcSet, renderStory } from "@timesprime/editor/render";
 import { TRANSLATIONS } from "@timesprime/shared/config/translations";
 import { isSection } from "@timesprime/shared/config/sections";
-import type { PublishedStory } from "@timesprime/shared/types";
+import type { PublishedStory, StoryImageData } from "@timesprime/shared/types";
 
 // A Desk story as readers see it (Panel 2 design §6): the revision's headline, dek and text, the
 // bylines, the times and the correction note, in the story's own language. The reader site's story
@@ -40,11 +40,33 @@ function updatedSince(first: string | null, latest: string | null): boolean {
  * `sectionLink`: the section's name links to its page on the reader site; the Desk's preview, in
  * the back office, shows the name alone.
  */
+/**
+ * An author's photo beside the byline (desk-8): its square rendition, or, in the Desk's preview, the
+ * original until there is one. Decorative: the name is written beside it.
+ */
+function BylinePhoto({ photo }: { photo: StoryImageData }) {
+  const crop = photo.crops["1x1"];
+  if (crop && isImageUrl(crop.src) && isSrcSet(crop.avif) && isSrcSet(crop.webp)) {
+    return (
+      <picture>
+        <source type="image/avif" srcSet={crop.avif} sizes="40px" />
+        <source type="image/webp" srcSet={crop.webp} sizes="40px" />
+        <img src={crop.src} alt="" width={40} height={40} loading="lazy" className="story-byline-photo" />
+      </picture>
+    );
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return isImageUrl(photo.fallbackUrl) ? <img src={photo.fallbackUrl} alt="" width={40} height={40} className="story-byline-photo" /> : null;
+}
+
 export default function StoryArticle({ story, sectionLink = true }: { story: PublishedStory; sectionLink?: boolean }) {
   const { revision, language } = story;
   const labels = LABELS[language];
   const credits = (role: PublishedStory["bylines"][number]["role"]) => story.bylines.filter((b) => b.role === role).map((b) => b.name);
   const byline = credits("byline");
+  const photos = story.bylines
+    .filter((b) => b.role === "byline" && b.photoId && story.photos?.[b.photoId])
+    .map((b) => ({ id: b.photoId as string, photo: (story.photos as Record<string, StoryImageData>)[b.photoId as string] }));
   const sectionLabel = isSection(story.section) ? TRANSLATIONS[language].categories[story.section] : story.section;
 
   return (
@@ -61,7 +83,10 @@ export default function StoryArticle({ story, sectionLink = true }: { story: Pub
 
       <div className="mt-4 space-y-1 border-b border-slate-200 pb-4 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-400">
         {byline.length > 0 && (
-          <p className="font-semibold text-slate-900 dark:text-slate-100">{[labels.by, names(byline, labels.and)].filter(Boolean).join(" ")}</p>
+          <div className="story-byline">
+            {photos.map(({ id, photo }) => <BylinePhoto key={id} photo={photo} />)}
+            <p className="font-semibold text-slate-900 dark:text-slate-100">{[labels.by, names(byline, labels.and)].filter(Boolean).join(" ")}</p>
+          </div>
         )}
         {story.first_published_at && (
           <p>

@@ -163,3 +163,19 @@ export async function listPublishedImages(revisionId: string, ids: readonly stri
   if (error) throw storeError(error);
   return ((data ?? []) as ReaderMediaRow[]).filter((row) => used.includes(row.id) && row.active);
 }
+
+/**
+ * Authors' photos, as readers may see them (migration desk-8): only an active author's photo, only an
+ * active image, only the readers' columns. Applies the policy in the query too, as
+ * listPublishedImages does.
+ */
+export async function listAuthorPhotos(ids: readonly string[]): Promise<ReaderMediaRow[]> {
+  if (ids.length === 0) return [];
+  const authors = await supabase.from("authors").select("photo_id").in("photo_id", [...ids]).eq("active", true);
+  if (authors.error) throw storeError(authors.error);
+  const allowed = [...new Set((authors.data ?? []).map((a) => (a as { photo_id: string | null }).photo_id).filter((id): id is string => typeof id === "string"))];
+  if (allowed.length === 0) return [];
+  const { data, error } = await supabase.from("media_assets").select(READER_MEDIA_COLUMNS).in("id", allowed).eq("active", true);
+  if (error) throw storeError(error);
+  return ((data ?? []) as ReaderMediaRow[]).filter((row) => allowed.includes(row.id) && row.active);
+}

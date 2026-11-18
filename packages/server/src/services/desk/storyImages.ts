@@ -1,10 +1,10 @@
 import "server-only";
 
 import type { ChecklistImage } from "@timesprime/shared/config/desk";
-import { RENDITION_KEY, RENDITION_RATIOS, storyImageIds, type Rendition, type RenditionRatio } from "@timesprime/shared/config/media";
+import { MEDIA_ID, RENDITION_KEY, RENDITION_RATIOS, storyImageIds, type Rendition, type RenditionRatio } from "@timesprime/shared/config/media";
 import type { PublishedStory, StoryImageCrop, StoryImageData } from "@timesprime/shared/types";
 import { mediaUrl } from "../../lib/mediaStorage";
-import { getMediaByIds, listPublishedImages, type MediaRow, type ReaderMediaRow } from "../../repositories/media";
+import { getMediaByIds, listAuthorPhotos, listPublishedImages, type MediaRow, type ReaderMediaRow } from "../../repositories/media";
 
 /**
  * A story's images (Panel 2 design §7): the library's records turned into what a page draws (the
@@ -60,6 +60,27 @@ export async function publishedImages(story: Pick<PublishedStory, "language" | "
  */
 export async function previewImages(body: unknown, language: "en" | "hi", fallback: (id: string) => string): Promise<Record<string, StoryImageData>> {
   const rows = await getMediaByIds(storyImageIds(body));
+  return Object.fromEntries(rows.map((row) => [row.id, imageView(row, language, fallback(row.id))]));
+}
+
+/** The photo ids of a story's credits, each once. */
+function photoIds(bylines: ReadonlyArray<{ photoId?: string | null }>): string[] {
+  return [...new Set(bylines.map((b) => b.photoId).filter((id): id is string => typeof id === "string" && MEDIA_ID.test(id)))];
+}
+
+/** The photos beside a published story's byline (desk-8): an active author's, with a square rendition. */
+export async function bylinePhotos(story: Pick<PublishedStory, "language" | "bylines">): Promise<Record<string, StoryImageData>> {
+  const out: Record<string, StoryImageData> = {};
+  for (const row of await listAuthorPhotos(photoIds(story.bylines))) {
+    const view = imageView(row, story.language);
+    if (view.crops["1x1"]) out[row.id] = view;
+  }
+  return out;
+}
+
+/** The preview's byline photos: every one the library has, the original standing in until it has renditions. */
+export async function previewPhotos(bylines: ReadonlyArray<{ photoId?: string | null }>, language: "en" | "hi", fallback: (id: string) => string): Promise<Record<string, StoryImageData>> {
+  const rows = await getMediaByIds(photoIds(bylines));
   return Object.fromEntries(rows.map((row) => [row.id, imageView(row, language, fallback(row.id))]));
 }
 

@@ -7,7 +7,7 @@
 
 jest.mock("../lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn() } }));
 
-import { createMedia, getMedia, getMediaByIds, listMedia, listPendingRenditions, listPublishedImages, recordRenditions, updateMedia } from "./media";
+import { createMedia, getMedia, getMediaByIds, listAuthorPhotos, listMedia, listPendingRenditions, listPublishedImages, recordRenditions, updateMedia } from "./media";
 import { DeskStoreError } from "./stories";
 
 const { supabase } = jest.requireMock("../lib/supabase") as { supabase: { from: jest.Mock } };
@@ -99,6 +99,26 @@ test("readers get a published revision's images only through its usages, active,
 
   supabase.from.mockImplementation(() => query({ data: [], error: null }, []));
   expect(await listPublishedImages("rev-1", ["m-1"])).toEqual([]);
+});
+
+test("readers get an author's photo only when an active author has it, the image active, with the readers' columns", async () => {
+  const authorCalls: Array<[string, unknown[]]> = [];
+  const mediaCalls: Array<[string, unknown[]]> = [];
+  supabase.from.mockImplementation((table: string) =>
+    table === "authors"
+      ? query({ data: [{ photo_id: "m-1" }, { photo_id: "m-1" }], error: null }, authorCalls)
+      : query({ data: [{ id: "m-1", active: true }, { id: "m-7", active: true }], error: null }, mediaCalls)
+  );
+  expect(await listAuthorPhotos(["m-1", "m-2"])).toEqual([{ id: "m-1", active: true }]);
+  expect(authorCalls).toEqual([["select", ["photo_id"]], ["in", ["photo_id", ["m-1", "m-2"]]], ["eq", ["active", true]]]);
+  expect(mediaCalls).toEqual([
+    ["select", ["id, storage_key, width, height, credit, alt_en, alt_hi, caption_en, caption_hi, renditions, active"]],
+    ["in", ["id", ["m-1"]]],
+    ["eq", ["active", true]],
+  ]);
+  supabase.from.mockClear();
+  expect(await listAuthorPhotos([])).toEqual([]);
+  expect(supabase.from).not.toHaveBeenCalled();
 });
 
 test("a database error is thrown", async () => {

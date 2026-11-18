@@ -1,7 +1,10 @@
 import "server-only";
 
+import { NextResponse } from "next/server";
 import type { AuthorFields } from "@timesprime/server/repositories/authors";
+import { getMedia } from "@timesprime/server/repositories/media";
 import { AUTHOR_KINDS, type AuthorKind } from "@timesprime/shared/config/desk";
+import { MEDIA_ID } from "@timesprime/shared/config/media";
 
 // What an author record may hold (Panel 2 design §7), checked before it reaches the database: the
 // routes that create and edit one share it.
@@ -67,10 +70,28 @@ export function authorFields(body: Body, creating: boolean): { ok: true; fields:
     }
     fields.links = body.links as string[];
   }
+  if ("photo_id" in body) {
+    if (body.photo_id !== null && !(typeof body.photo_id === "string" && MEDIA_ID.test(body.photo_id))) {
+      return { ok: false, error: "photo_id: a media library image's id, or null." };
+    }
+    fields.photo_id = body.photo_id as string | null;
+  }
   if (!creating && "active" in body) {
     if (typeof body.active !== "boolean") return { ok: false, error: "active: true or false." };
     fields.active = body.active;
   }
   if (!creating && Object.keys(fields).length === 0) return { ok: false, error: "Name a field to change." };
   return { ok: true, fields };
+}
+
+/**
+ * Why an image cannot be an author's photo, as a response, or null (desk-8): it must be in the library,
+ * not retired, its rights cleared, as readers see it beside every byline of the author.
+ */
+export async function photoRefusal(photoId: string | null | undefined): Promise<NextResponse | null> {
+  if (!photoId) return null;
+  const image = await getMedia(photoId);
+  if (!image || !image.active) return NextResponse.json({ error: "The photo must be an image of the media library, not retired.", code: "photo_unavailable" }, { status: 422 });
+  if (!image.rights_cleared_at) return NextResponse.json({ error: "The photo's rights must be cleared first.", code: "photo_rights" }, { status: 422 });
+  return null;
 }

@@ -183,3 +183,25 @@ describe("migration desk-7: a save records the images its revision uses (asset_u
     expect(at("INSERT INTO public.asset_usages")).toBeLessThan(at("UPDATE public.stories"));
   });
 });
+
+describe("migration desk-8: authors' photos", () => {
+  const photos = fs
+    .readFileSync(path.join(process.cwd(), "database", "migrations", "2026-11-18-desk-8-author-photos.sql"), "utf8")
+    .replace(/\r\n/g, "\n");
+  const sql = photos.slice(photos.indexOf("BEGIN;"), photos.indexOf("COMMIT;") + "COMMIT;".length);
+
+  test("one transaction: the photo is a library image, and readers may read the column", () => {
+    expect(sql).toMatch(/^BEGIN;/);
+    expect(sql).toContain("ALTER TABLE public.authors ADD COLUMN IF NOT EXISTS photo_id UUID NULL REFERENCES public.media_assets (id);");
+    expect(sql).toContain("GRANT SELECT (photo_id) ON public.authors TO anon, authenticated;");
+  });
+
+  test("readers see an image as a photo only while it is active and an active author's", () => {
+    expect(sql).toContain("CREATE POLICY media_assets_read_author_photo ON public.media_assets FOR SELECT TO anon, authenticated");
+    expect(sql).toContain("USING (active AND EXISTS (SELECT 1 FROM public.authors a WHERE a.photo_id = media_assets.id AND a.active));");
+  });
+
+  test("nothing else about the library's rights changes", () => {
+    expect(sql.replace(/--[^\n]*/g, "")).not.toMatch(/GRANT [^;]* ON public\.media_assets|REVOKE|service_role|DELETE/);
+  });
+});

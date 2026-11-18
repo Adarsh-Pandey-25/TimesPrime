@@ -21,9 +21,11 @@ export interface PublishedStory {
     seo_description: string | null;
     body: unknown;
   };
-  bylines: Array<{ name: string; role: "byline" | "additional_reporting" | "translated_by" }>;
+  bylines: Array<{ name: string; role: "byline" | "additional_reporting" | "translated_by"; photoId?: string | null }>;
   /** The library's images the body uses, by id, as the page draws them (Panel 2 design §7). */
   images?: Record<string, StoryImageData>;
+  /** The authors' photos, by image id: their square crop, beside the byline (desk-8). */
+  photos?: Record<string, StoryImageData>;
 }
 
 /** One crop of an image, as a page draws it: AVIF and WebP sources, and the WebP it falls back to. */

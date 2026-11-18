@@ -5,7 +5,7 @@ import Header from "@/components/news/Header";
 import Footer from "@/components/news/Footer";
 import StoryArticle from "@timesprime/ui/StoryArticle";
 import { getPublishedStory } from "@timesprime/server/repositories/stories";
-import { publishedImages } from "@timesprime/server/services/desk/storyImages";
+import { bylinePhotos, publishedImages } from "@timesprime/server/services/desk/storyImages";
 import { getTopHeadlines } from "@timesprime/server/services/news/topHeadlines";
 import { isSection } from "@timesprime/shared/config/sections";
 import { SITE_URL } from "@timesprime/shared/config/site";
@@ -81,14 +81,15 @@ export async function renderStoryPage(language: StoryPageLanguage, { params }: S
   const [{ story, redirectTo }, headlines] = await Promise.all([resolveStory(language, section, segment), menuHeadlines()]);
   if (!story) notFound();
   if (redirectTo) permanentRedirect(redirectTo);
-  // The published revision's images, with their renditions (design §7): only what readers may see.
-  const images = await publishedImages(story);
+  // The published revision's images and the authors' photos, with their renditions (design §7,
+  // desk-8): only what readers may see.
+  const [images, photos] = await Promise.all([publishedImages(story), bylinePhotos(story)]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#1a1c1e] text-slate-900 dark:text-slate-100 transition-colors duration-200">
       <Header articles={headlines} activeCategory={story.section} />
       <main className="flex-1">
-        <StoryArticle story={{ ...story, images }} />
+        <StoryArticle story={{ ...story, images, photos }} />
       </main>
       <Footer />
     </div>
