@@ -68,6 +68,20 @@ export const PUBLISH_TICK_MINUTES = 5;
 /** The longest public correction note a live story may carry (design §3), in characters. */
 export const CORRECTION_NOTE_MAX = 600;
 
+/**
+ * The kinds of author the Desk records (design §7). The database also allows "agency"; agency
+ * bylines (PTI, ANI and others) wait for a wire licence (Phase K), so the Desk does not offer it.
+ */
+export const AUTHOR_KINDS = ["staff", "columnist", "freelancer"] as const;
+export type AuthorKind = (typeof AUTHOR_KINDS)[number];
+
+/** A story's credits, in the order the reader's page shows them (design §2, story_authors.role). */
+export const CREDIT_ROLES = ["byline", "additional_reporting", "translated_by"] as const;
+export type CreditRole = (typeof CREDIT_ROLES)[number];
+
+/** The most credits a story carries (desk_set_credits refuses more). */
+export const CREDITS_MAX = 20;
+
 /** The actions that move a story, by name, as the routes and the audit log call them. */
 export type DeskAction =
   | "assign"

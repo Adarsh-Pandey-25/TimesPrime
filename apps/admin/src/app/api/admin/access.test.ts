@@ -82,6 +82,9 @@ import * as deskRestore from "./desk/stories/[id]/restore/route";
 import * as deskDecide from "./desk/pending/[actionId]/decide/route";
 import * as deskCorrect from "./desk/stories/[id]/correct/route";
 import * as deskAlerts from "./desk/alerts/route";
+import * as deskAuthors from "./desk/authors/route";
+import * as deskAuthor from "./desk/authors/[id]/route";
+import * as deskCredits from "./desk/stories/[id]/credits/route";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
 
@@ -786,6 +789,110 @@ describe("the Desk's alert list (Panel 2 design §8)", () => {
     expect((await call(HI_SUB)).status).toBe(403);
     expect((await call(HI_WRITER)).status).toBe(403);
     expect(calls).toEqual([]);
+  });
+});
+
+// ---- authors and credits (design §7): author.manage is F for the Managing Editor and a Desk Editor ----
+const AUTHOR_ID = "a1b2c3d4-0000-4000-8000-000000000001";
+const AUTHOR_ROW = {
+  id: AUTHOR_ID, display_name_en: "Asha Rao", display_name_hi: "आशा राव", kind: "staff", bio_en: null, bio_hi: null,
+  beat: "sports", links: [], active: true, created_at: "2026-11-18T09:00:00Z",
+};
+const AUTHORS_GET: Case = { path: "/api/admin/desk/authors", method: "GET", handler: deskAuthors.GET, allowed: HI_WRITER, data: { authors: { data: [AUTHOR_ROW], error: null } }, changes: false };
+const AUTHORS_POST: Case = {
+  path: "/api/admin/desk/authors", method: "POST", handler: deskAuthors.POST, body: { display_name_en: "Asha Rao", display_name_hi: "आशा राव", kind: "staff" },
+  allowed: HI_DESK, data: { authors: { data: AUTHOR_ROW, error: null } }, changes: true,
+};
+const AUTHOR_PATCH: Case = {
+  path: "/api/admin/desk/authors/[id]", method: "PATCH", handler: withId(deskAuthor.PATCH, { id: AUTHOR_ID }), body: { active: false },
+  allowed: HI_DESK, data: { authors: { data: AUTHOR_ROW, error: null } }, changes: true,
+};
+const CREDITS_CASE: Case = {
+  path: `${S}/credits`, method: "POST", handler: withId(deskCredits.POST), body: { credits: [{ author_id: AUTHOR_ID, role: "byline" }] },
+  allowed: HI_WRITER, wrongScope: EN_WRITER, data: { stories: story({ created_by: "u-1" }), "rpc:desk_set_credits": story({ created_by: "u-1" }) }, changes: true,
+};
+CASES.push(AUTHORS_GET, AUTHORS_POST, AUTHOR_PATCH, CREDITS_CASE);
+
+describe("authors and a story's credits (Panel 2 design §7)", () => {
+  async function call(c: Case, data: Case["data"], body: unknown, caller: Grantee) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, body }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const audits = () => (recordAudit as jest.Mock).mock.calls.map(([row]) => [row.action, row.outcome]);
+
+  test("authors belong to no desk: a Desk Editor of any language manages them (the matrix's F)", async () => {
+    const r = await call(AUTHORS_POST, AUTHORS_POST.data, AUTHORS_POST.body, EN_DESK);
+    expect(r.status).toBe(201);
+    expect(calls.find(([t, m]) => t === "authors" && m === "insert")?.[2][0]).toEqual({ display_name_en: "Asha Rao", display_name_hi: "आशा राव", kind: "staff" });
+    expect(audits()).toEqual([
+      ["author.create", "attempted"],
+      ["author.create", "succeeded"],
+    ]);
+  });
+
+  test("whoever lacks author.manage cannot create or change one: a Sub-editor, a Writer", async () => {
+    expect((await call(AUTHORS_POST, AUTHORS_POST.data, AUTHORS_POST.body, HI_SUB)).status).toBe(403);
+    expect((await call(AUTHOR_PATCH, AUTHOR_PATCH.data, { active: false }, HI_WRITER)).status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("an author record is checked: an English name and a kind; agency bylines wait for a wire licence", async () => {
+    expect((await call(AUTHORS_POST, AUTHORS_POST.data, { kind: "staff" }, HI_DESK)).status).toBe(400);
+    const agency = await call(AUTHORS_POST, AUTHORS_POST.data, { display_name_en: "PTI", kind: "agency" }, HI_DESK);
+    expect(agency.status).toBe(400);
+    expect(agency.json.error).toMatch(/wire licence/);
+    expect((await call(AUTHORS_POST, AUTHORS_POST.data, { display_name_en: "A", kind: "staff", links: ["http://x.example"] }, HI_DESK)).status).toBe(400);
+    expect((await call(AUTHOR_PATCH, AUTHOR_PATCH.data, {}, HI_DESK)).status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("retiring an author keeps the record: an update with active false, audited with before and after", async () => {
+    const r = await call(AUTHOR_PATCH, AUTHOR_PATCH.data, { active: false }, HI_DESK);
+    expect(r.status).toBe(200);
+    expect(calls.find(([t, m]) => t === "authors" && m === "update")?.[2][0]).toEqual({ active: false });
+    expect(calls.some(([t, m]) => t === "authors" && m === "delete")).toBe(false);
+    expect((recordAudit as jest.Mock).mock.calls[0][0]).toMatchObject({ action: "author.update", entity_type: "author", entity_id: AUTHOR_ID, before: expect.objectContaining({ active: true }) });
+  });
+
+  test("an unknown author is not found, and nothing changes", async () => {
+    const r = await call(AUTHOR_PATCH, { authors: { data: null, error: null } }, { active: false }, HI_DESK);
+    expect(r.status).toBe(404);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a story's credits go through the database function, from the state it was read in", async () => {
+    const r = await call(CREDITS_CASE, CREDITS_CASE.data, { credits: [{ author_id: AUTHOR_ID, role: "byline" }, { author_id: AUTHOR_ID, role: "translated_by" }] }, HI_WRITER);
+    expect(r.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith("desk_set_credits", {
+      p_story: "s-1",
+      p_from: "draft",
+      p_actor: "u-1",
+      p_actor_label: "staff:u-1",
+      p_credits: [{ author_id: AUTHOR_ID, role: "byline" }, { author_id: AUTHOR_ID, role: "translated_by" }],
+    });
+    expect(audits()).toEqual([
+      ["story.credits", "attempted"],
+      ["story.credits", "succeeded"],
+    ]);
+  });
+
+  test("credits are set before publication only, each once, and well formed", async () => {
+    const live = { stories: story({ created_by: "u-1", workflow_state: "published", published_revision_id: "r-1" }) };
+    expect((await call(CREDITS_CASE, live, CREDITS_CASE.body, HI_WRITER)).status).toBe(409);
+    expect((await call(CREDITS_CASE, CREDITS_CASE.data, { credits: [{ author_id: "not-a-uuid", role: "byline" }] }, HI_WRITER)).status).toBe(400);
+    expect((await call(CREDITS_CASE, CREDITS_CASE.data, { credits: [{ author_id: AUTHOR_ID, role: "editor" }] }, HI_WRITER)).status).toBe(400);
+    const twice = [{ author_id: AUTHOR_ID, role: "byline" }, { author_id: AUTHOR_ID, role: "byline" }];
+    expect((await call(CREDITS_CASE, CREDITS_CASE.data, { credits: twice }, HI_WRITER)).status).toBe(400);
+    expect((await call(CREDITS_CASE, CREDITS_CASE.data, { credits: Array.from({ length: 21 }, () => ({ author_id: AUTHOR_ID, role: "byline" })) }, HI_WRITER)).status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a Writer credits only their own story (Own)", async () => {
+    const someoneElses = { stories: story({ created_by: "u-9" }) };
+    expect((await call(CREDITS_CASE, someoneElses, CREDITS_CASE.body, HI_WRITER)).status).toBe(403);
+    expect(wrote()).toEqual([]);
   });
 });
 

@@ -14,6 +14,7 @@ import {
   getPublishedStory,
   hasCounterpart,
   inScopes,
+  listCredits,
   listDueScheduled,
   listHistory,
   listStories,
@@ -21,6 +22,7 @@ import {
   requestCorrection,
   saveRevision,
   scopeFilter,
+  setCredits,
   storeError,
   transition,
 } from "./stories";
@@ -341,5 +343,35 @@ describe("listTakedowns: the Desk's alert list", () => {
   test("a database error is thrown", async () => {
     supabase.from.mockReturnValue(query({ data: null, error: { code: "57014", message: "timeout" } }, []));
     await expect(listTakedowns([{ language: null, section: null }], NOW)).rejects.toBeInstanceOf(DeskStoreError);
+  });
+});
+
+describe("a story's credits", () => {
+  test("listed in order, with each author's names", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    supabase.from.mockReturnValue(query({ data: [{ author_id: "a-1", role: "byline", position: 0 }], error: null }, calls));
+    expect(await listCredits("s-1")).toEqual([{ author_id: "a-1", role: "byline", position: 0 }]);
+    expect(supabase.from).toHaveBeenCalledWith("story_authors");
+    expect(String(calls.find(([m]) => m === "select")?.[1][0])).toContain("author:authors(display_name_en, display_name_hi, active)");
+    expect(calls).toEqual(expect.arrayContaining([["eq", ["story_id", "s-1"]], ["order", ["position", { ascending: true }]]]));
+  });
+
+  test("set through desk_set_credits, naming the state the story was read in", async () => {
+    supabase.rpc.mockResolvedValue({ data: { id: "s-1" }, error: null });
+    await setCredits({ storyId: "s-1", from: "approved", actorId: "u-1", actorLabel: "staff:u-1", credits: [{ author_id: "a-1", role: "byline" }] });
+    expect(supabase.rpc).toHaveBeenCalledWith("desk_set_credits", {
+      p_story: "s-1",
+      p_from: "approved",
+      p_actor: "u-1",
+      p_actor_label: "staff:u-1",
+      p_credits: [{ author_id: "a-1", role: "byline" }],
+    });
+  });
+
+  test("a story that moved meanwhile answers 409; a retired author 422", async () => {
+    supabase.rpc.mockResolvedValue({ data: null, error: { code: "40001", message: "moved" } });
+    await expect(setCredits({ storyId: "s-1", from: "draft", actorId: "u-1", actorLabel: "l", credits: [] })).rejects.toMatchObject({ status: 409 });
+    supabase.rpc.mockResolvedValue({ data: null, error: { code: "23503", message: "not an active author" } });
+    await expect(setCredits({ storyId: "s-1", from: "draft", actorId: "u-1", actorLabel: "l", credits: [] })).rejects.toMatchObject({ status: 422 });
   });
 });
