@@ -14,6 +14,7 @@ export interface PublishedStory {
   first_published_at: string | null;
   published_at: string | null;
   revision: {
+    id: string;
     headline: string;
     dek: string | null;
     seo_title: string | null;
@@ -21,6 +22,30 @@ export interface PublishedStory {
     body: unknown;
   };
   bylines: Array<{ name: string; role: "byline" | "additional_reporting" | "translated_by" }>;
+  /** The library's images the body uses, by id, as the page draws them (Panel 2 design §7). */
+  images?: Record<string, StoryImageData>;
+}
+
+/** One crop of an image, as a page draws it: AVIF and WebP sources, and the WebP it falls back to. */
+export interface StoryImageCrop {
+  avif: string;
+  webp: string;
+  src: string;
+  width: number;
+  height: number;
+}
+
+/**
+ * An image of a story, in the story's language: its alt text, caption and credit, and its
+ * renditions by crop. While it has none (the Desk's preview only), the original through the back
+ * office stands in. Readers only ever get renditions.
+ */
+export interface StoryImageData {
+  alt: string;
+  caption: string | null;
+  credit: string | null;
+  crops: Partial<Record<"16x9" | "4x3" | "1x1", StoryImageCrop>>;
+  fallbackUrl?: string;
 }
 
 export interface Article {

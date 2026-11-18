@@ -359,7 +359,7 @@ export async function getPublishedStory(publicId: number, now: Date = new Date()
     correction_note: row.correction_note,
     first_published_at: row.first_published_at,
     published_at: row.published_at,
-    revision: { headline: revision.headline, dek: revision.dek, seo_title: revision.seo_title, seo_description: revision.seo_description, body: revision.body },
+    revision: { id: revision.id, headline: revision.headline, dek: revision.dek, seo_title: revision.seo_title, seo_description: revision.seo_description, body: revision.body },
     bylines,
   };
 }

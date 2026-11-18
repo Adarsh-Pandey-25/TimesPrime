@@ -31,6 +31,11 @@ function walk(node: JsonNode, out: string[], current: string[]): void {
     out.push(String(node.attrs?.url ?? "").trim());
     return;
   }
+  // An image stands as a block of its own, so the revision diff shows it added, moved or removed.
+  if (node.type === "image") {
+    out.push(`[Image ${String(node.attrs?.id ?? "").slice(0, 8)}, ${String(node.attrs?.ratio ?? "16x9")}]`);
+    return;
+  }
   const isBlock = BLOCKS.has(node.type ?? "");
   const own: string[] = isBlock ? [] : current;
   for (const child of node.content ?? []) walk(child, out, own);

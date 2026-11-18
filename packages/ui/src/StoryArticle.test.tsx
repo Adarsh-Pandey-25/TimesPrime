@@ -19,7 +19,7 @@ const story = (over: Partial<PublishedStory> = {}): PublishedStory => ({
   correction_note: null,
   first_published_at: "2026-11-17T08:00:00Z",
   published_at: "2026-11-17T08:00:00Z",
-  revision: { headline: "Budget passes", dek: "The house voted.", seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
+  revision: { id: "r-1", headline: "Budget passes", dek: "The house voted.", seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
   bylines: [],
   ...over,
 });
@@ -82,7 +82,7 @@ test("a Hindi story is labelled in Hindi, with no English words around it", () =
         { role: "byline", name: "आशा राव" },
         { role: "byline", name: "विक्रम सिंह" },
       ],
-      revision: { headline: "संसद में बजट पास", dek: null, seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
+      revision: { id: "r-1", headline: "संसद में बजट पास", dek: null, seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
     })
   );
   expect(out).toContain('<article lang="hi"');

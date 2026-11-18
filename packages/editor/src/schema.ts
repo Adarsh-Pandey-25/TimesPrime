@@ -1,5 +1,6 @@
 import { Node, mergeAttributes, type Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import { isRenditionRatio, MEDIA_ID } from "@timesprime/shared/config/media";
 
 /**
  * The Desk's story schema (Panel 2 design §5): one list of Tiptap extensions, used by the back
@@ -7,8 +8,8 @@ import StarterKit from "@tiptap/starter-kit";
  * schema it was written in. Stories are stored as this schema's JSON (story_revisions.body).
  *
  * Blocks: paragraph, heading (levels 2 and 3: the headline is the page's h1), bullet and numbered
- * lists, quote, link, factbox, related link, embed (YouTube, X, Instagram) and an ad-slot
- * placeholder. Images and galleries join with the media library (M4).
+ * lists, quote, link, factbox, related link, embed (YouTube, X, Instagram), an image from the
+ * media library (M4) and an ad-slot placeholder. Galleries come later.
  */
 
 /** An https URL, or a path on this site: what a link or a related link may point to. */
@@ -97,6 +98,29 @@ export const Embed = Node.create({
   },
 });
 
+/**
+ * An image from the media library: only its id and the crop to show (16:9, 4:3 or 1:1). Its alt
+ * text, caption and credit are the library's, in the story's language, read when the page is drawn,
+ * so a correction to the record reaches every story using it. Saving a revision records the image's
+ * use (asset_usages), which is what lets readers see it once that revision is published.
+ */
+export const StoryImage = Node.create({
+  name: "image",
+  group: "block",
+  atom: true,
+  draggable: true,
+  addAttributes: () => ({
+    id: { default: null, parseHTML: (el) => el.getAttribute("data-id") },
+    ratio: { default: "16x9", parseHTML: (el) => el.getAttribute("data-ratio") ?? "16x9" },
+  }),
+  parseHTML: () => [{ tag: 'figure[data-type="image"]' }],
+  renderHTML: ({ node }) => {
+    const id = typeof node.attrs.id === "string" && MEDIA_ID.test(node.attrs.id) ? node.attrs.id : "";
+    const ratio = isRenditionRatio(node.attrs.ratio) ? node.attrs.ratio : "16x9";
+    return ["figure", { "data-type": "image", "data-id": id, "data-ratio": ratio }];
+  },
+});
+
 /** Where an advertisement may go later: an empty block with a reserved height on the reader site. */
 export const AdSlot = Node.create({
   name: "adSlot",
@@ -124,6 +148,7 @@ export function storyExtensions(): Extensions {
     Factbox,
     RelatedLink,
     Embed,
+    StoryImage,
     AdSlot,
   ];
 }
