@@ -1204,14 +1204,28 @@ the app applies SQL.
           has_table_privilege('service_role', 'public.media_assets', 'DELETE') AS service_may_delete,
           has_column_privilege('anon', 'public.media_assets', 'uploaded_by', 'SELECT') AS anon_sees_uploader;
    ```
-   → `2`, `false`, `false`. Until it is applied, the media library shows the database's error, and on
-   the server the image renditions job fails every 5 minutes (exit 1, in the journal): apply it before
-   deploying a tag that carries the job (from `panel-2-desk-renditions` on).
+   → `2`, `false`, `false` once step 7 is applied too. Until desk-5 is applied, the media library shows
+   the database's error, and on the server the image renditions job fails every 5 minutes (exit 1, in
+   the journal): apply it before deploying a tag that carries the job (from `panel-2-desk-renditions`
+   on). **Done by the owner on 18 Nov 2026:** the check returned `2`, **`true`**, `false`. Its REVOKE
+   left out `service_role`, so Supabase's default privileges kept the app's DELETE; step 7 fixes it.
+7. **Apply `database/migrations/2026-11-18-desk-6-media-grants.sql`** (the fix to desk-5). It takes
+   every right on the two media tables from `service_role`, then grants exactly what the app needs
+   (no DELETE; usages insert-only); readers' rights are not touched. Paste the whole file into the SQL
+   Editor and run it. **Check,** in one query:
+   ```sql
+   SELECT has_table_privilege('service_role', 'public.media_assets', 'DELETE') AS assets_may_delete,
+          has_table_privilege('service_role', 'public.asset_usages', 'UPDATE')
+            OR has_table_privilege('service_role', 'public.asset_usages', 'DELETE') AS usages_may_change,
+          has_table_privilege('service_role', 'public.media_assets', 'UPDATE') AS app_may_edit;
+   ```
+   → `false`, `false`, `true` (the last shows the app can still edit an image's record). Step 6's
+   check then returns `2`, `false`, `false`.
 
 **Undo.** The rollback at the end of the file, only before the first real story: stories are the
 newsroom's record and are never dropped after that. desk-3's undo is to run desk-2 again; desk-4's
 is to drop its function, and desk-5's to drop its two tables, before the first real image (each at
-the end of its file).
+the end of its file). desk-6 needs none: it removes only rights the app never uses.
 
 #### Granting the first Desk roles, until Panel 1
 
@@ -1471,9 +1485,10 @@ phases were done:
    (approved by the owner, 18 Nov 2026): authors and a story's credits were merged (PR #28; the
    owner applied desk-4 on 18 Nov 2026), and the image fixed for the editor package (PR #29). The
    media library's first part (upload, the record and its rights, S3 or a local folder) was merged
-   (PR #30), with one owner SQL step (desk-5, "The Desk (Panel 2): applying its tables", step 6). The
-   renditions (the worker's `make-renditions` job and its 5-minute timer; originals kept private) are
-   on `panel-2-desk-renditions`. On the server the images need the manager's
+   (PR #30); the owner applied desk-5 on 18 Nov 2026, and its check showed the app kept DELETE on the
+   media tables, which desk-6 (`fix/desk-media-grants`, "The Desk (Panel 2): applying its tables",
+   step 7) takes away. The renditions (the worker's `make-renditions` job and its 5-minute timer;
+   originals kept private) were merged (PR #31). On the server the images need the manager's
    [media steps](#the-desks-images-panel-2-after-the-release). Images in stories follow. Panel 1 will be built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
