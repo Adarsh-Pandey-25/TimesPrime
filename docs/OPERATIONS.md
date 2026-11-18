@@ -1600,9 +1600,11 @@ phases were done:
    (the worker's `make-renditions` job and its 5-minute timer; originals kept private) were merged
    (PR #31), and images in stories (PR #33; the owner applied desk-7 on 18 Nov 2026). Authors'
    photos and galleries complete M4's code (PR #34; the owner applied desk-8 on 18 Nov 2026). Panel
-   2's definition of done is checked in PANEL_DOCS.md: open are the Hindi typing check, the owner's
-   walk through the signed-in flow, a test Supabase project (browser tests, the smoke test, an axe
-   pass) and the worker reporting to Sentry. On the server the images need the manager's
+   2's definition of done is checked in PANEL_DOCS.md. The owner walked the signed-in flow on 18 Nov
+   2026 (the core flow, then authors' photos and a gallery); the desk's review steps, the worker's
+   exit on Windows (PR #40) and the gallery picker's button were fixed from what it found. Open are
+   the Hindi typing check, the rest of the walk-through (scheduling, the two-person restore), a test
+   Supabase project (browser tests, the smoke test, an axe pass) and the worker reporting to Sentry. On the server the images need the manager's
    [media steps](#the-desks-images-panel-2-after-the-release); failures: [the Desk is failing](#the-desk-is-failing). Panel 1 will be built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
