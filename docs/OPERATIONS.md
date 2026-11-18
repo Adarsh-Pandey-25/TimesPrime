@@ -2065,6 +2065,16 @@ that marks the story as changed fires with nothing edited. The Desk's story scre
 changes" on every story until 17 Nov 2026; it now calls `setEditable(value, false)`. `setContent`
 emits `update` by default too, which is wanted when a revision is brought back into the editor.
 
+#### 3.38 On Windows, `process.exit()` right after a `fetch` crashes Node
+
+Node 24 on Windows aborts as it closes when `process.exit()` runs right after a `fetch`:
+`Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c`, exit code
+3221226505 (`node -e "fetch('https://example.com').then(() => process.exit(0))"` shows it). The
+worker did exactly that after every job, so on a laptop a job that had finished its work reported
+a failure (the owner, 18 Nov 2026). The worker now ends a run with `finishRun`
+(`apps/worker/src/exit.ts`): it sets `process.exitCode` and lets Node exit by itself, and an
+unref'd timer forces the exit after 10 s if something keeps Node alive. Linux was not affected.
+
 ### 4. Commits — restructure 2, then audit Phases 2–5
 
 `f260d3e` closed audit Phase 1. Everything after it is restructure 2. Restructure 1 and Phase 1 are

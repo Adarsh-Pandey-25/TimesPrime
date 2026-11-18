@@ -11,6 +11,7 @@ import {
   DESK_FORMATS,
   embargoed,
   HEADLINE_MAX,
+  holdsDeskReview,
   move,
   MOVES,
   SEO_TITLE_MAX,
@@ -59,6 +60,21 @@ test("nothing moves a killed or retracted story, and only restore (two people) m
   for (const action of Object.keys(MOVES) as DeskAction[]) {
     for (const from of ["killed", "retracted", "unpublished"] as StoryState[]) expect(move(action, from)).toBeNull();
   }
+});
+
+test("out of review, Submit and Send back are the desk's steps (the owner's decision, 18 Nov 2026); nothing else is", () => {
+  expect(move("submit", "in_review")?.deskOnly).toBe(true);
+  expect(move("send_back", "in_review")?.deskOnly).toBe(true);
+  expect(move("submit", "draft")?.deskOnly).toBe(false);
+  expect(move("send_back", "desk_review")?.deskOnly).toBe(false);
+  const deskSteps = (Object.keys(MOVES) as DeskAction[]).flatMap((a) => STORY_STATES.filter((s) => move(a, s)?.deskOnly).map((s) => `${a}:${s}`));
+  expect(deskSteps.sort()).toEqual(["send_back:in_review", "submit:in_review"]);
+});
+
+test("a Sub-editor, a Desk Editor or a Managing Editor is offered the desk's steps; a Writer alone is not", () => {
+  expect(holdsDeskReview([{ role: "writer" }])).toBe(false);
+  expect(holdsDeskReview([])).toBe(false);
+  for (const role of ["sub_editor", "desk_editor", "managing_editor"]) expect(holdsDeskReview([{ role: "writer" }, { role }])).toBe(true);
 });
 
 test("send back, unpublish, retract and kill need a reason; the others do not", () => {

@@ -540,6 +540,24 @@ describe("the Desk's own rules (Panel 2 design §3)", () => {
     expect(wrote()).toEqual([]);
   });
 
+  // The owner's decision (18 Nov 2026): out of review, the step is the desk's, not the Writer's.
+  test("a Writer cannot pass their own story on from review, nor send it back; a Sub-editor can", async () => {
+    const own = { stories: story({ workflow_state: "in_review", created_by: "u-1" }), ...moved };
+    const submit = caseFor("POST", `${S}/submit`);
+    const back = caseFor("POST", `${S}/send-back`);
+    const passOn = await call(submit, HI_WRITER, own);
+    expect(passOn.status).toBe(403);
+    expect(passOn.json.required).toBe("article.submit");
+    expect((await call(back, HI_WRITER, own, { reason: "Needs a second source." })).status).toBe(403);
+    expect(wrote()).toEqual([]);
+    expect((await call(submit, HI_SUB, own)).status).toBe(200);
+  });
+
+  test("a Writer still submits their own draft to review", async () => {
+    const r = await call(caseFor("POST", `${S}/submit`), HI_WRITER, { stories: story({ workflow_state: "draft", created_by: "u-1" }), ...moved });
+    expect(r.status).toBe(200);
+  });
+
   test("send back from desk review also needs article.approve: a Sub-editor is refused", async () => {
     const c = caseFor("POST", `${S}/send-back`);
     const r = await call(c, HI_SUB, { stories: story({ workflow_state: "desk_review" }), ...moved });

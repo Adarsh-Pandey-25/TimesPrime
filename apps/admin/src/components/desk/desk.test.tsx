@@ -186,6 +186,24 @@ describe("the story screen", () => {
     expect(screen.queryByRole("link", { name: /View on the site/ })).not.toBeInTheDocument();
   });
 
+  // The owner's decision (18 Nov 2026): out of review, Submit and Send back are the desk's steps.
+  test("a story in review: a Writer is not offered Submit or Send back (Kill stays); a Sub-editor is", async () => {
+    const perms = { "article.view_admin": "read", "article.edit": "act", "article.submit": "act" } as const;
+    const as = (role: string) => (url: string) =>
+      url === "/api/admin/me" ? { status: 200, body: { ...staffMe(perms), roles: [{ role, language: "en", section: null, expiresAt: "2027-05-01T00:00:00Z" }] } } : undefined;
+    serveStory(perms, { workflow_state: "in_review" }, as("writer"));
+    const { unmount } = await act(async () => render(<StoryEditor id="s-1" />));
+    expect(await screen.findByRole("button", { name: "Kill" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send back" })).not.toBeInTheDocument();
+    unmount();
+
+    serveStory(perms, { workflow_state: "in_review" }, as("sub_editor"));
+    await act(async () => render(<StoryEditor id="s-1" />));
+    expect(await screen.findByRole("button", { name: "Submit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send back" })).toBeInTheDocument();
+  });
+
   // Design §7: images from the media library, in the story's text.
   const IMAGE_ID = "c0ffee00-0000-4000-8000-000000000001";
   const LIBRARY_IMAGE = {
