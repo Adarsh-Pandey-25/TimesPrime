@@ -241,14 +241,21 @@ describe("the story screen", () => {
     );
     await act(async () => render(<StoryEditor id="s-1" />));
     await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Gallery" })));
-    const add = await screen.findByRole("button", { name: /Add the gallery/ });
-    expect(add).toBeDisabled();
+    await screen.findAllByRole("button", { name: "Add to the gallery" });
+    // The button is above the library and again below its last image (the owner's walk-through).
+    const [above, below] = screen.getAllByRole("button", { name: /Add the gallery/ });
     const picks = screen.getAllByRole("button", { name: "Add to the gallery" });
+    expect(picks[1].compareDocumentPosition(below) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(above).toBeDisabled();
+    expect(below).toBeDisabled();
+    expect(screen.getByText("Choose at least 2 images.")).toBeInTheDocument();
     await act(async () => fireEvent.click(picks[1]));
-    expect(add).toBeDisabled();
+    expect(below).toBeDisabled();
     await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Add to the gallery" })[0]));
     expect(screen.getByRole("button", { name: "In the gallery (2)" })).toHaveAttribute("aria-pressed", "true");
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Add the gallery \(2 of 2 to 12\)/ })));
+    expect(above).toHaveAccessibleName("Add the gallery (2 of 2 to 12)");
+    expect(above).toBeEnabled();
+    await act(async () => fireEvent.click(below));
     expect(screen.queryByRole("region", { name: "Add a gallery" })).not.toBeInTheDocument();
 
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save" })));
