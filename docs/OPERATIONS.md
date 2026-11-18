@@ -1605,7 +1605,11 @@ phases were done:
    exit on Windows (PR #40) and the gallery picker's button were fixed from what it found. Open are
    the Hindi typing check, the rest of the walk-through (scheduling, the two-person restore), a test
    Supabase project (browser tests, the smoke test, an axe pass) and the worker reporting to Sentry. On the server the images need the manager's
-   [media steps](#the-desks-images-panel-2-after-the-release); failures: [the Desk is failing](#the-desk-is-failing). Panel 1 will be built on `panel-1-administration`.
+   [media steps](#the-desks-images-panel-2-after-the-release); failures: [the Desk is failing](#the-desk-is-failing).
+7. **Panel 1 (Administration)**: its [design](PANEL_DOCS.md#panel-1-design-administration) was
+   proposed on 18 Nov 2026, at the owner's request, on `panel-1-administration`, while Panel 2's
+   last items are open. No code before the owner approves it. Its first owner action is a second
+   Super Admin: every Super Admin change in the app needs one (the matrix's A).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

@@ -193,7 +193,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
-| 1 | Administration: users, role assignments with scope and expiry, access review | Planned | — | — |
+| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) proposed 18 Nov 2026, at the owner's request while Panel 2's last items are open; no code before its approval | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
@@ -1730,6 +1730,377 @@ The revocation takes effect within 60 seconds (the permission cache). For an imm
 sign the user out of all sessions in the dashboard. Rolling back the whole access foundation
 (dropping the tables) is in the migration's own rollback section. It is safe only before go-live:
 once `audit_log` holds real rows, it is never dropped.
+
+## Panel 1 design: Administration
+
+**Status:** **proposed** on 18 Nov 2026, for the owner's approval. No code before it. Branch
+`panel-1-administration`. **Started at the owner's request** (18 Nov 2026), while Panel 2's last
+items are still open: the Hindi typing check, a test project, the worker's Sentry, and two
+walk-through steps. `NEWSROOM_PLAN.md` is unchanged, as it was for Panel 2. Before the build, the
+answers to §11 are recorded here as "Approval: decisions".
+
+**Plan:** Phase D of [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md). Also the [access rules](#access-rules):
+the `user.manage / role.assign` row, "Four-eyes, takedown and MFA rules", and "Retention". Also the
+Panel 1 items that Panel 0 left in its "Known limits". **Done when** (the plan): the definition of
+done holds, and the shared password no longer works anywhere.
+
+In Panel 1, people and their access are managed in the app instead of by SQL:
+- who is staff;
+- which roles they hold, in which desk, and until when;
+- their second factor;
+- emergency access;
+- the quarterly access review.
+
+When Panel 1 is done, the shared admin password is deleted.
+
+### 0. What the docs and the code say, and what it changes
+
+- **The matrix.** Only two roles hold `user.manage / role.assign`:
+  - **Super Admin: A.** Every change a Super Admin makes needs a second Super Admin's approval.
+  - **Managing Editor: S (assign ≤ Desk Editor in own scope).** A Managing Editor acts alone, but
+    only for Writer, Sub-editor and Desk Editor, and only inside their own scope.
+- **What the database already enforces** (`role_assignments_guard` in access-1):
+  - Rows are history: an assignment is revoked, never deleted or edited.
+  - A privileged role is inserted only with `granted_by` and `approved_by` set to two different
+    active Super Admins. The privileged roles are Super Admin, Managing Editor, Legal/Compliance
+    and Privacy Officer.
+  - Writer, Sub-editor and Desk Editor need a language.
+  - A break-glass row lasts at most 2 hours.
+
+  It does not check that the granter is allowed to grant. The app checks that, as it does for
+  every other permission.
+- **Three gaps in the database for Panel 1,** all closed by migration admin-1 (§2):
+  - The "one active row" index counts an expired row as active (`WHERE revoked_at IS NULL`). A
+    renewal or a re-grant must therefore revoke the old row first, in the same transaction.
+  - The same index does not include `is_break_glass`. A Super Admin's break-glass row (same role,
+    same NULL scope) therefore cannot exist beside their normal one.
+  - The trigger requires two Super Admins for every privileged row, so a Super Admin cannot start
+    break-glass for themselves (§5).
+- **`decide()` today** (`packages/server/src/auth/decide.ts`):
+  - For A, it allows no read, and it answers `needs_approval` to an act.
+  - The Desk's two-person routes (`twoPerson` in `adminRoutePolicy.ts`) already turn that answer
+    into a request that someone else decides (Panel 2's restore). Panel 1 reuses that pattern.
+  - Because A allows no read, a Super Admin could not even list the staff they manage. §3 proposes
+    that A counts as read.
+- **Supabase Auth's admin API.** The installed `@supabase/auth-js` 2.116.0 has what Panel 1 needs,
+  all on the server with the service-role key:
+  - `createUser`;
+  - `generateLink`, which returns a `hashed_token`; `verifyOtp({ token_hash, type })` exchanges it
+    for a session;
+  - `mfa.listFactors` and `mfa.deleteFactor`.
+
+  Its `signOut` needs the person's own token, so it cannot sign out someone else. Panel 1 ends a
+  person's sessions with a database function instead (§2). An ended session is refused at the next
+  request: `staffSession.ts` calls `getUser()` on every request, and Supabase refuses a session that
+  no longer exists.
+- **No email service exists.** Supabase's built-in mailer is meant for testing and is heavily
+  rate-limited. Panel 1 therefore gives the admin a one-time link to pass on (§4). Email waits for
+  an email service, as the Desk's notifications do (Panel 2, decision 5).
+- **The account record is Panel 0's `staff_profiles`:** `display_name`, `status` (active or
+  suspended), `mfa_required` and `last_sign_in_at`.
+  - The app may already update it: `service_role` has UPDATE.
+  - An `auth.users` row is never deleted. `staff_profiles` references it `ON DELETE RESTRICT`, so
+    the audit trail always names someone. A person who leaves is suspended, and their roles are
+    revoked.
+- **The shared password** (`legacy:shared-password`) cannot manage people: it never holds
+  `user.manage` or `role.assign` (Panel 0, Q3). Every Panel 1 route is `staffOnly`.
+
+### 1. Milestones
+
+| Milestone | What it delivers | Rough size |
+|---|---|---|
+| **M1. People and roles** | Migration admin-1; the staff directory and each person's page; grant, renew and revoke, with scope and expiry; requests and approvals (A); suspend, reactivate, sign out everywhere | 1 to 1.5 weeks |
+| **M2. Accounts** | Adding a person, with a one-time "set your password" link and the welcome page; a new link for a forgotten password; resetting a lost second factor (two Super Admins) | 1 week |
+| **M3. Emergency access and the review** | Break-glass with its alert; the quarterly access review (migration admin-2); roles ending soon | 3 to 4 days |
+| **M4. The shared password goes** | One deletion commit; the owner removes its variables; Panel 1's definition of done | 1 to 2 days |
+
+Each milestone is its own pull request, green on `npm run verify`, and is shown to the owner before
+the next one starts. The total is 2.5 to 3.5 weeks; the plan estimates 2 to 3.
+
+### 2. Data model
+
+**Migration admin-1** (M1), applied by the owner with its check queries and its rollback:
+
+| Change | What | Why |
+|---|---|---|
+| `role_assignments_one_active` | Recreated over `(user_id, role_key, language, section, is_break_glass)` | A break-glass row can then sit beside the normal one |
+| `role_assignments_guard` | One more exception to the two-admin rule: a `super_admin` break-glass row whose `granted_by` is the person themself, already an active Super Admin, with a reason | Break-glass is self-activated (§5). The 2-hour CHECK stays |
+| `access_requests` (new) | `id`, `kind`, `user_id` (NULL until an added person's account exists), `details` (jsonb: role, scope, expiry, email, name), `reason`, `requested_by`, `requested_at`, `lapses_at` (72 hours later), `decided_by`, `decided_at`, `outcome` (`approved`, `declined`, `cancelled`, `lapsed`), `note` | The matrix's A for Super Admins. A trigger lets a row be decided once and never edited after. A CHECK requires `decided_by` to differ from `requested_by` and from `user_id` |
+| `access_grant(...)` (function) | Inserts an assignment. In the same transaction, it revokes the row it replaces (a renewal), or an expired row for the same role and scope | A renewal never leaves a moment with no row, or with two rows |
+| `access_decide(...)` (function) | Marks a request decided. For a grant, renewal, reactivation or rename, it makes the change in the same transaction, with `granted_by` set to the requester and `approved_by` to the decider | The approval and the change cannot come apart |
+| `staff_end_sessions(user)` (function) | Deletes the person's rows in Supabase's `auth.sessions`, and their refresh tokens with them. `SECURITY DEFINER`, executable by `service_role` only | Sign out everywhere, because Supabase's own sign-out needs the person's token |
+
+- **Kinds of request:** `add_person`, `grant`, `renew`, `reactivate`, `rename`, `password_link` and
+  `mfa_reset`.
+- **Requests that change the Supabase account** (adding a person, a password link, a factor reset):
+  the app makes that change first, and decides the request after it. Each of those steps is safe to
+  repeat, so a failure between them is fixed by trying again.
+- **Grants, as desk-6 taught:** `REVOKE ALL … FROM anon, authenticated, service_role`, then only what
+  the app needs (`schema.test.ts` enforces it). No role may UPDATE or DELETE a decided request.
+
+**Migration admin-2** (M3) adds `access_reviews`: `id`, `completed_by`, `completed_at`, `note`, and
+`snapshot` (jsonb: every assignment reviewed, and what was decided for it). It is append-only (a
+trigger), like `audit_log`.
+
+No table or column changes meaning. `staff_profiles.status` keeps its two values. An added person
+who has not set their password yet is shown as "not signed in yet" (`last_sign_in_at` is NULL).
+
+### 3. Who may do what
+
+The one principle: **adding access needs two people; removing access needs one.**
+
+| Action | Super Admin (A) | Managing Editor (S) | Permission |
+|---|---|---|---|
+| See the directory and a person | Everyone | People who hold a role in their scope | `user.manage`, read |
+| Add a person (the account and a first role) | A request; a second Super Admin approves | Alone: Writer, Sub-editor or Desk Editor in their scope | `user.manage` and `role.assign` |
+| Grant or renew a role | A request; a second Super Admin approves (for a privileged role, the database requires it too) | Alone, up to Desk Editor in their scope | `role.assign` |
+| Rename, reactivate | A request | Alone, for their people | `user.manage` |
+| Revoke a role | Alone | Alone, for roles they could grant | `role.assign` |
+| Suspend, sign out everywhere | Alone | Alone, for their people | `user.manage` |
+| A new password link | A request | Alone, for their people | `user.manage` |
+| Reset a lost second factor | A request; a second Super Admin approves | Not allowed: they ask a Super Admin | `user.manage` |
+| Emergency access (break-glass) | Alone, for themselves, at most 2 hours (§5) | Not allowed | `role.assign` |
+| Complete the access review | Alone; the renewals in it are requests | Not allowed | `role.assign` |
+
+The rules around it:
+- **Nobody acts on their own access.** Nobody grants themselves a role or renews their own, and
+  nobody approves a request they made or a request about themselves. The app enforces this, and so
+  does the CHECK on `access_requests`. Break-glass is the one exception, by design (§5).
+- **A Managing Editor's people** are those whose every live role is Writer, Sub-editor or Desk
+  Editor, inside the Managing Editor's scope. So a Managing Editor cannot suspend a Super Admin or a
+  fellow Managing Editor.
+- **The last active Super Admin** cannot be revoked or suspended in the app. The owner's SQL editor
+  remains the way back in.
+- **Expiry:** every grant has one (the database requires it). The form offers 30, 90, 180 or 365
+  days, with 180 as the default; Super Admin gets 365. The most is 365 days.
+- **MFA:** every Panel 1 write needs `aal2`. Super Admin and Managing Editor already require it by
+  role.
+- **The approver** of a Super Admin's request is a different Super Admin. A request lapses after 72
+  hours, so nobody can approve a stale one by surprise.
+
+**The access-rule notes this needs** (question 2). No permission or cell changes, so the catalogue
+SQL is not regenerated.
+- **(a) A counts as read** for the permission it is on. The matrix says A means "can act but a
+  second person must approve"; Panel 0 refused it for reading until a panel used it. No route reads
+  with an A cell today, so nothing else changes, and a test proves it.
+- **(b) Removing access is single-actor** (revoke, suspend, sign out), like a takedown. It cannot
+  create privilege, and speed matters when an account is misused.
+- **(c) Nobody acts on their own access,** as above.
+- **(d) Break-glass is self-activated** (§5).
+
+### 4. Screens, routes and the welcome page
+
+**Screens** (`apps/admin/src/app/admin/people/…`). Each has loading, error and empty states and is
+checked for keyboard use and labels. The top bar shows "People" to holders of `user.manage`.
+- **`/admin/people`: the directory.** Each person's name, email, status, roles (with desk and
+  expiry), second factor (set or not) and last sign-in, with filters by role, desk and status.
+  Above it, for Super Admins:
+  - "Waiting for your approval", and the requests they made;
+  - active break-glass;
+  - roles ending within 14 days;
+  - when the next review is due.
+- **`/admin/people/new`: add a person.** Email, name, first role, desk, expiry, reason.
+- **`/admin/people/[id]`: one person.**
+  - Their roles: grant, renew, revoke.
+  - Their account: rename, suspend, reactivate, sign out everywhere, a new password link, reset the
+    second factor.
+  - Their history from the audit log, for those who hold `audit.read`.
+- **`/admin/people/review`:** the access review (§6).
+- **`/admin/welcome`:** public; where a link lands (below).
+
+**Routes** (`/api/admin/people/…`), one per action:
+- `people`: `GET` and `POST`; `people/[id]`: `GET` and `PATCH`;
+- `people/[id]/suspend`, `reactivate`, `sign-out`, `password-link` and `mfa-reset`;
+- `people/[id]/roles` (grant), `roles/[assignmentId]/renew` and `revoke`;
+- `requests` (`GET`), `requests/[id]/approve`, `decline` and `cancel`;
+- `break-glass`: `POST` starts it, `DELETE` ends it early;
+- `review`: `GET` and `POST`.
+
+Each route is in `ADMIN_ROUTE_RULES` and covered by the route walk. Every route is `staffOnly`, and
+the A ones are `twoPerson`: a Super Admin's call makes a request.
+
+**Adding a person, and the one-time link** (M2):
+1. The account is made with `createUser`, with the email confirmed and no password. Sign-up stays
+   off, and nobody can sign in to the account yet.
+2. A "set your password" link is made with `generateLink` (type `recovery`). The app builds its own
+   address from the `hashed_token`: `/admin/welcome?token_hash=…&type=recovery`. It never uses
+   Supabase's redirect, so no redirect address needs to be allowed.
+3. The link is shown **once**, with a copy button, to the admin who added the person (for a Super
+   Admin's request, once it is approved). It is not stored; the audit log records only that it was
+   made. Whoever holds the link can set the password, so it is handed over in person or in a direct
+   message.
+4. The person opens the link. The page exchanges the token for a session (`verifyOtp`).
+   - If they already have a second factor, they enter its code first, so a link alone cannot take
+     over an account.
+   - They choose a password.
+   - They set up their second factor (Panel 0's existing step) if they have none, and land on
+     their page.
+5. The link works once, and only until Supabase's email-link expiry: 1 hour by default
+   (question 3).
+
+A forgotten password uses the same link. The page needs two new public routes (`/admin/welcome` and
+`POST /api/admin/welcome`, which takes the token) and one session-only route, `POST
+/api/admin/password`, which sets the password. `PUBLIC_ADMIN_ROUTES`, the proxy and the route walk
+gain them.
+
+**Resetting a lost second factor** (M2):
+1. One Super Admin asks, saying how they checked that it really is the person.
+2. Another Super Admin approves.
+3. The app deletes the person's factors (`mfa.deleteFactor`) and ends their sessions.
+4. At their next sign-in, the person sets up a new factor.
+
+### 5. Emergency access (break-glass, M3)
+
+The matrix gives Super Admin `article.unpublish` / takedown only as **F (break-glass)**. It is for
+the night a court order arrives and no editor answers.
+- **How it starts.** A Super Admin starts it for themselves, with a reason, after their second
+  factor. It is a `super_admin` row with `is_break_glass` set, and it ends within 2 hours (the
+  database's CHECK).
+- **What it gives.** Exactly the break-glass cells of the matrix (today: taking an article or a
+  story down), and nothing else.
+- **Why one person may start it.** Its point is speed. In exchange:
+  - the other Super Admins see it at once, on `/admin/people` and in a bar across the back office
+    while it lasts;
+  - every action taken under it names the break-glass assignment in the audit log;
+  - a takedown made with it reaches the Managing Editor and Legal through the Desk's alert list
+    (Panel 2);
+  - it can be ended early, but not extended: another one needs a new reason;
+  - email waits for an email service.
+
+### 6. The access review (M3)
+
+Every 90 days, a Super Admin goes through every live assignment on `/admin/people/review`. The
+access rules call this review "the cheapest control against the privilege creep OWASP warns about"
+("Retention").
+- **Each row shows** the person, the role, the desk, who granted it, when it ends and the person's
+  last sign-in.
+- **Each row is flagged** if the person has not signed in for 60 days, has no second factor, or
+  holds a privileged role, or if the row expired but was never revoked.
+- **The reviewer marks each row:**
+  - keep;
+  - revoke, done at once;
+  - renew, a request as usual.
+- **To finish,** the reviewer adds a note and completes the review. That writes an `access_reviews`
+  row with the snapshot.
+- **The reminder:** `/admin` tells Super Admins when a review is due.
+
+### 7. Retiring the shared password (M4)
+
+This is Panel 0's design §7, unchanged.
+- **When.** All three must hold:
+  - M1 to M3 are merged;
+  - two Super Admins have signed in with their second factor;
+  - the owner says go.
+
+  Panel 0's runbook also asked for this to happen "in production". The release is not deployed
+  yet, so the owner decides whether that condition still applies (question 6). Whatever is decided,
+  the code refuses the shared password from 1 January 2027.
+- **What.** One deletion commit removes:
+  - `adminSession.ts`, and the legacy branches in the proxy, the login route and
+    `staffSession.ts`;
+  - `decideLegacy` and `LEGACY_PERMISSIONS`;
+  - the "shared password" option on the sign-in page;
+  - `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET` and `ADMIN_LEGACY_LOGIN` from `.env.example` and
+    `deploy/env/admin.env.example`.
+- **Then the owner** removes those variables, and the unused `ADMIN_SECRET_TOKEN`, from the root
+  `.env` and from the server's env file. The sealed way in stays the owner's: the Supabase dashboard
+  and the SQL editor (the bootstrap script).
+
+### 8. Audit
+
+- **Every write** records "attempted, then outcome" (Panel 0, Q2). It is refused with 503 if the
+  attempt cannot be written. The database parts that must not come apart are one function call
+  each (§2).
+- **Action names:**
+  - `staff.add`, `staff.rename`, `staff.suspend`, `staff.reactivate`, `staff.sign_out`,
+    `staff.password_link`, `staff.mfa_reset`;
+  - `role.assign`, `role.renew`, `role.revoke`;
+  - `access.request`, `access.approve`, `access.decline`, `access.cancel`;
+  - `access.break_glass_start`, `access.break_glass_end`, `access.review_complete`;
+  - on the welcome page, `auth.password_set`.
+- **Each row records** the person acted on, the role and scope before and after, the request and its
+  two people where there are two, and the reason. It never records a link or its token.
+- **Failures reach Sentry** through the existing reporters.
+
+### 9. Owner actions
+
+1. **A second Super Admin, before M1 is shown.** Every Super Admin change needs a second Super
+   Admin, and so does granting a Managing Editor. Use B3 of the staff-access runbook: Add user →
+   Create new user, then `super-admin.sql`. Who it is is the owner's choice (question 1).
+2. **Apply admin-1** (M1) and **admin-2** (M3), each with its check.
+3. **In Supabase,** set the email-link (OTP) expiry under Authentication → Email: it decides how long
+   a set-password link works (question 3).
+4. **At M4,** remove the shared password's variables from the root `.env` and from the server.
+5. **Then grant the first Managing Editor in the app,** with two Super Admins. The Desk roles
+   granted by SQL (Panel 2) stay valid as they are; only their renewal goes through Panel 1.
+
+### 10. Tests
+
+- **Every route:**
+  - allowed for its least-privileged holder;
+  - denied with no assignment, an expired one, no MFA, and a shared-password session;
+  - denied for a Managing Editor out of scope, above Desk Editor, or acting on someone who is not
+    one of their people.
+- **Two people:**
+  - a Super Admin's change becomes a request;
+  - the requester, and the person it is about, cannot approve it; a second Super Admin can;
+  - a lapsed, decided or cancelled request cannot be approved;
+  - a self-grant is refused;
+  - revoke and suspend act at once;
+  - the last Super Admin cannot be removed.
+- **`decide()`:** A counts as read, and every existing route's answer is unchanged (the access
+  test's matrix).
+- **The welcome page:**
+  - a missing, wrong or used token shows the error and makes no session;
+  - a session from the link must set a password, and then a second factor, before anything else;
+  - an account that has a factor must enter its code before the password.
+- **Break-glass:**
+  - it lasts at most 2 hours and gives takedown only;
+  - it is refused to anyone but a Super Admin, and refused while one is already active;
+  - it can be ended early.
+- **The database rules** (the new index, the trigger's exception, the decide-once trigger and the
+  functions) are in admin-1's check queries, run by the owner (definition of done, item 7).
+- **Browser tests, read-only:**
+  - signed out, `/admin/people` goes to sign-in and its API answers 401;
+  - the welcome page without a token shows its error without calling Supabase.
+- **JS budgets** for every new page.
+
+### 11. Questions for the owner
+
+1. **Should every Super Admin change need a second Super Admin** (the matrix's A, as written)?
+   - **Recommended:** keep it. Grants are rare, and a Managing Editor handles day-to-day newsroom
+     roles alone.
+   - It means a second Super Admin is needed before Panel 1 is any use to a Super Admin. Who should
+     it be?
+   - The other way: a Super Admin acts alone for non-privileged roles, and two Super Admins are
+     needed only for privileged ones. That is an access-rule change.
+2. **The four access-rule notes of §3:** A counts as read; removing access is single-actor; nobody
+   acts on their own access; break-glass is self-activated? **Recommended.**
+3. **Adding people with a one-time link** that is shown to the admin and handed over, with email
+   later? It needs no email service. And how long should the link work?
+   - Supabase's default is 1 hour.
+   - **Recommended: 24 hours,** the most Supabase allows, so the person can open it the same day.
+4. **Break-glass as in §5:** a Super Admin alone, at most 2 hours, takedown only, the other Super
+   Admins alerted on screen, and email later? **Recommended.**
+5. **Expiry and the review:** 180 days by default (30, 90, 180 or 365), 365 for Super Admin, at most
+   365, and a review every 90 days? **Recommended.**
+6. **Should the shared password go in M4,** once two Super Admins have signed in with their second
+   factor, without waiting for the AWS deployment? **Recommended,** if Vivek's release does not
+   depend on it; that needs his word.
+7. **Milestones M1 → M2 → M3 → M4,** each shown to the owner before the next? **Recommended.**
+
+### 12. Not in Panel 1
+
+- **Assigning a writer on the Desk.** Panel 2 left it for a staff directory. It is a small Desk
+  follow-up once M1 is merged, if the owner wants it.
+- **Linking an author record to a staff account** (`authors.staff_user_id`): Panel 2's author
+  screen, later.
+- **Email** for links, alerts and reminders: when an email service exists.
+- **The audit viewer, and `audit_verify_chain()` in the app:** Panel 8.
+- **The settings and health pages.** Health stays on `/admin`. `settings.manage` has nothing to
+  manage yet.
+- **Vendor consoles' user lists** (GAM, Piano and the rest) in the review: Panel 9.
+- **RLS with a user-context client, and a SQL `has_permission()`:** Phase 2 (Panel 0).
 
 ## Panel 2 design: the Desk (Publisher)
 
