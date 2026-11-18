@@ -179,7 +179,8 @@ apps/
                            and credits, the preview, the authors, the media library)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
-                           publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes)
+                           publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes);
+                           make-renditions (Panel 2: the library's image renditions, every 5 minutes)
 packages/
   server/                  @timesprime/server: server-only, every module opens with import "server-only"
     src/auth/              the access foundation (Panel 0): requirePermission (the gate), decide, scope,
@@ -187,9 +188,10 @@ packages/
     src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk),
                            authors.ts (the Desk's author records), media.ts (the media library's records)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
-                           publishing's rules, the scheduler)
+                           publishing's rules, the scheduler, the image renditions with sharp)
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase,
-                           mediaStorage (the images' files: S3 on the server, a folder on a laptop), …
+                           mediaStorage (the images' files: S3 on the server, a folder on a laptop;
+                           only renditions are ever served publicly), …
   shared/                  @timesprime/shared: client-safe config (media.ts: the library's image types,
                            limits and key shapes), types and lib (urlValidation, sentryScrub)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and
