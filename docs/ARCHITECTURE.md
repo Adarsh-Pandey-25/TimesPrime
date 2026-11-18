@@ -173,8 +173,8 @@ apps/
     src/app/admin/         the dashboard and the staff sign-in; panels arrive as route folders
     src/app/api/admin/     every admin route handler, each gated by requirePermission; desk/ is Panel 2
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list
-                           with its takedown alerts, a new story, the story editor and its revisions,
-                           the preview)
+                           with its takedown alerts, a new story, the story editor with its revisions
+                           and credits, the preview, the authors)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes)
@@ -182,7 +182,8 @@ packages/
   server/                  @timesprime/server: server-only, every module opens with import "server-only"
     src/auth/              the access foundation (Panel 0): requirePermission (the gate), decide, scope,
                            adminRoutePolicy, staffSession, supabaseServer, mfa, adminSession
-    src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk)
+    src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk),
+                           authors.ts (the Desk's author records)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
                            publishing's rules, the scheduler)
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase, …
