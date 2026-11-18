@@ -822,7 +822,9 @@ aggregator's `articles` and its 7-day purge.
 Each action's permission is in the [design's workflow table](#3-workflow), mirrored in
 `MOVES` (`desk.ts`). The extra rules:
 - **Four-eyes on approval:** neither the creator nor anyone who saved since the last approval.
-- **Own for a Writer:** only stories they created.
+- **Own for a Writer:** only stories they created, and never the desk's review steps: out of
+  review, Submit (to the desk) and Send back need `article.submit` for the story's desk, so a
+  Sub-editor or an editor takes them (the owner's decision, 18 Nov 2026; `deskOnly` in `MOVES`).
 - **Two people for a restore:** the matrix's A.
 - **Two people for a Sub-editor's correction:** the matrix's A; a holder of S or F decides.
 - **Images belong to a desk:** uploading needs `article.edit` there (the uploader owns the upload, for
@@ -909,6 +911,7 @@ embargo 409.
 | `packages/server/src/repositories/deskSchema.test.ts` (desk-8) | One transaction; the column, the readers' grant, the policy for an active author's active photo | Nothing else about the library's rights changes |
 | `packages/ui/src/StoryArticle.test.tsx` (photos) | The photo, round, before the byline, from its square rendition, decorative | A photo the page was not given; an address that is not https or a site path |
 | `packages/editor/src/renderImages.test.tsx` (galleries), `desk.test.tsx` (galleries, photos) | A gallery's images together; the schema holds two to twelve images; Gallery adds the chosen images in order with their crop, which Save sends; the Authors page chooses a photo and saves it | A gallery of one, of thirteen, or with anything but images; an image whose rights are not cleared cannot be a photo |
+| `packages/shared/src/config/desk.test.ts`, `access.test.ts`, `desk.test.tsx` (the desk's review steps) | Out of review, Submit and Send back are the only `deskOnly` steps; a Sub-editor passes a story on; a Writer still submits their draft and may kill their own story | A Writer passing their own story on from review, or sending it back (403, `article.submit`), and not offered either on screen |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 
 The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
@@ -943,13 +946,11 @@ project). Assigning a writer from the screen waits for Panel 1's staff directory
 #### Known limits and not yet built
 
 - **Next:** the open items above, for the owner's sign-off.
-- **Found in the owner's walk-through (18 Nov 2026), for the owner to decide:**
-  - a Writer holds `article.submit` (Own), so on their own story in review they see, and may use,
-    Submit (to desk review) and Send back, which the workflow table means for a Sub-editor. Approval
-    still needs a second person; the editorial step is what is skipped;
-  - on Windows, a worker job prints its result and then Node crashes as it exits
-    (`Assertion failed … src\win\async.c`), so the job reports a failure; the work is done, and the
-    server (Linux) is not affected;
+- **Found in the owner's walk-through (18 Nov 2026):**
+  - *decided and fixed:* a Writer's Submit and Send back on their own story in review (the desk's
+    review steps are now `deskOnly`; see the access rules);
+  - *decided and fixed:* on Windows, a worker job printed its result and then Node crashed as it
+    exited; the worker now sets its exit code instead (OPERATIONS.md, gotcha 3.38);
   - "View on the site" opens the site's own address (`NEXT_PUBLIC_APP_URL`), which answers once
     the site is deployed; on a laptop the page is at `http://localhost:3000/<section>/<slug>-<number>`;
   - setting up the second factor: each reload of the sign-in page makes a new QR code, so a code
@@ -1847,8 +1848,8 @@ published`. After publication a story can become `unpublished` or `retracted`, a
 | Create | → `pitch` or `draft` | `article.create`: Writer **Own**, Sub-editor and Desk Editor **S**, Managing Editor **F** | The creator is `created_by`. Target scope is the new story's language and section |
 | Assign | `pitch` → `assigned` | `article.edit` (S or F) | Names the writer |
 | Save (a new revision) | `pitch` to `approved` (stays, except that `approved` goes back to `desk_review`) | `article.edit`: Writer **Own** (only stories they created), others S or F | Needs the soft lock. Saving after approval voids the approval |
-| Submit | `draft` → `in_review`; `in_review` → `desk_review` | `article.submit` (Own, S or F) | Writer submits to the sub-editors; a Sub-editor passes it to the desk |
-| Send back | `in_review` or `desk_review` → `draft` | The permission that moves the story on from where it is (`article.submit` from `in_review`, `article.approve` from `desk_review`) | A reason is required |
+| Submit | `draft` → `in_review`; `in_review` → `desk_review` | `article.submit` (Own, S or F); from `in_review`, S or F only | Writer submits to the sub-editors; a Sub-editor passes it to the desk. *Amended by the owner, 18 Nov 2026:* a Writer's Own does not reach the step out of review, even on their own story |
+| Send back | `in_review` or `desk_review` → `draft` | The permission that moves the story on from where it is (`article.submit` from `in_review`, at S or F; `article.approve` from `desk_review`) | A reason is required. A Writer cannot send back their own story (amended, 18 Nov 2026) |
 | Approve | `desk_review` → `approved` | `article.approve`: Desk Editor S, Managing Editor F | **Four-eyes:** the approver is neither `created_by` nor the editor of the revision being approved, nor anyone who saved it since its last approval (from `workflow_transitions`). The **pre-publish checklist** must pass. Approval binds to one revision (`approved_revision_id`) |
 | Schedule | `approved` → `scheduled` | `article.publish`: Sub-editor and Desk Editor S, Managing Editor F | `scheduled_at` in the future; the worker publishes it (§6) |
 | Publish | `approved` or `scheduled` → `published` | `article.publish` | Only the approved revision goes live. **Publish Guard:** the button exists only in `approved`, and the server refuses any other state. Refused before `embargo_until` |
