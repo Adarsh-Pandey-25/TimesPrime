@@ -11,6 +11,7 @@ import fs from "fs";
 import path from "path";
 import { NEWS_REFRESH_TICK_MINUTES } from "@timesprime/shared/config/newsRefresh";
 import { PUBLISH_TICK_MINUTES } from "@timesprime/shared/config/desk";
+import { RENDITIONS_TICK_MINUTES } from "@timesprime/shared/config/media";
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (file: string) => fs.readFileSync(path.join(ROOT, file), "utf8").replace(/\r\n/g, "\n");
@@ -149,6 +150,22 @@ describe("the scheduled-publishing timer", () => {
     expect(deploy).toContain('for timer in "$KIT"/systemd/timesprime-*.timer; do');
     expect(deploy).toContain('systemctl enable --now "$(basename "$timer")"');
     expect(deploy).toContain('[ -e "$KIT/systemd/$name" ] || systemctl disable --now "$name"');
+  });
+});
+
+// Panel 2 (design §7): the library's image renditions.
+describe("the renditions timer", () => {
+  test("fires every RENDITIONS_TICK_MINUTES (5), two minutes after scheduled publishing, and runs make-renditions", () => {
+    expect(RENDITIONS_TICK_MINUTES).toBe(5);
+    expect(read("deploy/systemd/timesprime-renditions.timer")).toContain(`OnCalendar=*:2/${RENDITIONS_TICK_MINUTES}`);
+    expect(read("deploy/systemd/timesprime-renditions.service")).toMatch(/--profile jobs run --rm worker make-renditions/);
+  });
+
+  test("a run times out before the next tick, and its own budget ends first", () => {
+    const timeout = Number(/^TimeoutStartSec=(\d+)$/m.exec(read("deploy/systemd/timesprime-renditions.service"))?.[1]);
+    expect(timeout).toBeLessThan(RENDITIONS_TICK_MINUTES * 60);
+    // RENDITIONS_BUDGET_MS (180 s) plus one image's work fits inside it.
+    expect(timeout).toBeGreaterThanOrEqual(180 + 60);
   });
 });
 
