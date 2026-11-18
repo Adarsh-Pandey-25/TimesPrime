@@ -1,6 +1,6 @@
 import "server-only";
 
-import { embargoed, type StoryFormat, type StoryLanguage, type StoryState } from "@timesprime/shared/config/desk";
+import { embargoed, type CreditRole, type StoryFormat, type StoryLanguage, type StoryState } from "@timesprime/shared/config/desk";
 import type { PublishedStory } from "@timesprime/shared/types";
 import { supabase } from "../lib/supabase";
 
@@ -552,5 +552,39 @@ export function decidePending(input: { actionId: string; deciderId: string; deci
     p_decider_label: input.deciderLabel,
     p_outcome: input.outcome,
     p_reason: input.reason,
+  });
+}
+
+/** One of a story's credits, with its author's names, as the Desk shows it. */
+export interface CreditRow {
+  author_id: string;
+  role: CreditRole;
+  position: number;
+  author: { display_name_en: string; display_name_hi: string | null; active: boolean } | null;
+}
+
+/** A story's credits, in order (design §2, story_authors). */
+export async function listCredits(storyId: string): Promise<CreditRow[]> {
+  const { data, error } = await supabase
+    .from("story_authors")
+    .select("author_id, role, position, author:authors(display_name_en, display_name_hi, active)")
+    .eq("story_id", storyId)
+    .order("position", { ascending: true });
+  if (error) throw storeError(error);
+  return (data ?? []) as unknown as CreditRow[];
+}
+
+/**
+ * Replaces a story's credits in one transaction with its history (desk_set_credits,
+ * database/migrations/2026-11-18-desk-4-credits.sql): before publication only, every author active,
+ * and an approved story back to desk review. Refused (409) if the story moved since the caller read it.
+ */
+export function setCredits(input: { storyId: string; from: StoryState; actorId: string; actorLabel: string; credits: Array<{ author_id: string; role: CreditRole }> }): Promise<StoryRow> {
+  return call("desk_set_credits", {
+    p_story: input.storyId,
+    p_from: input.from,
+    p_actor: input.actorId,
+    p_actor_label: input.actorLabel,
+    p_credits: input.credits,
   });
 }

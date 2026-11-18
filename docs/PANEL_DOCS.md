@@ -497,8 +497,9 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 and #18) and the two-person restore. M1 is complete. M2's code is complete (the editor package, the
 Desk's screens, the story's revisions on screen); the Hindi typing check still closes it. M3's code
 is complete: the reader's story page (PR #23), the preview in the back office (decision 7, PR #24),
-scheduled publishing (PR #25), corrections (PR #26) and the takedown alert list (below); the owner
-sees M3 before M4 starts. Started before Panel 1 at the owner's request (17 Nov 2026);
+scheduled publishing (PR #25), corrections (PR #26) and the takedown alert list (PR #27). M4 is
+under way (approved by the owner, 18 Nov 2026): authors and a story's credits are built (below);
+the media library follows. Started before Panel 1 at the owner's request (17 Nov 2026);
 [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -517,10 +518,14 @@ sees M3 before M4 starts. Started before Panel 1 at the owner's request (17 Nov 
   - `stories/[id]/correct`: POST, a live story's public correction note (published at once, or
     asked for);
   - `pending/[actionId]/decide`: POST, to approve or decline a restore or a correction request;
-  - `alerts`: GET, the takedowns of the last 30 days in the caller's desks.
+  - `alerts`: GET, the takedowns of the last 30 days in the caller's desks;
+  - `authors`: GET (the list) and POST (a new author); `authors/[id]`: PATCH (edit, retire, bring
+    back);
+  - `stories/[id]/credits`: POST, the story's credits, before publication.
 
   The screens (M2): `/admin/desk` (the list), `/admin/desk/new` and `/admin/desk/[id]` (the story),
-  linked from the back office's top bar; and (M3) `/admin/desk/[id]/preview`, the story's preview.
+  linked from the back office's top bar; (M3) `/admin/desk/[id]/preview`, the story's preview; and
+  (M4) `/admin/desk/authors`, the authors.
 
   The reader's story pages (M3): `/{section}/{slug}-{number}` in English and
   `/hi/{section}/{slug}-{number}` in Hindi, where the number is the story's `public_id`.
@@ -539,6 +544,9 @@ sees M3 before M4 starts. Started before Panel 1 at the owner's request (17 Nov 
   - the story's view, shared by the reader's page and the Desk's preview:
     `packages/ui/src/StoryArticle.tsx` and its text styles, `packages/ui/src/story.css`;
   - the preview: `apps/admin/src/components/desk/StoryPreview.tsx`;
+  - authors and credits: `packages/server/src/repositories/authors.ts`, `listCredits` and
+    `setCredits` in `stories.ts`, the routes' checks in `apps/admin/src/app/api/admin/desk/_lib/authors.ts`,
+    and the screens `AuthorsManager.tsx` and `CreditsPanel.tsx`;
   - `packages/server/src/auth/decide.ts`: the Own code;
   - `database/migrations/2026-11-17-desk-1-stories.sql`;
   - the routes in `apps/admin/src/app/api/admin/desk/`, with their shared steps in
@@ -686,11 +694,26 @@ aggregator's `articles` and its 7-day purge.
   - **How:** `GET /api/admin/desk/alerts` reads the history in three plain queries (the moves, their
     stories, the names of who made them) and keeps to the caller's desks in code. Email waits for
     an email service; the audit log has every takedown too.
+- **Built (M4, first part): authors and a story's credits** (design §2 and §7).
+  - **Authors:** records, not staff accounts: a name in English and in Hindi, a kind (staff,
+    columnist, freelancer), a beat, a bio in each language and up to five https links. Anyone on the
+    Desk sees the list (`/admin/desk/authors`, linked from the Desk); a holder of `author.manage`
+    adds an author, edits one, retires one or brings one back. Never deleted: a retired author stays
+    credited on what they wrote and cannot be credited again. Agency bylines wait for a wire
+    licence (Phase K). Audited (`author.create`, `author.update`, with the record before and after).
+  - **Credits:** a story's byline, additional reporting and translator, each an active author, in
+    order, up to 20. Set on the story's screen by whoever may edit it (`article.edit`, in its desk),
+    before publication only, so a live page's credits never change unseen; on an approved story
+    they void the approval, as a details change does. One transaction with the story's history
+    (`credits`): `desk_set_credits`, migration desk-4, an owner step. Audited (`story.credits`).
+  - **What readers see:** the reader's page and the Desk's preview credit the active authors, by
+    their name in the story's language ("By Asha Rao and Vikram Singh"; Hindi names on a Hindi story).
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
-  - media and bylines (M4).
+  - the media library, images in stories and authors' photos (M4's next parts), and linking an
+    author to a staff account (Panel 1's staff directory).
 
 #### Access permissions and authorization rules
 
@@ -700,6 +723,10 @@ Each action's permission is in the [design's workflow table](#3-workflow), mirro
 - **Own for a Writer:** only stories they created.
 - **Two people for a restore:** the matrix's A.
 - **Two people for a Sub-editor's correction:** the matrix's A; a holder of S or F decides.
+- **Authors belong to no desk:** `author.manage` is decided in any scope in which the caller holds
+  it, which is the matrix's F for a Desk Editor. As a site-wide object an author would admit only
+  unscoped grants, and a Desk Editor always has a language. Writing a story's credits rides on
+  `article.edit`, in the story's desk.
 - **Single actor for a takedown:** with a reason.
 - **MFA:** every Desk write needs `aal2`.
 
@@ -715,6 +742,7 @@ embargo 409.
 | `database/migrations/2026-11-17-desk-1-stories.sql` | The ten Desk tables, the append-only triggers, the three `desk_*` functions, RLS and column grants for readers | In the file; only before the first real story | **Yes, 17 Nov 2026**, checks passed |
 | `database/migrations/2026-11-17-desk-2-restore.sql` | One open request per story and action; `desk_decide_pending`, which decides a restore and puts the story back live in one transaction | In the file | **Yes, 17 Nov 2026**, checks passed |
 | `database/migrations/2026-11-17-desk-3-corrections.sql` | `desk_decide_pending` decides a correction request too: approved, the live story's note is the request's, with its history row, in one transaction | Run desk-2 again | **Yes, 17 Nov 2026**, checks passed (`decides_corrections` true, `anon_may_call` false) |
+| `database/migrations/2026-11-18-desk-4-credits.sql` | `desk_set_credits`: a story's credits replaced, in order, each naming an active author, before publication only; an approved story back to desk review; its history row; one transaction | Drop the function (in the file) | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 5) |
 
 #### Tests and verification
 
@@ -746,6 +774,10 @@ embargo 409.
 | `apps/admin/src/app/api/admin/access.test.ts` (alerts) | A Desk Editor sees their desk's takedowns, with who took each down; Legal sees every desk's | A Sub-editor and a Writer (no `article.unpublish`) are refused before any read |
 | `packages/server/src/repositories/stories.test.ts` (`listTakedowns`) | Unpublish and retract of the last 30 days, newest first; only the caller's desks; the headline, the state now and the name of who took it down | No scope reads nothing; no takedown reads no further; a name not known falls back to the history label; a database error is thrown |
 | `apps/admin/src/components/desk/desk.test.tsx` (alerts) | Each takedown: its kind, its story (linked, in its language), why, who, and "Live again" once restored; an empty list says so | Without `article.unpublish` there is no alert list, and it is never asked for |
+| `apps/admin/src/app/api/admin/access.test.ts` (authors and credits) | A Desk Editor of any language manages authors (F, no desk); retiring keeps the record, audited with before and after; a story's credits go through `desk_set_credits` from the state the story was read in | A Sub-editor and a Writer cannot create or change an author; a missing English name, an agency, a link that is not https, an empty edit; an unknown author (404); credits on a live story (409), malformed, repeated or more than 20; a Writer crediting another's story |
+| `packages/server/src/repositories/authors.test.ts`, `stories.test.ts` (credits) | The list by English name, retired only on request; create and update as given; credits listed in order with names, set through `desk_set_credits` | Nothing deleted; a database error thrown; a story moved meanwhile (409); a retired author (422) |
+| `packages/server/src/repositories/deskSchema.test.ts` (desk-4) | One transaction; before publication only, from the state read; an approved story back to desk review; credits replaced in order, each an active author, at most 20; the history row | Only `service_role` may call it |
+| `apps/admin/src/components/desk/desk.test.tsx` (authors and credits) | The Authors page lists every author (Hindi names marked) and a manager adds and retires one; credits added in the story's language and saved as one list; the preview credits active authors | Without `author.manage` the list is read-only; a live story's credits shown, not changed; a retired author not credited in the preview |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 
 The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
@@ -753,9 +785,10 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** the owner sees M3, then M4 (the media library and bylines), which needs the manager's
-  S3 bucket, IAM and CloudFront `/media/*` work (design §9, item 6). The Hindi typing check still
-  closes M2.
+- **Next:** M4's media library, which needs the manager's S3 bucket, IAM and CloudFront `/media/*`
+  work (design §9, item 6) before it can store an image. The Hindi typing check still closes M2.
+- **Until the owner applies desk-4,** saving a story's credits fails with the database's refusal;
+  authors can be added and edited already.
 - **Deciding a correction passes the decide route's own gate first,** `article.restore` (A or
   better): every holder of `correction.publish` at S or F holds it today (Desk Editor, Managing
   Editor). A future role with the one but not the other would need the rule changed.

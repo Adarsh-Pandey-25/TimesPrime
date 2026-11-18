@@ -5,6 +5,7 @@ import Link from "next/link";
 import StoryArticle from "@timesprime/ui/StoryArticle";
 import type { PublishedStory } from "@timesprime/shared/types";
 import type { StoryState } from "@timesprime/shared/config/desk";
+import type { Credit } from "./CreditsPanel";
 import { deskCall, STATE_LABELS, useAdminMe, when } from "./deskClient";
 
 // The Desk's preview (Panel 2 design §6, owner decision 7): a story's last saved version, drawn by
@@ -36,10 +37,11 @@ interface Loaded {
     body: unknown;
     created_at: string;
   } | null;
+  credits?: Credit[];
 }
 
 /** The story as the reader's view takes it, with its last saved revision in place of the live one. */
-function asReaderStory({ story, revision }: Loaded & { revision: NonNullable<Loaded["revision"]> }): PublishedStory {
+function asReaderStory({ story, revision, credits = [] }: Loaded & { revision: NonNullable<Loaded["revision"]> }): PublishedStory {
   return {
     id: story.id,
     public_id: story.public_id,
@@ -51,8 +53,10 @@ function asReaderStory({ story, revision }: Loaded & { revision: NonNullable<Loa
     first_published_at: story.first_published_at,
     published_at: story.published_at,
     revision: { headline: revision.headline, dek: revision.dek, seo_title: revision.seo_title, seo_description: revision.seo_description, body: revision.body },
-    // Bylines arrive with the authors (M4).
-    bylines: [],
+    // As the reader's page credits them: active authors only, by their name in the story's language.
+    bylines: credits
+      .filter((c) => c.author?.active)
+      .map((c) => ({ role: c.role, name: (story.language === "hi" && c.author?.display_name_hi) || (c.author?.display_name_en ?? "") })),
   };
 }
 
@@ -100,7 +104,7 @@ export default function StoryPreview({ id }: { id: string }) {
         {back}
       </div>
       <div className="rounded-lg bg-white dark:bg-[#1f2226]">
-        <StoryArticle story={asReaderStory({ story, revision })} sectionLink={false} />
+        <StoryArticle story={asReaderStory({ story, revision, credits: loaded.credits })} sectionLink={false} />
       </div>
     </div>
   );

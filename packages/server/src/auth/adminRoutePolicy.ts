@@ -12,12 +12,14 @@ import type { Mode } from "./decide";
  * What a route needs. `permissions`: all of them. `target`: what the scope is checked against:
  * "article" an existing article (loaded by the route), "articles" each of several, "new_article"
  * the article in the request body, "site" a site-wide object (only unscoped grants), "none" a read
- * that lists or totals (any scope).
+ * that lists or totals (any scope), "author" an author record (Panel 2): it belongs to no desk, so
+ * holding the permission in any scope will do, which is the matrix's F for a Desk Editor (a
+ * site-wide target would admit only unscoped grants, and a Desk Editor always has a language).
  */
 export interface RouteRule {
   permissions: readonly PermissionKey[];
   mode: Mode;
-  target: "article" | "articles" | "new_article" | "story" | "new_story" | "site" | "none";
+  target: "article" | "articles" | "new_article" | "story" | "new_story" | "site" | "none" | "author";
   /**
    * Only a named staff member may use the route: the shared password is refused, whatever its fixed
    * list holds (Panel 2's Desk, design §0: it cannot be an author, an editor or an approver).
@@ -102,6 +104,18 @@ export const ADMIN_ROUTE_RULES = {
   // The alert list (design §8): takedowns, for whoever may take stories down, inside their desks.
   "/api/admin/desk/alerts": {
     GET: { permissions: ["article.unpublish"], mode: "read", target: "none", staffOnly: true },
+  },
+  // Authors (design §7): anyone on the Desk reads the list to credit a story; author.manage changes it.
+  "/api/admin/desk/authors": {
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "none", staffOnly: true },
+    POST: { permissions: ["author.manage"], mode: "act", target: "author", staffOnly: true },
+  },
+  "/api/admin/desk/authors/[id]": {
+    PATCH: { permissions: ["author.manage"], mode: "act", target: "author", staffOnly: true },
+  },
+  // A story's credits: set with article.edit, in the story's desk, before publication.
+  "/api/admin/desk/stories/[id]/credits": {
+    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
   },
   "/api/admin/desk/stories": {
     // The list is filtered to the caller's scopes in the route.

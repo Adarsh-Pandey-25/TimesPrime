@@ -1137,9 +1137,19 @@ the app applies SQL.
    → `true`, `false`. Until it is applied, a Desk Editor or the Managing Editor still publishes a
    correction at once; only deciding a Sub-editor's request fails (the screen shows the database's
    refusal). **Done by the owner on 17 Nov 2026,** the check returning `true`, `false`.
+5. **Apply `database/migrations/2026-11-18-desk-4-credits.sql`** (M4: a story's credits). It adds
+   `desk_set_credits`; nothing else changes. Paste the whole file into the SQL Editor and run it.
+   **Check,** in one query:
+   ```sql
+   SELECT has_function_privilege('service_role', 'public.desk_set_credits(uuid,text,uuid,text,jsonb)', 'EXECUTE') AS service_may_call,
+          has_function_privilege('anon', 'public.desk_set_credits(uuid,text,uuid,text,jsonb)', 'EXECUTE') AS anon_may_call;
+   ```
+   → `true`, `false`. Until it is applied, authors can be added and edited, but saving a story's
+   credits fails (the screen shows the database's refusal).
 
 **Undo.** The rollback at the end of the file, only before the first real story: stories are the
-newsroom's record and are never dropped after that. desk-3's undo is to run desk-2 again.
+newsroom's record and are never dropped after that. desk-3's undo is to run desk-2 again; desk-4's
+is to drop its function (at the end of its file).
 
 #### Granting the first Desk roles, until Panel 1
 
@@ -1395,9 +1405,11 @@ phases were done:
    was merged (PR #23), and the preview, moved into the back office by the owner (design decision 7,
    so no `PREVIEW_SECRET`, PR #24), and scheduled publishing (the worker's `publish-scheduled` job and
    its 5-minute timer in `deploy/`, PR #25), and corrections (PR #26; the owner applied desk-3 on 17
-   Nov 2026). The Desk's alert list for takedowns, which completes M3's code, is on
-   `panel-2-desk-alerts`; then the owner sees M3, and M4 (media and bylines) waits for the
-   manager's S3, IAM and CloudFront `/media/*` work. Panel 1 will be built on `panel-1-administration`.
+   Nov 2026), and the Desk's alert list for takedowns (PR #27), which completes M3's code. M4
+   (approved by the owner, 18 Nov 2026): authors and a story's credits are on `panel-2-desk-bylines`,
+   with one owner SQL step (desk-4, "The Desk (Panel 2): applying its tables", step 5); the media
+   library follows, and needs the manager's S3, IAM and CloudFront `/media/*` work. Panel 1 will be
+   built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

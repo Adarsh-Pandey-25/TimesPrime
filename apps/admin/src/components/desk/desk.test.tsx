@@ -11,6 +11,7 @@ const push = mockRouter.push;
 
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import DeskList from "./DeskList";
+import AuthorsManager from "./AuthorsManager";
 import NewStoryForm from "./NewStoryForm";
 import StoryEditor from "./StoryEditor";
 import StoryPreview from "./StoryPreview";
@@ -396,5 +397,94 @@ describe("the story screen", () => {
     });
     await act(async () => render(<StoryEditor id="s-1" />));
     expect(await screen.findByRole("alert")).toHaveTextContent("Story not found.");
+  });
+});
+
+describe("authors and credits (Panel 2 design §7)", () => {
+  const ASHA = { id: "a1b2c3d4-0000-4000-8000-000000000001", display_name_en: "Asha Rao", display_name_hi: "आशा राव", kind: "staff", bio_en: null, bio_hi: null, beat: "sports", links: [], active: true };
+  const RAVI = { ...ASHA, id: "a1b2c3d4-0000-4000-8000-000000000002", display_name_en: "Ravi Kumar", display_name_hi: null, kind: "freelancer", beat: null, active: false };
+  const calls = (url: string, method = "POST") => (global.fetch as jest.Mock).mock.calls.filter(([u, init]) => u === url && init?.method === method);
+
+  test("the Authors page lists every author; a holder of author.manage adds one and retires one", async () => {
+    serve((url, init) => {
+      if (url === "/api/admin/me") return { status: 200, body: staffMe({ "article.view_admin": "read", "author.manage": "act" }) };
+      if (url === "/api/admin/desk/authors?all=1") return { status: 200, body: { authors: [ASHA, RAVI] } };
+      if (url === "/api/admin/desk/authors" && init?.method === "POST") return { status: 201, body: { author: ASHA } };
+      if (url === `/api/admin/desk/authors/${ASHA.id}` && init?.method === "PATCH") return { status: 200, body: { author: { ...ASHA, active: false } } };
+    });
+    await act(async () => render(<AuthorsManager />));
+    expect(await screen.findByText("आशा राव")).toHaveAttribute("lang", "hi");
+    expect(screen.getByText("Retired")).toBeInTheDocument();
+
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "New author" })));
+    fireEvent.change(screen.getByRole("textbox", { name: "Name in English" }), { target: { value: "Meera Iyer" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Kind" }), { target: { value: "columnist" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Add the author" })));
+    expect(JSON.parse(calls("/api/admin/desk/authors")[0][1].body)).toMatchObject({ display_name_en: "Meera Iyer", kind: "columnist", links: [] });
+    expect(await screen.findByText("Author added.")).toBeInTheDocument();
+
+    await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Retire" })[0]));
+    expect(JSON.parse(calls(`/api/admin/desk/authors/${ASHA.id}`, "PATCH")[0][1].body)).toEqual({ active: false });
+  });
+
+  test("without author.manage the list is read-only", async () => {
+    serve((url) => {
+      if (url === "/api/admin/me") return { status: 200, body: staffMe({ "article.view_admin": "read" }) };
+      if (url === "/api/admin/desk/authors?all=1") return { status: 200, body: { authors: [ASHA] } };
+    });
+    await act(async () => render(<AuthorsManager />));
+    expect(await screen.findByText("Asha Rao")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New author" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+  });
+
+  const STORY_ROW = {
+    id: "s-1", public_id: 1024, language: "hi", section: "india", workflow_state: "draft", slug: null, embargo_until: null, legal_review_required: false,
+    current_revision_id: "r-1", published_revision_id: null, scheduled_at: null, post_hoc_review_due: false, correction_note: null,
+  };
+  const REV = { id: "r-1", headline: "बजट पास", dek: "", seo_title: "", seo_description: "", body: { type: "doc", content: [] }, created_at: "2026-11-18T09:00:00Z" };
+  const storyWith = (permissions: Record<string, "act" | "read">, over: Record<string, unknown>, credits: unknown[]) =>
+    serve((url, init) => {
+      if (url === "/api/admin/me") return { status: 200, body: staffMe(permissions) };
+      if (url === "/api/admin/desk/stories/s-1") return { status: 200, body: { story: { ...STORY_ROW, ...over }, revision: REV, history: [], lock: null, pending: [], credits } };
+      if (url === "/api/admin/desk/stories/s-1/lock") return { status: 200, body: { lock: {} } };
+      if (url === "/api/admin/desk/stories/s-1/revisions") return { status: 200, body: { revisions: [] } };
+      if (url === "/api/admin/desk/authors") return { status: 200, body: { authors: [ASHA] } };
+      if (url === "/api/admin/desk/stories/s-1/credits" && init?.method === "POST") return { status: 200, body: { story: STORY_ROW } };
+    });
+
+  test("a story's credits: added from the authors, in the story's language, and saved as one list", async () => {
+    storyWith({ "article.view_admin": "read", "article.edit": "act" }, {}, []);
+    await act(async () => render(<StoryEditor id="s-1" />));
+    expect(await screen.findByText("No credits yet.")).toBeInTheDocument();
+    const author = await screen.findByRole("combobox", { name: "Author" });
+    await waitFor(() => expect(screen.getByRole("option", { name: "आशा राव" })).toBeInTheDocument());
+    fireEvent.change(author, { target: { value: ASHA.id } });
+    fireEvent.change(screen.getByRole("combobox", { name: "As" }), { target: { value: "translated_by" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Add" })));
+    expect(screen.getByText("· Translated by")).toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save credits" })));
+    expect(JSON.parse(calls("/api/admin/desk/stories/s-1/credits")[0][1].body)).toEqual({ credits: [{ author_id: ASHA.id, role: "translated_by" }] });
+    expect(await screen.findByText("Credits saved.")).toBeInTheDocument();
+  });
+
+  test("a live story's credits are shown, not changed", async () => {
+    const credit = { author_id: ASHA.id, role: "byline", position: 0, author: { display_name_en: "Asha Rao", display_name_hi: "आशा राव", active: true } };
+    storyWith({ "article.view_admin": "read", "article.edit": "act" }, { workflow_state: "published", published_revision_id: "r-1" }, [credit]);
+    await act(async () => render(<StoryEditor id="s-1" />));
+    expect(await screen.findByText("आशा राव")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save credits" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument();
+  });
+
+  test("the preview credits the story's active authors, as the reader's page does", async () => {
+    const credits = [
+      { author_id: ASHA.id, role: "byline", position: 0, author: { display_name_en: "Asha Rao", display_name_hi: "आशा राव", active: true } },
+      { author_id: RAVI.id, role: "byline", position: 1, author: { display_name_en: "Ravi Kumar", display_name_hi: null, active: false } },
+    ];
+    storyWith({ "article.view_admin": "read" }, { language: "en" }, credits);
+    await act(async () => render(<StoryPreview id="s-1" />));
+    expect(await screen.findByText("By Asha Rao")).toBeInTheDocument();
+    expect(screen.queryByText(/Ravi Kumar/)).not.toBeInTheDocument();
   });
 });

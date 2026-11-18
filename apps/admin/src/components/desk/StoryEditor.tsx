@@ -5,10 +5,11 @@ import Link from "next/link";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { embedProvider, isAllowedHref, storyExtensions, EMPTY_DOC } from "@timesprime/editor/schema";
 import { wordCount } from "@timesprime/editor/text";
-import { checklist, CORRECTION_NOTE_MAX, move, PUBLISH_TICK_MINUTES, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
+import { checklist, CORRECTION_NOTE_MAX, move, PRE_PUBLISH_STATES, PUBLISH_TICK_MINUTES, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
 import { SITE_URL } from "@timesprime/shared/config/site";
 import { deskStoryPath, storySlug } from "@timesprime/shared/lib/storyUrl";
 import { canAct, canAsk, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
+import CreditsPanel, { type Credit } from "./CreditsPanel";
 import RevisionsPanel, { type FullRevision } from "./RevisionsPanel";
 
 // The story screen (Panel 2 design §4 and §5): the editor, the story's details, the pre-publish
@@ -56,6 +57,7 @@ interface Loaded {
   revision: Revision | null;
   history: HistoryEntry[];
   pending: Pending[];
+  credits: Credit[];
 }
 
 const PROBLEM_TEXT: Record<ChecklistProblem, string> = {
@@ -156,7 +158,7 @@ export default function StoryEditor({ id }: { id: string }) {
   const load = useCallback(async () => {
     const res = await deskCall<Loaded>(`/api/admin/desk/stories/${id}`);
     if (!res.ok || !res.data) return setLoadError(res.error ?? "Could not load the story.");
-    const data = { ...res.data, history: res.data.history ?? [], pending: res.data.pending ?? [] };
+    const data = { ...res.data, history: res.data.history ?? [], pending: res.data.pending ?? [], credits: res.data.credits ?? [] };
     setLoaded(data);
     setSlug(data.story.slug ?? "");
     setEmbargo(data.story.embargo_until ? data.story.embargo_until.slice(0, 16) : "");
@@ -437,6 +439,17 @@ export default function StoryEditor({ id }: { id: string }) {
             </div>
           </section>
         )}
+
+        <CreditsPanel
+          storyId={story.id}
+          language={story.language}
+          credits={loaded.credits}
+          editable={canAct(me, "article.edit") && PRE_PUBLISH_STATES.includes(story.workflow_state)}
+          onSaved={async (result) => {
+            setMessage(result);
+            if (result.ok) await load();
+          }}
+        />
 
         <section aria-labelledby="moves-heading" className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
           <h2 id="moves-heading" className="text-sm font-bold">Next step</h2>

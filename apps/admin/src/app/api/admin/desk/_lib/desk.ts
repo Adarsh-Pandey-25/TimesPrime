@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { ANY_SCOPE } from "@timesprime/server/auth/decide";
 import type { RouteRule } from "@timesprime/server/auth/adminRoutePolicy";
-import { auditUnavailable, beginAudit, finishAudit, requirePermission, requireTarget, type Actor } from "@timesprime/server/auth/requirePermission";
+import { auditUnavailable, beginAudit, finishAudit, requirePermission, requireTarget, type Actor, type AuditEntry } from "@timesprime/server/auth/requirePermission";
 import { mayApprove, mayReviewPostHoc } from "@timesprime/server/services/desk/fourEyes";
 import { publishFields, publishRefusal, storyTarget } from "@timesprime/server/services/desk/publish";
 import {
@@ -104,14 +104,28 @@ export async function audited<T>(
   change: () => Promise<T>,
   after: (value: T) => Record<string, unknown>
 ): Promise<{ ok: true; value: T } | { ok: false; response: NextResponse }> {
-  const row = {
-    action: entry.action,
-    entityType: "story",
-    entityId: entry.story.id,
-    target: storyTarget(entry.story),
-    before: { state: entry.story.workflow_state, revision: entry.story.current_revision_id },
-    reason: entry.reason ?? null,
-  };
+  return auditedRecord(
+    actor,
+    {
+      action: entry.action,
+      entityType: "story",
+      entityId: entry.story.id,
+      target: storyTarget(entry.story),
+      before: { state: entry.story.workflow_state, revision: entry.story.current_revision_id },
+      reason: entry.reason ?? null,
+    },
+    change,
+    after
+  );
+}
+
+/** The same, for a record that is not a story (an author): it names its own type, id and before. */
+export async function auditedRecord<T>(
+  actor: Actor,
+  row: AuditEntry,
+  change: () => Promise<T>,
+  after: (value: T) => Record<string, unknown>
+): Promise<{ ok: true; value: T } | { ok: false; response: NextResponse }> {
   const attempt = await beginAudit(actor, row);
   if (!attempt) return { ok: false, response: auditUnavailable() };
   try {
@@ -120,7 +134,7 @@ export async function audited<T>(
     return { ok: true, value };
   } catch (err) {
     await finishAudit(actor, attempt, "failed", { ...row, reason: err instanceof Error ? err.message : String(err) });
-    return { ok: false, response: deskFailure(err, entry.action) };
+    return { ok: false, response: deskFailure(err, row.action) };
   }
 }
 

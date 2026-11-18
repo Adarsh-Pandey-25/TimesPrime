@@ -12,12 +12,14 @@ test.describe("signed out", () => {
   });
 
   // Panel 2: the Desk's screens and API are behind the same session check.
-  test("/admin/desk, a story's screen and its preview redirect to the sign-in page", async ({ page }) => {
+  test("/admin/desk, a story's screen, its preview and the authors redirect to the sign-in page", async ({ page }) => {
     await page.goto("/admin/desk");
     await expect(page).toHaveURL(/\/admin\/login$/);
     await page.goto("/admin/desk/00000000-0000-4000-8000-000000000001");
     await expect(page).toHaveURL(/\/admin\/login$/);
     await page.goto("/admin/desk/00000000-0000-4000-8000-000000000001/preview");
+    await expect(page).toHaveURL(/\/admin\/login$/);
+    await page.goto("/admin/desk/authors");
     await expect(page).toHaveURL(/\/admin\/login$/);
   });
 
@@ -29,6 +31,7 @@ test.describe("signed out", () => {
     ["POST", "/api/admin/mfa"],
     ["GET", "/api/admin/desk/stories"],
     ["POST", "/api/admin/desk/stories"],
+    ["GET", "/api/admin/desk/authors"],
     ["POST", "/api/admin/desk/stories/00000000-0000-4000-8000-000000000001/publish"],
   ]) {
     test(`${method} ${path} answers 401 and changes nothing`, async ({ request }) => {
