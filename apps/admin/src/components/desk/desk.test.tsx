@@ -186,6 +186,48 @@ describe("the story screen", () => {
     expect(screen.queryByRole("link", { name: /View on the site/ })).not.toBeInTheDocument();
   });
 
+  // Design §7: images from the media library, in the story's text.
+  const IMAGE_ID = "c0ffee00-0000-4000-8000-000000000001";
+  const LIBRARY_IMAGE = {
+    id: IMAGE_ID, url: `/media/renditions/${IMAGE_ID}/4x3-480.webp`, language: "en", section: "india", credit: "Photo: Asha Rao",
+    rights_cleared_at: null, alt_en: "Players on the field", alt_hi: null, caption_en: null, caption_hi: null, renditions_state: "ready",
+  };
+
+  test("Image opens the library, says what each image still needs, and adds the one chosen with its crop", async () => {
+    // jsdom lays nothing out: ProseMirror's scroll after an insert asks a Range for rectangles.
+    const rect = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) };
+    Object.assign(Range.prototype, { getClientRects: () => [], getBoundingClientRect: () => rect });
+    serveStory({ "article.view_admin": "read", "article.edit": "act" }, {}, (url) =>
+      url === "/api/admin/desk/media" ? { status: 200, body: { media: [LIBRARY_IMAGE], total: 1 } } : undefined
+    );
+    await act(async () => render(<StoryEditor id="s-1" />));
+    await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Image" })));
+    expect(await screen.findByText("Before publishing: rights not cleared, no English caption")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Players on the field" })).toHaveAttribute("src", LIBRARY_IMAGE.url);
+    fireEvent.change(screen.getByRole("combobox", { name: "Crop" }), { target: { value: "4x3" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Add to the story" })));
+    expect(screen.queryByRole("region", { name: "Add an image" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Image, 4:3 crop/)).toBeInTheDocument();
+    expect(screen.getByText(/Its images are checked when the story is approved or published/)).toBeInTheDocument();
+
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save" })));
+    const saves = (global.fetch as jest.Mock).mock.calls.filter(([u, init]) => u === "/api/admin/desk/stories/s-1/revisions" && init?.method === "POST");
+    expect(JSON.parse(saves[0][1].body).body.content).toContainEqual({ type: "image", attrs: { id: IMAGE_ID, ratio: "4x3" } });
+  });
+
+  test("the preview draws the revision's images as the server gives them", async () => {
+    const withImage = { ...REVISION, body: { type: "doc", content: [{ type: "image", attrs: { id: IMAGE_ID, ratio: "16x9" } }] } };
+    const images = { [IMAGE_ID]: { alt: "Players on the field", caption: "The final over.", credit: "Photo: Asha Rao", crops: {}, fallbackUrl: `/api/admin/desk/media/${IMAGE_ID}/original` } };
+    serveStory({ "article.view_admin": "read" }, {}, (url) =>
+      url === "/api/admin/desk/stories/s-1"
+        ? { status: 200, body: { story: { ...STORY, current_revision_id: "r-1" }, revision: withImage, history: [], lock: null, pending: [], images } }
+        : undefined
+    );
+    await act(async () => render(<StoryPreview id="s-1" />));
+    expect(await screen.findByRole("img", { name: "Players on the field" })).toHaveAttribute("src", `/api/admin/desk/media/${IMAGE_ID}/original`);
+    expect(screen.getByText("Photo: Asha Rao")).toBeInTheDocument();
+  });
+
   test("scheduling says when the server publishes: within 5 minutes, if the editor may still publish", async () => {
     serveStory({ "article.view_admin": "read", "article.publish": "act" }, { workflow_state: "approved", approved_revision_id: "r-1" });
     await act(async () => render(<StoryEditor id="s-1" />));

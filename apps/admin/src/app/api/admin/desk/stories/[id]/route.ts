@@ -3,7 +3,9 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
 import { getRevision, listCredits, listHistory, listOpenPending, readLock } from "@timesprime/server/repositories/stories";
+import { previewImages } from "@timesprime/server/services/desk/storyImages";
 import { deskFailure, gateStory, type Params } from "../../_lib/desk";
+import { originalUrl } from "../../_lib/media";
 
 // One story for the Desk's story screen (Panel 2 design §4): the story, its current revision, its
 // history, its lock, its open two-person requests and its credits. Read in the story's own scope.
@@ -22,7 +24,10 @@ export async function GET(request: NextRequest, { params }: Params) {
       listOpenPending(story.id),
       listCredits(story.id),
     ]);
-    return NextResponse.json({ story, revision, history, lock, pending, credits });
+    // The library's images the revision uses, for the preview and the editor: renditions once made,
+    // else the original through the back office.
+    const images = revision ? await previewImages(revision.body, story.language, originalUrl) : {};
+    return NextResponse.json({ story, revision, history, lock, pending, credits, images });
   } catch (err) {
     return deskFailure(err, "getStory");
   }

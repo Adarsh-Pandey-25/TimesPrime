@@ -7,6 +7,7 @@ import type { RouteRule } from "@timesprime/server/auth/adminRoutePolicy";
 import { auditUnavailable, beginAudit, finishAudit, requirePermission, requireTarget, type Actor, type AuditEntry } from "@timesprime/server/auth/requirePermission";
 import { mayApprove, mayReviewPostHoc } from "@timesprime/server/services/desk/fourEyes";
 import { publishFields, publishRefusal, storyTarget } from "@timesprime/server/services/desk/publish";
+import { checklistImages } from "@timesprime/server/services/desk/storyImages";
 import {
   DeskStoreError,
   getRevision,
@@ -151,6 +152,9 @@ async function checklistFailure(story: StoryRow): Promise<NextResponse | null> {
     slug: story.slug,
     legalReviewRequired: story.legal_review_required,
     counterpartMissing: !(await hasCounterpart(story)),
+    // Every library image the revision uses, as its record says now (design §7).
+    images: await checklistImages(revision.body),
+    language: story.language,
   });
   return problems.length > 0
     ? NextResponse.json({ error: "The pre-publish checklist is not complete.", code: "checklist", problems }, { status: 422 })

@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
-import { embedProvider, isAllowedHref, storyExtensions, EMPTY_DOC } from "@timesprime/editor/schema";
+import { embedProvider, isAllowedHref, EMPTY_DOC } from "@timesprime/editor/schema";
 import { wordCount } from "@timesprime/editor/text";
 import { checklist, CORRECTION_NOTE_MAX, move, PRE_PUBLISH_STATES, PUBLISH_TICK_MINUTES, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
+import { storyImageIds } from "@timesprime/shared/config/media";
 import { SITE_URL } from "@timesprime/shared/config/site";
 import { deskStoryPath, storySlug } from "@timesprime/shared/lib/storyUrl";
 import { canAct, canAsk, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
 import CreditsPanel, { type Credit } from "./CreditsPanel";
+import { editorExtensions } from "./editorImage";
+import ImagePicker from "./ImagePicker";
 import RevisionsPanel, { type FullRevision } from "./RevisionsPanel";
 
 // The story screen (Panel 2 design §4 and §5): the editor, the story's details, the pre-publish
@@ -69,6 +72,9 @@ const PROBLEM_TEXT: Record<ChecklistProblem, string> = {
   slug_missing: "A slug (the story's address)",
   legal_review_pending: "The legal review cleared",
   translation_missing: "The other language's version",
+  image_unavailable: "Every image in the media library, not retired, its licence not ended",
+  image_rights_missing: "Every image's credit, source, licence and cleared rights",
+  image_text_missing: "Every image's alt text and caption in the story's language",
 };
 
 /** The moves the screen offers, in the order an editor meets them; the server decides each. */
@@ -89,7 +95,7 @@ const SAVABLE: StoryState[] = ["pitch", "assigned", "draft", "in_review", "desk_
 const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
 const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
 
-function Toolbar({ editor, disabled }: { editor: Editor | null; disabled: boolean }) {
+function Toolbar({ editor, disabled, onImage }: { editor: Editor | null; disabled: boolean; onImage: () => void }) {
   if (!editor) return null;
   const run = (fn: () => void) => () => !disabled && fn();
   const tool = (label: string, onClick: () => void, active = false) => (
@@ -125,6 +131,7 @@ function Toolbar({ editor, disabled }: { editor: Editor | null; disabled: boolea
         if (!embedProvider(url)) return void window.alert("Only YouTube, X and Instagram posts can be embedded.");
         editor.chain().focus().insertContent({ type: "embed", attrs: { url } }).run();
       }))}
+      {tool("Image", run(onImage))}
       {tool("Ad slot", run(() => editor.chain().focus().insertContent({ type: "adSlot" }).run()))}
     </div>
   );
@@ -207,7 +214,8 @@ export default function StoryEditor({ id }: { id: string }) {
     };
   }, [storyLoaded, mayEdit, holdLock, id]);
 
-  const extensions = useMemo(() => storyExtensions(), []);
+  const extensions = useMemo(() => editorExtensions(), []);
+  const [picking, setPicking] = useState(false);
   const revisionKey = loaded?.revision?.id ?? "none";
   const editor = useEditor(
     {
@@ -381,7 +389,17 @@ export default function StoryEditor({ id }: { id: string }) {
           Dek
           <textarea className={field} rows={2} lang={story.language} value={dek} disabled={!editable} onChange={(e) => { setDek(e.target.value); setDirty(true); }} />
         </label>
-        <Toolbar editor={editor} disabled={!editable} />
+        <Toolbar editor={editor} disabled={!editable} onImage={() => setPicking(true)} />
+        {picking && editable && (
+          <ImagePicker
+            language={story.language}
+            onClose={() => setPicking(false)}
+            onPick={(imageId, ratio) => {
+              editor?.chain().focus().insertContent({ type: "image", attrs: { id: imageId, ratio } }).run();
+              setPicking(false);
+            }}
+          />
+        )}
         <EditorContent editor={editor} />
         <p className="text-xs text-slate-500">{wordCount(editor?.getJSON() ?? loaded.revision?.body)} words</p>
 
@@ -416,6 +434,9 @@ export default function StoryEditor({ id }: { id: string }) {
             <p className="text-sm text-green-700 dark:text-green-300">The checklist is complete.</p>
           ) : (
             <ul className="list-disc space-y-1 pl-5 text-sm">{problems.map((p) => <li key={p}>{PROBLEM_TEXT[p]}</li>)}</ul>
+          )}
+          {editor && storyImageIds(editor.getJSON()).length > 0 && (
+            <p className="mt-2 text-xs text-slate-500">Its images are checked when the story is approved or published: credit, source, licence, cleared rights, and alt text and a caption in the story&apos;s language.</p>
           )}
         </section>
 

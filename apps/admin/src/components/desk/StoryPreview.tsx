@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import StoryArticle from "@timesprime/ui/StoryArticle";
-import type { PublishedStory } from "@timesprime/shared/types";
+import type { PublishedStory, StoryImageData } from "@timesprime/shared/types";
 import type { StoryState } from "@timesprime/shared/config/desk";
 import type { Credit } from "./CreditsPanel";
 import { deskCall, STATE_LABELS, useAdminMe, when } from "./deskClient";
@@ -38,10 +38,12 @@ interface Loaded {
     created_at: string;
   } | null;
   credits?: Credit[];
+  /** The library's images the revision uses, as the preview draws them (renditions, else the original). */
+  images?: Record<string, StoryImageData>;
 }
 
 /** The story as the reader's view takes it, with its last saved revision in place of the live one. */
-function asReaderStory({ story, revision, credits = [] }: Loaded & { revision: NonNullable<Loaded["revision"]> }): PublishedStory {
+function asReaderStory({ story, revision, credits = [], images = {} }: Loaded & { revision: NonNullable<Loaded["revision"]> }): PublishedStory {
   return {
     id: story.id,
     public_id: story.public_id,
@@ -52,7 +54,8 @@ function asReaderStory({ story, revision, credits = [] }: Loaded & { revision: N
     correction_note: story.correction_note,
     first_published_at: story.first_published_at,
     published_at: story.published_at,
-    revision: { headline: revision.headline, dek: revision.dek, seo_title: revision.seo_title, seo_description: revision.seo_description, body: revision.body },
+    revision: { id: revision.id, headline: revision.headline, dek: revision.dek, seo_title: revision.seo_title, seo_description: revision.seo_description, body: revision.body },
+    images,
     // As the reader's page credits them: active authors only, by their name in the story's language.
     bylines: credits
       .filter((c) => c.author?.active)
@@ -104,7 +107,7 @@ export default function StoryPreview({ id }: { id: string }) {
         {back}
       </div>
       <div className="rounded-lg bg-white dark:bg-[#1f2226]">
-        <StoryArticle story={asReaderStory({ story, revision, credits: loaded.credits })} sectionLink={false} />
+        <StoryArticle story={asReaderStory({ story, revision, credits: loaded.credits, images: loaded.images })} sectionLink={false} />
       </div>
     </div>
   );
