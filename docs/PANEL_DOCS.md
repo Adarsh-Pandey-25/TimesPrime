@@ -500,7 +500,8 @@ is complete: the reader's story page (PR #23), the preview in the back office (d
 scheduled publishing (PR #25), corrections (PR #26) and the takedown alert list (PR #27). M4 is
 under way (approved by the owner, 18 Nov 2026): authors and a story's credits (PR #28), the
 media library's first part (PR #30), its renditions (PR #31), images in stories (PR #33), authors' photos and
-galleries are built (below): M4's code is complete. Started before Panel 1 at the owner's request (17 Nov 2026);
+galleries are built (below): M4's code is complete. Its definition of done is checked below; the panel is
+not yet Done. Started before Panel 1 at the owner's request (17 Nov 2026);
 [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -843,7 +844,7 @@ embargo 409.
 | `database/migrations/2026-11-18-desk-5-media.sql` | `media_assets` and `asset_usages`: an image's desk, record and rights; usages per revision; RLS, no DELETE, readers only for live stories' images | Drop both tables (in the file), before the first real image | **Yes, 18 Nov 2026**: `tables_with_rls` 2 and `anon_sees_uploader` false, but `service_may_delete` **true**: its REVOKE left out `service_role`, so Supabase's default privileges kept the app's DELETE (desk-6 fixes it) |
 | `database/migrations/2026-11-18-desk-6-media-grants.sql` | The fix to desk-5: every right on the media tables taken from `service_role`, then exactly desk-5's grants (no DELETE; usages insert-only) | None needed; desk-5's state was `GRANT ALL ... TO service_role` | **Yes, 18 Nov 2026**, checks passed (`false`, `false`, `true`) |
 | `database/migrations/2026-11-18-desk-7-image-usages.sql` | `desk_save_revision` records the library images a revision uses (`asset_usages`) in the save's transaction, and refuses a retired one; the rest of the function unchanged | Run desk-1's function again (images then saved but not recorded, so readers would not see them) | **Yes, 18 Nov 2026**, checks passed (`true`, `true`, `false`) |
-| `database/migrations/2026-11-18-desk-8-author-photos.sql` | `authors.photo_id`, a library image; readers may read the column, and an image while it is an active author's photo and itself active | In the file, before any author has a photo | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 9) |
+| `database/migrations/2026-11-18-desk-8-author-photos.sql` | `authors.photo_id`, a library image; readers may read the column, and an image while it is an active author's photo and itself active | In the file, before any author has a photo | **Yes, 18 Nov 2026**, checks passed (`1`, `true`, `1`) |
 
 #### Tests and verification
 
@@ -905,12 +906,35 @@ embargo 409.
 The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
 with the queries at the end of the migration (definition of done, item 7).
 
+#### Definition of done (checked 18 Nov 2026, for the owner's sign-off)
+
+Every PR of the panel (#17 to #34) is merged; desk-1 to desk-8 are applied and checked. Item by
+item, against the code:
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Every feature works; this entry matches the code | **Met in code and tests.** M1 to M4 are built as listed above; what is not built is under "Not yet". **Left:** the owner's walk through the signed-in flow (write, submit, approve, publish, schedule, correct, take down and restore; upload, clear rights, add images and a gallery; an author's photo), once the server and the first Desk roles exist |
+| 2 | Server-side permission on every route and action; allowed and denied tests | **Done.** Every Desk route has a rule; `access.test.ts` walks every route on disk and tests each for its least-privileged holder in scope, no session, no grants, expired, no MFA, the wrong desk and the shared password |
+| 3 | Privileged actions audited; MFA where the plan says | **Done in code.** Every Desk write writes `audit_log` first (attempted, then outcome) and is refused with 503 if it cannot; every Desk write needs `aal2`; the worker audits as `system:scheduler`. The audit log's own database rules are Panel 0's, verified with its runbook |
+| 4 | `npm run verify` and CI green; routes, JS and CSS reported | **Done.** Every PR green, with its routes, JS budget and CSS bytes in its report |
+| 5 | SQL in migrations with a rollback, listed as owner actions | **Done.** desk-1 to desk-8, each with its rollback (desk-6 needs none), each applied by the owner and its check passed (17 and 18 Nov 2026) |
+| 6 | This file, the current status and ARCHITECTURE.md updated | **Done,** in each PR |
+| 7 | Real-database tests read-only; the database's own rules verified by the owner | **Partly.** Every migration's check passed on the real database (the owner, 17 and 18 Nov 2026), and the reader's browser test reads a real Desk story locally. desk-1's `BEGIN … ROLLBACK` smoke test, which exercises the triggers, needs a test project and has not run |
+| 8 | Browser tests cover the critical flows, including a refused-access flow | **Partly.** Signed out, every Desk screen goes to sign-in and the Desk API answers 401; the reader's story pages are tested against the stand-in. The signed-in Desk flow is not: browser tests may not write to the real database, so it needs a test Supabase project (Phase I's staging) |
+| 9 | Every screen has loading, error and empty states | **Done.** The list, the story, the preview, the authors, the media library and the image picker, tested in `desk.test.tsx` |
+| 10 | Accessibility checked (keyboard, labels) | **Partly.** Every control has a label or an accessible name (the screen tests find each by it); the toolbar is a labelled `toolbar` with `aria-pressed`; the controls are native buttons, inputs and selects. **Left:** an axe pass and a keyboard walk-through of the signed-in screens, which need a sign-in (the same test project) |
+| 11 | Failures reach Sentry; privileged actions audited | **Partly.** The back office's Desk routes report failures to Sentry and are audited. The worker's jobs (scheduled publishing, renditions) report to the journal and the worker's log group only: the worker does not start Sentry |
+| 12 | A JS budget per route in CI | **Done.** Each Desk page has its budget in `scripts/js-budget.json` |
+| 13 | A runbook for when the main flow breaks | **Done:** OPERATIONS.md, "The Desk is failing" |
+
+**So Panel 2 is not yet Done.** Open: the Hindi typing check (M2; the owner's two typists); the
+owner's walk through the signed-in flow (item 1); a test Supabase project for items 7, 8 and 10;
+the worker reporting to Sentry (item 11; a small change, with the manager's choice of Sentry
+project). Assigning a writer from the screen waits for Panel 1's staff directory.
+
 #### Known limits and not yet built
 
-- **Next:** Panel 2's definition of done, checked item by item for the owner's sign-off. The Hindi
-  typing check still closes M2.
-- **Until the owner applies desk-8,** saving an author's photo fails with the database's error (the
-  column is not there), and readers could not see one.
+- **Next:** the open items above, for the owner's sign-off.
 - **On a live story,** an image retired later disappears from the page at once; a licence that ends
   later is not checked again (the checklist checks it before publishing, and at a scheduled time).
 - **The editor shows each image's original file** (through the back office), which can be large.
