@@ -1265,7 +1265,7 @@ with the SQL below, one person and one role at a time.
 
 ```sql
 BEGIN;
-DO $
+DO $$
 DECLARE
   v_granter_email TEXT := 'adarsh@timesprime247.com';   -- you: an active Super Admin
   v_email         TEXT := 'REPLACE_ME@example.com';     -- the staff member, created first
@@ -1304,7 +1304,7 @@ BEGIN
             jsonb_build_object('user_id', v_user, 'role_key', v_role, 'language', v_language, 'section', v_section),
             'Desk role by SQL until Panel 1');
   RAISE NOTICE '% is now % for %/%', v_email, v_role, v_language, coalesce(v_section, 'all sections');
-END $;
+END $$;
 COMMIT;
 ```
 
