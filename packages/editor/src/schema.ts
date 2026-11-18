@@ -1,6 +1,6 @@
 import { Node, mergeAttributes, type Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import { isRenditionRatio, MEDIA_ID } from "@timesprime/shared/config/media";
+import { GALLERY_MAX, GALLERY_MIN, isRenditionRatio, MEDIA_ID } from "@timesprime/shared/config/media";
 
 /**
  * The Desk's story schema (Panel 2 design §5): one list of Tiptap extensions, used by the back
@@ -9,7 +9,7 @@ import { isRenditionRatio, MEDIA_ID } from "@timesprime/shared/config/media";
  *
  * Blocks: paragraph, heading (levels 2 and 3: the headline is the page's h1), bullet and numbered
  * lists, quote, link, factbox, related link, embed (YouTube, X, Instagram), an image from the
- * media library (M4) and an ad-slot placeholder. Galleries come later.
+ * media library and a gallery of them (M4), and an ad-slot placeholder.
  */
 
 /** An https URL, or a path on this site: what a link or a related link may point to. */
@@ -121,6 +121,19 @@ export const StoryImage = Node.create({
   },
 });
 
+/**
+ * A gallery (design §5): two to twelve library images shown together, each its own image node, so
+ * each keeps its crop, is recorded with the revision and is checked before publication like any other.
+ */
+export const Gallery = Node.create({
+  name: "gallery",
+  group: "block",
+  content: `image{${GALLERY_MIN},${GALLERY_MAX}}`,
+  defining: true,
+  parseHTML: () => [{ tag: 'div[data-type="gallery"]' }],
+  renderHTML: () => ["div", { "data-type": "gallery" }, 0],
+});
+
 /** Where an advertisement may go later: an empty block with a reserved height on the reader site. */
 export const AdSlot = Node.create({
   name: "adSlot",
@@ -149,6 +162,7 @@ export function storyExtensions(): Extensions {
     RelatedLink,
     Embed,
     StoryImage,
+    Gallery,
     AdSlot,
   ];
 }

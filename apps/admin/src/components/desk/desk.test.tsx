@@ -215,6 +215,35 @@ describe("the story screen", () => {
     expect(JSON.parse(saves[0][1].body).body.content).toContainEqual({ type: "image", attrs: { id: IMAGE_ID, ratio: "4x3" } });
   });
 
+  test("Gallery: two to twelve images chosen in order, added as one block with their crop", async () => {
+    Object.assign(Range.prototype, { getClientRects: () => [], getBoundingClientRect: () => ({ x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) }) });
+    const SECOND = { ...LIBRARY_IMAGE, id: "c0ffee00-0000-4000-8000-000000000007", url: "/media/renditions/c0ffee00-0000-4000-8000-000000000007/4x3-480.webp", alt_en: "The crowd" };
+    serveStory({ "article.view_admin": "read", "article.edit": "act" }, {}, (url) =>
+      url === "/api/admin/desk/media" ? { status: 200, body: { media: [LIBRARY_IMAGE, SECOND], total: 2 } } : undefined
+    );
+    await act(async () => render(<StoryEditor id="s-1" />));
+    await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Gallery" })));
+    const add = await screen.findByRole("button", { name: /Add the gallery/ });
+    expect(add).toBeDisabled();
+    const picks = screen.getAllByRole("button", { name: "Add to the gallery" });
+    await act(async () => fireEvent.click(picks[1]));
+    expect(add).toBeDisabled();
+    await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Add to the gallery" })[0]));
+    expect(screen.getByRole("button", { name: "In the gallery (2)" })).toHaveAttribute("aria-pressed", "true");
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: /Add the gallery \(2 of 2 to 12\)/ })));
+    expect(screen.queryByRole("region", { name: "Add a gallery" })).not.toBeInTheDocument();
+
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save" })));
+    const saves = (global.fetch as jest.Mock).mock.calls.filter(([u, init]) => u === "/api/admin/desk/stories/s-1/revisions" && init?.method === "POST");
+    expect(JSON.parse(saves[0][1].body).body.content).toContainEqual({
+      type: "gallery",
+      content: [
+        { type: "image", attrs: { id: SECOND.id, ratio: "16x9" } },
+        { type: "image", attrs: { id: IMAGE_ID, ratio: "16x9" } },
+      ],
+    });
+  });
+
   test("the preview draws the revision's images as the server gives them", async () => {
     const withImage = { ...REVISION, body: { type: "doc", content: [{ type: "image", attrs: { id: IMAGE_ID, ratio: "16x9" } }] } };
     const images = { [IMAGE_ID]: { alt: "Players on the field", caption: "The final over.", credit: "Photo: Asha Rao", crops: {}, fallbackUrl: `/api/admin/desk/media/${IMAGE_ID}/original` } };
@@ -468,6 +497,29 @@ describe("authors and credits (Panel 2 design §7)", () => {
 
     await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Retire" })[0]));
     expect(JSON.parse(calls(`/api/admin/desk/authors/${ASHA.id}`, "PATCH")[0][1].body)).toEqual({ active: false });
+  });
+
+  test("an author's photo is chosen from the library (rights cleared only) and saved with the record", async () => {
+    const PHOTO = "c0ffee00-0000-4000-8000-000000000005";
+    const cleared = { id: PHOTO, url: `/media/renditions/${PHOTO}/4x3-480.webp`, language: "en", section: "india", credit: "Staff", rights_cleared_at: "2026-11-18T09:00:00Z", alt_en: null, alt_hi: null, caption_en: null, caption_hi: null, renditions_state: "ready" };
+    const uncleared = { ...cleared, id: "c0ffee00-0000-4000-8000-000000000006", rights_cleared_at: null };
+    serve((url, init) => {
+      if (url === "/api/admin/me") return { status: 200, body: staffMe({ "article.view_admin": "read", "author.manage": "act" }) };
+      if (url === "/api/admin/desk/authors?all=1") return { status: 200, body: { authors: [ASHA] } };
+      if (url === "/api/admin/desk/media") return { status: 200, body: { media: [uncleared, cleared], total: 2 } };
+      if (url === `/api/admin/desk/authors/${ASHA.id}` && init?.method === "PATCH") return { status: 200, body: { author: { ...ASHA, photo_id: PHOTO } } };
+    });
+    await act(async () => render(<AuthorsManager />));
+    await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Edit" })));
+    expect(screen.getByText("No photo.")).toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Choose a photo" })));
+    const uses = await screen.findAllByRole("button", { name: "Use as the photo" });
+    expect(uses[0]).toBeDisabled();
+    expect(screen.queryByRole("combobox", { name: "Crop" })).not.toBeInTheDocument();
+    await act(async () => fireEvent.click(uses[1]));
+    expect(screen.getByRole("button", { name: "Remove the photo" })).toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save" })));
+    expect(JSON.parse(calls(`/api/admin/desk/authors/${ASHA.id}`, "PATCH")[0][1].body)).toMatchObject({ photo_id: PHOTO });
   });
 
   test("without author.manage the list is read-only", async () => {

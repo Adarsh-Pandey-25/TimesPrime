@@ -73,6 +73,24 @@ test("the schema keeps only a valid id and a known crop on the node", () => {
   expect(spec({ id: "../../x", ratio: "21x9" })).toEqual(["figure", { "data-type": "image", "data-id": "", "data-ratio": "16x9" }]);
 });
 
+test("a gallery: its images together, each drawn like any image; one the page was not given is left out", () => {
+  const OTHER = "7d1e2f30-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
+  const out = html([{ type: "gallery", content: [image(), image({ id: OTHER, ratio: "16x9" }), image()] }], { [ID]: DATA });
+  expect(out.startsWith(`<div data-type="gallery"><figure data-type="image">`)).toBe(true);
+  expect(out.match(/<figure data-type="image">/g)).toHaveLength(2);
+  expect(out.endsWith("</figure></div>")).toBe(true);
+});
+
+test("the schema holds a gallery of two to twelve images, and nothing else", () => {
+  const schema = getSchema(storyExtensions());
+  const img = () => schema.nodes.image.create({ id: ID, ratio: "1x1" });
+  expect(() => schema.nodes.gallery.createChecked(null, [img(), img()])).not.toThrow();
+  expect(() => schema.nodes.gallery.createChecked(null, Array.from({ length: 12 }, img))).not.toThrow();
+  expect(() => schema.nodes.gallery.createChecked(null, [img()])).toThrow();
+  expect(() => schema.nodes.gallery.createChecked(null, Array.from({ length: 13 }, img))).toThrow();
+  expect(() => schema.nodes.gallery.createChecked(null, [img(), schema.nodes.paragraph.create()])).toThrow();
+});
+
 test("an image stands as a block in the plain text, so the revision diff shows it", () => {
   expect(plainText({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Before." }] }, image({ id: ID, ratio: "1x1" })] })).toContain("[Image 3f9a0c21, 1x1]");
 });
