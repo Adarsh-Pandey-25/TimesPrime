@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, AlertTriangle, KeyRound } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
+import { landingPath } from "@timesprime/shared/lib/staffLanding";
 import type { AdminMe } from "@timesprime/shared/types";
 
 // Sign-in (Panel 0). A staff account signs in with email and password, then the second factor:
@@ -50,8 +51,20 @@ export default function AdminLoginPage() {
   const labelClass = "block text-xs font-semibold text-slate-600 dark:text-slate-400";
   const linkClass = "w-full text-center text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline";
 
-  const done = () => {
-    router.push("/admin");
+  // Signed in: to the page of the person's work (landingPath; the owner's choice, 18 Nov 2026), the
+  // Desk for a newsroom role, else the dashboard. If the roles cannot be read, the dashboard.
+  const done = async () => {
+    let path: string = "/admin";
+    try {
+      const res = await fetch("/api/admin/me", { credentials: "include" });
+      if (res.ok) {
+        const me = (await res.json()) as AdminMe;
+        if (me.kind === "staff") path = landingPath(me.roles);
+      }
+    } catch {
+      // The dashboard, as before.
+    }
+    router.push(path);
     router.refresh();
   };
 
@@ -108,7 +121,7 @@ export default function AdminLoginPage() {
     setPassword("");
     if (res.data.next === "mfa_verify") setStep("code");
     else if (res.data.next === "mfa_enroll") await startEnrolment();
-    else done();
+    else await done();
   });
 
   const signInLegacy = run(async () => {
@@ -117,7 +130,7 @@ export default function AdminLoginPage() {
       setError(String(res.data.error || "Login failed."));
       return;
     }
-    done();
+    await done();
   });
 
   const verify = run(async () => {
@@ -128,7 +141,7 @@ export default function AdminLoginPage() {
       setCode("");
       return;
     }
-    done();
+    await done();
   });
 
   const submitButton = (idle: string, busy: string) => (

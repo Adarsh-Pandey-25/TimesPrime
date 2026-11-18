@@ -105,6 +105,33 @@ describe("staff sign-in and the second factor (Panel 0)", () => {
     expect(mockPush).toHaveBeenCalledWith("/admin");
   });
 
+  // The owner's choice (18 Nov 2026): one sign-in page, then the page of the person's work.
+  const me = (...roles: string[]) => ({
+    status: 200,
+    body: { kind: "staff", displayName: "Asha", aal: "aal2", roles: roles.map((role) => ({ role, language: "en", section: null, expiresAt: "2027-05-01T00:00:00Z" })), permissions: {}, mfa: { required: true, enrolled: true } },
+  });
+
+  test("a newsroom role lands on the Desk once signed in", async () => {
+    answers["POST /api/admin/mfa"] = { status: 200, body: { status: "success", aal: "aal2" } };
+    await signInAsStaff("mfa_verify");
+    answers["GET /api/admin/me"] = me("writer");
+    typeInto(/authenticator code/i, "123456");
+    await submit(/^verify$/i);
+    expect(mockPush).toHaveBeenCalledWith("/admin/desk");
+  });
+
+  test("the Super Admin keeps the dashboard, even holding a Desk role", async () => {
+    answers["GET /api/admin/me"] = me("desk_editor", "super_admin");
+    await signInAsStaff("done");
+    expect(mockPush).toHaveBeenCalledWith("/admin");
+  });
+
+  test("every other role keeps the dashboard too", async () => {
+    answers["GET /api/admin/me"] = me("analyst");
+    await signInAsStaff("done");
+    expect(mockPush).toHaveBeenCalledWith("/admin");
+  });
+
   test("the first time: the set-up starts, the QR code and secret are shown, and the code confirms that factor", async () => {
     answers["POST /api/admin/mfa"] = { status: 200, body: { factorId: "f-new", qrCode: "data:image/svg+xml;utf-8,<svg/>", secret: "JBSWY3DP" } };
     await signInAsStaff("mfa_enroll");
