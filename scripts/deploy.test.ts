@@ -95,6 +95,8 @@ describe("Nginx", () => {
   test("the back office clears X-Amz-Cf-Id (no CloudFront there) and both sites set X-Request-Id (E-03)", () => {
     expect(admin).toContain("listen 443 ssl;");
     expect(admin).toContain('proxy_set_header X-Amz-Cf-Id "";');
+    // The Desk uploads images of up to 15 MB; the reader keeps the shared 1m.
+    expect(admin).toContain("client_max_body_size 20m;");
     for (const site of [reader, admin]) {
       expect(site).toContain("proxy_set_header X-Request-Id $request_id;");
       expect(site).toContain("proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;");

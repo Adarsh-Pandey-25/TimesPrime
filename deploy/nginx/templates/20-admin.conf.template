@@ -13,6 +13,9 @@ server {
 
     # HSTS and the other security headers come from the app itself (R1-06).
 
+    # The Desk uploads images of up to 15 MB (Panel 2's media library); everything else is small.
+    client_max_body_size 20m;
+
     # The back office lives under /admin.
     location = / {
         return 302 /admin;
