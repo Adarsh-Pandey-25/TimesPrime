@@ -93,3 +93,40 @@ test("a Hindi story is labelled in Hindi, with no English words around it", () =
   expect(out).toContain(">सुधार</h2>");
   for (const word of ["By ", "Published", "Updated", "Correction", " and "]) expect(out).not.toContain(word);
 });
+
+// desk-8: an author's photo beside the byline, from its square rendition; decorative (alt="").
+test("each credited author's photo, round, before the byline; none for one the page was not given", () => {
+  const PHOTO = "c0ffee00-0000-4000-8000-000000000003";
+  const R = `/media/renditions/${PHOTO}`;
+  const html = renderToStaticMarkup(
+    <StoryArticle
+      story={story({
+        bylines: [
+          { role: "byline", name: "Asha Rao", photoId: PHOTO },
+          { role: "byline", name: "Vikram Singh", photoId: "c0ffee00-0000-4000-8000-000000000009" },
+        ],
+        photos: {
+          [PHOTO]: {
+            alt: "",
+            caption: null,
+            credit: null,
+            crops: { "1x1": { avif: `${R}/1x1-240.avif 240w, ${R}/1x1-480.avif 480w`, webp: `${R}/1x1-240.webp 240w, ${R}/1x1-480.webp 480w`, src: `${R}/1x1-480.webp`, width: 480, height: 480 } },
+          },
+        },
+      })}
+    />
+  );
+  expect(html).toContain(`<div class="story-byline"><picture><source type="image/avif" srcSet="${R}/1x1-240.avif 240w, ${R}/1x1-480.avif 480w" sizes="40px"/>`);
+  expect(html).toContain(`<img src="${R}/1x1-480.webp" alt="" width="40" height="40" loading="lazy" class="story-byline-photo"/></picture><p`);
+  expect(html.match(/<picture>/g)).toHaveLength(1);
+  expect(html).toContain("Asha Rao and Vikram Singh");
+});
+
+test("a photo whose address is not https or a site path is not drawn", () => {
+  const PHOTO = "c0ffee00-0000-4000-8000-000000000003";
+  const html = renderToStaticMarkup(
+    <StoryArticle story={story({ bylines: [{ role: "byline", name: "Asha Rao", photoId: PHOTO }], photos: { [PHOTO]: { alt: "", caption: null, credit: null, crops: {}, fallbackUrl: "javascript:alert(1)" } } })} />
+  );
+  expect(html).not.toContain("<img");
+  expect(html).not.toContain("javascript:");
+});

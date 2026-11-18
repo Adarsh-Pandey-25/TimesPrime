@@ -9,7 +9,7 @@
 
 jest.mock("@timesprime/server/repositories/stories", () => ({ getPublishedStory: jest.fn() }));
 // The published revision's images (design §7); none unless a test gives some.
-jest.mock("@timesprime/server/services/desk/storyImages", () => ({ publishedImages: jest.fn(async () => ({})) }));
+jest.mock("@timesprime/server/services/desk/storyImages", () => ({ publishedImages: jest.fn(async () => ({})), bylinePhotos: jest.fn(async () => ({})) }));
 jest.mock("@timesprime/server/services/news/topHeadlines", () => ({
   getTopHeadlines: jest.fn(async () => ({ body: { results: [] }, source: "cache", status: 200 })),
 }));

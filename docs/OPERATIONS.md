@@ -1232,7 +1232,19 @@ the app applies SQL.
           has_function_privilege('anon', 'public.desk_save_revision(uuid,uuid,uuid,text,text,jsonb,text,text,boolean)', 'EXECUTE') AS anon_may_call;
    ```
    → `true`, `true`, `false`. Until it is applied, a story's images are saved but readers never see
-   them.
+   them. **Done by the owner on 18 Nov 2026,** the check returning `true`, `true`, `false`.
+9. **Apply `database/migrations/2026-11-18-desk-8-author-photos.sql`** (M4: authors' photos). It adds
+   `authors.photo_id` (a library image), lets readers read it, and lets them read an image while it is
+   an active author's photo and itself active; nothing else changes. Paste the whole file into the SQL
+   Editor and run it. **Check,** in one query:
+   ```sql
+   SELECT (SELECT count(*) FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'authors' AND column_name = 'photo_id') AS has_photo_column,
+          has_column_privilege('anon', 'public.authors', 'photo_id', 'SELECT') AS readers_see_photo,
+          (SELECT count(*) FROM pg_policies
+            WHERE schemaname = 'public' AND tablename = 'media_assets' AND policyname = 'media_assets_read_author_photo') AS photo_policy;
+   ```
+   → `1`, `true`, `1`. Until it is applied, saving an author's photo fails with the database's error.
 
 **Undo.** The rollback at the end of the file, only before the first real story: stories are the
 newsroom's record and are never dropped after that. desk-3's undo is to run desk-2 again; desk-4's
@@ -1500,10 +1512,10 @@ phases were done:
    (PR #30); the owner applied desk-5 on 18 Nov 2026, and its check showed the app kept DELETE on the
    media tables, which desk-6 (PR #32, applied by the owner on 18 Nov 2026) took away. The renditions
    (the worker's `make-renditions` job and its 5-minute timer; originals kept private) were merged
-   (PR #31). Images in stories (the editor's Image, the checklist, the reader's page) are on
-   `panel-2-desk-story-images`, with one owner SQL step (desk-7, step 8). On the server the images
-   need the manager's [media steps](#the-desks-images-panel-2-after-the-release). Authors' photos and
-   galleries follow. Panel 1 will be built on `panel-1-administration`.
+   (PR #31), and images in stories (PR #33; the owner applied desk-7 on 18 Nov 2026). Authors'
+   photos and galleries, which complete M4's code, are on `panel-2-desk-photos-galleries`, with one
+   owner SQL step (desk-8, step 9). On the server the images need the manager's
+   [media steps](#the-desks-images-panel-2-after-the-release). Next: Panel 2's definition of done. Panel 1 will be built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

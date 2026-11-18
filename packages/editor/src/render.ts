@@ -56,12 +56,12 @@ function propsFor(tag: string, attrs: Json): Record<string, string | number> {
 }
 
 /** An address an image may load from: https, or a path on this site. */
-function isImageUrl(url: unknown): url is string {
+export function isImageUrl(url: unknown): url is string {
   return typeof url === "string" && (/^https:\/\/[^\s"'<>]+$/.test(url) || /^\/[^/\s"'<>][^\s"'<>]*$/.test(url));
 }
 
 /** A srcset of image addresses with widths ("… 480w, … 960w"). */
-function isSrcSet(value: unknown): value is string {
+export function isSrcSet(value: unknown): value is string {
   return typeof value === "string" && value.split(",").every((part) => {
     const [url, width, ...rest] = part.trim().split(/\s+/);
     return rest.length === 0 && isImageUrl(url) && /^\d{1,5}w$/.test(width ?? "");

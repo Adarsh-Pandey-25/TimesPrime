@@ -99,6 +99,10 @@ export function renditionsState(row: { renditions_at: string | null; renditions:
   return row.renditions.length > 0 ? "ready" : "failed";
 }
 
+/** A gallery block (design §5): two to twelve library images, shown together. */
+export const GALLERY_MIN = 2;
+export const GALLERY_MAX = 12;
+
 /** An image's id as a story body holds it: the library's UUID. */
 export const MEDIA_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 

@@ -95,7 +95,7 @@ const SAVABLE: StoryState[] = ["pitch", "assigned", "draft", "in_review", "desk_
 const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
 const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
 
-function Toolbar({ editor, disabled, onImage }: { editor: Editor | null; disabled: boolean; onImage: () => void }) {
+function Toolbar({ editor, disabled, onImage, onGallery }: { editor: Editor | null; disabled: boolean; onImage: () => void; onGallery: () => void }) {
   if (!editor) return null;
   const run = (fn: () => void) => () => !disabled && fn();
   const tool = (label: string, onClick: () => void, active = false) => (
@@ -132,6 +132,7 @@ function Toolbar({ editor, disabled, onImage }: { editor: Editor | null; disable
         editor.chain().focus().insertContent({ type: "embed", attrs: { url } }).run();
       }))}
       {tool("Image", run(onImage))}
+      {tool("Gallery", run(onGallery))}
       {tool("Ad slot", run(() => editor.chain().focus().insertContent({ type: "adSlot" }).run()))}
     </div>
   );
@@ -215,7 +216,7 @@ export default function StoryEditor({ id }: { id: string }) {
   }, [storyLoaded, mayEdit, holdLock, id]);
 
   const extensions = useMemo(() => editorExtensions(), []);
-  const [picking, setPicking] = useState(false);
+  const [picking, setPicking] = useState<"image" | "gallery" | null>(null);
   const revisionKey = loaded?.revision?.id ?? "none";
   const editor = useEditor(
     {
@@ -389,14 +390,20 @@ export default function StoryEditor({ id }: { id: string }) {
           Dek
           <textarea className={field} rows={2} lang={story.language} value={dek} disabled={!editable} onChange={(e) => { setDek(e.target.value); setDirty(true); }} />
         </label>
-        <Toolbar editor={editor} disabled={!editable} onImage={() => setPicking(true)} />
+        <Toolbar editor={editor} disabled={!editable} onImage={() => setPicking("image")} onGallery={() => setPicking("gallery")} />
         {picking && editable && (
           <ImagePicker
+            key={picking}
+            mode={picking}
             language={story.language}
-            onClose={() => setPicking(false)}
+            onClose={() => setPicking(null)}
             onPick={(imageId, ratio) => {
               editor?.chain().focus().insertContent({ type: "image", attrs: { id: imageId, ratio } }).run();
-              setPicking(false);
+              setPicking(null);
+            }}
+            onPickMany={(ids, ratio) => {
+              editor?.chain().focus().insertContent({ type: "gallery", content: ids.map((id) => ({ type: "image", attrs: { id, ratio } })) }).run();
+              setPicking(null);
             }}
           />
         )}

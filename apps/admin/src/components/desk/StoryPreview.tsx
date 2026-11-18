@@ -40,10 +40,12 @@ interface Loaded {
   credits?: Credit[];
   /** The library's images the revision uses, as the preview draws them (renditions, else the original). */
   images?: Record<string, StoryImageData>;
+  /** The credited authors' photos, the same way. */
+  photos?: Record<string, StoryImageData>;
 }
 
 /** The story as the reader's view takes it, with its last saved revision in place of the live one. */
-function asReaderStory({ story, revision, credits = [], images = {} }: Loaded & { revision: NonNullable<Loaded["revision"]> }): PublishedStory {
+function asReaderStory({ story, revision, credits = [], images = {}, photos = {} }: Loaded & { revision: NonNullable<Loaded["revision"]> }): PublishedStory {
   return {
     id: story.id,
     public_id: story.public_id,
@@ -56,10 +58,11 @@ function asReaderStory({ story, revision, credits = [], images = {} }: Loaded & 
     published_at: story.published_at,
     revision: { id: revision.id, headline: revision.headline, dek: revision.dek, seo_title: revision.seo_title, seo_description: revision.seo_description, body: revision.body },
     images,
+    photos,
     // As the reader's page credits them: active authors only, by their name in the story's language.
     bylines: credits
       .filter((c) => c.author?.active)
-      .map((c) => ({ role: c.role, name: (story.language === "hi" && c.author?.display_name_hi) || (c.author?.display_name_en ?? "") })),
+      .map((c) => ({ role: c.role, name: (story.language === "hi" && c.author?.display_name_hi) || (c.author?.display_name_en ?? ""), photoId: c.author?.photo_id ?? null })),
   };
 }
 
@@ -107,7 +110,7 @@ export default function StoryPreview({ id }: { id: string }) {
         {back}
       </div>
       <div className="rounded-lg bg-white dark:bg-[#1f2226]">
-        <StoryArticle story={asReaderStory({ story, revision, credits: loaded.credits, images: loaded.images })} sectionLink={false} />
+        <StoryArticle story={asReaderStory({ story, revision, credits: loaded.credits, images: loaded.images, photos: loaded.photos })} sectionLink={false} />
       </div>
     </div>
   );

@@ -163,7 +163,7 @@ describe("getPublishedStory: the reader's read", () => {
     revision: { id: "r-2", story_id: "s-1", headline: "संसद में बजट पास", dek: "d", seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
     bylines: [
       { role: "byline", position: 1, author: { display_name_en: "Vikram Singh", display_name_hi: "विक्रम सिंह", active: true } },
-      { role: "byline", position: 0, author: { display_name_en: "Asha Rao", display_name_hi: null, active: true } },
+      { role: "byline", position: 0, author: { display_name_en: "Asha Rao", display_name_hi: null, photo_id: "c0ffee00-0000-4000-8000-000000000003", active: true } },
       { role: "byline", position: 2, author: { display_name_en: "Gone", display_name_hi: null, active: false } },
     ],
     ...over,
@@ -205,8 +205,8 @@ describe("getPublishedStory: the reader's read", () => {
       published_at: "2026-11-17T09:00:00Z",
       revision: { id: "r-2", headline: "संसद में बजट पास", dek: "d", seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
       bylines: [
-        { role: "byline", name: "Asha Rao" },
-        { role: "byline", name: "विक्रम सिंह" },
+        { role: "byline", name: "Asha Rao", photoId: "c0ffee00-0000-4000-8000-000000000003" },
+        { role: "byline", name: "विक्रम सिंह", photoId: null },
       ],
     });
   });
@@ -352,7 +352,7 @@ describe("a story's credits", () => {
     supabase.from.mockReturnValue(query({ data: [{ author_id: "a-1", role: "byline", position: 0 }], error: null }, calls));
     expect(await listCredits("s-1")).toEqual([{ author_id: "a-1", role: "byline", position: 0 }]);
     expect(supabase.from).toHaveBeenCalledWith("story_authors");
-    expect(String(calls.find(([m]) => m === "select")?.[1][0])).toContain("author:authors(display_name_en, display_name_hi, active)");
+    expect(String(calls.find(([m]) => m === "select")?.[1][0])).toContain("author:authors(display_name_en, display_name_hi, photo_id, active)");
     expect(calls).toEqual(expect.arrayContaining([["eq", ["story_id", "s-1"]], ["order", ["position", { ascending: true }]]]));
   });
 

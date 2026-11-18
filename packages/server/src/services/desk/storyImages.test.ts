@@ -6,12 +6,12 @@
  * back to the original through the back office; the checklist reads every image, in order.
  */
 
-jest.mock("../../repositories/media", () => ({ getMediaByIds: jest.fn(), listPublishedImages: jest.fn() }));
+jest.mock("../../repositories/media", () => ({ getMediaByIds: jest.fn(), listPublishedImages: jest.fn(), listAuthorPhotos: jest.fn() }));
 
 import type { Rendition } from "@timesprime/shared/config/media";
-import { checklistImages, imageView, previewImages, publishedImages } from "./storyImages";
+import { bylinePhotos, checklistImages, imageView, previewImages, previewPhotos, publishedImages } from "./storyImages";
 
-const media = jest.requireMock("../../repositories/media") as { getMediaByIds: jest.Mock; listPublishedImages: jest.Mock };
+const media = jest.requireMock("../../repositories/media") as { getMediaByIds: jest.Mock; listPublishedImages: jest.Mock; listAuthorPhotos: jest.Mock };
 
 const A = "3f9a0c21-b7d4-4e0e-9a6b-5c4d3e2f1a0b";
 const B = "7d1e2f30-4a5b-4c6d-8e9f-0a1b2c3d4e5f";
@@ -75,4 +75,23 @@ test("the checklist: each image the body uses, in its order, null for one the li
   const images = await checklistImages(body(B, A, B));
   expect(media.getMediaByIds).toHaveBeenCalledWith([B, A]);
   expect(images).toEqual([expect.objectContaining({ id: B }), null]);
+});
+
+describe("authors' photos beside the byline (desk-8)", () => {
+  const square = (id: string) => row(id, { renditions: [r(id, "1x1", 240, "avif"), r(id, "1x1", 240, "webp"), r(id, "1x1", 480, "avif"), r(id, "1x1", 480, "webp")] });
+
+  test("readers: each credited author's photo once, only with a square rendition", async () => {
+    media.listAuthorPhotos.mockResolvedValue([square(A), row(B)]);
+    const photos = await bylinePhotos({ language: "hi", bylines: [{ name: "x", role: "byline", photoId: A }, { name: "y", role: "byline", photoId: B }, { name: "z", role: "byline", photoId: A }, { name: "w", role: "byline", photoId: "../x" }] });
+    expect(media.listAuthorPhotos).toHaveBeenCalledWith([A, B]);
+    expect(Object.keys(photos)).toEqual([A]);
+    expect(photos[A].crops["1x1"]?.src).toBe(`/media/renditions/${A}/1x1-480.webp`);
+  });
+
+  test("the preview: every photo the library has, the original standing in", async () => {
+    media.getMediaByIds.mockResolvedValue([row(A, { renditions: [] })]);
+    const photos = await previewPhotos([{ photoId: A }, { photoId: null }], "en", (id) => `/api/admin/desk/media/${id}/original`);
+    expect(media.getMediaByIds).toHaveBeenCalledWith([A]);
+    expect(photos[A]).toMatchObject({ crops: {}, fallbackUrl: `/api/admin/desk/media/${A}/original` });
+  });
 });

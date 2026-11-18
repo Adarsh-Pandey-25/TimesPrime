@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AUTHOR_KINDS, type AuthorKind } from "@timesprime/shared/config/desk";
 import { canAct, deskCall, useAdminMe } from "./deskClient";
+import ImagePicker from "./ImagePicker";
 
 // The Desk's authors (Panel 2 design §7): the names stories credit. Everyone on the Desk sees the
 // list; a holder of author.manage adds an author, edits one, retires one (it stays credited on what
-// it wrote, and cannot be credited again) or brings one back. The server decides each request.
+// it wrote, and cannot be credited again) or brings one back; an author's photo, from the media
+// library with its rights cleared, shows beside their byline. The server decides each request.
 
 interface Author {
   id: string;
@@ -18,6 +20,7 @@ interface Author {
   bio_hi: string | null;
   beat: string | null;
   links: string[];
+  photo_id: string | null;
   active: boolean;
 }
 
@@ -29,9 +32,10 @@ interface Form {
   bio_en: string;
   bio_hi: string;
   links: string;
+  photo_id: string;
 }
 
-const EMPTY: Form = { display_name_en: "", display_name_hi: "", kind: "staff", beat: "", bio_en: "", bio_hi: "", links: "" };
+const EMPTY: Form = { display_name_en: "", display_name_hi: "", kind: "staff", beat: "", bio_en: "", bio_hi: "", links: "", photo_id: "" };
 const KIND_LABELS: Record<AuthorKind | "agency", string> = { staff: "Staff", columnist: "Columnist", freelancer: "Freelancer", agency: "Agency" };
 const field = "mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
 const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
@@ -44,6 +48,7 @@ const toForm = (a: Author): Form => ({
   bio_en: a.bio_en ?? "",
   bio_hi: a.bio_hi ?? "",
   links: a.links.join("\n"),
+  photo_id: a.photo_id ?? "",
 });
 
 /** What the form sends: empty fields as null, one link per line. */
@@ -55,7 +60,14 @@ const toBody = (f: Form) => ({
   bio_en: f.bio_en || null,
   bio_hi: f.bio_hi || null,
   links: f.links.split("\n").map((l) => l.trim()).filter(Boolean),
+  photo_id: f.photo_id || null,
 });
+
+/** An author's photo, small and round, through the back office (the original until renditions exist). */
+function Photo({ id }: { id: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={`/api/admin/desk/media/${id}/original`} alt="" width={40} height={40} style={{ width: 40, height: 40, borderRadius: 9999, objectFit: "cover" }} />;
+}
 
 export default function AuthorsManager() {
   const { me, error: meError } = useAdminMe();
@@ -65,6 +77,7 @@ export default function AuthorsManager() {
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<Form>(EMPTY);
   const [busy, setBusy] = useState(false);
+  const [choosingPhoto, setChoosingPhoto] = useState(false);
   const manage = canAct(me, "author.manage");
 
   const load = useCallback(async () => {
@@ -138,6 +151,24 @@ export default function AuthorsManager() {
           <label className="text-sm font-semibold">Bio in English<textarea className={field} rows={3} value={form.bio_en} onChange={set("bio_en")} /></label>
           <label className="text-sm font-semibold">Bio in Hindi<textarea className={field} rows={3} lang="hi" value={form.bio_hi} onChange={set("bio_hi")} /></label>
           <label className="text-sm font-semibold sm:col-span-2">Links, one https address a line<textarea className={field} rows={2} value={form.links} onChange={set("links")} /></label>
+          <div className="space-y-2 text-sm sm:col-span-2">
+            <p className="font-semibold">Photo</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {form.photo_id ? <Photo id={form.photo_id} /> : <span className="text-slate-500">No photo.</span>}
+              <button type="button" className={button} onClick={() => setChoosingPhoto(true)}>{form.photo_id ? "Change the photo" : "Choose a photo"}</button>
+              {form.photo_id && <button type="button" className={button} onClick={() => setForm({ ...form, photo_id: "" })}>Remove the photo</button>}
+            </div>
+            {choosingPhoto && (
+              <ImagePicker
+                mode="photo"
+                onClose={() => setChoosingPhoto(false)}
+                onPick={(id) => {
+                  setForm({ ...form, photo_id: id });
+                  setChoosingPhoto(false);
+                }}
+              />
+            )}
+          </div>
           <div className="flex gap-2 sm:col-span-2">
             <button type="submit" disabled={busy || !form.display_name_en.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
               {editing === "new" ? "Add the author" : "Save"}
@@ -156,13 +187,16 @@ export default function AuthorsManager() {
         <ul className="space-y-2">
           {authors.map((a) => (
             <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 p-3 text-sm dark:border-[#2b2f36]">
-              <div>
+              <div className="flex items-center gap-2">
+                {a.photo_id && <Photo id={a.photo_id} />}
+                <div>
                 <p className="font-semibold">
                   {a.display_name_en}
                   {a.display_name_hi && <span lang="hi" className="ml-2 font-normal text-slate-600 dark:text-slate-300">{a.display_name_hi}</span>}
                   {!a.active && <span className="ml-2 text-xs font-bold text-slate-500">Retired</span>}
                 </p>
                 <p className="text-xs text-slate-500">{KIND_LABELS[a.kind]}{a.beat ? ` · ${a.beat}` : ""}</p>
+                </div>
               </div>
               {manage && (
                 <div className="flex gap-2">

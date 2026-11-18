@@ -5,7 +5,7 @@ import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
 import { ANY_SCOPE } from "@timesprime/server/auth/decide";
 import { requirePermission } from "@timesprime/server/auth/requirePermission";
 import { getAuthor, updateAuthor, type AuthorRow } from "@timesprime/server/repositories/authors";
-import { authorFields } from "../../_lib/authors";
+import { authorFields, photoRefusal } from "../../_lib/authors";
 import { auditedRecord, badRequest, deskFailure, readBody, type Params } from "../../_lib/desk";
 
 // One author's record (Panel 2 design §7): a holder of author.manage edits it, or retires it
@@ -29,6 +29,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     return deskFailure(err, "getAuthor");
   }
   if (!before) return NextResponse.json({ error: "Author not found." }, { status: 404 });
+  let refusal: NextResponse | null;
+  try {
+    refusal = await photoRefusal(checked.fields.photo_id);
+  } catch (err) {
+    return deskFailure(err, "getMedia");
+  }
+  if (refusal) return refusal;
 
   const result = await auditedRecord<AuthorRow | null>(
     gate.actor,

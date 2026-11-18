@@ -880,6 +880,31 @@ describe("authors and a story's credits (Panel 2 design §7)", () => {
   }
   const audits = () => (recordAudit as jest.Mock).mock.calls.map(([row]) => [row.action, row.outcome]);
 
+  // desk-8: an author's photo, beside their byline: a library image, not retired, its rights cleared.
+  const PHOTO_ID = "c0ffee00-0000-4000-8000-000000000004";
+  const photo = (over: Record<string, unknown> = {}) => ({ data: { id: PHOTO_ID, active: true, rights_cleared_at: "2026-11-18T09:00:00Z", ...over }, error: null });
+  const photoUpdate = () => calls.filter(([t, m]) => t === "authors" && m === "update").map(([, , args]) => args[0] as Record<string, unknown>).at(-1);
+
+  test("a photo with cleared rights is set, and removed with null; audited", async () => {
+    const set = await call(AUTHOR_PATCH, { ...AUTHOR_PATCH.data, media_assets: photo() }, { photo_id: PHOTO_ID }, HI_DESK);
+    expect(set.status).toBe(200);
+    expect(photoUpdate()).toEqual({ photo_id: PHOTO_ID });
+    expect(audits()).toEqual([["author.update", "attempted"], ["author.update", "succeeded"]]);
+    expect((await call(AUTHOR_PATCH, AUTHOR_PATCH.data, { photo_id: null }, HI_DESK)).status).toBe(200);
+    expect(photoUpdate()).toEqual({ photo_id: null });
+  });
+
+  test("a photo the library lacks, a retired one, or one whose rights are not cleared is refused; nothing written", async () => {
+    const missing = await call(AUTHOR_PATCH, { ...AUTHOR_PATCH.data, media_assets: { data: null, error: null } }, { photo_id: PHOTO_ID }, HI_DESK);
+    expect([missing.status, missing.json.code]).toEqual([422, "photo_unavailable"]);
+    const retired = await call(AUTHOR_PATCH, { ...AUTHOR_PATCH.data, media_assets: photo({ active: false }) }, { photo_id: PHOTO_ID }, HI_DESK);
+    expect([retired.status, retired.json.code]).toEqual([422, "photo_unavailable"]);
+    const uncleared = await call(AUTHORS_POST, { ...AUTHORS_POST.data, media_assets: photo({ rights_cleared_at: null }) }, { ...(AUTHORS_POST.body as object), photo_id: PHOTO_ID }, HI_DESK);
+    expect([uncleared.status, uncleared.json.code]).toEqual([422, "photo_rights"]);
+    expect((await call(AUTHOR_PATCH, AUTHOR_PATCH.data, { photo_id: "../../x" }, HI_DESK)).status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
   test("authors belong to no desk: a Desk Editor of any language manages them (the matrix's F)", async () => {
     const r = await call(AUTHORS_POST, AUTHORS_POST.data, AUTHORS_POST.body, EN_DESK);
     expect(r.status).toBe(201);

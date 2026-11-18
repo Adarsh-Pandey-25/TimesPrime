@@ -312,7 +312,7 @@ const READER_SELECT = [
   "id, public_id, language, section, format, slug, correction_note, first_published_at, published_at,",
   "workflow_state, embargo_until, published_revision_id,",
   "revision:story_revisions!stories_published_revision_fk(id, story_id, headline, dek, seo_title, seo_description, body),",
-  "bylines:story_authors(role, position, author:authors(display_name_en, display_name_hi, active))",
+  "bylines:story_authors(role, position, author:authors(display_name_en, display_name_hi, photo_id, active))",
 ].join(" ");
 
 interface ReaderRow extends Omit<PublishedStory, "revision" | "bylines"> {
@@ -320,7 +320,7 @@ interface ReaderRow extends Omit<PublishedStory, "revision" | "bylines"> {
   embargo_until: string | null;
   published_revision_id: string | null;
   revision: (PublishedStory["revision"] & { id: string; story_id: string }) | null;
-  bylines: Array<{ role: PublishedStory["bylines"][number]["role"]; position: number; author: { display_name_en: string; display_name_hi: string | null; active: boolean } | null }> | null;
+  bylines: Array<{ role: PublishedStory["bylines"][number]["role"]; position: number; author: { display_name_en: string; display_name_hi: string | null; photo_id?: string | null; active: boolean } | null }> | null;
 }
 
 /**
@@ -347,7 +347,7 @@ export async function getPublishedStory(publicId: number, now: Date = new Date()
   const bylines = (row.bylines ?? [])
     .filter((b) => b.author?.active)
     .sort((a, b) => a.position - b.position)
-    .map((b) => ({ role: b.role, name: (row.language === "hi" && b.author?.display_name_hi) || (b.author?.display_name_en ?? "") }))
+    .map((b) => ({ role: b.role, name: (row.language === "hi" && b.author?.display_name_hi) || (b.author?.display_name_en ?? ""), photoId: b.author?.photo_id ?? null }))
     .filter((b) => b.name.trim().length > 0);
   return {
     id: row.id,
@@ -560,14 +560,14 @@ export interface CreditRow {
   author_id: string;
   role: CreditRole;
   position: number;
-  author: { display_name_en: string; display_name_hi: string | null; active: boolean } | null;
+  author: { display_name_en: string; display_name_hi: string | null; photo_id?: string | null; active: boolean } | null;
 }
 
 /** A story's credits, in order (design §2, story_authors). */
 export async function listCredits(storyId: string): Promise<CreditRow[]> {
   const { data, error } = await supabase
     .from("story_authors")
-    .select("author_id, role, position, author:authors(display_name_en, display_name_hi, active)")
+    .select("author_id, role, position, author:authors(display_name_en, display_name_hi, photo_id, active)")
     .eq("story_id", storyId)
     .order("position", { ascending: true });
   if (error) throw storeError(error);

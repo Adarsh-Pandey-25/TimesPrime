@@ -6,7 +6,7 @@ import { ANY_SCOPE } from "@timesprime/server/auth/decide";
 import { requirePermission } from "@timesprime/server/auth/requirePermission";
 import { createAuthor, listAuthors, type AuthorRow } from "@timesprime/server/repositories/authors";
 import type { AuthorKind } from "@timesprime/shared/config/desk";
-import { authorFields } from "../_lib/authors";
+import { authorFields, photoRefusal } from "../_lib/authors";
 import { auditedRecord, badRequest, deskFailure, readBody } from "../_lib/desk";
 
 // The Desk's authors (Panel 2 design §7): the list, which anyone on the Desk reads to credit a story
@@ -33,6 +33,13 @@ export async function POST(request: NextRequest) {
   const checked = authorFields(body, true);
   if (!checked.ok) return badRequest(checked.error);
   const fields = checked.fields as typeof checked.fields & { display_name_en: string; kind: AuthorKind };
+  let refusal: NextResponse | null;
+  try {
+    refusal = await photoRefusal(fields.photo_id);
+  } catch (err) {
+    return deskFailure(err, "getMedia");
+  }
+  if (refusal) return refusal;
 
   const result = await auditedRecord<AuthorRow>(
     gate.actor,
