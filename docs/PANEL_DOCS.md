@@ -809,7 +809,8 @@ aggregator's `articles` and its 7-day purge.
     database lets readers read a photo only while it and its author are active (migration desk-8,
     an owner step: `authors.photo_id` and one more reader policy on `media_assets`).
   - **A gallery**, on the toolbar: two to twelve library images, chosen in order, one crop for all,
-    added as one block. Each is its own image node, so each is recorded with the revision, checked
+    added as one block with "Add the gallery", above the library and again below it, in a bar that
+    stays in view. It goes where the cursor is in the text. Each is its own image node, so each is recorded with the revision, checked
     before publication and drawn like any image; readers see them two to a row.
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
@@ -910,7 +911,7 @@ embargo 409.
 | `packages/server/src/services/desk/storyImages.test.ts`, `repositories/media.test.ts` (photos) | Each credited author's photo once, with its square rendition; the preview's stand-in; readers' photos only through an active author, active images, the readers' columns | A photo without a square rendition; a malformed id; another image |
 | `packages/server/src/repositories/deskSchema.test.ts` (desk-8) | One transaction; the column, the readers' grant, the policy for an active author's active photo | Nothing else about the library's rights changes |
 | `packages/ui/src/StoryArticle.test.tsx` (photos) | The photo, round, before the byline, from its square rendition, decorative | A photo the page was not given; an address that is not https or a site path |
-| `packages/editor/src/renderImages.test.tsx` (galleries), `desk.test.tsx` (galleries, photos) | A gallery's images together; the schema holds two to twelve images; Gallery adds the chosen images in order with their crop, which Save sends; the Authors page chooses a photo and saves it | A gallery of one, of thirteen, or with anything but images; an image whose rights are not cleared cannot be a photo |
+| `packages/editor/src/renderImages.test.tsx` (galleries), `desk.test.tsx` (galleries, photos) | A gallery's images together; the schema holds two to twelve images; Gallery adds the chosen images in order with their crop, which Save sends, from the button below the images as from the one above; the Authors page chooses a photo and saves it | A gallery of one, of thirteen, or with anything but images; an image whose rights are not cleared cannot be a photo |
 | `packages/shared/src/config/desk.test.ts`, `access.test.ts`, `desk.test.tsx` (the desk's review steps) | Out of review, Submit and Send back are the only `deskOnly` steps; a Sub-editor passes a story on; a Writer still submits their draft and may kill their own story | A Writer passing their own story on from review, or sending it back (403, `article.submit`), and not offered either on screen |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 
@@ -924,7 +925,7 @@ item, against the code:
 
 | # | Item | Status |
 |---|---|---|
-| 1 | Every feature works; this entry matches the code | **Met in code and tests, and the core flow walked by the owner** (18 Nov 2026, on a laptop against the real database, a Writer and a Desk Editor): an image uploaded by the Writer; a story written, the image added, its slug set and submitted; passed to the desk; approval refused by the checklist while the image's rights were not cleared, then cleared and approved by the other person; published; the reader's page with the image's rendition; a correction; taken down, with the alert; every step in the audit log. **Not walked yet:** scheduling, the two-person restore, an author's photo and credits, a gallery |
+| 1 | Every feature works; this entry matches the code | **Met in code and tests, and the core flow walked by the owner** (18 Nov 2026, on a laptop against the real database, a Writer and a Desk Editor): an image uploaded by the Writer; a story written, the image added, its slug set and submitted; passed to the desk; approval refused by the checklist while the image's rights were not cleared, then cleared and approved by the other person; published; the reader's page with the image's rendition; a correction; taken down, with the alert; every step in the audit log. **Then authors' photos and a gallery, walked the same day:** two images uploaded, their rights cleared, their renditions made by the worker; an author added with a photo; the Writer's story with that author as its byline and a gallery of the two images; passed to the desk, approved and published by the Desk Editor; the reader's page with the round photo beside the byline and the gallery, drawn from renditions (AVIF and WebP; the original's address nowhere on the page); then taken down, the author and the images retired. **Not walked yet:** scheduling, the two-person restore |
 | 2 | Server-side permission on every route and action; allowed and denied tests | **Done.** Every Desk route has a rule; `access.test.ts` walks every route on disk and tests each for its least-privileged holder in scope, no session, no grants, expired, no MFA, the wrong desk and the shared password |
 | 3 | Privileged actions audited; MFA where the plan says | **Done in code.** Every Desk write writes `audit_log` first (attempted, then outcome) and is refused with 503 if it cannot; every Desk write needs `aal2`; the worker audits as `system:scheduler`. The audit log's own database rules are Panel 0's, verified with its runbook |
 | 4 | `npm run verify` and CI green; routes, JS and CSS reported | **Done.** Every PR green, with its routes, JS budget and CSS bytes in its report |
@@ -951,6 +952,9 @@ project). Assigning a writer from the screen waits for Panel 1's staff directory
     review steps are now `deskOnly`; see the access rules);
   - *decided and fixed:* on Windows, a worker job printed its result and then Node crashed as it
     exited; the worker now sets its exit code instead (OPERATIONS.md, gotcha 3.38);
+  - *decided and fixed:* in the gallery picker, the images were chosen but the gallery was never
+    added: "Add the gallery" sat above the library, out of sight once the images were scrolled to.
+    It is now also below the images, in a bar that stays in view (the owner's decision);
   - "View on the site" opens the site's own address (`NEXT_PUBLIC_APP_URL`), which answers once
     the site is deployed; on a laptop the page is at `http://localhost:3000/<section>/<slug>-<number>`;
   - setting up the second factor: each reload of the sign-in page makes a new QR code, so a code

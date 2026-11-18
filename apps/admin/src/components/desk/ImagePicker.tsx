@@ -65,6 +65,13 @@ export default function ImagePicker({
   const toggle = (id: string) =>
     setChosen((now) => (now.includes(id) ? now.filter((c) => c !== id) : now.length < GALLERY_MAX ? [...now, id] : now));
   const label = mode === "photo" ? "Choose the author's photo" : mode === "gallery" ? "Add a gallery" : "Add an image";
+  // Shown above the library and again below it, in a bar that stays in view: in the owner's
+  // walk-through (18 Nov 2026) the images were chosen, but the button above them was out of sight.
+  const addGallery = (
+    <button type="button" className={button} disabled={chosen.length < GALLERY_MIN} onClick={() => onPickMany?.(chosen, ratio)}>
+      Add the gallery ({chosen.length} of {GALLERY_MIN} to {GALLERY_MAX})
+    </button>
+  );
 
   return (
     <section aria-label={label} className="space-y-3 rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
@@ -80,11 +87,7 @@ export default function ImagePicker({
           </label>
         )}
         <div className="flex gap-2">
-          {mode === "gallery" && (
-            <button type="button" className={button} disabled={chosen.length < GALLERY_MIN} onClick={() => onPickMany?.(chosen, ratio)}>
-              Add the gallery ({chosen.length} of {GALLERY_MIN} to {GALLERY_MAX})
-            </button>
-          )}
+          {mode === "gallery" && addGallery}
           <button type="button" className={button} onClick={onClose}>Close</button>
         </div>
       </div>
@@ -118,6 +121,14 @@ export default function ImagePicker({
             );
           })}
         </ul>
+      )}
+      {mode === "gallery" && images !== null && images.length > 0 && (
+        <div className="sticky bottom-0 -mx-3 -mb-3 flex flex-wrap items-center justify-end gap-3 rounded-b-lg border-t border-slate-200 bg-white px-3 py-3 dark:border-[#2b2f36] dark:bg-[#1f2226]">
+          <p className="text-sm text-slate-500">
+            {chosen.length < GALLERY_MIN ? `Choose at least ${GALLERY_MIN} images.` : "The gallery shows them in the order chosen."}
+          </p>
+          {addGallery}
+        </div>
       )}
     </section>
   );
