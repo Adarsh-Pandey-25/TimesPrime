@@ -5,12 +5,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
 import { ANY_SCOPE } from "@timesprime/server/auth/decide";
 import { requirePermission, requireTarget } from "@timesprime/server/auth/requirePermission";
-import { mediaStorage, mediaUrl } from "@timesprime/server/lib/mediaStorage";
+import { mediaStorage } from "@timesprime/server/lib/mediaStorage";
 import { createMedia, listMedia, type MediaRow } from "@timesprime/server/repositories/media";
 import { STORY_LANGUAGES } from "@timesprime/shared/config/desk";
 import { MEDIA_MAX_BYTES, MEDIA_TYPES, sniffMediaType } from "@timesprime/shared/config/media";
 import { isSection } from "@timesprime/shared/config/sections";
-import { formRecord, mediaFields } from "../_lib/media";
+import { formRecord, mediaFields, withUrls } from "../_lib/media";
 import { auditedRecord, badRequest, deskFailure, scopesFor } from "../_lib/desk";
 
 // The media library (Panel 2 design §7): the images of the caller's desks, and a new image.
@@ -19,9 +19,6 @@ import { auditedRecord, badRequest, deskFailure, scopesFor } from "../_lib/desk"
 // on a laptop) under a new random key, and its record names the desk, who uploaded it and what is
 // known of its credit, licence, alt text and caption. Audited.
 const RULES = ADMIN_ROUTE_RULES["/api/admin/desk/media"];
-
-/** A record as the Desk shows it: with the address its file is served at. */
-const withUrl = (row: MediaRow) => ({ ...row, url: mediaUrl(row.storage_key) });
 
 export async function GET(request: NextRequest) {
   const gate = await requirePermission(request, RULES.GET);
@@ -39,7 +36,7 @@ export async function GET(request: NextRequest) {
       scopesFor(gate.actor, "article.view_admin", ["F", "S", "R"], new Date()),
       Math.max(1, Number(params.get("page")) || 1)
     );
-    return NextResponse.json({ media: media.map(withUrl), total });
+    return NextResponse.json({ media: media.map(withUrls), total });
   } catch (err) {
     return deskFailure(err, "listMedia");
   }
@@ -90,5 +87,5 @@ export async function POST(request: NextRequest) {
     (row) => ({ storage_key: row.storage_key, bytes: row.bytes, content_type: row.content_type })
   );
   if (!result.ok) return result.response;
-  return NextResponse.json({ media: withUrl(result.value) }, { status: 201 });
+  return NextResponse.json({ media: withUrls(result.value) }, { status: 201 });
 }

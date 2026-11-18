@@ -2,7 +2,7 @@
  * @jest-environment node
  *
  * Where the Desk's images are kept (Panel 2 design §7): a folder on a laptop, S3 on the server, one
- * interface; only library keys reach either; the address a page shows a file at.
+ * interface; only library keys reach either; only renditions are ever served or given an address.
  */
 
 const send = jest.fn();
@@ -24,9 +24,10 @@ jest.mock("@aws-sdk/client-s3", () => {
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { localMediaResponse, mediaStorage, mediaUrl, resetMediaStorage } from "./mediaStorage";
+import { contentTypeOf, localMediaResponse, mediaStorage, mediaUrl, resetMediaStorage } from "./mediaStorage";
 
 const KEY = "originals/3f9a0c21-b7d4-4e0e-9a6b-5c4d3e2f1a0b.jpg";
+const RENDITION = "renditions/3f9a0c21-b7d4-4e0e-9a6b-5c4d3e2f1a0b/4x3-480.webp";
 const env = { ...process.env };
 let dir: string;
 
@@ -59,15 +60,20 @@ describe("on a laptop: a folder", () => {
     await expect(storage.get("originals/../../secret")).rejects.toThrow("Not a media key");
   });
 
-  test("each app serves the folder at /media: the file, its type, a year's caching; else 404", async () => {
-    await mediaStorage().put(KEY, new Uint8Array([9]), "image/jpeg");
-    const ok = await localMediaResponse(KEY.split("/"));
+  test("each app serves the renditions at /media: the file, its type, a year's caching; else 404", async () => {
+    await mediaStorage().put(RENDITION, new Uint8Array([9]), "image/webp");
+    const ok = await localMediaResponse(RENDITION.split("/"));
     expect(ok.status).toBe(200);
-    expect(ok.headers.get("content-type")).toBe("image/jpeg");
+    expect(ok.headers.get("content-type")).toBe("image/webp");
     expect(ok.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
     expect(ok.headers.get("x-content-type-options")).toBe("nosniff");
-    expect((await localMediaResponse(["originals", "..", "secret"])).status).toBe(404);
-    expect((await localMediaResponse(["originals", "00000000-0000-4000-8000-000000000000.png"])).status).toBe(404);
+    expect((await localMediaResponse(["renditions", "..", "secret"])).status).toBe(404);
+    expect((await localMediaResponse(["renditions", "00000000-0000-4000-8000-000000000000", "1x1-480.webp"])).status).toBe(404);
+  });
+
+  test("an original is never served at /media: it keeps the camera's metadata, so only staff see it", async () => {
+    await mediaStorage().put(KEY, new Uint8Array([9]), "image/jpeg");
+    expect((await localMediaResponse(KEY.split("/"))).status).toBe(404);
   });
 });
 
@@ -97,9 +103,12 @@ describe("on the server: S3", () => {
   });
 });
 
-test("a page shows a file at /media, or at MEDIA_PUBLIC_BASE on the server", () => {
-  expect(mediaUrl(KEY)).toBe(`/media/${KEY}`);
+test("a page shows a rendition at /media, or at MEDIA_PUBLIC_BASE on the server; an original has no address", () => {
+  expect(mediaUrl(RENDITION)).toBe(`/media/${RENDITION}`);
   process.env.MEDIA_PUBLIC_BASE = "https://timesprime247.com/media/";
-  expect(mediaUrl(KEY)).toBe(`https://timesprime247.com/media/${KEY}`);
-  expect(() => mediaUrl("../x")).toThrow("Not a media key");
+  expect(mediaUrl(RENDITION)).toBe(`https://timesprime247.com/media/${RENDITION}`);
+  expect(() => mediaUrl(KEY)).toThrow("Not a rendition's key");
+  expect(() => mediaUrl("../x")).toThrow("Not a rendition's key");
+  expect(contentTypeOf(KEY)).toBe("image/jpeg");
+  expect(contentTypeOf(RENDITION)).toBe("image/webp");
 });

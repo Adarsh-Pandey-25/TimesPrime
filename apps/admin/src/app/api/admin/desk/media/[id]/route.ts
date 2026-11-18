@@ -4,9 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
 import { ANY_SCOPE } from "@timesprime/server/auth/decide";
 import { requirePermission, requireTarget } from "@timesprime/server/auth/requirePermission";
-import { mediaUrl } from "@timesprime/server/lib/mediaStorage";
 import { getMedia, updateMedia, type MediaRow } from "@timesprime/server/repositories/media";
-import { mediaFields, RIGHTS_FIELDS } from "../../_lib/media";
+import { mediaFields, RIGHTS_FIELDS, withUrls } from "../../_lib/media";
 import { auditedRecord, badRequest, deskFailure, readBody, type Params } from "../../_lib/desk";
 
 // One image's record (Panel 2 design §7), for a holder of media.manage in the image's desk: its
@@ -62,5 +61,5 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   );
   if (!result.ok) return result.response;
   if (!result.value) return NextResponse.json({ error: "Image not found." }, { status: 404 });
-  return NextResponse.json({ media: { ...result.value, url: mediaUrl(result.value.storage_key) } });
+  return NextResponse.json({ media: withUrls(result.value) });
 }

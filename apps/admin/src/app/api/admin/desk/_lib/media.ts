@@ -1,7 +1,8 @@
 import "server-only";
 
-import type { MediaFields } from "@timesprime/server/repositories/media";
-import { MEDIA_SOURCES, MEDIA_TEXT_MAX, type MediaSource } from "@timesprime/shared/config/media";
+import { mediaUrl } from "@timesprime/server/lib/mediaStorage";
+import type { MediaFields, MediaRow } from "@timesprime/server/repositories/media";
+import { MEDIA_SOURCES, MEDIA_TEXT_MAX, previewRendition, renditionsState, type MediaSource } from "@timesprime/shared/config/media";
 
 // What an image's record may say (Panel 2 design §7), checked before it reaches the database: the
 // upload (a form) and an edit (JSON) share it. Credit, source and licence, with rights cleared by a
@@ -16,6 +17,19 @@ const TEXTS = [
   ["caption_en", MEDIA_TEXT_MAX.caption],
   ["caption_hi", MEDIA_TEXT_MAX.caption],
 ] as const;
+
+/** Where staff see an image's original: through the back office only, as it keeps the camera's metadata. */
+export const originalUrl = (id: string) => `/api/admin/desk/media/${id}/original`;
+
+/**
+ * A record as the Desk shows it: `url`, the tile's picture (its 4:3 WebP rendition once the worker
+ * has made it, else the original through the back office), `original_url`, and where its
+ * renditions stand.
+ */
+export function withUrls(row: MediaRow) {
+  const preview = row.renditions_at ? previewRendition(row.renditions) : null;
+  return { ...row, url: preview ? mediaUrl(preview.key) : originalUrl(row.id), original_url: originalUrl(row.id), renditions_state: renditionsState(row) };
+}
 
 /** The fields that say whose an image is and on what terms: changing one voids a rights clearance. */
 export const RIGHTS_FIELDS = ["credit", "source", "licence", "licence_expires_at"] as const;

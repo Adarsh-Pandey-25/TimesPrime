@@ -125,6 +125,11 @@ export const ADMIN_ROUTE_RULES = {
   "/api/admin/desk/media/[id]": {
     PATCH: { permissions: ["media.manage"], mode: "act", target: "media", staffOnly: true },
   },
+  // An image's original, which keeps the camera's metadata: for staff, in the image's desk, as the
+  // library is; readers only ever get the renditions.
+  "/api/admin/desk/media/[id]/original": {
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "media", staffOnly: true },
+  },
   // A story's credits: set with article.edit, in the story's desk, before publication.
   "/api/admin/desk/stories/[id]/credits": {
     POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },

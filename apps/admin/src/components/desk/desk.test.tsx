@@ -492,7 +492,8 @@ describe("authors and credits (Panel 2 design §7)", () => {
 
 describe("the media library (Panel 2 design §7)", () => {
   const IMAGE = {
-    id: "c0ffee00-0000-4000-8000-000000000001", url: "/media/originals/c0ffee00-0000-4000-8000-000000000001.jpg", language: "hi", section: "sports",
+    id: "c0ffee00-0000-4000-8000-000000000001", url: "/media/renditions/c0ffee00-0000-4000-8000-000000000001/4x3-480.webp",
+    original_url: "/api/admin/desk/media/c0ffee00-0000-4000-8000-000000000001/original", renditions_state: "ready", language: "hi", section: "sports",
     credit: "Photo: Asha Rao", source: "staff", licence: "Own work", licence_expires_at: null, rights_cleared_by: null, rights_cleared_at: null,
     alt_en: "Players on the field", alt_hi: null, caption_en: null, caption_hi: null, renditions_at: null, active: true, created_at: "2026-11-18T09:00:00Z",
   };
@@ -511,8 +512,22 @@ describe("the media library (Panel 2 design §7)", () => {
     expect(await screen.findByRole("img", { name: "Players on the field" })).toHaveAttribute("src", IMAGE.url);
     expect(screen.getByText(/Photo: Asha Rao/)).toBeInTheDocument();
     expect(screen.getByText("Rights not cleared")).toBeInTheDocument();
+    expect(screen.getByText(/Sizes for readers: made/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Original" })).toHaveAttribute("href", IMAGE.original_url);
     expect(screen.queryByRole("button", { name: "Upload an image" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Clear rights" })).not.toBeInTheDocument();
+  });
+
+  test("an image's sizes for readers: on the way until the worker runs, or failed with what to do", async () => {
+    for (const [state, text] of [["waiting", /on the way \(within 5 minutes\)/], ["failed", /could not be made from this file\. Upload it again\./]] as const) {
+      serve((url) => {
+        if (url === "/api/admin/me") return { status: 200, body: staffMe({ "article.view_admin": "read" }) };
+        if (url === "/api/admin/desk/media?retired=1") return { status: 200, body: { media: [{ ...IMAGE, renditions_state: state }], total: 1 } };
+      });
+      const { unmount } = await act(async () => render(<MediaLibrary />));
+      expect(await screen.findByText(text)).toBeInTheDocument();
+      unmount();
+    }
   });
 
   test("whoever may edit stories uploads an image as a form: the file, its desk and what is known", async () => {

@@ -3,16 +3,19 @@ import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { GetObjectCommand, NoSuchKey, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { isMediaKey } from "@timesprime/shared/config/media";
+import { isMediaKey, RENDITION_KEY } from "@timesprime/shared/config/media";
 
 /**
  * Where the Desk's images are kept (Panel 2 design §7: "behind one storage interface").
  *
  * - **S3**, when MEDIA_BUCKET is set (the server): the bucket in Mumbai (MEDIA_REGION, ap-south-1 by
- *   default), each file under `media/<key>`, so CloudFront's `/media/*` behaviour serves it at
- *   `https://<site>/media/<key>`. Credentials come from the server's role (the SDK's default chain).
+ *   default), each file under `media/<key>`. CloudFront's `/media/renditions/*` behaviour serves the
+ *   renditions at `https://<site>/media/renditions/...`; the originals, which keep the camera's
+ *   metadata, are never served there (staff see them through the back office). Credentials come
+ *   from the server's role (the SDK's default chain).
  * - **A folder**, otherwise (a laptop): MEDIA_LOCAL_DIR, or `.media` at the repository's root (the
- *   apps and the worker run in their own folder, two below it). Each app serves it at `/media/<key>`.
+ *   apps and the worker run in their own folder, two below it). Each app serves its renditions at
+ *   `/media/renditions/...`.
  *
  * Every key is checked against the library's two shapes (an original, a rendition) before it
  * reaches S3 or a path, so nothing outside the library can be read or written.
@@ -86,21 +89,28 @@ export function mediaStorage(): MediaStorage {
 
 const CONTENT_TYPES: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", avif: "image/avif" };
 
+/** A library file's type, from its key's extension. */
+export function contentTypeOf(key: string): string {
+  return CONTENT_TYPES[key.slice(key.lastIndexOf(".") + 1)] ?? "application/octet-stream";
+}
+
 /**
- * A file from the local folder, for each app's `/media/[...key]` route on a laptop. With S3 the
- * server never reaches the app for `/media/*` (CloudFront serves it from the bucket), so the route
- * answers 404 there, as it does for anything that is not a library key.
+ * A rendition from the local folder, for each app's `/media/[...key]` route on a laptop, as
+ * CloudFront serves them on the server. Never an original (staff see those through the back office,
+ * `/api/admin/desk/media/[id]/original`). With S3 the server never reaches the app for
+ * `/media/renditions/*` (CloudFront serves it from the bucket), so the route answers 404 there, as it
+ * does for anything that is not a rendition's key.
  */
 export async function localMediaResponse(segments: readonly string[]): Promise<Response> {
   const key = segments.join("/");
   const storage = mediaStorage();
   const notFound = () => new Response("Not found", { status: 404, headers: { "content-type": "text/plain" } });
-  if (storage.kind !== "local" || !isMediaKey(key)) return notFound();
+  if (storage.kind !== "local" || !RENDITION_KEY.test(key)) return notFound();
   const body = await storage.get(key);
   if (!body) return notFound();
   return new Response(body as BodyInit, {
     headers: {
-      "content-type": CONTENT_TYPES[key.slice(key.lastIndexOf(".") + 1)] ?? "application/octet-stream",
+      "content-type": contentTypeOf(key),
       "cache-control": CACHE_CONTROL,
       "x-content-type-options": "nosniff",
     },
@@ -113,11 +123,12 @@ export function resetMediaStorage(): void {
 }
 
 /**
- * The address a page shows a file at: MEDIA_PUBLIC_BASE (the server: `https://<site>/media`, so the
- * back office, on its own host, reaches CloudFront too), or `/media`, which each app serves from the
- * local folder on a laptop.
+ * The address a page shows a rendition at: MEDIA_PUBLIC_BASE (the server: `https://<site>/media`, so
+ * the back office, on its own host, reaches CloudFront too), or `/media`, which each app serves from
+ * the local folder on a laptop. An original has no public address, so it is refused here.
  */
 export function mediaUrl(key: string): string {
+  if (!RENDITION_KEY.test(key)) throw new Error(`Not a rendition's key: ${key}`);
   const base = (process.env.MEDIA_PUBLIC_BASE?.trim() || "/media").replace(/\/+$/, "");
-  return `${base}/${checked(key)}`;
+  return `${base}/${key}`;
 }
