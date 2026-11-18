@@ -176,7 +176,7 @@ apps/
     src/app/media/         the Desk's images from the local folder, on a laptop only (as in web)
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list
                            with its takedown alerts, a new story, the story editor with its revisions
-                           and credits, the preview, the authors, the media library)
+                           and credits and its image picker, the preview, the authors, the media library)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes);
@@ -188,7 +188,7 @@ packages/
     src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk),
                            authors.ts (the Desk's author records), media.ts (the media library's records)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
-                           publishing's rules, the scheduler, the image renditions with sharp)
+                           publishing's rules, the scheduler, the image renditions with sharp, a story's images)
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase,
                            mediaStorage (the images' files: S3 on the server, a folder on a laptop;
                            only renditions are ever served publicly), …
@@ -196,8 +196,8 @@ packages/
                            limits and key shapes), types and lib (urlValidation, sentryScrub)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and
                            story.css, a Desk story's view for the reader's page and the Desk's preview)
-  editor/                  @timesprime/editor: the story schema (Tiptap extensions), plain text, the revision diff,
-                           the reader's server-side renderer
+  editor/                  @timesprime/editor: the story schema (Tiptap extensions, the library's image among
+                           them), plain text, the revision diff, the reader's server-side renderer
 database/                  schema.sql, policies.sql, migrations/, bootstrap/, seed/: applied by hand
 scripts/                   generate-access-catalog.mjs: the permission catalogue SQL from docs/PANEL_DOCS.md
 docs/
