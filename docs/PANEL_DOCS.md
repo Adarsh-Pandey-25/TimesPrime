@@ -499,8 +499,8 @@ Desk's screens, the story's revisions on screen); the Hindi typing check still c
 is complete: the reader's story page (PR #23), the preview in the back office (decision 7, PR #24),
 scheduled publishing (PR #25), corrections (PR #26) and the takedown alert list (PR #27). M4 is
 under way (approved by the owner, 18 Nov 2026): authors and a story's credits (PR #28), the
-media library's first part (PR #30), its renditions (PR #31) and images in stories are built (below);
-authors' photos and galleries follow. Started before Panel 1 at the owner's request (17 Nov 2026);
+media library's first part (PR #30), its renditions (PR #31), images in stories (PR #33), authors' photos and
+galleries are built (below): M4's code is complete. Started before Panel 1 at the owner's request (17 Nov 2026);
 [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -564,6 +564,10 @@ authors' photos and galleries follow. Started before Panel 1 at the owner's requ
     `render.ts`; `storyImageIds` and the checklist's `imageChecklist` in `packages/shared`;
     `packages/server/src/services/desk/storyImages.ts` (what a page draws, what the checklist
     reads); the editor's view and picker, `editorImage.ts` and `ImagePicker.tsx`; migration desk-7;
+  - authors' photos and galleries: `photo_id` in `repositories/authors.ts`, `photoRefusal` in
+    `_lib/authors.ts`, `listAuthorPhotos` in `repositories/media.ts`, `bylinePhotos` and
+    `previewPhotos` in `storyImages.ts`, `BylinePhoto` in `packages/ui/src/StoryArticle.tsx`; the
+    `gallery` node in `schema.ts`; `ImagePicker.tsx`'s photo and gallery modes; migration desk-8;
   - `packages/server/src/auth/decide.ts`: the Own code;
   - `database/migrations/2026-11-17-desk-1-stories.sql`;
   - the routes in `apps/admin/src/app/api/admin/desk/`, with their shared steps in
@@ -787,11 +791,21 @@ aggregator's `articles` and its 7-day purge.
     is checked again as it is drawn (https or a site path), and text is text.
   - **The preview** draws the last saved revision's images the same way, the original through the
     back office standing in until the renditions are made.
+- **Built (M4, fifth part): authors' photos and galleries** (design §5 and §7).
+  - **An author's photo** (the owner's choice, 18 Nov 2026: beside the byline). On the Authors page
+    a holder of `author.manage` chooses it from the media library, which offers only images whose
+    rights are cleared; the server refuses an image the library lacks, a retired one, or one not
+    cleared (422), audited with the record. Readers see it round, beside the byline, from its
+    square rendition (decorative: the name is beside it); the preview shows it the same way. The
+    database lets readers read a photo only while it and its author are active (migration desk-8,
+    an owner step: `authors.photo_id` and one more reader policy on `media_assets`).
+  - **A gallery**, on the toolbar: two to twelve library images, chosen in order, one crop for all,
+    added as one block. Each is its own image node, so each is recorded with the revision, checked
+    before publication and drawn like any image; readers see them two to a row.
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
-  - authors' photos, and galleries (several images as one block, design §5) (M4's last part);
   - linking an author to a staff account (Panel 1's staff directory).
 
 #### Access permissions and authorization rules
@@ -808,7 +822,8 @@ Each action's permission is in the [design's workflow table](#3-workflow), mirro
 - **Authors belong to no desk:** `author.manage` is decided in any scope in which the caller holds
   it, which is the matrix's F for a Desk Editor. As a site-wide object an author would admit only
   unscoped grants, and a Desk Editor always has a language. Writing a story's credits rides on
-  `article.edit`, in the story's desk.
+  `article.edit`, in the story's desk. An author's photo must be a library image, not retired, its
+  rights cleared.
 - **Single actor for a takedown:** with a reason.
 - **MFA:** every Desk write needs `aal2`.
 
@@ -827,7 +842,8 @@ embargo 409.
 | `database/migrations/2026-11-18-desk-4-credits.sql` | `desk_set_credits`: a story's credits replaced, in order, each naming an active author, before publication only; an approved story back to desk review; its history row; one transaction | Drop the function (in the file) | **Yes, 18 Nov 2026**, checks passed (`service_may_call` true, `anon_may_call` false) |
 | `database/migrations/2026-11-18-desk-5-media.sql` | `media_assets` and `asset_usages`: an image's desk, record and rights; usages per revision; RLS, no DELETE, readers only for live stories' images | Drop both tables (in the file), before the first real image | **Yes, 18 Nov 2026**: `tables_with_rls` 2 and `anon_sees_uploader` false, but `service_may_delete` **true**: its REVOKE left out `service_role`, so Supabase's default privileges kept the app's DELETE (desk-6 fixes it) |
 | `database/migrations/2026-11-18-desk-6-media-grants.sql` | The fix to desk-5: every right on the media tables taken from `service_role`, then exactly desk-5's grants (no DELETE; usages insert-only) | None needed; desk-5's state was `GRANT ALL ... TO service_role` | **Yes, 18 Nov 2026**, checks passed (`false`, `false`, `true`) |
-| `database/migrations/2026-11-18-desk-7-image-usages.sql` | `desk_save_revision` records the library images a revision uses (`asset_usages`) in the save's transaction, and refuses a retired one; the rest of the function unchanged | Run desk-1's function again (images then saved but not recorded, so readers would not see them) | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 8) |
+| `database/migrations/2026-11-18-desk-7-image-usages.sql` | `desk_save_revision` records the library images a revision uses (`asset_usages`) in the save's transaction, and refuses a retired one; the rest of the function unchanged | Run desk-1's function again (images then saved but not recorded, so readers would not see them) | **Yes, 18 Nov 2026**, checks passed (`true`, `true`, `false`) |
+| `database/migrations/2026-11-18-desk-8-author-photos.sql` | `authors.photo_id`, a library image; readers may read the column, and an image while it is an active author's photo and itself active | In the file, before any author has a photo | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 9) |
 
 #### Tests and verification
 
@@ -879,6 +895,11 @@ embargo 409.
 | `packages/server/src/repositories/deskSchema.test.ts` (desk-7) | One transaction; the same signature, caller's rights, empty search path; every image at any depth, once, recorded with the revision before the story moves | A retired image refused; everything else in the save unchanged (compared with desk-1's text); only `service_role` may call it |
 | `apps/admin/src/app/api/admin/access.test.ts` (images) | A story with ready images passes the checklist; the story screen gets the revision's images for its preview | Approval refused for an image lacking rights or the story's alt text, one the library lacks, or a retired one; a new story with an image, a save naming no library image (400) |
 | `apps/admin/src/components/desk/desk.test.tsx` (images) | Image opens the library, says what each image lacks, and adds the chosen one with its crop, which Save sends; the preview draws the revision's images | (the server's refusals are the access tests') |
+| `apps/admin/src/app/api/admin/access.test.ts` (authors' photos) | A photo with cleared rights set, and removed with null, audited | A photo the library lacks, a retired one, one not cleared (422); a malformed id (400); nothing written |
+| `packages/server/src/services/desk/storyImages.test.ts`, `repositories/media.test.ts` (photos) | Each credited author's photo once, with its square rendition; the preview's stand-in; readers' photos only through an active author, active images, the readers' columns | A photo without a square rendition; a malformed id; another image |
+| `packages/server/src/repositories/deskSchema.test.ts` (desk-8) | One transaction; the column, the readers' grant, the policy for an active author's active photo | Nothing else about the library's rights changes |
+| `packages/ui/src/StoryArticle.test.tsx` (photos) | The photo, round, before the byline, from its square rendition, decorative | A photo the page was not given; an address that is not https or a site path |
+| `packages/editor/src/renderImages.test.tsx` (galleries), `desk.test.tsx` (galleries, photos) | A gallery's images together; the schema holds two to twelve images; Gallery adds the chosen images in order with their crop, which Save sends; the Authors page chooses a photo and saves it | A gallery of one, of thirteen, or with anything but images; an image whose rights are not cleared cannot be a photo |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 
 The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
@@ -886,11 +907,10 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** authors' photos and galleries, which complete M4; then Panel 2's definition of done. The
-  Hindi typing check still closes M2.
-- **Until the owner applies desk-7,** a story with an image can be saved and published, but its
-  usage is not recorded, so readers never see the image (the page leaves it out). Apply it before
-  images are used.
+- **Next:** Panel 2's definition of done, checked item by item for the owner's sign-off. The Hindi
+  typing check still closes M2.
+- **Until the owner applies desk-8,** saving an author's photo fails with the database's error (the
+  column is not there), and readers could not see one.
 - **On a live story,** an image retired later disappears from the page at once; a licence that ends
   later is not checked again (the checklist checks it before publishing, and at a scheduled time).
 - **The editor shows each image's original file** (through the back office), which can be large.
