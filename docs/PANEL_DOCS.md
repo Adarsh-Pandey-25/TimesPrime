@@ -335,6 +335,11 @@ Panel 0 defines all 15 roles of the plan's matrix ([the access rules](#access-ru
 - Sign-in with email and password for staff, then a second factor. The first time, the user scans a
   QR code (or types the key) and enters one code; every time after, they enter a code. The shared
   password stays one click away until it is retired.
+- One sign-in page for everyone, then the page of their work (the owner's choice, 18 Nov 2026;
+  `landingPath` in `packages/shared/src/lib/staffLanding.ts`): a newsroom role (Writer, Sub-editor,
+  Desk Editor, Managing Editor) lands on `/admin/desk`; the Super Admin, even holding a Desk role,
+  and every other role on `/admin`. Where a person lands decides nothing: the server checks every
+  request, as before. If the roles cannot be read, `/admin`.
 - `/admin` says who is signed in, shows only the widgets and buttons the user's permissions allow,
   and sends a session that still owes its code back to finish signing in.
 - Every admin route checks a permission on the server, in the target's scope.
