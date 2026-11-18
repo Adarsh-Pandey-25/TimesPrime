@@ -76,6 +76,9 @@ export default function DeskList() {
           <button type="button" onClick={() => void load()} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-[#3a3f47]">
             <RefreshCw size={14} aria-hidden="true" /> Refresh
           </button>
+          <Link href="/admin/desk/authors" className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-[#3a3f47]">
+            Authors
+          </Link>
           {canAct(me, "article.create") && (
             <Link href="/admin/desk/new" className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-blue-700">
               <Plus size={14} aria-hidden="true" /> New story
