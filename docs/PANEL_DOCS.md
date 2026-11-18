@@ -921,7 +921,7 @@ item, against the code:
 
 | # | Item | Status |
 |---|---|---|
-| 1 | Every feature works; this entry matches the code | **Met in code and tests.** M1 to M4 are built as listed above; what is not built is under "Not yet". **Left:** the owner's walk through the signed-in flow (write, submit, approve, publish, schedule, correct, take down and restore; upload, clear rights, add images and a gallery; an author's photo), once the server and the first Desk roles exist |
+| 1 | Every feature works; this entry matches the code | **Met in code and tests, and the core flow walked by the owner** (18 Nov 2026, on a laptop against the real database, a Writer and a Desk Editor): an image uploaded by the Writer; a story written, the image added, its slug set and submitted; passed to the desk; approval refused by the checklist while the image's rights were not cleared, then cleared and approved by the other person; published; the reader's page with the image's rendition; a correction; taken down, with the alert; every step in the audit log. **Not walked yet:** scheduling, the two-person restore, an author's photo and credits, a gallery |
 | 2 | Server-side permission on every route and action; allowed and denied tests | **Done.** Every Desk route has a rule; `access.test.ts` walks every route on disk and tests each for its least-privileged holder in scope, no session, no grants, expired, no MFA, the wrong desk and the shared password |
 | 3 | Privileged actions audited; MFA where the plan says | **Done in code.** Every Desk write writes `audit_log` first (attempted, then outcome) and is refused with 503 if it cannot; every Desk write needs `aal2`; the worker audits as `system:scheduler`. The audit log's own database rules are Panel 0's, verified with its runbook |
 | 4 | `npm run verify` and CI green; routes, JS and CSS reported | **Done.** Every PR green, with its routes, JS budget and CSS bytes in its report |
@@ -936,13 +936,24 @@ item, against the code:
 | 13 | A runbook for when the main flow breaks | **Done:** OPERATIONS.md, "The Desk is failing" |
 
 **So Panel 2 is not yet Done.** Open: the Hindi typing check (M2; the owner's two typists); the
-owner's walk through the signed-in flow (item 1); a test Supabase project for items 7, 8 and 10;
+rest of the owner's walk-through (item 1); a test Supabase project for items 7, 8 and 10;
 the worker reporting to Sentry (item 11; a small change, with the manager's choice of Sentry
 project). Assigning a writer from the screen waits for Panel 1's staff directory.
 
 #### Known limits and not yet built
 
 - **Next:** the open items above, for the owner's sign-off.
+- **Found in the owner's walk-through (18 Nov 2026), for the owner to decide:**
+  - a Writer holds `article.submit` (Own), so on their own story in review they see, and may use,
+    Submit (to desk review) and Send back, which the workflow table means for a Sub-editor. Approval
+    still needs a second person; the editorial step is what is skipped;
+  - on Windows, a worker job prints its result and then Node crashes as it exits
+    (`Assertion failed … src\win\async.c`), so the job reports a failure; the work is done, and the
+    server (Linux) is not affected;
+  - "View on the site" opens the site's own address (`NEXT_PUBLIC_APP_URL`), which answers once
+    the site is deployed; on a laptop the page is at `http://localhost:3000/<section>/<slug>-<number>`;
+  - setting up the second factor: each reload of the sign-in page makes a new QR code, so a code
+    from an earlier scan is never right; five codes within 15 minutes lock the step until they pass.
 - **On a live story,** an image retired later disappears from the page at once; a licence that ends
   later is not checked again (the checklist checks it before publishing, and at a scheduled time).
 - **The editor shows each image's original file** (through the back office), which can be large.
