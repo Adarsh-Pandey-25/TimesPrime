@@ -5,7 +5,7 @@ import Link from "next/link";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { embedProvider, isAllowedHref, EMPTY_DOC } from "@timesprime/editor/schema";
 import { wordCount } from "@timesprime/editor/text";
-import { checklist, CORRECTION_NOTE_MAX, move, PRE_PUBLISH_STATES, PUBLISH_TICK_MINUTES, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
+import { checklist, CORRECTION_NOTE_MAX, holdsDeskReview, move, PRE_PUBLISH_STATES, PUBLISH_TICK_MINUTES, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
 import { storyImageIds } from "@timesprime/shared/config/media";
 import { SITE_URL } from "@timesprime/shared/config/site";
 import { deskStoryPath, storySlug } from "@timesprime/shared/lib/storyUrl";
@@ -352,7 +352,9 @@ export default function StoryEditor({ id }: { id: string }) {
   const problems = checklist({ headline, dek, seoTitle, slug: story.slug, legalReviewRequired: story.legal_review_required, counterpartMissing: false });
   const moves = MOVES_SHOWN.filter((m) => {
     const step = move(m.action, story.workflow_state);
-    return step !== null && canAct(me, step.permission);
+    if (step === null || !canAct(me, step.permission)) return false;
+    // The desk's review steps are for a Sub-editor or an editor, not a Writer (the server decides too).
+    return !step.deskOnly || (me?.kind === "staff" && holdsDeskReview(me.roles));
   });
 
   return (

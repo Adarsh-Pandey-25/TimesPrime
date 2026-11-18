@@ -96,9 +96,19 @@ export type DeskAction =
   | "retract"
   | "kill";
 
+interface Step {
+  to: StoryState;
+  permission: PermissionKey;
+  /**
+   * A step of the desk's review (design §3): the permission must be held for the story's desk (S or
+   * F). A Writer's Own is not enough, even on their own story (the owner's decision, 18 Nov 2026).
+   */
+  deskOnly?: boolean;
+}
+
 interface Move {
   /** The states the action may start from, each with the state it leads to and the permission it needs. */
-  from: Partial<Record<StoryState, { to: StoryState; permission: PermissionKey }>>;
+  from: Partial<Record<StoryState, Step>>;
   /** True if the action needs a reason from the person taking it. */
   reason: boolean;
 }
@@ -113,11 +123,11 @@ const each = (states: readonly StoryState[], to: StoryState, permission: Permiss
 export const MOVES: Record<DeskAction, Move> = {
   assign: { from: each(["pitch"], "assigned", "article.edit"), reason: false },
   submit: {
-    from: { ...each(["pitch", "assigned", "draft"], "in_review", "article.submit"), in_review: { to: "desk_review", permission: "article.submit" } },
+    from: { ...each(["pitch", "assigned", "draft"], "in_review", "article.submit"), in_review: { to: "desk_review", permission: "article.submit", deskOnly: true } },
     reason: false,
   },
   send_back: {
-    from: { in_review: { to: "draft", permission: "article.submit" }, desk_review: { to: "draft", permission: "article.approve" } },
+    from: { in_review: { to: "draft", permission: "article.submit", deskOnly: true }, desk_review: { to: "draft", permission: "article.approve" } },
     reason: true,
   },
   approve: { from: { desk_review: { to: "approved", permission: "article.approve" }, published: { to: "published", permission: "article.approve" } }, reason: false },
@@ -131,9 +141,17 @@ export const MOVES: Record<DeskAction, Move> = {
 };
 
 /** Where an action leads from a state, and what it needs; null if the action does not start there. */
-export function move(action: DeskAction, from: StoryState): { to: StoryState; permission: PermissionKey; reason: boolean } | null {
+export function move(action: DeskAction, from: StoryState): { to: StoryState; permission: PermissionKey; reason: boolean; deskOnly: boolean } | null {
   const step = MOVES[action].from[from];
-  return step ? { ...step, reason: MOVES[action].reason } : null;
+  return step ? { to: step.to, permission: step.permission, reason: MOVES[action].reason, deskOnly: step.deskOnly === true } : null;
+}
+
+/** The roles whose `article.submit` covers a desk (the matrix's S or F): the review steps are theirs. */
+export const DESK_REVIEW_ROLES = ["sub_editor", "desk_editor", "managing_editor"] as const;
+
+/** Whether a person may be offered a desk-only step: they hold one of DESK_REVIEW_ROLES (the server still decides). */
+export function holdsDeskReview(roles: ReadonlyArray<{ role: string }>): boolean {
+  return roles.some((r) => (DESK_REVIEW_ROLES as readonly string[]).includes(r.role));
 }
 
 /** What the checklist reads: the revision about to be approved or published, and the story. */

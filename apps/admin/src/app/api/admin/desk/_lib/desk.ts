@@ -255,6 +255,13 @@ export async function moveStory(request: NextRequest, { params }: Params, action
     const exact = await requireTarget(actor, { ...rule, permissions: [step.permission] }, storyTarget(story));
     if (!exact.ok) return exact.response;
   }
+  // A desk's review step (out of review: Submit to the desk, Send back): the permission must be held
+  // for the story's desk. Without the story's owner in the target, a Writer's Own does not match, even
+  // on their own story (the owner's decision, 18 Nov 2026).
+  if (step.deskOnly) {
+    const desk = await requireTarget(actor, { ...rule, permissions: [step.permission] }, { language: story.language, section: story.section });
+    if (!desk.ok) return desk.response;
+  }
 
   const note = typeof body.reason === "string" ? body.reason.trim() : "";
   if (step.reason && !note) return badRequest("A reason is required for this step.");
