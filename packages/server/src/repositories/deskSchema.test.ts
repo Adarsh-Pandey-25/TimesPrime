@@ -91,3 +91,39 @@ describe("migration desk-4: a story's credits (desk_set_credits)", () => {
     expect(fn).toContain("VALUES (p_story, 'credits', p_from, v_to, p_actor, p_actor_label, s.current_revision_id, NULL);");
   });
 });
+
+describe("migration desk-5: the media library (media_assets, asset_usages)", () => {
+  const media = fs
+    .readFileSync(path.join(process.cwd(), "database", "migrations", "2026-11-18-desk-5-media.sql"), "utf8")
+    .replace(/\r\n/g, "\n");
+
+  test("one transaction; both tables with row-level security", () => {
+    expect(media).toMatch(/^BEGIN;$/m);
+    expect(media).toMatch(/^COMMIT;$/m);
+    expect(media).toContain("ALTER TABLE public.media_assets ENABLE ROW LEVEL SECURITY;");
+    expect(media).toContain("ALTER TABLE public.asset_usages ENABLE ROW LEVEL SECURITY;");
+  });
+
+  test("the app's own limits: the key's shape, the four types, 15 MB, a desk, rights cleared by someone at a time", () => {
+    expect(media).toContain("CHECK (storage_key ~ '^originals/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(jpg|png|webp|avif)$')");
+    expect(media).toContain("CHECK (content_type IN ('image/jpeg', 'image/png', 'image/webp', 'image/avif'))");
+    expect(media).toContain("CHECK (bytes > 0 AND bytes <= 15728640)");
+    expect(media).toContain("section TEXT NOT NULL REFERENCES public.sections (key)");
+    expect(media).toContain("CHECK (source IN ('staff', 'agency', 'stock', 'handout', 'social'))");
+    expect(media).toContain("CHECK ((rights_cleared_by IS NULL) = (rights_cleared_at IS NULL))");
+  });
+
+  test("the app never deletes: no DELETE on either table, and usages are never changed", () => {
+    expect(media).toContain("REVOKE ALL ON public.media_assets, public.asset_usages FROM PUBLIC, anon, authenticated;");
+    expect(media).toContain("GRANT SELECT, INSERT, UPDATE ON public.media_assets TO service_role;");
+    expect(media).toContain("GRANT SELECT, INSERT ON public.asset_usages TO service_role;");
+  });
+
+  test("readers see only an image a live story's published revision uses, and never who uploaded or cleared it", () => {
+    const columns = /GRANT SELECT \(([^)]*)\)\n  ON public\.media_assets TO anon, authenticated;/.exec(media)?.[1] ?? "";
+    expect(columns).not.toMatch(/uploaded_by|rights_cleared_by|licence/);
+    expect(media).toContain("s.published_revision_id = u.revision_id");
+    expect(media).toContain("s.workflow_state = 'published'");
+    expect(media).toContain("(s.embargo_until IS NULL OR s.embargo_until <= now())");
+  });
+});

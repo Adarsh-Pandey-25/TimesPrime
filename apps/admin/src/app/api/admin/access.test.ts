@@ -26,6 +26,11 @@ jest.mock("@timesprime/server/repositories/auditLog", () => {
   class AuditWriteError extends Error {}
   return { recordAudit: jest.fn(async () => "audit-id"), recordSystemAudit: jest.fn(), AuditWriteError };
 });
+// The media library keeps files through the storage; here a stand-in records what was put.
+jest.mock("@timesprime/server/lib/mediaStorage", () => {
+  const put = jest.fn(async () => undefined);
+  return { mediaStorage: () => ({ kind: "local", put, get: jest.fn() }), mediaUrl: (key: string) => `/media/${key}`, put };
+});
 jest.mock("@timesprime/server/lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
 jest.mock("@timesprime/server/services/health/health", () => ({
   getHealth: jest.fn(async () => ({ status: "ok", checkedAt: "2026-11-10T00:00:00Z", dependencies: {} })),
@@ -85,6 +90,8 @@ import * as deskAlerts from "./desk/alerts/route";
 import * as deskAuthors from "./desk/authors/route";
 import * as deskAuthor from "./desk/authors/[id]/route";
 import * as deskCredits from "./desk/stories/[id]/credits/route";
+import * as deskMedia from "./desk/media/route";
+import * as deskMediaOne from "./desk/media/[id]/route";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
 
@@ -206,6 +213,8 @@ interface Case {
   data?: Record<string, { data: unknown; error: unknown; count?: number }>;
   /** True if the allowed call changes something (so a write must happen, and an audit pair). */
   changes: boolean;
+  /** A form body (an upload) instead of JSON. */
+  form?: () => FormData;
 }
 
 const HINDI_SPORTS = { article_id: "a-1", title: "Old title", description: "d", image_url: null, source_name: "s", category: ["sports", "top"], language: "hindi", link: "https://example.com/a" };
@@ -896,6 +905,102 @@ describe("authors and a story's credits (Panel 2 design §7)", () => {
   });
 });
 
+// ---- the media library (design §7): upload on article.edit; credit, licence and rights on media.manage ----
+const MEDIA_ID = "c0ffee00-0000-4000-8000-000000000001";
+const MEDIA_ROW = {
+  id: MEDIA_ID, storage_key: `originals/${MEDIA_ID}.jpg`, content_type: "image/jpeg", bytes: 4, width: null, height: null,
+  language: "hi", section: "sports", credit: null, source: null, licence: null, licence_expires_at: null,
+  rights_cleared_by: null, rights_cleared_at: null, alt_en: null, alt_hi: null, caption_en: null, caption_hi: null,
+  renditions: [], renditions_at: null, uploaded_by: "u-9", active: true, created_at: "2026-11-18T09:00:00Z", updated_at: "2026-11-18T09:00:00Z",
+};
+const JPEG = () => new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1]);
+const imageForm = (fields: Record<string, string> = { language: "hi", section: "sports", credit: "Photo: Asha Rao" }, file: Uint8Array | null = JPEG()) => () => {
+  const form = new FormData();
+  if (file) form.set("file", new File([file as BlobPart], "match.jpg", { type: "image/jpeg" }));
+  for (const [key, value] of Object.entries(fields)) form.set(key, value);
+  return form;
+};
+const MEDIA_GET: Case = { path: "/api/admin/desk/media", method: "GET", handler: deskMedia.GET, allowed: HI_WRITER, data: { media_assets: { data: [], error: null, count: 0 } }, changes: false };
+const MEDIA_POST: Case = {
+  path: "/api/admin/desk/media", method: "POST", handler: deskMedia.POST, form: imageForm(),
+  allowed: HI_WRITER, wrongScope: EN_WRITER, data: { media_assets: { data: MEDIA_ROW, error: null } }, changes: true,
+};
+const MEDIA_PATCH: Case = {
+  path: "/api/admin/desk/media/[id]", method: "PATCH", handler: withId(deskMediaOne.PATCH, { id: MEDIA_ID }), body: { credit: "Photo: Asha Rao" },
+  allowed: HI_DESK, wrongScope: EN_DESK, data: { media_assets: { data: MEDIA_ROW, error: null } }, changes: true,
+};
+CASES.push(MEDIA_GET, MEDIA_POST, MEDIA_PATCH);
+
+describe("the media library (Panel 2 design §7)", () => {
+  const { put } = jest.requireMock("@timesprime/server/lib/mediaStorage") as { put: jest.Mock };
+  async function call(c: Case, over: Partial<Case>, caller: Grantee, data: Case["data"] = c.data) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, ...over }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const updates = () => calls.filter(([t, m]) => t === "media_assets" && m === "update").map(([, , args]) => args[0] as Record<string, unknown>);
+
+  test("an upload keeps the file under a new random key and records who, the desk and what is known; audited", async () => {
+    const r = await call(MEDIA_POST, {}, HI_WRITER);
+    expect(r.status).toBe(201);
+    const [key, body, type] = put.mock.calls[0];
+    expect(key).toMatch(/^originals\/[0-9a-f-]{36}\.jpg$/);
+    expect(Array.from(body as Uint8Array)).toEqual(Array.from(JPEG()));
+    expect(type).toBe("image/jpeg");
+    const insert = calls.find(([t, m]) => t === "media_assets" && m === "insert")?.[2][0] as Record<string, unknown>;
+    expect(insert).toMatchObject({ storage_key: key, content_type: "image/jpeg", bytes: 16, language: "hi", section: "sports", uploaded_by: "u-1", credit: "Photo: Asha Rao" });
+    expect(insert.rights_cleared_by).toBeUndefined();
+    expect((recordAudit as jest.Mock).mock.calls.map(([row]) => [row.action, row.outcome])).toEqual([
+      ["media.upload", "attempted"],
+      ["media.upload", "succeeded"],
+    ]);
+    expect(r.json.media.url).toBe("/media/" + MEDIA_ROW.storage_key);
+  });
+
+  test("the type is read from the file's bytes: a GIF named .jpg, no file, or no desk is refused, and nothing is kept", async () => {
+    const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect((await call(MEDIA_POST, { form: imageForm(undefined, gif) }, HI_WRITER)).status).toBe(400);
+    expect((await call(MEDIA_POST, { form: imageForm(undefined, null) }, HI_WRITER)).status).toBe(400);
+    expect((await call(MEDIA_POST, { form: imageForm({ language: "hi" }) }, HI_WRITER)).status).toBe(400);
+    expect((await call(MEDIA_POST, { form: imageForm({ language: "hi", section: "sports", source: "friend" }) }, HI_WRITER)).status).toBe(400);
+    expect(put).not.toHaveBeenCalled();
+    expect(wrote()).toEqual([]);
+  });
+
+  test("an image over 15 MB is refused", async () => {
+    const big = new Uint8Array(15 * 1024 * 1024 + 1);
+    big.set(JPEG());
+    expect((await call(MEDIA_POST, { form: imageForm(undefined, big) }, HI_WRITER)).status).toBe(413);
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  test("rights are cleared by a holder of media.manage, once credit, source and licence are set, naming who", async () => {
+    const bare = await call(MEDIA_PATCH, { body: { rights_cleared: true } }, HI_DESK);
+    expect(bare.status).toBe(422);
+    expect(bare.json.code).toBe("rights_incomplete");
+    const r = await call(MEDIA_PATCH, { body: { credit: "Photo: Asha Rao", source: "staff", licence: "Own work", rights_cleared: true } }, HI_DESK);
+    expect(r.status).toBe(200);
+    expect(updates().at(-1)).toMatchObject({ credit: "Photo: Asha Rao", source: "staff", licence: "Own work", rights_cleared_by: "u-1", rights_cleared_at: expect.any(String) });
+  });
+
+  test("changing the credit, source or licence voids a clearance; alt text alone does not", async () => {
+    const cleared = { media_assets: { data: { ...MEDIA_ROW, credit: "AP", source: "agency", licence: "Contract", rights_cleared_by: "u-7", rights_cleared_at: "2026-11-18T09:30:00Z" }, error: null } };
+    await call(MEDIA_PATCH, { body: { credit: "Reuters" } }, HI_DESK, cleared);
+    expect(updates().at(-1)).toMatchObject({ credit: "Reuters", rights_cleared_by: null, rights_cleared_at: null });
+    await call(MEDIA_PATCH, { body: { alt_hi: "मैदान पर खिलाड़ी" } }, HI_DESK, cleared);
+    expect(updates().at(-1)).toEqual({ alt_hi: "मैदान पर खिलाड़ी", updated_at: expect.any(String) });
+  });
+
+  test("retiring keeps the image; a Writer cannot change an image; an unknown one is not found", async () => {
+    expect((await call(MEDIA_PATCH, { body: { active: false } }, HI_DESK)).status).toBe(200);
+    expect(updates().at(-1)).toMatchObject({ active: false });
+    expect(calls.some(([t, m]) => t === "media_assets" && m === "delete")).toBe(false);
+    expect((await call(MEDIA_PATCH, { body: { active: false } }, HI_WRITER)).status).toBe(403);
+    expect((await call(MEDIA_PATCH, { body: { active: false } }, HI_DESK, { media_assets: { data: null, error: null } })).status).toBe(404);
+  });
+});
+
 /**
  * Routes no one may use yet: every holder's cell is A (a second person approves), and the approval
  * flow comes with a later panel. Refused for every caller, with nothing written.
@@ -913,6 +1018,7 @@ const REFUSED_FOR_ALL: Array<{ path: keyof typeof ADMIN_ROUTE_RULES; method: Met
 ];
 
 function request(c: Case): NextRequest {
+  if (c.form) return new NextRequest(`http://localhost:3000${c.path}`, { method: c.method, headers: { "x-forwarded-for": "203.0.113.7" }, body: c.form() });
   const init: { method: string; headers: Record<string, string>; body?: string } = { method: c.method, headers: { "x-forwarded-for": "203.0.113.7" } };
   if (c.body !== undefined) {
     init.body = JSON.stringify(c.body);

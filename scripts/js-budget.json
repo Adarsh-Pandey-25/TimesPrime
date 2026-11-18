@@ -21,6 +21,7 @@
     "/admin/desk/[id]/page": 1097728,
     "/admin/desk/[id]/preview/page": 1077248,
     "/admin/desk/authors/page": 662528,
+    "/admin/desk/media/page": 665600,
     "/admin/desk/new/page": 658432,
     "/admin/desk/page": 662528,
     "/admin/login/page": 643072,

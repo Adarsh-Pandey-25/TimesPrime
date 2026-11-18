@@ -161,7 +161,8 @@ apps/
                            article/[slug] (/article/{headline-slug}-{article_id}), _feed/ (the
                            feed's server component), the Desk's stories ([section]/[story] and
                            hi/[section]/[story], through _story/), about, contact, grievance,
-                           privacy, terms;
+                           privacy, terms; media/ (the Desk's images from the local folder, on a
+                           laptop only; the server's come from CloudFront);
                            public APIs: /api/news/{top-headlines, breaking-news, check-new},
                            /api/chat, /api/health
     src/components/        news/ (cards, masthead, footer, menu, ticker, banner), home/, article/,
@@ -172,9 +173,10 @@ apps/
     src/proxy.ts           the optimistic session check (§1)
     src/app/admin/         the dashboard and the staff sign-in; panels arrive as route folders
     src/app/api/admin/     every admin route handler, each gated by requirePermission; desk/ is Panel 2
+    src/app/media/         the Desk's images from the local folder, on a laptop only (as in web)
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list
                            with its takedown alerts, a new story, the story editor with its revisions
-                           and credits, the preview, the authors)
+                           and credits, the preview, the authors, the media library)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes)
@@ -183,11 +185,13 @@ packages/
     src/auth/              the access foundation (Panel 0): requirePermission (the gate), decide, scope,
                            adminRoutePolicy, staffSession, supabaseServer, mfa, adminSession
     src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk),
-                           authors.ts (the Desk's author records)
+                           authors.ts (the Desk's author records), media.ts (the media library's records)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
                            publishing's rules, the scheduler)
-    src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase, …
-  shared/                  @timesprime/shared: client-safe config, types and lib (urlValidation, sentryScrub)
+    src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase,
+                           mediaStorage (the images' files: S3 on the server, a folder on a laptop), …
+  shared/                  @timesprime/shared: client-safe config (media.ts: the library's image types,
+                           limits and key shapes), types and lib (urlValidation, sentryScrub)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and
                            story.css, a Desk story's view for the reader's page and the Desk's preview)
   editor/                  @timesprime/editor: the story schema (Tiptap extensions), plain text, the revision diff,

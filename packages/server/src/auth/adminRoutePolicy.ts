@@ -14,12 +14,14 @@ import type { Mode } from "./decide";
  * the article in the request body, "site" a site-wide object (only unscoped grants), "none" a read
  * that lists or totals (any scope), "author" an author record (Panel 2): it belongs to no desk, so
  * holding the permission in any scope will do, which is the matrix's F for a Desk Editor (a
- * site-wide target would admit only unscoped grants, and a Desk Editor always has a language).
+ * site-wide target would admit only unscoped grants, and a Desk Editor always has a language),
+ * "media" an image in the library (loaded by the route: its desk), "new_media" the desk an upload
+ * names.
  */
 export interface RouteRule {
   permissions: readonly PermissionKey[];
   mode: Mode;
-  target: "article" | "articles" | "new_article" | "story" | "new_story" | "site" | "none" | "author";
+  target: "article" | "articles" | "new_article" | "story" | "new_story" | "site" | "none" | "author" | "media" | "new_media";
   /**
    * Only a named staff member may use the route: the shared password is refused, whatever its fixed
    * list holds (Panel 2's Desk, design §0: it cannot be an author, an editor or an approver).
@@ -112,6 +114,16 @@ export const ADMIN_ROUTE_RULES = {
   },
   "/api/admin/desk/authors/[id]": {
     PATCH: { permissions: ["author.manage"], mode: "act", target: "author", staffOnly: true },
+  },
+  // The media library (design §7): anyone on the Desk sees their desks' images; uploading one rides
+  // on article.edit in the desk it is for; its credit, licence, rights and retirement are
+  // media.manage (the Managing Editor F, a Desk Editor S), in the image's desk.
+  "/api/admin/desk/media": {
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "none", staffOnly: true },
+    POST: { permissions: ["article.edit"], mode: "act", target: "new_media", staffOnly: true },
+  },
+  "/api/admin/desk/media/[id]": {
+    PATCH: { permissions: ["media.manage"], mode: "act", target: "media", staffOnly: true },
   },
   // A story's credits: set with article.edit, in the story's desk, before publication.
   "/api/admin/desk/stories/[id]/credits": {
