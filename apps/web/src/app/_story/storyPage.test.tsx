@@ -8,6 +8,8 @@
  */
 
 jest.mock("@timesprime/server/repositories/stories", () => ({ getPublishedStory: jest.fn() }));
+// The published revision's images (design §7); none unless a test gives some.
+jest.mock("@timesprime/server/services/desk/storyImages", () => ({ publishedImages: jest.fn(async () => ({})) }));
 jest.mock("@timesprime/server/services/news/topHeadlines", () => ({
   getTopHeadlines: jest.fn(async () => ({ body: { results: [] }, source: "cache", status: 200 })),
 }));
@@ -32,6 +34,7 @@ const story = (over: Partial<PublishedStory> = {}): PublishedStory => ({
   first_published_at: "2026-11-17T08:00:00Z",
   published_at: "2026-11-17T08:00:00Z",
   revision: {
+    id: "r-1",
     headline: "Budget passes",
     dek: "The house voted on Monday.",
     seo_title: "Budget passes the lower house",

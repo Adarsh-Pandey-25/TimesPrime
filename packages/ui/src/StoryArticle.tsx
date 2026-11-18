@@ -76,7 +76,7 @@ export default function StoryArticle({ story, sectionLink = true }: { story: Pub
         )}
       </div>
 
-      <div className="story-body mt-6 text-lg leading-relaxed">{renderStory(revision.body)}</div>
+      <div className="story-body mt-6 text-lg leading-relaxed">{renderStory(revision.body, { images: story.images })}</div>
 
       {(credits("additional_reporting").length > 0 || credits("translated_by").length > 0) && (
         <div className="mt-8 space-y-1 text-sm text-slate-600 dark:text-slate-400">

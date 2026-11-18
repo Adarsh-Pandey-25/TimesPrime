@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
 import { listRevisions, readLock, saveRevision } from "@timesprime/server/repositories/stories";
 import { LOCK_TTL_MS } from "@timesprime/shared/config/desk";
+import { storyImagesWellFormed } from "@timesprime/shared/config/media";
 import { audited, badRequest, deskFailure, gateStory, readBody, type Params } from "../../../_lib/desk";
 
 // A story's revisions (Panel 2 design §3): the list, and saving a new one. A save never overwrites:
@@ -39,6 +40,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (typeof doc !== "object" || doc === null || Array.isArray(doc) || JSON.stringify(doc).length > MAX_BODY_CHARS) {
     return badRequest("body must be a document of at most 500,000 characters.");
   }
+  // Each image names a library image and a crop; the database records its use with the revision.
+  if (!storyImagesWellFormed(doc)) return badRequest("An image in the story is not from the media library.");
   const expected = typeof body.expected_revision_id === "string" ? body.expected_revision_id : null;
 
   try {

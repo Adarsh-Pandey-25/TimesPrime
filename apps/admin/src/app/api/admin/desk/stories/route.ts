@@ -6,6 +6,7 @@ import { ANY_SCOPE } from "@timesprime/server/auth/decide";
 import { auditUnavailable, beginAudit, finishAudit, requirePermission, requireTarget, type Actor } from "@timesprime/server/auth/requirePermission";
 import { createStory, listStories, type DeskScope, type ListFilters } from "@timesprime/server/repositories/stories";
 import { DESK_FORMATS, STORY_LANGUAGES, STORY_STATES, type StoryFormat, type StoryLanguage, type StoryState } from "@timesprime/shared/config/desk";
+import { storyImageIds } from "@timesprime/shared/config/media";
 import { isSection } from "@timesprime/shared/config/sections";
 import { badRequest, deskFailure, readBody, scopesFor } from "../_lib/desk";
 
@@ -65,6 +66,8 @@ export async function POST(request: NextRequest) {
   if (typeof doc !== "object" || doc === null || Array.isArray(doc) || JSON.stringify(doc).length > MAX_BODY_CHARS) {
     return badRequest("body must be a document of at most 500,000 characters.");
   }
+  // Images are added in the editor once the story exists: saving records their use (desk-7).
+  if (storyImageIds(doc).length > 0) return badRequest("Add images in the editor, once the story is created.");
 
   // The new story's own desk; it will be the caller's, which a Writer's Own needs.
   const target = { language, section, ownerId: actor.userId };

@@ -203,7 +203,7 @@ describe("getPublishedStory: the reader's read", () => {
       correction_note: null,
       first_published_at: "2026-11-17T08:00:00Z",
       published_at: "2026-11-17T09:00:00Z",
-      revision: { headline: "संसद में बजट पास", dek: "d", seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
+      revision: { id: "r-2", headline: "संसद में बजट पास", dek: "d", seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
       bylines: [
         { role: "byline", name: "Asha Rao" },
         { role: "byline", name: "विक्रम सिंह" },

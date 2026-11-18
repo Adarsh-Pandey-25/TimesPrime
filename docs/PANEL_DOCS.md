@@ -499,7 +499,8 @@ Desk's screens, the story's revisions on screen); the Hindi typing check still c
 is complete: the reader's story page (PR #23), the preview in the back office (decision 7, PR #24),
 scheduled publishing (PR #25), corrections (PR #26) and the takedown alert list (PR #27). M4 is
 under way (approved by the owner, 18 Nov 2026): authors and a story's credits (PR #28), the
-media library's first part (PR #30) and its renditions are built (below); images in stories follow. Started before Panel 1 at the owner's request (17 Nov 2026);
+media library's first part (PR #30), its renditions (PR #31) and images in stories are built (below);
+authors' photos and galleries follow. Started before Panel 1 at the owner's request (17 Nov 2026);
 [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -559,6 +560,10 @@ media library's first part (PR #30) and its renditions are built (below); images
     `make-renditions` job in `apps/worker/src/jobs.ts`, started by
     `deploy/systemd/timesprime-renditions.timer`; the original's route,
     `apps/admin/src/app/api/admin/desk/media/[id]/original/route.ts`;
+  - images in stories: the `image` node in `packages/editor/src/schema.ts` and its drawing in
+    `render.ts`; `storyImageIds` and the checklist's `imageChecklist` in `packages/shared`;
+    `packages/server/src/services/desk/storyImages.ts` (what a page draws, what the checklist
+    reads); the editor's view and picker, `editorImage.ts` and `ImagePicker.tsx`; migration desk-7;
   - `packages/server/src/auth/decide.ts`: the Own code;
   - `database/migrations/2026-11-17-desk-1-stories.sql`;
   - the routes in `apps/admin/src/app/api/admin/desk/`, with their shared steps in
@@ -760,12 +765,33 @@ aggregator's `articles` and its 7-day purge.
   - **A file sharp cannot read or convert, or a picture under 32 pixels once cropped,** is recorded
     with no renditions: not tried again, shown as failed (upload it again). A storage or database
     failure leaves the image waiting for the next run, which exits 1 so the journal shows it.
+- **Built (M4, fourth part): images in stories** (design §5 and §7).
+  - **In the editor:** Image, on the toolbar, opens the media library (the person's desks, retired
+    images left out), each image saying what it still lacks for a story in this language; the one
+    chosen goes in with its crop (16:9, 4:3 or square). The node keeps only the image's id and crop:
+    alt text, caption and credit stay the library's, so a correction there reaches every story. The
+    editor shows the picture through the back office.
+  - **Saving** records the images the revision uses (`asset_usages`), in the same transaction
+    (`desk_save_revision`, migration desk-7, an owner step); a retired image cannot be saved into a
+    story, and an image node that names no library image is refused (400). A new story starts
+    without images; they are added in the editor.
+  - **The checklist** (approve, publish, publish-now) refuses a story while any image it uses is
+    missing, retired or out of licence; lacks a credit, a source, a licence or cleared rights; or
+    has no alt text or caption in the story's language. **At a scheduled story's time** the worker
+    checks its images again and, if one is no longer ready, sends the story back to approved with
+    the reason in its history, never live.
+  - **Readers** get each image as a figure: the crop's AVIF and WebP renditions (480 to 1440 wide,
+    with its width and height, loaded lazily), the alt text, and the caption with the credit, in
+    the story's language. The page reads only the published revision's images, through its usages,
+    active ones, with the readers' columns; an image without renditions is left out. Every address
+    is checked again as it is drawn (https or a site path), and text is text.
+  - **The preview** draws the last saved revision's images the same way, the original through the
+    back office standing in until the renditions are made.
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
-  - images in stories, on the reader's page and in the pre-publish checklist, and authors' photos
-    (M4's last parts);
+  - authors' photos, and galleries (several images as one block, design §5) (M4's last part);
   - linking an author to a staff account (Panel 1's staff directory).
 
 #### Access permissions and authorization rules
@@ -800,7 +826,8 @@ embargo 409.
 | `database/migrations/2026-11-17-desk-3-corrections.sql` | `desk_decide_pending` decides a correction request too: approved, the live story's note is the request's, with its history row, in one transaction | Run desk-2 again | **Yes, 17 Nov 2026**, checks passed (`decides_corrections` true, `anon_may_call` false) |
 | `database/migrations/2026-11-18-desk-4-credits.sql` | `desk_set_credits`: a story's credits replaced, in order, each naming an active author, before publication only; an approved story back to desk review; its history row; one transaction | Drop the function (in the file) | **Yes, 18 Nov 2026**, checks passed (`service_may_call` true, `anon_may_call` false) |
 | `database/migrations/2026-11-18-desk-5-media.sql` | `media_assets` and `asset_usages`: an image's desk, record and rights; usages per revision; RLS, no DELETE, readers only for live stories' images | Drop both tables (in the file), before the first real image | **Yes, 18 Nov 2026**: `tables_with_rls` 2 and `anon_sees_uploader` false, but `service_may_delete` **true**: its REVOKE left out `service_role`, so Supabase's default privileges kept the app's DELETE (desk-6 fixes it) |
-| `database/migrations/2026-11-18-desk-6-media-grants.sql` | The fix to desk-5: every right on the media tables taken from `service_role`, then exactly desk-5's grants (no DELETE; usages insert-only) | None needed; desk-5's state was `GRANT ALL ... TO service_role` | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 7) |
+| `database/migrations/2026-11-18-desk-6-media-grants.sql` | The fix to desk-5: every right on the media tables taken from `service_role`, then exactly desk-5's grants (no DELETE; usages insert-only) | None needed; desk-5's state was `GRANT ALL ... TO service_role` | **Yes, 18 Nov 2026**, checks passed (`false`, `false`, `true`) |
+| `database/migrations/2026-11-18-desk-7-image-usages.sql` | `desk_save_revision` records the library images a revision uses (`asset_usages`) in the save's transaction, and refuses a retired one; the rest of the function unchanged | Run desk-1's function again (images then saved but not recorded, so readers would not see them) | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 8) |
 
 #### Tests and verification
 
@@ -845,6 +872,13 @@ embargo 409.
 | `packages/server/src/repositories/schema.test.ts` (new tables) | Every table a migration creates has Supabase's default rights taken from `anon`, `authenticated` and `service_role`, in its file or a later one | A table one role keeps its default rights on (desk-5's media tables, without desk-6) |
 | `apps/worker/src/jobs.test.ts` (`make-renditions`), `scripts/deploy.test.ts` (renditions timer) | A clean run exits 0, as does one with an unusable file (logged); the timer fires every `RENDITIONS_TICK_MINUTES` (5), at two past, and its run times out before the next tick | An image left waiting, or an unreadable list, exits 1 |
 | `apps/admin/src/components/desk/desk.test.tsx` (media library) | Each image with its desk, credit, rights, sizes for readers and a link to the original; an upload sent as a form; a manager clears rights and retires | Without `article.edit` no upload, without `media.manage` no changes; sizes on the way, or failed with what to do |
+| `packages/editor/src/renderImages.test.tsx` | An image as a figure: its crop's AVIF and WebP renditions, sized and lazy, its alt text, caption and credit; the preview's stand-in; the node keeps a valid id and crop; the plain text shows it | An image the page was not given, or a crop without renditions (left out); `javascript:`, `data:`, plain-http and `//` addresses, a srcset with anything else in it; markup in an alt or caption (escaped) |
+| `packages/shared/src/config/storyImages.test.ts` | The images a body uses, in order, once, at any depth; the checklist's image rules in the story's language | A node with no library id; a malformed crop; an image missing, retired, out of licence, without credit, source, licence, cleared rights, alt text or caption |
+| `packages/server/src/services/desk/storyImages.test.ts`, `repositories/media.test.ts` (images) | What a page draws of an image, in English and in Hindi; readers get a published revision's images through its usages, active, with renditions; the preview falls back to the original | A rendition key not the library's; a crop in one format only; an image another revision uses; a retired one |
+| `packages/server/src/services/desk/scheduler.test.ts` (images) | A scheduled story whose images are ready goes live | An image retired, out of licence, its clearance withdrawn, without the story's caption, or gone: back to approved, never live |
+| `packages/server/src/repositories/deskSchema.test.ts` (desk-7) | One transaction; the same signature, caller's rights, empty search path; every image at any depth, once, recorded with the revision before the story moves | A retired image refused; everything else in the save unchanged (compared with desk-1's text); only `service_role` may call it |
+| `apps/admin/src/app/api/admin/access.test.ts` (images) | A story with ready images passes the checklist; the story screen gets the revision's images for its preview | Approval refused for an image lacking rights or the story's alt text, one the library lacks, or a retired one; a new story with an image, a save naming no library image (400) |
+| `apps/admin/src/components/desk/desk.test.tsx` (images) | Image opens the library, says what each image lacks, and adds the chosen one with its crop, which Save sends; the preview draws the revision's images | (the server's refusals are the access tests') |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 
 The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
@@ -852,11 +886,14 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** images in stories (the editor, the reader's page, the pre-publish checklist), then
-  authors' photos. The Hindi typing check still closes M2.
-- **Until the owner applies desk-6,** the database would let the app delete an image or change a
-  usage (desk-5 left `service_role` its default rights). No code does; desk-6 makes the database
-  refuse it, as it does for the Desk's other tables.
+- **Next:** authors' photos and galleries, which complete M4; then Panel 2's definition of done. The
+  Hindi typing check still closes M2.
+- **Until the owner applies desk-7,** a story with an image can be saved and published, but its
+  usage is not recorded, so readers never see the image (the page leaves it out). Apply it before
+  images are used.
+- **On a live story,** an image retired later disappears from the page at once; a licence that ends
+  later is not checked again (the checklist checks it before publishing, and at a scheduled time).
+- **The editor shows each image's original file** (through the back office), which can be large.
 - **A failed image is not tried again:** upload the file again (a new image). There is no retry
   button; a storage failure, unlike a bad file, is retried by the next run.
 - **On the server, images need the manager's AWS work first** (design §9, item 6; OPERATIONS.md):

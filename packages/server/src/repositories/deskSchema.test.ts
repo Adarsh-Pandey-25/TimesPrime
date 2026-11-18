@@ -149,3 +149,37 @@ describe("migration desk-6: the media tables' rights for the app (a fix to desk-
     expect(sql).not.toMatch(/\banon\b|\bauthenticated\b/);
   });
 });
+
+describe("migration desk-7: a save records the images its revision uses (asset_usages)", () => {
+  const read = (file: string) => fs.readFileSync(path.join(process.cwd(), "database", "migrations", file), "utf8").replace(/\r\n/g, "\n");
+  const fn = (sql: string) => sql.slice(sql.indexOf("CREATE OR REPLACE FUNCTION public.desk_save_revision"), sql.indexOf("$$;", sql.indexOf("CREATE OR REPLACE FUNCTION public.desk_save_revision")) + 3);
+  const usages = read("2026-11-18-desk-7-image-usages.sql");
+  const saved = fn(usages);
+  const before = fn(read("2026-11-17-desk-1-stories.sql"));
+
+  test("one transaction; the same signature, running as the caller on an empty search path, for service_role only", () => {
+    expect(usages).toMatch(/^BEGIN;$/m);
+    expect(usages).toMatch(/^COMMIT;$/m);
+    expect(saved).toContain("LANGUAGE plpgsql SECURITY INVOKER SET search_path = ''");
+    expect(usages).toContain("REVOKE ALL ON FUNCTION public.desk_save_revision(UUID, UUID, UUID, TEXT, TEXT, JSONB, TEXT, TEXT, BOOLEAN) FROM PUBLIC, anon, authenticated;");
+    expect(usages).toContain("GRANT EXECUTE ON FUNCTION public.desk_save_revision(UUID, UUID, UUID, TEXT, TEXT, JSONB, TEXT, TEXT, BOOLEAN) TO service_role;");
+  });
+
+  test("everything the save did before is unchanged: only the images' block is new", () => {
+    const withoutImages = saved
+      .replace("\n  v_images UUID[];", "")
+      .replace(/\n\n  -- The library's images the body uses[\s\S]*?FROM unnest\(v_images\) AS image_id;\n/, "");
+    expect(withoutImages).toBe(before);
+  });
+
+  test("each image of the body, at any depth, once; a retired one refused; recorded with this revision, before the story moves", () => {
+    expect(saved).toContain(`jsonb_path_query(p_body, 'lax $.** ? (@.type == "image").attrs')`);
+    expect(saved).toContain("array_agg(DISTINCT (img ->> 'id')::uuid)");
+    expect(saved).toContain("WHERE m.id = ANY (v_images) AND NOT m.active");
+    expect(saved).toContain("USING ERRCODE = 'check_violation'");
+    expect(saved).toContain("INSERT INTO public.asset_usages (asset_id, story_id, revision_id)\n  SELECT image_id, p_story, r_id FROM unnest(v_images) AS image_id;");
+    const at = (text: string) => saved.indexOf(text);
+    expect(at("INSERT INTO public.story_revisions")).toBeLessThan(at("INSERT INTO public.asset_usages"));
+    expect(at("INSERT INTO public.asset_usages")).toBeLessThan(at("UPDATE public.stories"));
+  });
+});

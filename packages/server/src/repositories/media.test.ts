@@ -7,7 +7,7 @@
 
 jest.mock("../lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn() } }));
 
-import { createMedia, getMedia, listMedia, listPendingRenditions, recordRenditions, updateMedia } from "./media";
+import { createMedia, getMedia, getMediaByIds, listMedia, listPendingRenditions, listPublishedImages, recordRenditions, updateMedia } from "./media";
 import { DeskStoreError } from "./stories";
 
 const { supabase } = jest.requireMock("../lib/supabase") as { supabase: { from: jest.Mock } };
@@ -69,6 +69,36 @@ test("create inserts the record given; an update sets a time and finds no one fo
   expect(await updateMedia("m-9", { active: false }, new Date("2026-11-18T10:00:00.000Z"))).toBeNull();
   expect(edit).toEqual(expect.arrayContaining([["update", [{ active: false, updated_at: "2026-11-18T10:00:00.000Z" }]], ["eq", ["id", "m-9"]]]));
   expect(edit.some(([m]) => m === "delete")).toBe(false);
+});
+
+test("the Desk reads images by id, whole; no ids reads nothing", async () => {
+  const calls: Array<[string, unknown[]]> = [];
+  supabase.from.mockReturnValue(query({ data: [{ id: "m-1" }], error: null }, calls));
+  expect(await getMediaByIds(["m-1", "m-2"])).toEqual([{ id: "m-1" }]);
+  expect(calls).toEqual([["select", ["*"]], ["in", ["id", ["m-1", "m-2"]]]]);
+  supabase.from.mockClear();
+  expect(await getMediaByIds([])).toEqual([]);
+  expect(supabase.from).not.toHaveBeenCalled();
+});
+
+test("readers get a published revision's images only through its usages, active, with the readers' columns", async () => {
+  const usageCalls: Array<[string, unknown[]]> = [];
+  const mediaCalls: Array<[string, unknown[]]> = [];
+  supabase.from.mockImplementation((table: string) =>
+    table === "asset_usages"
+      ? query({ data: [{ asset_id: "m-1" }], error: null }, usageCalls)
+      : query({ data: [{ id: "m-1", active: true }, { id: "m-9", active: true }], error: null }, mediaCalls)
+  );
+  expect(await listPublishedImages("rev-1", ["m-1", "m-2"])).toEqual([{ id: "m-1", active: true }]);
+  expect(usageCalls).toEqual([["select", ["asset_id"]], ["eq", ["revision_id", "rev-1"]], ["in", ["asset_id", ["m-1", "m-2"]]]]);
+  expect(mediaCalls).toEqual([
+    ["select", ["id, storage_key, width, height, credit, alt_en, alt_hi, caption_en, caption_hi, renditions, active"]],
+    ["in", ["id", ["m-1"]]],
+    ["eq", ["active", true]],
+  ]);
+
+  supabase.from.mockImplementation(() => query({ data: [], error: null }, []));
+  expect(await listPublishedImages("rev-1", ["m-1"])).toEqual([]);
 });
 
 test("a database error is thrown", async () => {

@@ -463,6 +463,52 @@ describe("the Desk's own rules (Panel 2 design §3)", () => {
     expect(wrote()).toEqual([]);
   });
 
+  // Design §7: every image the revision uses, as the library's record says now.
+  const IMAGE_ID = "c0ffee00-0000-4000-8000-000000000002";
+  const withImage = { data: { ...REVISION_ROW, body: { type: "doc", content: [{ type: "image", attrs: { id: IMAGE_ID, ratio: "16x9" } }] } }, error: null };
+  const imageRecord = (over: Record<string, unknown> = {}) => ({
+    data: [{ id: IMAGE_ID, active: true, credit: "Photo: Asha Rao", source: "staff", licence: "Own work", licence_expires_at: null, rights_cleared_at: "2026-11-18T09:00:00Z", alt_en: null, alt_hi: "खिलाड़ी", caption_en: null, caption_hi: "आखिरी ओवर", renditions: [], ...over }],
+    error: null,
+  });
+
+  test("the checklist blocks approval while an image lacks cleared rights or the story's alt text, and names it", async () => {
+    const c = caseFor("POST", `${S}/approve`);
+    const r = await call(c, HI_DESK, { stories: story({ workflow_state: "desk_review" }), story_revisions: withImage, workflow_transitions: IN_DESK.workflow_transitions, media_assets: imageRecord({ rights_cleared_at: null, alt_hi: null }) });
+    expect(r.status).toBe(422);
+    expect(r.json.problems).toEqual(["image_rights_missing", "image_text_missing"]);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("the checklist blocks approval for an image the library does not have, or a retired one", async () => {
+    const c = caseFor("POST", `${S}/approve`);
+    const base = { stories: story({ workflow_state: "desk_review" }), story_revisions: withImage, workflow_transitions: IN_DESK.workflow_transitions };
+    expect((await call(c, HI_DESK, { ...base, media_assets: { data: [], error: null } })).json.problems).toEqual(["image_unavailable"]);
+    expect((await call(c, HI_DESK, { ...base, media_assets: imageRecord({ active: false }) })).json.problems).toEqual(["image_unavailable"]);
+  });
+
+  test("a story with ready images passes the checklist", async () => {
+    const c = caseFor("POST", `${S}/approve`);
+    const r = await call(c, HI_DESK, { stories: story({ workflow_state: "desk_review" }), story_revisions: withImage, workflow_transitions: IN_DESK.workflow_transitions, media_assets: imageRecord(), ...moved });
+    expect(r.status).toBe(200);
+  });
+
+  test("images are added in the editor: a new story's body with one, or a save naming no library image, is refused", async () => {
+    const create = caseFor("POST", "/api/admin/desk/stories");
+    const r = await call(create, HI_WRITER, create.data, { ...(create.body as object), body: withImage.data.body });
+    expect(r.status).toBe(400);
+    const save = caseFor("POST", `${S}/revisions`);
+    const bad = { type: "doc", content: [{ type: "image", attrs: { id: "../../x", ratio: "16x9" } }] };
+    expect((await call(save, HI_WRITER, save.data, { ...(save.body as object), body: bad })).status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("the story screen gets the revision's images for its preview: the original through the back office until renditions exist", async () => {
+    const c = caseFor("GET", S);
+    const r = await call(c, HI_WRITER, { stories: story(), story_revisions: withImage, workflow_transitions: IN_DESK.workflow_transitions, media_assets: imageRecord() });
+    expect(r.status).toBe(200);
+    expect(r.json.images[IMAGE_ID]).toMatchObject({ alt: "खिलाड़ी", caption: "आखिरी ओवर", credit: "Photo: Asha Rao", crops: {}, fallbackUrl: `/api/admin/desk/media/${IMAGE_ID}/original` });
+  });
+
   test("Publish Guard: a draft cannot be published (409), only an approved story can", async () => {
     const c = caseFor("POST", `${S}/publish`);
     const r = await call(c, HI_SUB, { stories: story({ workflow_state: "draft" }), ...moved });

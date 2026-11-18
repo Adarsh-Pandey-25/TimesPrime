@@ -1220,7 +1220,19 @@ the app applies SQL.
           has_table_privilege('service_role', 'public.media_assets', 'UPDATE') AS app_may_edit;
    ```
    → `false`, `false`, `true` (the last shows the app can still edit an image's record). Step 6's
-   check then returns `2`, `false`, `false`.
+   check then returns `2`, `false`, `false`. **Done by the owner on 18 Nov 2026,** the check returning
+   `false`, `false`, `true`.
+8. **Apply `database/migrations/2026-11-18-desk-7-image-usages.sql`** (M4: images in stories). It
+   replaces `desk_save_revision`, same signature: a save now records the library images its revision
+   uses (`asset_usages`), which readers need to see them, and refuses a retired image; nothing else
+   changes. Paste the whole file into the SQL Editor and run it. **Check,** in one query:
+   ```sql
+   SELECT position('asset_usages' IN pg_get_functiondef('public.desk_save_revision(uuid,uuid,uuid,text,text,jsonb,text,text,boolean)'::regprocedure)) > 0 AS records_images,
+          has_function_privilege('service_role', 'public.desk_save_revision(uuid,uuid,uuid,text,text,jsonb,text,text,boolean)', 'EXECUTE') AS service_may_call,
+          has_function_privilege('anon', 'public.desk_save_revision(uuid,uuid,uuid,text,text,jsonb,text,text,boolean)', 'EXECUTE') AS anon_may_call;
+   ```
+   → `true`, `true`, `false`. Until it is applied, a story's images are saved but readers never see
+   them.
 
 **Undo.** The rollback at the end of the file, only before the first real story: stories are the
 newsroom's record and are never dropped after that. desk-3's undo is to run desk-2 again; desk-4's
@@ -1486,10 +1498,12 @@ phases were done:
    owner applied desk-4 on 18 Nov 2026), and the image fixed for the editor package (PR #29). The
    media library's first part (upload, the record and its rights, S3 or a local folder) was merged
    (PR #30); the owner applied desk-5 on 18 Nov 2026, and its check showed the app kept DELETE on the
-   media tables, which desk-6 (`fix/desk-media-grants`, "The Desk (Panel 2): applying its tables",
-   step 7) takes away. The renditions (the worker's `make-renditions` job and its 5-minute timer;
-   originals kept private) were merged (PR #31). On the server the images need the manager's
-   [media steps](#the-desks-images-panel-2-after-the-release). Images in stories follow. Panel 1 will be built on `panel-1-administration`.
+   media tables, which desk-6 (PR #32, applied by the owner on 18 Nov 2026) took away. The renditions
+   (the worker's `make-renditions` job and its 5-minute timer; originals kept private) were merged
+   (PR #31). Images in stories (the editor's Image, the checklist, the reader's page) are on
+   `panel-2-desk-story-images`, with one owner SQL step (desk-7, step 8). On the server the images
+   need the manager's [media steps](#the-desks-images-panel-2-after-the-release). Authors' photos and
+   galleries follow. Panel 1 will be built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

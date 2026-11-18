@@ -145,6 +145,14 @@ export interface ChecklistInput {
   legalReviewRequired: boolean;
   /** For a story in a translation group: whether its other-language version exists. */
   counterpartMissing: boolean;
+  /**
+   * The library's images the revision uses, as their records say (null for one the library does not
+   * have), and the story's language, whose alt text and caption they need (design §7). Left out
+   * where nobody has read them yet (the story screen); the server always reads them.
+   */
+  images?: ReadonlyArray<ChecklistImage | null>;
+  language?: "en" | "hi";
+  now?: Date;
 }
 
 export type ChecklistProblem =
@@ -155,9 +163,30 @@ export type ChecklistProblem =
   | "seo_title_too_long"
   | "slug_missing"
   | "legal_review_pending"
-  | "translation_missing";
+  | "translation_missing"
+  | "image_unavailable"
+  | "image_rights_missing"
+  | "image_text_missing";
 
-/** The pre-publish checklist (design §3). Images join it with the media library (M4). Empty: it passes. */
+/** What the checklist reads of an image's record. */
+export interface ChecklistImage {
+  active: boolean;
+  credit: string | null;
+  source: string | null;
+  licence: string | null;
+  licence_expires_at: string | null;
+  rights_cleared_at: string | null;
+  alt_en: string | null;
+  alt_hi: string | null;
+  caption_en: string | null;
+  caption_hi: string | null;
+}
+
+/**
+ * The pre-publish checklist (design §3 and §7). Every image a story uses must be in the library,
+ * not retired, its licence not ended; carry a credit, a source, a licence and cleared rights; and
+ * have alt text and a caption in the story's language. Empty: it passes.
+ */
 export function checklist(input: ChecklistInput): ChecklistProblem[] {
   const problems: ChecklistProblem[] = [];
   const headline = input.headline.trim();
@@ -170,6 +199,23 @@ export function checklist(input: ChecklistInput): ChecklistProblem[] {
   if (!input.slug) problems.push("slug_missing");
   if (input.legalReviewRequired) problems.push("legal_review_pending");
   if (input.counterpartMissing) problems.push("translation_missing");
+  problems.push(...imageChecklist(input.images ?? [], input.language ?? "en", input.now ?? new Date()));
+  return problems;
+}
+
+/**
+ * The checklist's image rules (design §7), alone: also what the worker checks again at a scheduled
+ * story's time, as an image's rights or licence may have changed since the story was approved.
+ */
+export function imageChecklist(images: ReadonlyArray<ChecklistImage | null>, language: "en" | "hi", now: Date): ChecklistProblem[] {
+  const problems: ChecklistProblem[] = [];
+  if (images.some((m) => !m || !m.active || (m.licence_expires_at !== null && Date.parse(m.licence_expires_at) <= now.getTime()))) {
+    problems.push("image_unavailable");
+  }
+  if (images.some((m) => m && (!m.credit || !m.source || !m.licence || !m.rights_cleared_at))) problems.push("image_rights_missing");
+  if (images.some((m) => m && (!(language === "hi" ? m.alt_hi : m.alt_en) || !(language === "hi" ? m.caption_hi : m.caption_en)))) {
+    problems.push("image_text_missing");
+  }
   return problems;
 }
 

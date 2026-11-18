@@ -8,8 +8,9 @@
 
 jest.mock("../../repositories/stories", () => {
   const actual = jest.requireActual("../../repositories/stories");
-  return { DeskStoreError: actual.DeskStoreError, listDueScheduled: jest.fn(), listHistory: jest.fn(), transition: jest.fn() };
+  return { DeskStoreError: actual.DeskStoreError, listDueScheduled: jest.fn(), listHistory: jest.fn(), transition: jest.fn(), getRevision: jest.fn() };
 });
+jest.mock("./storyImages", () => ({ checklistImages: jest.fn() }));
 jest.mock("../../repositories/staff", () => ({ loadStaffRecord: jest.fn() }));
 jest.mock("../../repositories/auditLog", () => ({ recordAudit: jest.fn(), recordSystemAudit: jest.fn() }));
 
@@ -21,7 +22,9 @@ const stories = jest.requireMock("../../repositories/stories") as {
   listDueScheduled: jest.Mock;
   listHistory: jest.Mock;
   transition: jest.Mock;
+  getRevision: jest.Mock;
 };
+const { checklistImages } = jest.requireMock("./storyImages") as { checklistImages: jest.Mock };
 const { loadStaffRecord } = jest.requireMock("../../repositories/staff") as { loadStaffRecord: jest.Mock };
 const audit = jest.requireMock("../../repositories/auditLog") as { recordAudit: jest.Mock; recordSystemAudit: jest.Mock };
 
@@ -78,6 +81,8 @@ const history = [
 beforeEach(() => {
   jest.resetAllMocks();
   stories.listHistory.mockResolvedValue(history);
+  stories.getRevision.mockResolvedValue({ id: "r-2", body: { type: "doc", content: [] } });
+  checklistImages.mockResolvedValue([]);
   loadStaffRecord.mockResolvedValue(editor());
   audit.recordAudit.mockResolvedValue("attempt-1");
   stories.transition.mockImplementation(async (input: { to: string; fields: { published_revision_id?: string } }) => ({
@@ -218,4 +223,35 @@ test("no due story: nothing is read beyond the list, nothing written", async () 
 test("when the due stories cannot be read, the run fails", async () => {
   stories.listDueScheduled.mockRejectedValue(new Error("database unavailable"));
   await expect(publishDueStories(NOW)).rejects.toThrow("database unavailable");
+});
+
+// Design §7: an image's rights, licence or text may have changed since the story was approved.
+describe("its images, checked again at its time", () => {
+  const ready = {
+    active: true, credit: "Photo: Asha Rao", source: "staff", licence: "Own work", licence_expires_at: null,
+    rights_cleared_at: "2026-11-16T10:00:00Z", alt_en: null, alt_hi: "मैदान", caption_en: null, caption_hi: "मैच", 
+  };
+
+  test("an approved revision whose images are ready goes live", async () => {
+    stories.listDueScheduled.mockResolvedValue([story("s-1")]);
+    checklistImages.mockResolvedValue([ready]);
+    expect((await publishDueStories(NOW)).published).toEqual(["s-1"]);
+    expect(stories.getRevision).toHaveBeenCalledWith("r-2");
+  });
+
+  test.each([
+    ["retired", { ...ready, active: false }, "image_unavailable"],
+    ["out of licence", { ...ready, licence_expires_at: "2026-11-17T09:00:00Z" }, "image_unavailable"],
+    ["clearance withdrawn", { ...ready, rights_cleared_at: null }, "image_rights_missing"],
+    ["no Hindi caption on a Hindi story", { ...ready, caption_hi: null }, "image_text_missing"],
+    ["gone from the library", null, "image_unavailable"],
+  ])("an image %s: back to approved, the reason in its history, never live", async (_name, image, problem) => {
+    stories.listDueScheduled.mockResolvedValue([story("s-1")]);
+    checklistImages.mockResolvedValue([image]);
+    const run = await publishDueStories(NOW);
+    expect(run).toMatchObject({ published: [], unscheduled: ["s-1"] });
+    const moved = stories.transition.mock.calls.map(([input]) => input);
+    expect(moved).toEqual([expect.objectContaining({ action: "unschedule", from: "scheduled", to: "approved", actorId: null })]);
+    expect(moved[0].reason).toContain(problem);
+  });
 });

@@ -99,6 +99,42 @@ export function renditionsState(row: { renditions_at: string | null; renditions:
   return row.renditions.length > 0 ? "ready" : "failed";
 }
 
+/** An image's id as a story body holds it: the library's UUID. */
+export const MEDIA_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export function isRenditionRatio(value: unknown): value is RenditionRatio {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(RENDITION_RATIOS, value);
+}
+
+/** Every `image` node of a story body, at any depth, in order, with its attributes as stored. */
+export function storyImageNodes(body: unknown): Array<{ id: unknown; ratio: unknown }> {
+  const nodes: Array<{ id: unknown; ratio: unknown }> = [];
+  const walk = (node: unknown, depth: number) => {
+    if (depth > 32 || typeof node !== "object" || node === null) return;
+    const n = node as { type?: unknown; attrs?: { id?: unknown; ratio?: unknown }; content?: unknown };
+    if (n.type === "image") nodes.push({ id: n.attrs?.id, ratio: n.attrs?.ratio });
+    if (Array.isArray(n.content)) for (const child of n.content) walk(child, depth + 1);
+  };
+  walk(body, 0);
+  return nodes;
+}
+
+/** True when every image node names a library image (a UUID) and one of the crops. */
+export function storyImagesWellFormed(body: unknown): boolean {
+  return storyImageNodes(body).every((n) => typeof n.id === "string" && MEDIA_ID.test(n.id) && (n.ratio === undefined || isRenditionRatio(n.ratio)));
+}
+
+/**
+ * The library's images a story body uses, in order, each once: what the pre-publish checklist checks
+ * and the reader's page loads. A node without a valid id is not an image of the library and is
+ * skipped (a save refuses such a body: storyImagesWellFormed).
+ */
+export function storyImageIds(body: unknown): string[] {
+  const ids: string[] = [];
+  for (const { id } of storyImageNodes(body)) if (typeof id === "string" && MEDIA_ID.test(id) && !ids.includes(id)) ids.push(id);
+  return ids;
+}
+
 /** The rendition the library's tile shows: the 4:3 WebP at 480, or the nearest 4:3 WebP there is. */
 export function previewRendition(renditions: readonly Rendition[]): Rendition | null {
   const tiles = renditions.filter((r) => r.ratio === "4x3" && r.format === "webp").sort((a, b) => a.width - b.width);
