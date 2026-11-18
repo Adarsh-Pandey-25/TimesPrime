@@ -3,8 +3,10 @@ import "server-only";
 import { decide, type DenyCode } from "../../auth/decide";
 import { recordAudit, recordSystemAudit, type AuditRow } from "../../repositories/auditLog";
 import { loadStaffRecord } from "../../repositories/staff";
-import { DeskStoreError, listDueScheduled, listHistory, transition, type StoryRow } from "../../repositories/stories";
+import { imageChecklist } from "@timesprime/shared/config/desk";
+import { DeskStoreError, getRevision, listDueScheduled, listHistory, transition, type StoryRow } from "../../repositories/stories";
 import { publishFields, publishRefusal, storyTarget } from "./publish";
+import { checklistImages } from "./storyImages";
 
 /**
  * The worker's publish-scheduled job (Panel 2 design §6, owner decision 3: every 5 minutes): every
@@ -93,8 +95,14 @@ async function publishOne(story: StoryRow, now: Date, run: ScheduledRun): Promis
 
   const staff = await loadStaffRecord(scheduler, now);
   const decision = decide({ staff, aal: "aal2", permission: "article.publish", mode: "act", target: storyTarget(story), now });
-  if (!decision.allowed) {
-    const reason = `Not published at its scheduled time: the editor who scheduled it ${DENIALS[decision.code]}.`;
+  // Its images are checked again (design §7): one may have been retired, lost its clearance or come
+  // to the end of its licence since the story was approved.
+  const approved = await getRevision(story.approved_revision_id as string);
+  const imageProblems = imageChecklist(await checklistImages(approved?.body), story.language, now);
+  if (!decision.allowed || imageProblems.length > 0) {
+    const reason = !decision.allowed
+      ? `Not published at its scheduled time: the editor who scheduled it ${DENIALS[decision.code]}.`
+      : `Not published at its scheduled time: an image it uses is no longer ready (${imageProblems.join(", ")}).`;
     await audited(
       story,
       "story.unschedule",

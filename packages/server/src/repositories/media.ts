@@ -135,3 +135,31 @@ export async function recordRenditions(
   if (error) throw storeError(error);
   return data !== null;
 }
+
+/** Images by id, whole records, for the Desk (the pre-publish checklist, the preview). */
+export async function getMediaByIds(ids: readonly string[]): Promise<MediaRow[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.from("media_assets").select("*").in("id", [...ids]);
+  if (error) throw storeError(error);
+  return (data ?? []) as MediaRow[];
+}
+
+/** What a reader may read of an image (the columns desk-5 grants anon and authenticated). */
+export type ReaderMediaRow = Pick<MediaRow, "id" | "storage_key" | "width" | "height" | "credit" | "alt_en" | "alt_hi" | "caption_en" | "caption_hi" | "renditions" | "active">;
+const READER_MEDIA_COLUMNS = "id, storage_key, width, height, credit, alt_en, alt_hi, caption_en, caption_hi, renditions, active";
+
+/**
+ * The images a published revision uses, as readers may see them. Applies desk-5's reader policy in
+ * the query too, as getPublishedStory does: only images this revision's usages name, only active
+ * ones, only the readers' columns. The caller passes the published revision's id and its body's ids.
+ */
+export async function listPublishedImages(revisionId: string, ids: readonly string[]): Promise<ReaderMediaRow[]> {
+  if (ids.length === 0) return [];
+  const usages = await supabase.from("asset_usages").select("asset_id").eq("revision_id", revisionId).in("asset_id", [...ids]);
+  if (usages.error) throw storeError(usages.error);
+  const used = [...new Set((usages.data ?? []).map((u) => (u as { asset_id: string }).asset_id))];
+  if (used.length === 0) return [];
+  const { data, error } = await supabase.from("media_assets").select(READER_MEDIA_COLUMNS).in("id", used).eq("active", true);
+  if (error) throw storeError(error);
+  return ((data ?? []) as ReaderMediaRow[]).filter((row) => used.includes(row.id) && row.active);
+}
