@@ -15,13 +15,17 @@ export interface DeskResult<T> {
   error: string | null;
 }
 
-/** A Desk API call. Failures, a lapsed session (401) included, come back as text to show. */
+/**
+ * A Desk API call. Failures, a lapsed session (401) included, come back as text to show. A JSON body
+ * is labelled as JSON; a form (an upload) is left for the browser to label with its boundary.
+ */
 export async function deskCall<T>(path: string, init: RequestInit = {}): Promise<DeskResult<T>> {
   try {
+    const json = Boolean(init.body) && !(typeof FormData !== "undefined" && init.body instanceof FormData);
     const res = await fetch(path, {
       credentials: "include",
       ...init,
-      headers: init.body ? { "content-type": "application/json", ...(init.headers ?? {}) } : init.headers,
+      headers: json ? { "content-type": "application/json", ...(init.headers ?? {}) } : init.headers,
     });
     if (res.status === 401) {
       return { ok: false, status: 401, data: null, error: "Your session has ended. Sign in again at /admin/login; unsaved changes stay on this screen." };

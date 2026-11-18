@@ -12,6 +12,7 @@ const push = mockRouter.push;
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import DeskList from "./DeskList";
 import AuthorsManager from "./AuthorsManager";
+import MediaLibrary from "./MediaLibrary";
 import NewStoryForm from "./NewStoryForm";
 import StoryEditor from "./StoryEditor";
 import StoryPreview from "./StoryPreview";
@@ -486,5 +487,58 @@ describe("authors and credits (Panel 2 design §7)", () => {
     await act(async () => render(<StoryPreview id="s-1" />));
     expect(await screen.findByText("By Asha Rao")).toBeInTheDocument();
     expect(screen.queryByText(/Ravi Kumar/)).not.toBeInTheDocument();
+  });
+});
+
+describe("the media library (Panel 2 design §7)", () => {
+  const IMAGE = {
+    id: "c0ffee00-0000-4000-8000-000000000001", url: "/media/originals/c0ffee00-0000-4000-8000-000000000001.jpg", language: "hi", section: "sports",
+    credit: "Photo: Asha Rao", source: "staff", licence: "Own work", licence_expires_at: null, rights_cleared_by: null, rights_cleared_at: null,
+    alt_en: "Players on the field", alt_hi: null, caption_en: null, caption_hi: null, renditions_at: null, active: true, created_at: "2026-11-18T09:00:00Z",
+  };
+  const calls = (url: string, method: string) => (global.fetch as jest.Mock).mock.calls.filter(([u, init]) => u === url && init?.method === method);
+  const library = (permissions: Record<string, "act" | "read">) =>
+    serve((url, init) => {
+      if (url === "/api/admin/me") return { status: 200, body: staffMe(permissions) };
+      if (url === "/api/admin/desk/media?retired=1") return { status: 200, body: { media: [IMAGE], total: 1 } };
+      if (url === "/api/admin/desk/media" && init?.method === "POST") return { status: 201, body: { media: IMAGE } };
+      if (url === `/api/admin/desk/media/${IMAGE.id}` && init?.method === "PATCH") return { status: 200, body: { media: IMAGE } };
+    });
+
+  test("each image with its desk, credit and whether its rights are cleared", async () => {
+    library({ "article.view_admin": "read" });
+    await act(async () => render(<MediaLibrary />));
+    expect(await screen.findByRole("img", { name: "Players on the field" })).toHaveAttribute("src", IMAGE.url);
+    expect(screen.getByText(/Photo: Asha Rao/)).toBeInTheDocument();
+    expect(screen.getByText("Rights not cleared")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Upload an image" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear rights" })).not.toBeInTheDocument();
+  });
+
+  test("whoever may edit stories uploads an image as a form: the file, its desk and what is known", async () => {
+    library({ "article.view_admin": "read", "article.edit": "act" });
+    await act(async () => render(<MediaLibrary />));
+    await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Upload an image" })));
+    const file = new File([new Uint8Array([0xff, 0xd8, 0xff])], "match.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText(/^Image/), { target: { files: [file] } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Language" }), { target: { value: "hi" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Section" }), { target: { value: "sports" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Credit" }), { target: { value: "Photo: Asha Rao" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Upload" })));
+    const body = calls("/api/admin/desk/media", "POST")[0][1].body as FormData;
+    expect(body).toBeInstanceOf(FormData);
+    expect((body.get("file") as File).name).toBe("match.jpg");
+    expect([body.get("language"), body.get("section"), body.get("credit")]).toEqual(["hi", "sports", "Photo: Asha Rao"]);
+    expect(calls("/api/admin/desk/media", "POST")[0][1].headers).toBeUndefined();
+    expect(await screen.findByText(/Image uploaded/)).toBeInTheDocument();
+  });
+
+  test("a holder of media.manage clears an image's rights and retires it", async () => {
+    library({ "article.view_admin": "read", "media.manage": "act" });
+    await act(async () => render(<MediaLibrary />));
+    await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Clear rights" })));
+    expect(JSON.parse(calls(`/api/admin/desk/media/${IMAGE.id}`, "PATCH")[0][1].body)).toEqual({ rights_cleared: true });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Retire" })));
+    expect(JSON.parse(calls(`/api/admin/desk/media/${IMAGE.id}`, "PATCH")[1][1].body)).toEqual({ active: false });
   });
 });

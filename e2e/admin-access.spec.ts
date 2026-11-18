@@ -21,6 +21,8 @@ test.describe("signed out", () => {
     await expect(page).toHaveURL(/\/admin\/login$/);
     await page.goto("/admin/desk/authors");
     await expect(page).toHaveURL(/\/admin\/login$/);
+    await page.goto("/admin/desk/media");
+    await expect(page).toHaveURL(/\/admin\/login$/);
   });
 
   for (const [method, path] of [
@@ -32,6 +34,8 @@ test.describe("signed out", () => {
     ["GET", "/api/admin/desk/stories"],
     ["POST", "/api/admin/desk/stories"],
     ["GET", "/api/admin/desk/authors"],
+    ["GET", "/api/admin/desk/media"],
+    ["POST", "/api/admin/desk/media"],
     ["POST", "/api/admin/desk/stories/00000000-0000-4000-8000-000000000001/publish"],
   ]) {
     test(`${method} ${path} answers 401 and changes nothing`, async ({ request }) => {
