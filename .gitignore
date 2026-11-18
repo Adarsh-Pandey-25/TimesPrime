@@ -54,3 +54,6 @@ next-env.d.ts
 # Retired 2026-10-29 PRD snapshot; never consult it (docs/NEWSROOM_PLAN.md is the plan). The PDF
 # predates the owner decisions of 2026-10-29 and must not be consulted.
 docs/TimesPrime-PRD-and-Architecture.pdf
+
+# The Desk's images on a laptop (Panel 2, M4: packages/server/src/lib/mediaStorage.ts).
+/.media/
