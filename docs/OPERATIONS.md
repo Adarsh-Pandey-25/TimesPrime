@@ -1245,6 +1245,7 @@ the app applies SQL.
             WHERE schemaname = 'public' AND tablename = 'media_assets' AND policyname = 'media_assets_read_author_photo') AS photo_policy;
    ```
    → `1`, `true`, `1`. Until it is applied, saving an author's photo fails with the database's error.
+   **Done by the owner on 18 Nov 2026,** the check returning `1`, `true`, `1`.
 
 **Undo.** The rollback at the end of the file, only before the first real story: stories are the
 newsroom's record and are never dropped after that. desk-3's undo is to run desk-2 again; desk-4's
@@ -1404,6 +1405,91 @@ are read-only: the refused access while signed out, and the sign-in page's acces
 automated signs in against the real database, so after a change to this flow the check is the
 owner's, by hand: [`staff-access.md`](#staff-access-switching-on-panel-0-and-getting-back-in), step B4.
 
+### The Desk is failing
+
+Panel 2's main flow: a story is written and saved, approved by a second person, published (at once
+or by the worker at its time), and drawn on the reader's page with its images. This page starts from
+what the person sees, names the cause, says how to confirm it, and what to do.
+
+The same two rules hold as for [staff sign-in](#staff-sign-in-or-an-admin-action-is-failing): the
+SQL here only reads and runs in the Supabase SQL editor at any time, and a refusal never changed
+anything (check `audit_log` for what was refused, and why). Anything that writes is an owner action.
+
+#### First: where to look
+
+- **The back office's errors** reach Sentry: a 500 "The Desk could not do this" is logged there with
+  its operation (`getStory`, `listMedia` and so on).
+- **The worker's jobs** (scheduled publishing, image renditions) write to the server's journal and
+  the worker's log group, not to Sentry (the worker does not start Sentry):
+  `journalctl -u timesprime-publish.service -n 50` and
+  `journalctl -u timesprime-renditions.service -n 50`. `systemctl list-timers 'timesprime-*'` shows
+  when each last ran.
+- **What was attempted and refused:**
+  ```sql
+  SELECT at, actor_label, action, outcome, entity_id
+  FROM public.audit_log WHERE action LIKE 'story.%' OR action LIKE 'media.%' OR action LIKE 'author.%'
+  ORDER BY seq DESC LIMIT 30;
+  ```
+
+#### By what the person sees
+
+| They see | Cause | Do |
+|---|---|---|
+| 403 with a permission named | Their role or desk does not hold it | Check their roles ("Granting the first Desk roles"); grant if right (owner) |
+| 403 `four_eyes` | They created the story or saved it since the last approval | A third person approves |
+| 422 "The pre-publish checklist is not complete. Missing: …" | The items named, images included | Fix each; for an image: its credit, source, licence and cleared rights in the media library, alt text and caption in the story's language; a retired or out-of-licence image is replaced |
+| 409 "changed since" or a wrong state | Someone saved or moved the story meanwhile | Reload the story and try again |
+| 409 `locked` | Another editor holds the story | Wait, or a Desk Editor takes it over |
+| 409 `embargo` | The embargo has not passed | Wait for it, or change it |
+| 422 "a retired image cannot be in a story" | The text holds an image retired since | Remove it from the text, or bring it back in the library |
+| 400 "An image in the story is not from the media library" | A pasted image node with no library id | Remove it; add images with Image or Gallery |
+| 503 "The audit log could not be written" | `audit_log` is unreachable | [Staff sign-in or an admin action is failing](#staff-sign-in-or-an-admin-action-is-failing) |
+| 500 "The Desk could not do this" | A database or storage error | Sentry, then the cases below |
+
+#### A scheduled story did not go live
+
+1. **Its history says why** when the worker refused it (the editor's access, or an image no longer
+   ready): back to `approved`, with the reason.
+   ```sql
+   SELECT at, action, from_state, to_state, actor_label, reason
+   FROM public.workflow_transitions WHERE story_id = '<the story id>' ORDER BY at DESC LIMIT 10;
+   ```
+2. **Overdue and still scheduled** means the worker did not run:
+   ```sql
+   SELECT id, public_id, scheduled_at FROM public.stories
+   WHERE workflow_state = 'scheduled' AND scheduled_at < now() - interval '10 minutes';
+   ```
+   On the server: `systemctl list-timers 'timesprime-*'` and the publish journal. If the timer is
+   stopped, the operator starts it (`systemctl enable --now timesprime-publish.timer`); a run then
+   publishes every due story.
+
+#### An image does not show on the reader's page
+
+- **No renditions yet:** the worker makes them every 5 minutes.
+  ```sql
+  SELECT id, created_at FROM public.media_assets WHERE renditions_at IS NULL ORDER BY created_at;
+  ```
+  Old rows here mean the renditions job is not running or failing: its journal says which (a storage
+  error is retried; check the bucket, the role and the IMDS hop limit in
+  [the Desk's images](#the-desks-images-panel-2-after-the-release)).
+- **Failed:** `renditions_at` set and `renditions` empty (`'[]'`): the file could not be used. The
+  library shows it; upload it again and replace it in the story.
+- **Not recorded with the published revision** (saved before desk-7):
+  ```sql
+  SELECT u.asset_id FROM public.asset_usages u
+  JOIN public.stories s ON s.published_revision_id = u.revision_id WHERE s.public_id = <the number>;
+  ```
+  No row for the image: save the story again and republish it.
+- **Retired:** a retired image is hidden from readers, by design.
+- **CloudFront:** `curl -sI https://timesprime247.com/media/renditions/<id>/4x3-480.webp` must answer
+  200; a 404 there means the `/media/renditions/*` behaviour or the bucket policy.
+
+#### An upload fails
+
+413: over 15 MB. 400: not a JPEG, PNG, WebP or AVIF (read from the file, not its name). 500 on the
+server: the storage; until the manager's media steps are done, uploads on the server fail by design.
+Otherwise Sentry names the S3 error (the role's `s3:PutObject` on `media/*`, the IMDS hop limit).
+
 ## Current status
 
 > **The release first (owner, 2026-11-02; hosting decided 4 and 16 Nov 2026).** The owner's senior
@@ -1513,9 +1599,11 @@ phases were done:
    media tables, which desk-6 (PR #32, applied by the owner on 18 Nov 2026) took away. The renditions
    (the worker's `make-renditions` job and its 5-minute timer; originals kept private) were merged
    (PR #31), and images in stories (PR #33; the owner applied desk-7 on 18 Nov 2026). Authors'
-   photos and galleries, which complete M4's code, are on `panel-2-desk-photos-galleries`, with one
-   owner SQL step (desk-8, step 9). On the server the images need the manager's
-   [media steps](#the-desks-images-panel-2-after-the-release). Next: Panel 2's definition of done. Panel 1 will be built on `panel-1-administration`.
+   photos and galleries complete M4's code (PR #34; the owner applied desk-8 on 18 Nov 2026). Panel
+   2's definition of done is checked in PANEL_DOCS.md: open are the Hindi typing check, the owner's
+   walk through the signed-in flow, a test Supabase project (browser tests, the smoke test, an axe
+   pass) and the worker reporting to Sentry. On the server the images need the manager's
+   [media steps](#the-desks-images-panel-2-after-the-release); failures: [the Desk is failing](#the-desk-is-failing). Panel 1 will be built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
