@@ -195,6 +195,21 @@ describe("the scripts and the image", () => {
     expect(read("Dockerfile")).toMatch(/^COPY deploy \/deploy$/m);
   });
 
+  // npm ci runs before the sources are copied, from the lockfile and each workspace's package.json;
+  // a workspace left out (packages/editor was, from Panel 2's M2) breaks or unlinks it in the image.
+  test("the dependencies stage copies every workspace's package.json before npm ci", () => {
+    const dockerfile = read("Dockerfile");
+    const deps = dockerfile.slice(dockerfile.indexOf("AS deps"), dockerfile.indexOf("RUN npm ci"));
+    const workspaces = ["apps", "packages"].flatMap((dir) =>
+      fs
+        .readdirSync(path.join(ROOT, dir), { withFileTypes: true })
+        .filter((e) => e.isDirectory() && fs.existsSync(path.join(ROOT, dir, e.name, "package.json")))
+        .map((e) => `${dir}/${e.name}`)
+    );
+    expect(workspaces).toEqual(expect.arrayContaining(["apps/web", "apps/admin", "apps/worker", "packages/editor"]));
+    for (const workspace of workspaces) expect(deps).toContain(`COPY ${workspace}/package.json ${workspace}/`);
+  });
+
   // The kit is built into the image from a Windows checkout: CRLF would break bash on the server.
   test("every kit file has LF line endings in this checkout, and .gitattributes keeps it so", () => {
     expect(read(".gitattributes")).toMatch(/^deploy\/\*\* text eol=lf$/m);

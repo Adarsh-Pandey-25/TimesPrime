@@ -29,6 +29,7 @@ COPY apps/worker/package.json apps/worker/
 COPY packages/server/package.json packages/server/
 COPY packages/shared/package.json packages/shared/
 COPY packages/ui/package.json packages/ui/
+COPY packages/editor/package.json packages/editor/
 RUN npm ci --no-audit --no-fund
 
 # ---- build: the whole repository, built once per app ----
