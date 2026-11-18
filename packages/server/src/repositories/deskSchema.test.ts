@@ -113,7 +113,7 @@ describe("migration desk-5: the media library (media_assets, asset_usages)", () 
     expect(media).toContain("CHECK ((rights_cleared_by IS NULL) = (rights_cleared_at IS NULL))");
   });
 
-  test("the app never deletes: no DELETE on either table, and usages are never changed", () => {
+  test("the app is granted no DELETE on either table, and no change to a usage (desk-6 takes the default rights away)", () => {
     expect(media).toContain("REVOKE ALL ON public.media_assets, public.asset_usages FROM PUBLIC, anon, authenticated;");
     expect(media).toContain("GRANT SELECT, INSERT, UPDATE ON public.media_assets TO service_role;");
     expect(media).toContain("GRANT SELECT, INSERT ON public.asset_usages TO service_role;");
@@ -125,5 +125,27 @@ describe("migration desk-5: the media library (media_assets, asset_usages)", () 
     expect(media).toContain("s.published_revision_id = u.revision_id");
     expect(media).toContain("s.workflow_state = 'published'");
     expect(media).toContain("(s.embargo_until IS NULL OR s.embargo_until <= now())");
+  });
+});
+
+describe("migration desk-6: the media tables' rights for the app (a fix to desk-5)", () => {
+  const grants = fs
+    .readFileSync(path.join(process.cwd(), "database", "migrations", "2026-11-18-desk-6-media-grants.sql"), "utf8")
+    .replace(/\r\n/g, "\n");
+  const sql = grants.slice(grants.indexOf("BEGIN;"), grants.indexOf("COMMIT;") + "COMMIT;".length);
+
+  test("one transaction: takes every right away from service_role first, then grants exactly desk-5's", () => {
+    expect(sql).toMatch(/^BEGIN;/);
+    expect(sql).toMatch(/COMMIT;$/);
+    const revoke = sql.indexOf("REVOKE ALL ON public.media_assets, public.asset_usages FROM service_role;");
+    expect(revoke).toBeGreaterThan(0);
+    expect(sql.indexOf("GRANT SELECT, INSERT, UPDATE ON public.media_assets TO service_role;")).toBeGreaterThan(revoke);
+    expect(sql.indexOf("GRANT SELECT, INSERT ON public.asset_usages TO service_role;")).toBeGreaterThan(revoke);
+  });
+
+  test("grants no DELETE and no change to a usage, and leaves readers' rights alone", () => {
+    expect(sql).not.toMatch(/DELETE|TRUNCATE|GRANT ALL/);
+    expect(sql).not.toMatch(/GRANT [A-Z, ]*UPDATE[A-Z, ]* ON public\.asset_usages/);
+    expect(sql).not.toMatch(/\banon\b|\bauthenticated\b/);
   });
 });
