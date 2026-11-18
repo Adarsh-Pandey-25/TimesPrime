@@ -340,8 +340,11 @@ Panel 0 defines all 15 roles of the plan's matrix ([the access rules](#access-ru
   Desk Editor, Managing Editor) lands on `/admin/desk`; the Super Admin, even holding a Desk role,
   and every other role on `/admin`. Where a person lands decides nothing: the server checks every
   request, as before. If the roles cannot be read, `/admin`.
-- `/admin` says who is signed in, shows only the widgets and buttons the user's permissions allow,
-  and sends a session that still owes its code back to finish signing in.
+- Every back-office page's top bar says who is signed in and as what (their roles and desks, as
+  "Super Admin · Desk Editor (English, Hindi)"), and offers Sign out (the owner asked, 18 Nov 2026;
+  `describeRoles` in `packages/shared/src/lib/staffRoles.ts`).
+- `/admin` shows only the widgets and buttons the user's permissions allow, and sends a session that
+  still owes its code back to finish signing in.
 - Every admin route checks a permission on the server, in the target's scope.
 - Every change is written to an append-only, hash-chained audit log, before and after it happens.
 - The activity log reads that audit log; it cannot be cleared. The shared-password era's
