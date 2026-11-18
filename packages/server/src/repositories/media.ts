@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { MediaSource, MediaType } from "@timesprime/shared/config/media";
+import type { MediaSource, MediaType, Rendition } from "@timesprime/shared/config/media";
 import { supabase } from "../lib/supabase";
 import { scopeFilter, storeError, type DeskScope } from "./stories";
 
@@ -30,7 +30,7 @@ export interface MediaRow {
   alt_hi: string | null;
   caption_en: string | null;
   caption_hi: string | null;
-  renditions: unknown[];
+  renditions: Rendition[];
   renditions_at: string | null;
   uploaded_by: string;
   active: boolean;
@@ -104,4 +104,34 @@ export async function updateMedia(id: string, fields: MediaFields, now: Date = n
     .maybeSingle();
   if (error) throw storeError(error);
   return (data as MediaRow | null) ?? null;
+}
+
+/** The images the worker has not made renditions of yet, oldest first (the partial index's rows). */
+export async function listPendingRenditions(limit: number): Promise<Array<Pick<MediaRow, "id" | "storage_key">>> {
+  const { data, error } = await supabase
+    .from("media_assets")
+    .select("id, storage_key")
+    .is("renditions_at", null)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error) throw storeError(error);
+  return (data ?? []) as Array<Pick<MediaRow, "id" | "storage_key">>;
+}
+
+/**
+ * The worker's result for one image: its renditions (none when the file is unusable), and its size
+ * once turned upright when known. Written only while the image has none yet, so two runs cannot both
+ * record one; false when another run did, or the image is gone. The record's own updated_at stays:
+ * nobody edited it.
+ */
+export async function recordRenditions(
+  id: string,
+  result: { renditions: Rendition[]; width?: number; height?: number },
+  now: Date = new Date()
+): Promise<boolean> {
+  const fields: Record<string, unknown> = { renditions: result.renditions, renditions_at: now.toISOString() };
+  if (result.width && result.height) Object.assign(fields, { width: result.width, height: result.height });
+  const { data, error } = await supabase.from("media_assets").update(fields).eq("id", id).is("renditions_at", null).select("id").maybeSingle();
+  if (error) throw storeError(error);
+  return data !== null;
 }

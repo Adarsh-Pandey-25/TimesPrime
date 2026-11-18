@@ -1,5 +1,6 @@
 import "server-only";
 
+import { makePendingRenditions } from "@timesprime/server/services/desk/renditions";
 import { publishDueStories } from "@timesprime/server/services/desk/scheduler";
 import { refreshNews } from "@timesprime/server/services/news/refreshNews";
 import { dryRunRefresh } from "@timesprime/server/services/news/refreshDryRun";
@@ -68,10 +69,32 @@ async function publishScheduledJob(): Promise<number> {
   return run.failed.length === 0 ? 0 : 1;
 }
 
+/**
+ * Panel 2 (design §7): makes the renditions of the library's images that have none yet
+ * (packages/server/src/services/desk/renditions.ts). The server's timer starts it every
+ * RENDITIONS_TICK_MINUTES (deploy/systemd/timesprime-renditions.timer). An image whose file is
+ * unusable is recorded as failed (the library shows it) and the run still exits 0; it exits 1 when
+ * an image was left waiting by a storage or database failure, or the waiting images could not be
+ * read, so the journal and the worker's log group see it.
+ */
+async function makeRenditionsJob(): Promise<number> {
+  try {
+    const run = await makePendingRenditions();
+    console.log(JSON.stringify({ made: run.made.length, unusable: run.unusable.length, failed: run.failed.length, more: run.more }));
+    for (const image of run.unusable) console.warn(`unusable: ${image.id}: ${image.error}`);
+    for (const image of run.failed) console.error(`failed: ${image.id}: ${image.error}`);
+    return run.failed.length === 0 ? 0 : 1;
+  } catch (err) {
+    console.error(`make-renditions: ${err instanceof Error ? err.message : String(err)}`);
+    return 1;
+  }
+}
+
 export const JOBS: Record<string, Job> = {
   "refresh-news": refreshNewsJob,
   "refresh-news-dry-run": refreshNewsDryRunJob,
   "publish-scheduled": publishScheduledJob,
+  "make-renditions": makeRenditionsJob,
 };
 
 export async function runJob(name: string | undefined, jobs: Record<string, Job> = JOBS): Promise<number> {
