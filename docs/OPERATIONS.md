@@ -52,6 +52,10 @@ real values.** (Until 2026-11-04 the local file was `.env.local` at the root on 
 | `TRUSTED_PROXY_HOPS` | web, admin | Proxies that append to `X-Forwarded-For`: `2` for the reader site (CloudFront, then Nginx), `1` for the back office (Nginx), `0` locally. The client IP for rate limits and the audit log is the entry this many from the right (R1-05). Set by `deploy/compose.yml` |
 | `WORKER_STATE_DIR` | worker | When the news refresh last started, so a timer tick before the interval has passed skips (R12-04). On the server a Docker volume at `/var/lib/timesprime`, set by `deploy/compose.yml` |
 | `NEWS_REFRESH_BATCHED` | worker | `1` makes the refresh name several categories per NewsData call: 4 calls a run instead of 14 (R12-05, option (c)). Unset, it is off. Switch it on only after the dry run ([the news refresh](#the-news-refresh-interval-calls-and-the-admin-setting)) |
+| `MEDIA_BUCKET` | web, admin | The Desk's images (Panel 2, M4): the S3 bucket they are kept in, read and written with the server's role. Unset, a local folder (`MEDIA_LOCAL_DIR`, or `.media` at the root), which each app serves at `/media`; on the server an upload then fails, as the container has no folder it may write. Set only after [the Desk's images](#the-desks-images-panel-2-after-the-release) |
+| `MEDIA_REGION` | web, admin | The bucket's region; `ap-south-1` when unset |
+| `MEDIA_PUBLIC_BASE` | web, admin | Where pages show the images: `https://timesprime247.com/media` on the server (CloudFront's `/media/*`), set together with `MEDIA_BUCKET`. Unset, `/media` |
+| `MEDIA_LOCAL_DIR` | web, admin | The local folder, on a laptop; unset, `.media` at the root (git-ignored) |
 
 ### Where each is set on the server
 
@@ -64,7 +68,7 @@ real values.** (Until 2026-11-04 the local file was `.env.local` at the root on 
 
   | File | For | Variables |
   |---|---|---|
-  | `.env.shared` | web, admin, worker | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the worker is not a Next build, so it reads them at run time), `UPSTASH_REDIS_REST_TOKEN`, `NEXT_PUBLIC_SENTRY_DSN` |
+  | `.env.shared` | web, admin, worker | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the worker is not a Next build, so it reads them at run time), `UPSTASH_REDIS_REST_TOKEN`, `NEXT_PUBLIC_SENTRY_DSN`; `MEDIA_BUCKET` and `MEDIA_PUBLIC_BASE` once the Desk's images are set up |
   | `.env.web` | web | `SUPABASE_SERVICE_ROLE_KEY`, only until R12-03's gate; then the line is deleted |
   | `.env.admin` | admin | `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `ADMIN_LEGACY_LOGIN`, `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY` |
   | `.env.worker` | worker | `SUPABASE_SERVICE_ROLE_KEY`, `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY`; `NEWS_REFRESH_BATCHED` once the dry run passes |
@@ -374,6 +378,38 @@ From then on every deploy is `sudo bash /opt/timesprime/current/scripts/deploy.s
 the timers with `systemctl list-timers 'timesprime-*'` (the news refresh every 15 minutes, the
 Desk's scheduled publishing every 5), and a run with `journalctl -u timesprime-refresh.service -n 20`
 or `journalctl -u timesprime-publish.service -n 20`.
+
+### The Desk's images (Panel 2), after the release
+
+For the manager, in the AWS console (ap-south-1), when the Desk's media library is to be used on the
+server (Panel 2 design §9, item 6). Until then `MEDIA_BUCKET` and `MEDIA_PUBLIC_BASE` stay unset, and
+an upload on the server fails, keeping nothing. `<suffix>` is the one the other buckets use (step 3).
+
+1. **S3 → Create bucket** `timesprime-media-<suffix>` in ap-south-1: Block Public Access on, default
+   encryption SSE-S3, object ownership "bucket owner enforced". No lifecycle rule: images are the
+   newsroom's record and are never deleted by the app.
+2. **IAM → Roles → `timesprime-ec2`:** add to its inline policy `s3:PutObject` and `s3:GetObject` on
+   `arn:aws:s3:::timesprime-media-<suffix>/media/*` (the app writes only under `media/`).
+3. **EC2 → the instance → Actions → Instance settings → Modify instance metadata options:** IMDSv2
+   still required, **hop limit 2**. The containers reach the role's credentials through Docker's
+   network, one hop more than the host.
+4. **CloudFront → the distribution:**
+   - **Origins → Create origin:** the bucket (`timesprime-media-<suffix>.s3.ap-south-1.amazonaws.com`),
+     with **Origin access control** (create one: S3, sign requests). Copy the bucket policy it offers
+     into the bucket (S3 → the bucket → Permissions → Bucket policy), with the resource narrowed to
+     `arn:aws:s3:::timesprime-media-<suffix>/media/*`.
+   - **Behaviours → Create behaviour:** path `/media/*` to that origin, viewers redirected to HTTPS,
+     GET and HEAD only, cache policy **CachingOptimized**, no origin request policy, and the
+     `www-to-apex` function on viewer request like the others. Move it above `/api/*`, so the order
+     is `/_next/static/*`, `/media/*`, `/api/*`, default.
+5. **The server:** in `/opt/timesprime/env/.env.shared` set `MEDIA_BUCKET=timesprime-media-<suffix>`
+   and `MEDIA_PUBLIC_BASE=https://timesprime247.com/media`, then deploy the running tag again
+   (`sudo bash /opt/timesprime/current/scripts/deploy.sh <tag>`) so the containers read them.
+
+**Check:** upload a small test image in `/admin/desk/media`. Its tile shows the picture, and
+`https://timesprime247.com/media/originals/<its id>.<ext>` (the tile's image address) answers 200
+with `cache-control: public, max-age=31536000, immutable`. In S3 the file is under `media/originals/`.
+Then retire the test image in the library (images are never deleted).
 
 ### Weekly: the Supabase backup
 
@@ -1145,11 +1181,22 @@ the app applies SQL.
           has_function_privilege('anon', 'public.desk_set_credits(uuid,text,uuid,text,jsonb)', 'EXECUTE') AS anon_may_call;
    ```
    → `true`, `false`. Until it is applied, authors can be added and edited, but saving a story's
-   credits fails (the screen shows the database's refusal).
+   credits fails (the screen shows the database's refusal). **Done by the owner on 18 Nov 2026,**
+   the check returning `true`, `false`.
+6. **Apply `database/migrations/2026-11-18-desk-5-media.sql`** (M4: the media library). It adds the
+   tables `media_assets` and `asset_usages`; nothing else changes. Paste the whole file into the SQL
+   Editor and run it. **Check,** in one query:
+   ```sql
+   SELECT (SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('media_assets', 'asset_usages') AND rowsecurity) AS tables_with_rls,
+          has_table_privilege('service_role', 'public.media_assets', 'DELETE') AS service_may_delete,
+          has_column_privilege('anon', 'public.media_assets', 'uploaded_by', 'SELECT') AS anon_sees_uploader;
+   ```
+   → `2`, `false`, `false`. Until it is applied, the media library shows the database's error.
 
 **Undo.** The rollback at the end of the file, only before the first real story: stories are the
 newsroom's record and are never dropped after that. desk-3's undo is to run desk-2 again; desk-4's
-is to drop its function (at the end of its file).
+is to drop its function, and desk-5's to drop its two tables, before the first real image (each at
+the end of its file).
 
 #### Granting the first Desk roles, until Panel 1
 
@@ -1406,10 +1453,13 @@ phases were done:
    so no `PREVIEW_SECRET`, PR #24), and scheduled publishing (the worker's `publish-scheduled` job and
    its 5-minute timer in `deploy/`, PR #25), and corrections (PR #26; the owner applied desk-3 on 17
    Nov 2026), and the Desk's alert list for takedowns (PR #27), which completes M3's code. M4
-   (approved by the owner, 18 Nov 2026): authors and a story's credits are on `panel-2-desk-bylines`,
-   with one owner SQL step (desk-4, "The Desk (Panel 2): applying its tables", step 5); the media
-   library follows, and needs the manager's S3, IAM and CloudFront `/media/*` work. Panel 1 will be
-   built on `panel-1-administration`.
+   (approved by the owner, 18 Nov 2026): authors and a story's credits were merged (PR #28; the
+   owner applied desk-4 on 18 Nov 2026), and the image fixed for the editor package (PR #29). The
+   media library's first part (upload, the record and its rights, S3 or a local folder) is on
+   `panel-2-desk-media`, with one owner SQL step (desk-5, "The Desk (Panel 2): applying its
+   tables", step 6); on the server it needs the manager's
+   [media steps](#the-desks-images-panel-2-after-the-release). The renditions and images in stories
+   follow. Panel 1 will be built on `panel-1-administration`.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

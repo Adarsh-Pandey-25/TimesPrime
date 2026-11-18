@@ -498,8 +498,8 @@ and #18) and the two-person restore. M1 is complete. M2's code is complete (the 
 Desk's screens, the story's revisions on screen); the Hindi typing check still closes it. M3's code
 is complete: the reader's story page (PR #23), the preview in the back office (decision 7, PR #24),
 scheduled publishing (PR #25), corrections (PR #26) and the takedown alert list (PR #27). M4 is
-under way (approved by the owner, 18 Nov 2026): authors and a story's credits are built (below);
-the media library follows. Started before Panel 1 at the owner's request (17 Nov 2026);
+under way (approved by the owner, 18 Nov 2026): authors and a story's credits (PR #28) and the
+media library's first part are built (below); renditions and images in stories follow. Started before Panel 1 at the owner's request (17 Nov 2026);
 [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -521,11 +521,14 @@ the media library follows. Started before Panel 1 at the owner's request (17 Nov
   - `alerts`: GET, the takedowns of the last 30 days in the caller's desks;
   - `authors`: GET (the list) and POST (a new author); `authors/[id]`: PATCH (edit, retire, bring
     back);
-  - `stories/[id]/credits`: POST, the story's credits, before publication.
+  - `stories/[id]/credits`: POST, the story's credits, before publication;
+  - `media`: GET (the library, in the caller's desks) and POST (an upload); `media/[id]`: PATCH (its
+    record, rights, retiring).
 
   The screens (M2): `/admin/desk` (the list), `/admin/desk/new` and `/admin/desk/[id]` (the story),
   linked from the back office's top bar; (M3) `/admin/desk/[id]/preview`, the story's preview; and
-  (M4) `/admin/desk/authors`, the authors.
+  (M4) `/admin/desk/authors`, the authors, and `/admin/desk/media`, the media library. Each app
+  also answers `/media/...` from the local media folder on a laptop (404 on the server).
 
   The reader's story pages (M3): `/{section}/{slug}-{number}` in English and
   `/hi/{section}/{slug}-{number}` in Hindi, where the number is the story's `public_id`.
@@ -547,6 +550,10 @@ the media library follows. Started before Panel 1 at the owner's request (17 Nov
   - authors and credits: `packages/server/src/repositories/authors.ts`, `listCredits` and
     `setCredits` in `stories.ts`, the routes' checks in `apps/admin/src/app/api/admin/desk/_lib/authors.ts`,
     and the screens `AuthorsManager.tsx` and `CreditsPanel.tsx`;
+  - the media library: `packages/shared/src/config/media.ts` (types, limits, keys),
+    `packages/server/src/lib/mediaStorage.ts` (S3 or a folder, one interface),
+    `packages/server/src/repositories/media.ts`, the routes' checks in `_lib/media.ts`, and the
+    screen `MediaLibrary.tsx`;
   - `packages/server/src/auth/decide.ts`: the Own code;
   - `database/migrations/2026-11-17-desk-1-stories.sql`;
   - the routes in `apps/admin/src/app/api/admin/desk/`, with their shared steps in
@@ -708,12 +715,34 @@ aggregator's `articles` and its 7-day purge.
     (`credits`): `desk_set_credits`, migration desk-4, an owner step. Audited (`story.credits`).
   - **What readers see:** the reader's page and the Desk's preview credit the active authors, by
     their name in the story's language ("By Asha Rao and Vikram Singh"; Hindi names on a Hindi story).
+- **Built (M4, second part): the media library's first part** (design §2 and §7).
+  - **Upload** (`/admin/desk/media`, linked from the Desk): an image of up to 15 MB for a desk
+    (language and section), by whoever may edit stories there (`article.edit`; a Writer's Own covers
+    their own uploads). Its type is read from its first bytes (JPEG, PNG, WebP, AVIF only), never from
+    its name. It is kept under a new random key (`originals/<uuid>.<ext>`), with what is known: credit,
+    source, licence and its end date, alt text and caption in English and in Hindi. Audited
+    (`media.upload`).
+  - **The record and its rights** (`media.manage`: the Managing Editor, a Desk Editor in the image's
+    desk): edit the record; clear the rights, which needs a credit, a source and a licence and names
+    who cleared them and when; changing the credit, source or licence voids a clearance; retire an
+    image or bring it back. Never deleted. Audited (`media.update`, before and after).
+  - **Storage, one interface:** S3 when `MEDIA_BUCKET` is set (the server: the Mumbai bucket, files
+    under `media/`, served by CloudFront's `/media/*` at `MEDIA_PUBLIC_BASE`), else a local folder
+    (`.media`, or `MEDIA_LOCAL_DIR`) that each app serves at `/media` on a laptop. Only the library's
+    key shapes ever reach the bucket or a path.
+  - **In the database:** `media_assets` and `asset_usages` (migration desk-5, an owner step): each
+    image in one desk, the app's limits as CHECKs, no DELETE, usages append-only; readers see only
+    an image a live story's published revision uses, never who uploaded or cleared it.
+  - **Packages** (approved by the owner, 18 Nov 2026): `@aws-sdk/client-s3` 3.1161.0 and `sharp`
+    0.35.5 (for the renditions, next), both pinned and more than two weeks old; `npm audit` is
+    unchanged by them.
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
-  - the media library, images in stories and authors' photos (M4's next parts), and linking an
-    author to a staff account (Panel 1's staff directory).
+  - the renditions (the worker, with sharp), images in stories, on the reader's page and in the
+    checklist, and authors' photos (M4's next parts);
+  - linking an author to a staff account (Panel 1's staff directory).
 
 #### Access permissions and authorization rules
 
@@ -723,6 +752,8 @@ Each action's permission is in the [design's workflow table](#3-workflow), mirro
 - **Own for a Writer:** only stories they created.
 - **Two people for a restore:** the matrix's A.
 - **Two people for a Sub-editor's correction:** the matrix's A; a holder of S or F decides.
+- **Images belong to a desk:** uploading needs `article.edit` there (the uploader owns the upload, for
+  a Writer's Own); an image's record, rights and retirement need `media.manage` in its desk.
 - **Authors belong to no desk:** `author.manage` is decided in any scope in which the caller holds
   it, which is the matrix's F for a Desk Editor. As a site-wide object an author would admit only
   unscoped grants, and a Desk Editor always has a language. Writing a story's credits rides on
@@ -742,7 +773,8 @@ embargo 409.
 | `database/migrations/2026-11-17-desk-1-stories.sql` | The ten Desk tables, the append-only triggers, the three `desk_*` functions, RLS and column grants for readers | In the file; only before the first real story | **Yes, 17 Nov 2026**, checks passed |
 | `database/migrations/2026-11-17-desk-2-restore.sql` | One open request per story and action; `desk_decide_pending`, which decides a restore and puts the story back live in one transaction | In the file | **Yes, 17 Nov 2026**, checks passed |
 | `database/migrations/2026-11-17-desk-3-corrections.sql` | `desk_decide_pending` decides a correction request too: approved, the live story's note is the request's, with its history row, in one transaction | Run desk-2 again | **Yes, 17 Nov 2026**, checks passed (`decides_corrections` true, `anon_may_call` false) |
-| `database/migrations/2026-11-18-desk-4-credits.sql` | `desk_set_credits`: a story's credits replaced, in order, each naming an active author, before publication only; an approved story back to desk review; its history row; one transaction | Drop the function (in the file) | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 5) |
+| `database/migrations/2026-11-18-desk-4-credits.sql` | `desk_set_credits`: a story's credits replaced, in order, each naming an active author, before publication only; an approved story back to desk review; its history row; one transaction | Drop the function (in the file) | **Yes, 18 Nov 2026**, checks passed (`service_may_call` true, `anon_may_call` false) |
+| `database/migrations/2026-11-18-desk-5-media.sql` | `media_assets` and `asset_usages`: an image's desk, record and rights; usages per revision; RLS, no DELETE, readers only for live stories' images | Drop both tables (in the file), before the first real image | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 6) |
 
 #### Tests and verification
 
@@ -785,10 +817,16 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** M4's media library, which needs the manager's S3 bucket, IAM and CloudFront `/media/*`
-  work (design §9, item 6) before it can store an image. The Hindi typing check still closes M2.
-- **Until the owner applies desk-4,** saving a story's credits fails with the database's refusal;
-  authors can be added and edited already.
+- **Next:** the renditions (the worker, with sharp), then images in stories. The Hindi typing check
+  still closes M2.
+- **Until the owner applies desk-5,** the media library answers with the database's error.
+- **On the server, images need the manager's AWS work first** (design §9, item 6; OPERATIONS.md):
+  the bucket, the role's access, CloudFront's `/media/*` ("The Desk's images"). Until then
+  `MEDIA_BUCKET` and `MEDIA_PUBLIC_BASE` stay unset, and an upload on the server fails (the container
+  has no folder it may write): audited as failed, nothing kept.
+- **An image's file is public at its address once uploaded** (CloudFront serves `/media/*`, design
+  §7; the library shows the originals). The address holds a random UUID, so it is found only through
+  the library or a published story; the database still hides the record from readers.
 - **Deciding a correction passes the decide route's own gate first,** `article.restore` (A or
   better): every holder of `correction.publish` at S or F holds it today (Desk Editor, Managing
   Editor). A future role with the one but not the other would need the rule changed.
