@@ -36,6 +36,7 @@ test.describe("signed out", () => {
     ["GET", "/api/admin/desk/authors"],
     ["GET", "/api/admin/desk/media"],
     ["POST", "/api/admin/desk/media"],
+    ["GET", "/api/admin/desk/media/00000000-0000-4000-8000-000000000001/original"],
     ["POST", "/api/admin/desk/stories/00000000-0000-4000-8000-000000000001/publish"],
   ]) {
     test(`${method} ${path} answers 401 and changes nothing`, async ({ request }) => {

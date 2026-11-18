@@ -33,6 +33,78 @@ export function isMediaKey(key: string): boolean {
   return ORIGINAL_KEY.test(key) || RENDITION_KEY.test(key);
 }
 
+/**
+ * The renditions (design §7): what readers are served. The worker makes them from each original
+ * with sharp, every RENDITIONS_TICK_MINUTES: three crops, each at a few widths, in AVIF and WebP,
+ * never wider than the picture itself, and without the camera's metadata (EXIF can say where a
+ * photo was taken). The originals keep it, so only staff see them, through the back office.
+ */
+export const RENDITION_RATIOS = { "16x9": [16, 9], "4x3": [4, 3], "1x1": [1, 1] } as const;
+export type RenditionRatio = keyof typeof RENDITION_RATIOS;
+
+/** The widths of each crop: the lead picture up to twice a story's column, the square for thumbnails. */
+export const RENDITION_WIDTHS: Record<RenditionRatio, readonly number[]> = {
+  "16x9": [480, 960, 1440],
+  "4x3": [480, 960],
+  "1x1": [240, 480],
+};
+
+export const RENDITION_FORMATS = ["avif", "webp"] as const;
+export type RenditionFormat = (typeof RENDITION_FORMATS)[number];
+
+/** A picture narrower than this, once cropped, gets no rendition: the library cannot use it. */
+export const RENDITION_MIN_WIDTH = 32;
+
+/** The worker's timer: every 5 minutes (deploy/systemd/timesprime-renditions.timer; a test keeps them equal). */
+export const RENDITIONS_TICK_MINUTES = 5;
+
+/** One rendition, as media_assets.renditions lists it. */
+export interface Rendition {
+  key: string;
+  ratio: RenditionRatio;
+  format: RenditionFormat;
+  width: number;
+  height: number;
+  bytes: number;
+}
+
+export function renditionKey(id: string, ratio: RenditionRatio, width: number, format: RenditionFormat): string {
+  return `renditions/${id}/${ratio}-${width}.${format}`;
+}
+
+/**
+ * The widths to make of one crop, for a picture `width` by `height` once turned upright: those in
+ * RENDITION_WIDTHS the crop can fill, or, when it fills none, one at the crop's own width; none
+ * when that is under RENDITION_MIN_WIDTH.
+ */
+export function renditionWidths(ratio: RenditionRatio, width: number, height: number): number[] {
+  const [w, h] = RENDITION_RATIOS[ratio];
+  const crop = Math.floor(Math.min(width, (height * w) / h));
+  const fits = RENDITION_WIDTHS[ratio].filter((size) => size <= crop);
+  if (fits.length > 0) return [...fits];
+  return crop >= RENDITION_MIN_WIDTH ? [crop] : [];
+}
+
+/** A crop's height at a width. */
+export function renditionHeight(ratio: RenditionRatio, width: number): number {
+  const [w, h] = RENDITION_RATIOS[ratio];
+  return Math.round((width * h) / w);
+}
+
+/** Where an image's renditions stand: not made yet, made, or not possible (the file is unusable). */
+export type RenditionsState = "waiting" | "ready" | "failed";
+
+export function renditionsState(row: { renditions_at: string | null; renditions: readonly unknown[] }): RenditionsState {
+  if (!row.renditions_at) return "waiting";
+  return row.renditions.length > 0 ? "ready" : "failed";
+}
+
+/** The rendition the library's tile shows: the 4:3 WebP at 480, or the nearest 4:3 WebP there is. */
+export function previewRendition(renditions: readonly Rendition[]): Rendition | null {
+  const tiles = renditions.filter((r) => r.ratio === "4x3" && r.format === "webp").sort((a, b) => a.width - b.width);
+  return tiles.find((r) => r.width >= 480) ?? tiles.at(-1) ?? null;
+}
+
 /** The type a file's first bytes show it to be, or null for anything that is not one of the four. */
 export function sniffMediaType(head: Uint8Array): MediaType | null {
   const at = (offset: number, bytes: number[]) => bytes.every((b, i) => head[offset + i] === b);

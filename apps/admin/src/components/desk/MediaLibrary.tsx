@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { STORY_LANGUAGES } from "@timesprime/shared/config/desk";
-import { MEDIA_MAX_BYTES, MEDIA_SOURCES, MEDIA_TEXT_MAX, MEDIA_TYPES, type MediaSource } from "@timesprime/shared/config/media";
+import { MEDIA_MAX_BYTES, MEDIA_SOURCES, MEDIA_TEXT_MAX, MEDIA_TYPES, RENDITIONS_TICK_MINUTES, type MediaSource, type RenditionsState } from "@timesprime/shared/config/media";
 import { SECTION_IDS } from "@timesprime/shared/config/sections";
 import { canAct, deskCall, useAdminMe, when } from "./deskClient";
 
@@ -11,11 +11,14 @@ import { canAct, deskCall, useAdminMe, when } from "./deskClient";
 // whoever may edit stories (article.edit, in the desk the image is for), and for a holder of
 // media.manage the record's credit, licence, alt text and captions, clearing its rights, and
 // retiring it. Publishing will ask every image a story uses for a credit, a source, a licence,
-// cleared rights, and alt text and a caption in the story's language.
+// cleared rights, and alt text and a caption in the story's language. Readers get the renditions the
+// worker makes; the original, with the camera's metadata, opens only here, for staff.
 
 interface Media {
   id: string;
   url: string;
+  original_url: string;
+  renditions_state: RenditionsState;
   language: "en" | "hi";
   section: string;
   credit: string | null;
@@ -46,6 +49,11 @@ interface Form {
 
 const EMPTY: Form = { credit: "", source: "", licence: "", licence_expires_at: "", alt_en: "", alt_hi: "", caption_en: "", caption_hi: "" };
 const SOURCE_LABELS: Record<MediaSource, string> = { staff: "Staff", agency: "Agency", stock: "Stock", handout: "Handout", social: "Social media" };
+const RENDITIONS_LABELS: Record<RenditionsState, string> = {
+  waiting: `Sizes for readers: on the way (within ${RENDITIONS_TICK_MINUTES} minutes)`,
+  ready: "Sizes for readers: made",
+  failed: "Sizes for readers: could not be made from this file. Upload it again.",
+};
 const field = "mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
 const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
 
@@ -210,6 +218,10 @@ export default function MediaLibrary() {
               <p>{m.credit ?? <span className="text-slate-500">No credit yet</span>}{m.source ? ` · ${SOURCE_LABELS[m.source]}` : ""}</p>
               <p className={`text-xs font-bold ${m.rights_cleared_at ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"}`}>
                 {m.rights_cleared_at ? `Rights cleared ${when(m.rights_cleared_at)}` : "Rights not cleared"}
+              </p>
+              <p className={`text-xs ${m.renditions_state === "failed" ? "font-bold text-red-700 dark:text-red-300" : "text-slate-500"}`}>
+                {RENDITIONS_LABELS[m.renditions_state]}{" "}
+                <a href={m.original_url} target="_blank" rel="noopener" className="text-blue-700 hover:underline dark:text-blue-300">Original</a>
               </p>
               {manage && editing === m.id ? (
                 <form onSubmit={(e) => { e.preventDefault(); void change(m, { ...form }, "Image saved."); }} aria-label="Edit the image" className="grid gap-2">

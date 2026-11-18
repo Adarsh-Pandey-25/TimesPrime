@@ -1,0 +1,15 @@
+# The server's timer for the Desk's image renditions: every 5 minutes, two minutes after each
+# scheduled-publishing tick so the two do not start together (RENDITIONS_TICK_MINUTES in
+# packages/shared/src/config/media.ts, which a test keeps equal). An upload has its renditions
+# within about five minutes.
+
+[Unit]
+Description=TimesPrime image renditions, every 5 minutes
+
+[Timer]
+OnCalendar=*:2/5
+Persistent=true
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

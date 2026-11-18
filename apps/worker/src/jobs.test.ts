@@ -8,6 +8,7 @@
 jest.mock("@timesprime/server/services/news/refreshNews", () => ({ refreshNews: jest.fn() }));
 jest.mock("@timesprime/server/services/news/refreshDryRun", () => ({ dryRunRefresh: jest.fn() }));
 jest.mock("@timesprime/server/services/desk/scheduler", () => ({ publishDueStories: jest.fn() }));
+jest.mock("@timesprime/server/services/desk/renditions", () => ({ makePendingRenditions: jest.fn() }));
 
 import fs from "fs";
 import os from "os";
@@ -18,6 +19,7 @@ import { JOBS, runJob } from "./jobs";
 const { refreshNews } = jest.requireMock("@timesprime/server/services/news/refreshNews") as { refreshNews: jest.Mock };
 const { dryRunRefresh } = jest.requireMock("@timesprime/server/services/news/refreshDryRun") as { dryRunRefresh: jest.Mock };
 const { publishDueStories } = jest.requireMock("@timesprime/server/services/desk/scheduler") as { publishDueStories: jest.Mock };
+const { makePendingRenditions } = jest.requireMock("@timesprime/server/services/desk/renditions") as { makePendingRenditions: jest.Mock };
 const result = (failed: number) => ({ ok: true, result: { refreshed: 7 - failed, failed, purged: 0, timestamp: "t", details: [] } });
 
 const env = { ...process.env };
@@ -134,7 +136,7 @@ describe("refresh-news-dry-run", () => {
 });
 
 test("the job list is exactly the jobs the worker may start", () => {
-  expect(Object.keys(JOBS)).toEqual(["refresh-news", "refresh-news-dry-run", "publish-scheduled"]);
+  expect(Object.keys(JOBS)).toEqual(["refresh-news", "refresh-news-dry-run", "publish-scheduled", "make-renditions"]);
 });
 
 // Panel 2 (design §6): the Desk's scheduled stories, every 5 minutes.
@@ -162,5 +164,26 @@ describe("publish-scheduled", () => {
     publishDueStories.mockResolvedValue(run());
     await runJob("publish-scheduled");
     expect(refreshNews).not.toHaveBeenCalled();
+  });
+});
+
+// Panel 2 (design §7): the renditions, every RENDITIONS_TICK_MINUTES.
+describe("make-renditions", () => {
+  const run = (over: object = {}) => ({ made: ["m-1"], unusable: [], failed: [], more: false, ...over });
+
+  test("a clean run exits 0, and so does one with an unusable file (the library shows it)", async () => {
+    makePendingRenditions.mockResolvedValue(run());
+    await expect(runJob("make-renditions")).resolves.toBe(0);
+    makePendingRenditions.mockResolvedValue(run({ unusable: [{ id: "m-2", error: "too small" }] }));
+    await expect(runJob("make-renditions")).resolves.toBe(0);
+    expect(console.warn).toHaveBeenCalledWith("unusable: m-2: too small");
+  });
+
+  test("an image left waiting by the storage or the database exits 1, as does an unreadable list", async () => {
+    makePendingRenditions.mockResolvedValue(run({ failed: [{ id: "m-3", error: "S3 is unreachable" }] }));
+    await expect(runJob("make-renditions")).resolves.toBe(1);
+    makePendingRenditions.mockRejectedValue(new Error('relation "media_assets" does not exist'));
+    await expect(runJob("make-renditions")).resolves.toBe(1);
+    expect(console.error).toHaveBeenCalledWith('make-renditions: relation "media_assets" does not exist');
   });
 });

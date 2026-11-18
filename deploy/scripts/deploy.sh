@@ -7,7 +7,8 @@
 # (docs/OPERATIONS.md, Deployment). It:
 #   1. pulls the tag's worker image and copies its deploy kit (this folder) to kits/<tag>;
 #   2. records the tag, and the one it replaces, in release.env (rollback.sh uses that);
-#   3. points current/ at the kit and installs its timers (the news refresh, scheduled publishing),
+#   3. points current/ at the kit and installs its timers (the news refresh, scheduled publishing,
+#      the image renditions),
 #      stopping any timer an older kit installed that this one does not carry;
 #   4. pulls the tag's images and starts them;
 #   5. waits for the reader site and the back office to report healthy.

@@ -26,10 +26,12 @@ jest.mock("@timesprime/server/repositories/auditLog", () => {
   class AuditWriteError extends Error {}
   return { recordAudit: jest.fn(async () => "audit-id"), recordSystemAudit: jest.fn(), AuditWriteError };
 });
-// The media library keeps files through the storage; here a stand-in records what was put.
+// The media library keeps files through the storage; here a stand-in records what was put, and
+// holds one original (a JPEG's first bytes) for the back office to show.
 jest.mock("@timesprime/server/lib/mediaStorage", () => {
   const put = jest.fn(async () => undefined);
-  return { mediaStorage: () => ({ kind: "local", put, get: jest.fn() }), mediaUrl: (key: string) => `/media/${key}`, put };
+  const get = jest.fn(async () => new Uint8Array([0xff, 0xd8, 0xff, 0xe0]));
+  return { mediaStorage: () => ({ kind: "local", put, get }), mediaUrl: (key: string) => `/media/${key}`, put, get };
 });
 jest.mock("@timesprime/server/lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
 jest.mock("@timesprime/server/services/health/health", () => ({
@@ -92,6 +94,7 @@ import * as deskAuthor from "./desk/authors/[id]/route";
 import * as deskCredits from "./desk/stories/[id]/credits/route";
 import * as deskMedia from "./desk/media/route";
 import * as deskMediaOne from "./desk/media/[id]/route";
+import * as deskMediaOriginal from "./desk/media/[id]/original/route";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
 
@@ -929,10 +932,14 @@ const MEDIA_PATCH: Case = {
   path: "/api/admin/desk/media/[id]", method: "PATCH", handler: withId(deskMediaOne.PATCH, { id: MEDIA_ID }), body: { credit: "Photo: Asha Rao" },
   allowed: HI_DESK, wrongScope: EN_DESK, data: { media_assets: { data: MEDIA_ROW, error: null } }, changes: true,
 };
-CASES.push(MEDIA_GET, MEDIA_POST, MEDIA_PATCH);
+const MEDIA_ORIGINAL: Case = {
+  path: "/api/admin/desk/media/[id]/original", method: "GET", handler: withId(deskMediaOriginal.GET, { id: MEDIA_ID }),
+  allowed: HI_WRITER, wrongScope: EN_WRITER, data: { media_assets: { data: MEDIA_ROW, error: null } }, changes: false,
+};
+CASES.push(MEDIA_GET, MEDIA_POST, MEDIA_PATCH, MEDIA_ORIGINAL);
 
 describe("the media library (Panel 2 design §7)", () => {
-  const { put } = jest.requireMock("@timesprime/server/lib/mediaStorage") as { put: jest.Mock };
+  const { put, get } = jest.requireMock("@timesprime/server/lib/mediaStorage") as { put: jest.Mock; get: jest.Mock };
   async function call(c: Case, over: Partial<Case>, caller: Grantee, data: Case["data"] = c.data) {
     tables = { ...(data ?? {}) };
     signIn("allowed", { ...c, allowed: caller });
@@ -955,7 +962,31 @@ describe("the media library (Panel 2 design §7)", () => {
       ["media.upload", "attempted"],
       ["media.upload", "succeeded"],
     ]);
-    expect(r.json.media.url).toBe("/media/" + MEDIA_ROW.storage_key);
+    // No renditions yet: the tile shows the original, through the back office only.
+    expect(r.json.media).toMatchObject({ url: `/api/admin/desk/media/${MEDIA_ID}/original`, original_url: `/api/admin/desk/media/${MEDIA_ID}/original`, renditions_state: "waiting" });
+  });
+
+  test("once the worker has made renditions, the tile shows the 4:3 WebP one, never the original's file", async () => {
+    const tile = { key: `renditions/${MEDIA_ID}/4x3-480.webp`, ratio: "4x3", format: "webp", width: 480, height: 360, bytes: 9 };
+    const made = { media_assets: { data: [{ ...MEDIA_ROW, renditions_at: "2026-11-18T09:05:00Z", renditions: [{ ...tile, format: "avif", key: tile.key.replace("webp", "avif") }, tile] }], error: null, count: 1 } };
+    const r = await call(MEDIA_GET, {}, HI_WRITER, made);
+    expect(r.json.media[0]).toMatchObject({ url: "/media/" + tile.key, renditions_state: "ready" });
+    const failed = { media_assets: { data: [{ ...MEDIA_ROW, renditions_at: "2026-11-18T09:05:00Z", renditions: [] }], error: null, count: 1 } };
+    expect((await call(MEDIA_GET, {}, HI_WRITER, failed)).json.media[0]).toMatchObject({ url: `/api/admin/desk/media/${MEDIA_ID}/original`, renditions_state: "failed" });
+  });
+
+  test("the original goes to staff in the image's desk only: its bytes and type, kept by no shared cache", async () => {
+    tables = { ...(MEDIA_ORIGINAL.data ?? {}) };
+    signIn("allowed", MEDIA_ORIGINAL);
+    const res = await MEDIA_ORIGINAL.handler(request(MEDIA_ORIGINAL));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    expect(res.headers.get("cache-control")).toBe("private, max-age=600");
+    expect(Array.from(new Uint8Array(await res.arrayBuffer()))).toEqual([0xff, 0xd8, 0xff, 0xe0]);
+    expect(get).toHaveBeenCalledWith(MEDIA_ROW.storage_key);
+    expect((await call(MEDIA_ORIGINAL, {}, HI_WRITER, { media_assets: { data: null, error: null } })).status).toBe(404);
+    get.mockResolvedValueOnce(null);
+    expect((await call(MEDIA_ORIGINAL, {}, HI_WRITER)).status).toBe(404);
   });
 
   test("the type is read from the file's bytes: a GIF named .jpg, no file, or no desk is refused, and nothing is kept", async () => {

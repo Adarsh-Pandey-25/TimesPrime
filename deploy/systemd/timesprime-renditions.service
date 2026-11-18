@@ -1,0 +1,16 @@
+# One tick of the Desk's image renditions (Panel 2, design §7): runs the worker's make-renditions
+# job, which makes the crops and sizes of every library image that has none yet, and exits. An image
+# left waiting by a storage or database failure exits 1, which the journal and the worker's log
+# group record. Installed by deploy/scripts/deploy.sh into /etc/systemd/system.
+
+[Unit]
+Description=TimesPrime image renditions (one tick)
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/timesprime/current
+ExecStart=/usr/bin/docker compose --env-file /opt/timesprime/release.env --profile jobs run --rm worker make-renditions
+# Under the timer's 5 minutes; a run starts no new image after 180 s (RENDITIONS_BUDGET_MS).
+TimeoutStartSec=240

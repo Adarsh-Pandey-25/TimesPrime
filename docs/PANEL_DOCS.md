@@ -498,8 +498,8 @@ and #18) and the two-person restore. M1 is complete. M2's code is complete (the 
 Desk's screens, the story's revisions on screen); the Hindi typing check still closes it. M3's code
 is complete: the reader's story page (PR #23), the preview in the back office (decision 7, PR #24),
 scheduled publishing (PR #25), corrections (PR #26) and the takedown alert list (PR #27). M4 is
-under way (approved by the owner, 18 Nov 2026): authors and a story's credits (PR #28) and the
-media library's first part are built (below); renditions and images in stories follow. Started before Panel 1 at the owner's request (17 Nov 2026);
+under way (approved by the owner, 18 Nov 2026): authors and a story's credits (PR #28), the
+media library's first part (PR #30) and its renditions are built (below); images in stories follow. Started before Panel 1 at the owner's request (17 Nov 2026);
 [the design](#panel-2-design-the-desk-publisher) is approved.
 
 #### Panel
@@ -523,12 +523,13 @@ media library's first part are built (below); renditions and images in stories f
     back);
   - `stories/[id]/credits`: POST, the story's credits, before publication;
   - `media`: GET (the library, in the caller's desks) and POST (an upload); `media/[id]`: PATCH (its
-    record, rights, retiring).
+    record, rights, retiring); `media/[id]/original`: GET (the original file, for staff in its desk).
 
   The screens (M2): `/admin/desk` (the list), `/admin/desk/new` and `/admin/desk/[id]` (the story),
   linked from the back office's top bar; (M3) `/admin/desk/[id]/preview`, the story's preview; and
   (M4) `/admin/desk/authors`, the authors, and `/admin/desk/media`, the media library. Each app
-  also answers `/media/...` from the local media folder on a laptop (404 on the server).
+  also answers `/media/renditions/...` from the local media folder on a laptop (404 on the server,
+  and for an original anywhere).
 
   The reader's story pages (M3): `/{section}/{slug}-{number}` in English and
   `/hi/{section}/{slug}-{number}` in Hindi, where the number is the story's `public_id`.
@@ -554,6 +555,10 @@ media library's first part are built (below); renditions and images in stories f
     `packages/server/src/lib/mediaStorage.ts` (S3 or a folder, one interface),
     `packages/server/src/repositories/media.ts`, the routes' checks in `_lib/media.ts`, and the
     screen `MediaLibrary.tsx`;
+  - the renditions: `packages/server/src/services/desk/renditions.ts` (with sharp), the worker's
+    `make-renditions` job in `apps/worker/src/jobs.ts`, started by
+    `deploy/systemd/timesprime-renditions.timer`; the original's route,
+    `apps/admin/src/app/api/admin/desk/media/[id]/original/route.ts`;
   - `packages/server/src/auth/decide.ts`: the Own code;
   - `database/migrations/2026-11-17-desk-1-stories.sql`;
   - the routes in `apps/admin/src/app/api/admin/desk/`, with their shared steps in
@@ -727,21 +732,40 @@ aggregator's `articles` and its 7-day purge.
     who cleared them and when; changing the credit, source or licence voids a clearance; retire an
     image or bring it back. Never deleted. Audited (`media.update`, before and after).
   - **Storage, one interface:** S3 when `MEDIA_BUCKET` is set (the server: the Mumbai bucket, files
-    under `media/`, served by CloudFront's `/media/*` at `MEDIA_PUBLIC_BASE`), else a local folder
-    (`.media`, or `MEDIA_LOCAL_DIR`) that each app serves at `/media` on a laptop. Only the library's
-    key shapes ever reach the bucket or a path.
+    under `media/`), else a local folder (`.media`, or `MEDIA_LOCAL_DIR`). Only the library's key
+    shapes ever reach the bucket or a path. What is served to whom is in the third part, below.
   - **In the database:** `media_assets` and `asset_usages` (migration desk-5, an owner step): each
     image in one desk, the app's limits as CHECKs, no DELETE, usages append-only; readers see only
     an image a live story's published revision uses, never who uploaded or cleared it.
   - **Packages** (approved by the owner, 18 Nov 2026): `@aws-sdk/client-s3` 3.1161.0 and `sharp`
-    0.35.5 (for the renditions, next), both pinned and more than two weeks old; `npm audit` is
+    0.35.5 (for the renditions), both pinned and more than two weeks old; `npm audit` is
     unchanged by them.
+- **Built (M4, third part): the renditions, and the originals kept private** (design §7).
+  - **The worker's `make-renditions` job,** every 5 minutes (`timesprime-renditions.timer`, two
+    minutes after scheduled publishing): the images with no renditions yet, oldest first, 20 a run,
+    no new one started after 180 s. For each, the original from the storage, turned upright by its
+    EXIF, then three crops (16:9 at 480, 960 and 1440; 4:3 at 480 and 960; 1:1 at 240 and 480), each
+    in AVIF and WebP, cut with sharp's attention strategy (faces and detail stay in the frame). Never
+    wider than the picture: a small one gets one rendition per crop at its own width. Kept under
+    `renditions/<id>/<ratio>-<width>.<format>` and listed on the image (`renditions`, `renditions_at`,
+    and its upright `width` and `height`).
+  - **No camera metadata reaches readers.** sharp writes none unless asked, so a rendition has no
+    EXIF (which can hold where a photo was taken, and who took it). The original keeps it, so it is
+    never served publicly: CloudFront serves `/media/renditions/*` alone, each app's `/media` route
+    serves only renditions, and `mediaUrl` refuses an original's key. Staff see an original through
+    `GET /api/admin/desk/media/[id]/original` (`article.view_admin` in its desk, cached privately).
+  - **The library** shows each image's 4:3 WebP rendition once made (else the original, through the
+    back office), whether its sizes for readers are made, on the way or failed, and a link to the
+    original.
+  - **A file sharp cannot read or convert, or a picture under 32 pixels once cropped,** is recorded
+    with no renditions: not tried again, shown as failed (upload it again). A storage or database
+    failure leaves the image waiting for the next run, which exits 1 so the journal shows it.
 - **Not yet:**
   - assigning a writer from the screen, which needs a staff directory (Panel 1; the API exists);
   - the Hindi typing checkpoint (OPERATIONS.md, "The Desk's Hindi typing check"), which needs the
     owner's two typists;
-  - the renditions (the worker, with sharp), images in stories, on the reader's page and in the
-    checklist, and authors' photos (M4's next parts);
+  - images in stories, on the reader's page and in the pre-publish checklist, and authors' photos
+    (M4's last parts);
   - linking an author to a staff account (Panel 1's staff directory).
 
 #### Access permissions and authorization rules
@@ -753,7 +777,8 @@ Each action's permission is in the [design's workflow table](#3-workflow), mirro
 - **Two people for a restore:** the matrix's A.
 - **Two people for a Sub-editor's correction:** the matrix's A; a holder of S or F decides.
 - **Images belong to a desk:** uploading needs `article.edit` there (the uploader owns the upload, for
-  a Writer's Own); an image's record, rights and retirement need `media.manage` in its desk.
+  a Writer's Own); an image's record, rights and retirement need `media.manage` in its desk; its original is
+  shown to holders of `article.view_admin` in its desk, never to readers.
 - **Authors belong to no desk:** `author.manage` is decided in any scope in which the caller holds
   it, which is the matrix's F for a Desk Editor. As a site-wide object an author would admit only
   unscoped grants, and a Desk Editor always has a language. Writing a story's credits rides on
@@ -785,7 +810,7 @@ embargo 409.
 | `packages/server/src/auth/decide.test.ts` | Own allows the caller's own story in scope | Another's story, an ownerless one, one out of scope |
 | `packages/server/src/repositories/stories.test.ts` | Writes go through the `desk_*` functions; lists stay in scope | A malformed scope matches nothing; a moved story answers 409 |
 | `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds, opens with no unsaved changes, and keeps unsaved text when the details are saved; two revisions compared field by field and word by word; a revision brought back fills the editor, and only Save sends it, as a new revision; a live story links to its page; the preview opens in a new tab and shows the last saved version in the reader's view, in Hindi for a Hindi story, and says when it is the live version; the schedule field says when the server publishes; a Desk Editor publishes a correction and sees the note readers see; a Sub-editor asks for one; an open correction request names itself, and approving it publishes the note | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only, and no Bring back); a story not found; unsaved changes kept when bringing one back is declined; no link before publication; the preview showing the server's refusal, and a story with no text; no Correction section without `correction.publish` |
-| `e2e/admin-access.spec.ts` | Signed out, `/admin/desk`, a story's screen and its preview go to sign-in; three Desk API calls answer 401 | (all refused) |
+| `e2e/admin-access.spec.ts` | Signed out, `/admin/desk`, a story's screen, its preview, the authors and the media library go to sign-in; the Desk API calls answer 401, an image's original among them | (all refused) |
 | `packages/server/src/repositories/stories.test.ts` (`getPublishedStory`) | One published story past its embargo, with the reader's columns only; the published revision; active bylines in order, in the story's language | No such story; another story's row; a draft; a story taken down; one under embargo; a revision that is not the published one, or another story's; a number that cannot be a story; a database error (thrown, not a 404) |
 | `packages/editor/src/render.test.tsx` | Every block of the design, drawn by the schema; a site link followed, an https one nofollow; Hindi text as it is; every node and mark of the schema draws only allowed tags | `javascript:`, `data:` and plain-http links; an embed from another site; unknown nodes, marks and attributes; markup in the text (escaped); anything but a document; nesting past the limit; no h1 |
 | `packages/shared/src/lib/storyUrl.test.ts` (Desk) | The English and Hindi addresses, and the number read back from them | A segment with no number, a zero, a leading zero, too many digits |
@@ -810,6 +835,14 @@ embargo 409.
 | `packages/server/src/repositories/authors.test.ts`, `stories.test.ts` (credits) | The list by English name, retired only on request; create and update as given; credits listed in order with names, set through `desk_set_credits` | Nothing deleted; a database error thrown; a story moved meanwhile (409); a retired author (422) |
 | `packages/server/src/repositories/deskSchema.test.ts` (desk-4) | One transaction; before publication only, from the state read; an approved story back to desk review; credits replaced in order, each an active author, at most 20; the history row | Only `service_role` may call it |
 | `apps/admin/src/components/desk/desk.test.tsx` (authors and credits) | The Authors page lists every author (Hindi names marked) and a manager adds and retires one; credits added in the story's language and saved as one list; the preview credits active authors | Without `author.manage` the list is read-only; a live story's credits shown, not changed; a retired author not credited in the preview |
+| `apps/admin/src/app/api/admin/access.test.ts` (media library) | An upload kept under a new random key, with who, the desk and what is known, audited; rights cleared once credit, source and licence are set, naming who; retiring keeps the image; the tile shows the 4:3 WebP rendition once made, else the original through the back office; the original's bytes and type for staff in its desk, cached privately | A GIF named .jpg, no file, no desk, an unknown source, over 15 MB (nothing kept); clearing rights without credit, source and licence (422); a changed credit, source or licence voids a clearance; a Writer changing an image; an unknown image or a missing file (404); the original out of the desk (403) |
+| `packages/server/src/lib/mediaStorage.test.ts` | A file written is read back under its key's path; S3 under `media/`, cached for a year, Mumbai by default; each app serves renditions at `/media` | Anything but a library key, before a path is built; an original at `/media`, and an original's address (refused); a file not in the bucket is null; the app serves nothing at `/media` on S3 |
+| `packages/server/src/services/desk/renditions.test.ts` | With the real sharp: every crop at its widths in AVIF and WebP, each exactly its size, with no EXIF; a turned picture made upright; a run makes and records each waiting image's renditions | A small picture never enlarged; an unreadable file, a tiny picture or a missing original recorded with none, once; a storage failure leaves the image waiting, nothing recorded; a run's batch and time budget |
+| `packages/shared/src/config/media.test.ts` | Types read from the first bytes; the library's key shapes; each crop's widths; the tile's rendition; where renditions stand | A GIF, an SVG, a PDF, a WAV; a path, an SVG key, an upper-case key, an unknown ratio; a picture too small for any rendition |
+| `packages/server/src/repositories/media.test.ts` | The list in scope, newest first, active only unless asked; create as given; an update with a time; the worker's list, oldest first; renditions recorded once, with the upright size | No scope reads nothing; nothing deleted; a second record of renditions (false); a database error thrown |
+| `packages/server/src/repositories/deskSchema.test.ts` (desk-5) | One transaction; RLS on both tables; the app's limits as CHECKs; readers only for a live story's published revision | No DELETE for anyone, usages never changed; readers never see the uploader, the clearer or the licence |
+| `apps/worker/src/jobs.test.ts` (`make-renditions`), `scripts/deploy.test.ts` (renditions timer) | A clean run exits 0, as does one with an unusable file (logged); the timer fires every `RENDITIONS_TICK_MINUTES` (5), at two past, and its run times out before the next tick | An image left waiting, or an unreadable list, exits 1 |
+| `apps/admin/src/components/desk/desk.test.tsx` (media library) | Each image with its desk, credit, rights, sizes for readers and a link to the original; an upload sent as a form; a manager clears rights and retires | Without `article.edit` no upload, without `media.manage` no changes; sizes on the way, or failed with what to do |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 
 The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
@@ -817,16 +850,20 @@ with the queries at the end of the migration (definition of done, item 7).
 
 #### Known limits and not yet built
 
-- **Next:** the renditions (the worker, with sharp), then images in stories. The Hindi typing check
-  still closes M2.
-- **Until the owner applies desk-5,** the media library answers with the database's error.
+- **Next:** images in stories (the editor, the reader's page, the pre-publish checklist), then
+  authors' photos. The Hindi typing check still closes M2.
+- **Until the owner applies desk-5,** the media library answers with the database's error, and on
+  the server the renditions job fails every 5 minutes (exit 1, in the journal): apply desk-5 before
+  deploying a tag that carries the job.
+- **A failed image is not tried again:** upload the file again (a new image). There is no retry
+  button; a storage failure, unlike a bad file, is retried by the next run.
 - **On the server, images need the manager's AWS work first** (design §9, item 6; OPERATIONS.md):
-  the bucket, the role's access, CloudFront's `/media/*` ("The Desk's images"). Until then
+  the bucket, the role's access, CloudFront's `/media/renditions/*` ("The Desk's images"). Until then
   `MEDIA_BUCKET` and `MEDIA_PUBLIC_BASE` stay unset, and an upload on the server fails (the container
   has no folder it may write): audited as failed, nothing kept.
-- **An image's file is public at its address once uploaded** (CloudFront serves `/media/*`, design
-  §7; the library shows the originals). The address holds a random UUID, so it is found only through
-  the library or a published story; the database still hides the record from readers.
+- **A rendition is public at its address once made,** before any story uses it (CloudFront serves
+  `/media/renditions/*`). The address holds a random UUID, so it is found only through the library or
+  a published story; it carries no camera metadata, and the database hides the record from readers.
 - **Deciding a correction passes the decide route's own gate first,** `article.restore` (A or
   better): every holder of `correction.publish` at S or F holds it today (Desk Editor, Managing
   Editor). A future role with the one but not the other would need the rule changed.
@@ -1811,7 +1848,9 @@ A shared-password session gets 403: "Sign in with your own account to use the De
 - **Storage:**
   - Images go to an **S3 bucket in Mumbai** (the plan), behind one storage interface.
   - The server's role gets put and get on that bucket.
-  - CloudFront serves the files under `/media/*`.
+  - CloudFront serves the files under `/media/*`. *Narrowed in M4 (18 Nov 2026), before any bucket
+    existed:* to `/media/renditions/*`, as the originals keep the camera's metadata; staff see them
+    through the back office.
   - This is the manager's console work, listed in §9.
 - **Renditions:** the worker makes the fixed renditions (16:9, 4:3 and 1:1, in AVIF and WebP) with
   `sharp`, already in the tree through Next.
@@ -1845,7 +1884,8 @@ A shared-password session gets 403: "Sign in with your own account to use the De
    Desk Editor, a Sub-editor and a Writer, from a snippet in the runbook (M1).
 4. **Arrange two Hindi typists** for the editor checkpoint in week 1 of M2.
 5. ~~**Set `PREVIEW_SECRET`** in the web and admin env files (M3).~~ Not needed (decision 7).
-6. **M4: the media bucket,** its IAM permissions and the CloudFront `/media/*` behaviour (manager).
+6. **M4: the media bucket,** its IAM permissions and the CloudFront `/media/renditions/*` behaviour
+   (manager; narrowed from `/media/*`, §7).
 7. **Approve the new dependencies** (question 4) and the access-rule additions (question 2).
 
 ### 10. Tests

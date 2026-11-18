@@ -7,7 +7,7 @@
 
 jest.mock("../lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn() } }));
 
-import { createMedia, getMedia, listMedia, updateMedia } from "./media";
+import { createMedia, getMedia, listMedia, listPendingRenditions, recordRenditions, updateMedia } from "./media";
 import { DeskStoreError } from "./stories";
 
 const { supabase } = jest.requireMock("../lib/supabase") as { supabase: { from: jest.Mock } };
@@ -74,4 +74,36 @@ test("create inserts the record given; an update sets a time and finds no one fo
 test("a database error is thrown", async () => {
   supabase.from.mockReturnValue(query({ data: null, error: { code: "57014", message: "timeout" } }, []));
   await expect(getMedia("m-1")).rejects.toBeInstanceOf(DeskStoreError);
+});
+
+test("the worker's list: images with no renditions yet, oldest first, a batch at a time", async () => {
+  const calls: Array<[string, unknown[]]> = [];
+  supabase.from.mockReturnValue(query({ data: [{ id: "m-1", storage_key: "originals/x.jpg" }], error: null }, calls));
+  expect(await listPendingRenditions(21)).toEqual([{ id: "m-1", storage_key: "originals/x.jpg" }]);
+  expect(calls).toEqual([
+    ["select", ["id, storage_key"]],
+    ["is", ["renditions_at", null]],
+    ["order", ["created_at", { ascending: true }]],
+    ["limit", [21]],
+  ]);
+});
+
+test("renditions are recorded once, with the upright size; a failed image gets none and keeps its size unknown", async () => {
+  const calls: Array<[string, unknown[]]> = [];
+  supabase.from.mockReturnValue(query({ data: { id: "m-1" }, error: null }, calls));
+  const at = new Date("2026-11-18T10:05:00.000Z");
+  const renditions = [{ key: "renditions/x/4x3-480.webp", ratio: "4x3" as const, format: "webp" as const, width: 480, height: 360, bytes: 9 }];
+  expect(await recordRenditions("m-1", { renditions, width: 3000, height: 4000 }, at)).toBe(true);
+  expect(calls).toEqual(
+    expect.arrayContaining([
+      ["update", [{ renditions, renditions_at: "2026-11-18T10:05:00.000Z", width: 3000, height: 4000 }]],
+      ["eq", ["id", "m-1"]],
+      ["is", ["renditions_at", null]],
+    ])
+  );
+
+  const failed: Array<[string, unknown[]]> = [];
+  supabase.from.mockReturnValue(query({ data: null, error: null }, failed));
+  expect(await recordRenditions("m-2", { renditions: [] }, at)).toBe(false);
+  expect(failed.find(([m]) => m === "update")?.[1][0]).toEqual({ renditions: [], renditions_at: "2026-11-18T10:05:00.000Z" });
 });
