@@ -799,7 +799,8 @@ embargo 409.
 | `database/migrations/2026-11-17-desk-2-restore.sql` | One open request per story and action; `desk_decide_pending`, which decides a restore and puts the story back live in one transaction | In the file | **Yes, 17 Nov 2026**, checks passed |
 | `database/migrations/2026-11-17-desk-3-corrections.sql` | `desk_decide_pending` decides a correction request too: approved, the live story's note is the request's, with its history row, in one transaction | Run desk-2 again | **Yes, 17 Nov 2026**, checks passed (`decides_corrections` true, `anon_may_call` false) |
 | `database/migrations/2026-11-18-desk-4-credits.sql` | `desk_set_credits`: a story's credits replaced, in order, each naming an active author, before publication only; an approved story back to desk review; its history row; one transaction | Drop the function (in the file) | **Yes, 18 Nov 2026**, checks passed (`service_may_call` true, `anon_may_call` false) |
-| `database/migrations/2026-11-18-desk-5-media.sql` | `media_assets` and `asset_usages`: an image's desk, record and rights; usages per revision; RLS, no DELETE, readers only for live stories' images | Drop both tables (in the file), before the first real image | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 6) |
+| `database/migrations/2026-11-18-desk-5-media.sql` | `media_assets` and `asset_usages`: an image's desk, record and rights; usages per revision; RLS, no DELETE, readers only for live stories' images | Drop both tables (in the file), before the first real image | **Yes, 18 Nov 2026**: `tables_with_rls` 2 and `anon_sees_uploader` false, but `service_may_delete` **true**: its REVOKE left out `service_role`, so Supabase's default privileges kept the app's DELETE (desk-6 fixes it) |
+| `database/migrations/2026-11-18-desk-6-media-grants.sql` | The fix to desk-5: every right on the media tables taken from `service_role`, then exactly desk-5's grants (no DELETE; usages insert-only) | None needed; desk-5's state was `GRANT ALL ... TO service_role` | **Not yet** (OPERATIONS.md, "The Desk (Panel 2): applying its tables", step 7) |
 
 #### Tests and verification
 
@@ -840,7 +841,8 @@ embargo 409.
 | `packages/server/src/services/desk/renditions.test.ts` | With the real sharp: every crop at its widths in AVIF and WebP, each exactly its size, with no EXIF; a turned picture made upright; a run makes and records each waiting image's renditions | A small picture never enlarged; an unreadable file, a tiny picture or a missing original recorded with none, once; a storage failure leaves the image waiting, nothing recorded; a run's batch and time budget |
 | `packages/shared/src/config/media.test.ts` | Types read from the first bytes; the library's key shapes; each crop's widths; the tile's rendition; where renditions stand | A GIF, an SVG, a PDF, a WAV; a path, an SVG key, an upper-case key, an unknown ratio; a picture too small for any rendition |
 | `packages/server/src/repositories/media.test.ts` | The list in scope, newest first, active only unless asked; create as given; an update with a time; the worker's list, oldest first; renditions recorded once, with the upright size | No scope reads nothing; nothing deleted; a second record of renditions (false); a database error thrown |
-| `packages/server/src/repositories/deskSchema.test.ts` (desk-5) | One transaction; RLS on both tables; the app's limits as CHECKs; readers only for a live story's published revision | No DELETE for anyone, usages never changed; readers never see the uploader, the clearer or the licence |
+| `packages/server/src/repositories/deskSchema.test.ts` (desk-5, desk-6) | One transaction; RLS on both tables; the app's limits as CHECKs; readers only for a live story's published revision; desk-6 takes every right from `service_role` before granting desk-5's | No DELETE for anyone, usages never changed; readers never see the uploader, the clearer or the licence; desk-6 grants no DELETE and leaves readers' rights alone |
+| `packages/server/src/repositories/schema.test.ts` (new tables) | Every table a migration creates has Supabase's default rights taken from `anon`, `authenticated` and `service_role`, in its file or a later one | A table one role keeps its default rights on (desk-5's media tables, without desk-6) |
 | `apps/worker/src/jobs.test.ts` (`make-renditions`), `scripts/deploy.test.ts` (renditions timer) | A clean run exits 0, as does one with an unusable file (logged); the timer fires every `RENDITIONS_TICK_MINUTES` (5), at two past, and its run times out before the next tick | An image left waiting, or an unreadable list, exits 1 |
 | `apps/admin/src/components/desk/desk.test.tsx` (media library) | Each image with its desk, credit, rights, sizes for readers and a link to the original; an upload sent as a form; a manager clears rights and retires | Without `article.edit` no upload, without `media.manage` no changes; sizes on the way, or failed with what to do |
 | `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
@@ -852,9 +854,9 @@ with the queries at the end of the migration (definition of done, item 7).
 
 - **Next:** images in stories (the editor, the reader's page, the pre-publish checklist), then
   authors' photos. The Hindi typing check still closes M2.
-- **Until the owner applies desk-5,** the media library answers with the database's error, and on
-  the server the renditions job fails every 5 minutes (exit 1, in the journal): apply desk-5 before
-  deploying a tag that carries the job.
+- **Until the owner applies desk-6,** the database would let the app delete an image or change a
+  usage (desk-5 left `service_role` its default rights). No code does; desk-6 makes the database
+  refuse it, as it does for the Desk's other tables.
 - **A failed image is not tried again:** upload the file again (a new image). There is no retry
   button; a storage failure, unlike a bad file, is retried by the next run.
 - **On the server, images need the manager's AWS work first** (design §9, item 6; OPERATIONS.md):

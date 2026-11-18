@@ -99,3 +99,39 @@ describe("database/migrations/2026-11-02-indexes.sql (F-018)", () => {
     for (const name of created) expect(runbook).toContain(`DROP INDEX IF EXISTS public.${name};`);
   });
 });
+
+/**
+ * Supabase's default privileges give every new public table's rights to anon, authenticated and
+ * service_role. Each migration that creates a table must take them away from all three (then grant
+ * what is needed), in the same file or a later one. desk-5 left out service_role, so the app kept
+ * DELETE on the media tables until desk-6 (found by the owner's check, 18 Nov 2026).
+ */
+describe("database/migrations: every new table starts from no rights", () => {
+  const dir = path.join(process.cwd(), "database", "migrations");
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
+  // Without comments, so a commented-out line proves nothing.
+  const sql = files.map((f) => fs.readFileSync(path.join(dir, f), "utf8").replace(/--[^\n]*/g, ""));
+  const ROLES = ["anon", "authenticated", "service_role"];
+
+  /** For each file, the tables and roles of its `REVOKE ALL ON <tables> FROM <roles>;` statements. */
+  const revokes = sql.map((text) =>
+    [...text.matchAll(/REVOKE ALL ON\s+((?:public\.\w+\s*,\s*)*public\.\w+)\s+FROM\s+([\w\s,]+);/g)].map((m) => ({
+      tables: m[1].split(",").map((t) => t.trim().replace(/^public\./, "")),
+      roles: m[2].split(",").map((r) => r.trim()),
+    }))
+  );
+
+  const created = files.flatMap((file, i) =>
+    [...sql[i].matchAll(/CREATE TABLE IF NOT EXISTS public\.(\w+)/g)].map((m) => [file, m[1], i] as const)
+  );
+
+  test("the migrations create tables (so this check checks something)", () => {
+    expect(created.length).toBeGreaterThanOrEqual(18);
+  });
+
+  test.each(created)("%s: public.%s has its default rights taken from anon, authenticated and service_role", (_file, table, i) => {
+    const later = revokes.slice(i).flat().filter((r) => r.tables.includes(table));
+    const covered = ROLES.filter((role) => later.some((r) => r.roles.includes(role)));
+    expect(covered).toEqual(ROLES);
+  });
+});

@@ -87,7 +87,9 @@ COMMIT;
 
 -- ---- Verify (each line says what to expect) ---------------------------------------------------
 --   SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('media_assets', 'asset_usages') AND rowsecurity;  -- 2
---   SELECT has_table_privilege('service_role', 'public.media_assets', 'DELETE');                         -- false
+--   SELECT has_table_privilege('service_role', 'public.media_assets', 'DELETE');                         -- false only after desk-6
+--     (2026-11-18-desk-6-media-grants.sql: this file's REVOKE left out service_role, so Supabase's
+--     default privileges kept its DELETE; found by the owner's check, 18 Nov 2026)
 --   SELECT has_column_privilege('anon', 'public.media_assets', 'uploaded_by', 'SELECT');                  -- false
 --
 -- ---- Rollback: before the first real image -----------------------------------------------------
