@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { GALLERY_MAX, GALLERY_MIN, type RenditionRatio, type RenditionsState } from "@timesprime/shared/config/media";
 import { deskCall } from "./deskClient";
-import { button } from "../ui/styles";
+import { button, fieldInline, item, panel } from "../ui/styles";
 
 // Choosing library images (Panel 2 design §7): the images of the person's desks, each with what it
 // still lacks, and, for a story, the crop readers get. Retired images are not offered.
@@ -74,14 +74,14 @@ export default function ImagePicker({
   );
 
   return (
-    <section aria-label={label} className="space-y-3 rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
+    <section aria-label={label} className={`${panel} space-y-3 border-blue-200 dark:border-blue-900`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         {mode === "photo" ? (
           <p className="text-sm font-semibold">{label}: shown round, beside the byline. Its rights must be cleared.</p>
         ) : (
           <label className="text-sm font-semibold">
             Crop{" "}
-            <select className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]" value={ratio} onChange={(e) => setRatio(e.target.value as RenditionRatio)}>
+            <select className={`${fieldInline} ml-2`} value={ratio} onChange={(e) => setRatio(e.target.value as RenditionRatio)}>
               {RATIOS.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
             </select>
           </label>
@@ -102,10 +102,10 @@ export default function ImagePicker({
             const lacks = missing(m, mode === "photo" ? null : language);
             const picked = chosen.includes(m.id);
             return (
-              <li key={m.id} className="space-y-2 rounded-lg border border-slate-200 p-2 text-sm dark:border-[#2b2f36]">
+              <li key={m.id} className={`${item} space-y-2 p-2`}>
                 {/* The library's own files: a rendition, or the original through the back office. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={m.url} alt={(language === "hi" ? m.alt_hi : m.alt_en) ?? ""} loading="lazy" className="h-40 w-full rounded object-cover" />
+                <img src={m.url} alt={(language === "hi" ? m.alt_hi : m.alt_en) ?? ""} loading="lazy" className="h-40 w-full rounded-lg object-cover" />
                 <p className="text-xs text-slate-500">{m.credit ?? "No credit yet"} · {m.section}</p>
                 {lacks.length > 0 && <p className="text-xs font-bold text-amber-700 dark:text-amber-300">Before publishing: {lacks.join(", ")}</p>}
                 {mode === "gallery" ? (
@@ -123,7 +123,7 @@ export default function ImagePicker({
         </ul>
       )}
       {mode === "gallery" && images !== null && images.length > 0 && (
-        <div className="sticky bottom-0 -mx-3 -mb-3 flex flex-wrap items-center justify-end gap-3 rounded-b-lg border-t border-slate-200 bg-white px-3 py-3 dark:border-[#2b2f36] dark:bg-[#1f2226]">
+        <div className="sticky bottom-0 -mx-3 -mb-3 flex flex-wrap items-center justify-end gap-3 rounded-b-xl border-t border-slate-200 bg-white px-3 py-3 dark:border-[#2b2f36] dark:bg-[#202327]">
           <p className="text-sm text-slate-500">
             {chosen.length < GALLERY_MIN ? `Choose at least ${GALLERY_MIN} images.` : "The gallery shows them in the order chosen."}
           </p>

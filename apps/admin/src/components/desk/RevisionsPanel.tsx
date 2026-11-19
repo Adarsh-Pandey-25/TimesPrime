@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { diffBlocks, diffWords, type BlockDiff, type DiffPart } from "@timesprime/editor/diff";
 import { textBlocks } from "@timesprime/editor/text";
 import { deskCall, when } from "./deskClient";
-import { button, field as baseField } from "../ui/styles";
+import { button, field as baseField, label as labelClass, panel, panelTitle } from "../ui/styles";
 
 // A story's revisions (Panel 2 design §3): the list, the difference between any two (headline, dek,
 // SEO fields and the text, word by word), and bringing an old revision back. Bringing one back only
@@ -202,8 +202,8 @@ export default function RevisionsPanel({
   const restorable = [from, to].filter((rid, i, both) => rid && rid !== currentRevisionId && both.indexOf(rid) === i);
 
   return (
-    <section aria-labelledby="revisions-heading" className="space-y-3 rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
-      <h2 id="revisions-heading" className="text-sm font-bold">Revisions{revisions ? ` (${revisions.length})` : ""}</h2>
+    <section aria-labelledby="revisions-heading" className={`${panel} space-y-3`}>
+      <h2 id="revisions-heading" className={panelTitle}>Revisions{revisions ? ` (${revisions.length})` : ""}</h2>
       {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
       {revisions === null ? (
         !error && <p aria-live="polite" className="text-sm text-slate-500">Loading the revisions…</p>
@@ -212,11 +212,11 @@ export default function RevisionsPanel({
       ) : (
         <>
           <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-            <label className="block text-sm">
+            <label className={`${labelClass} font-normal`}>
               From
               <select className={field} value={from} onChange={(e) => { setFrom(e.target.value); setComparison(null); }}>{options}</select>
             </label>
-            <label className="block text-sm">
+            <label className={`${labelClass} font-normal`}>
               To
               <select className={field} value={to} onChange={(e) => { setTo(e.target.value); setComparison(null); }}>{options}</select>
             </label>
@@ -233,7 +233,7 @@ export default function RevisionsPanel({
               ))}
             </div>
           )}
-          {note && <p role="status" className="text-sm text-green-700 dark:text-green-300">{note}</p>}
+          {note && <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-200">{note}</p>}
           {comparison && <ComparisonView comparison={comparison} language={language} />}
         </>
       )}

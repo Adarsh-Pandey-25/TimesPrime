@@ -5,7 +5,8 @@ import Link from "next/link";
 import { AUTHOR_KINDS, type AuthorKind } from "@timesprime/shared/config/desk";
 import { canAct, deskCall, useAdminMe } from "./deskClient";
 import ImagePicker from "./ImagePicker";
-import { button, field as baseField } from "../ui/styles";
+import { UserPlus } from "lucide-react";
+import { backLink, badge, button, buttonDanger, buttonPrimary, card, cardTitle, field as baseField, hint, label, pageTitle, tone } from "../ui/styles";
 import ActionMessage from "../ui/ActionMessage";
 
 // The Desk's authors (Panel 2 design §7): the names stories credit. Everyone on the Desk sees the
@@ -39,7 +40,7 @@ interface Form {
 
 const EMPTY: Form = { display_name_en: "", display_name_hi: "", kind: "staff", beat: "", bio_en: "", bio_hi: "", links: "", photo_id: "" };
 const KIND_LABELS: Record<AuthorKind | "agency", string> = { staff: "Staff", columnist: "Columnist", freelancer: "Freelancer", agency: "Agency" };
-const field = `mt-0.5 ${baseField}`;
+const field = `mt-1 ${baseField}`;
 
 const toForm = (a: Author): Form => ({
   display_name_en: a.display_name_en,
@@ -123,32 +124,36 @@ export default function AuthorsManager() {
   const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm({ ...form, [key]: e.target.value });
 
   return (
-    <section aria-labelledby="authors-heading" className="max-w-4xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section aria-labelledby="authors-heading" className="max-w-4xl space-y-6">
+      <Link href="/admin/desk" className={backLink}>← Desk</Link>
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
-          <Link href="/admin/desk" className="text-sm text-blue-700 hover:underline dark:text-blue-300">← Desk</Link>
-          <h1 id="authors-heading" className="font-serif text-2xl font-extrabold">Authors</h1>
+          <h1 id="authors-heading" className={pageTitle}>Authors</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-300">The names on bylines, in English and Hindi. A retired author stays on what they wrote.</p>
         </div>
         {manage && editing === null && (
-          <button type="button" className={button} onClick={() => { setForm(EMPTY); setEditing("new"); }}>New author</button>
+          <button type="button" className={buttonPrimary} onClick={() => { setForm(EMPTY); setEditing("new"); }}>
+            <UserPlus aria-hidden="true" className="h-4 w-4" /> New author
+          </button>
         )}
-      </div>
+      </header>
       <ActionMessage message={message} />
 
       {manage && editing !== null && (
-        <form onSubmit={(e) => { e.preventDefault(); void save(); }} aria-label={editing === "new" ? "New author" : "Edit the author"} className="grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-2 dark:border-[#2b2f36]">
-          <label className="text-sm font-semibold">Name in English<input className={field} required value={form.display_name_en} onChange={set("display_name_en")} /></label>
-          <label className="text-sm font-semibold">Name in Hindi<input className={field} lang="hi" value={form.display_name_hi} onChange={set("display_name_hi")} /></label>
-          <label className="text-sm font-semibold">
+        <form onSubmit={(e) => { e.preventDefault(); void save(); }} aria-label={editing === "new" ? "New author" : "Edit the author"} className={`${card} grid gap-3 space-y-0 sm:grid-cols-2`}>
+          <h2 className={`${cardTitle} sm:col-span-2`}>{editing === "new" ? "New author" : "Edit the author"}</h2>
+          <label className={label}>Name in English<input className={field} required value={form.display_name_en} onChange={set("display_name_en")} /></label>
+          <label className={label}>Name in Hindi<input className={field} lang="hi" value={form.display_name_hi} onChange={set("display_name_hi")} /></label>
+          <label className={label}>
             Kind
             <select className={field} value={form.kind} onChange={set("kind")}>
               {AUTHOR_KINDS.map((k) => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}
             </select>
           </label>
-          <label className="text-sm font-semibold">Beat<input className={field} value={form.beat} onChange={set("beat")} placeholder="sports" /></label>
-          <label className="text-sm font-semibold">Bio in English<textarea className={field} rows={3} value={form.bio_en} onChange={set("bio_en")} /></label>
-          <label className="text-sm font-semibold">Bio in Hindi<textarea className={field} rows={3} lang="hi" value={form.bio_hi} onChange={set("bio_hi")} /></label>
-          <label className="text-sm font-semibold sm:col-span-2">Links, one https address a line<textarea className={field} rows={2} value={form.links} onChange={set("links")} /></label>
+          <label className={label}>Beat<input className={field} value={form.beat} onChange={set("beat")} placeholder="sports" /></label>
+          <label className={label}>Bio in English<textarea className={field} rows={3} value={form.bio_en} onChange={set("bio_en")} /></label>
+          <label className={label}>Bio in Hindi<textarea className={field} rows={3} lang="hi" value={form.bio_hi} onChange={set("bio_hi")} /></label>
+          <label className={`${label} sm:col-span-2`}>Links, one https address a line<textarea className={field} rows={2} value={form.links} onChange={set("links")} /></label>
           <div className="space-y-2 text-sm sm:col-span-2">
             <p className="font-semibold">Photo</p>
             <div className="flex flex-wrap items-center gap-2">
@@ -167,11 +172,11 @@ export default function AuthorsManager() {
               />
             )}
           </div>
-          <div className="flex gap-2 sm:col-span-2">
-            <button type="submit" disabled={busy || !form.display_name_en.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-3 sm:col-span-2 dark:border-[#2b2f36]">
+            <button type="button" className={button} onClick={() => setEditing(null)}>Cancel</button>
+            <button type="submit" disabled={busy || !form.display_name_en.trim()} className={buttonPrimary}>
               {editing === "new" ? "Add the author" : "Save"}
             </button>
-            <button type="button" className={button} onClick={() => setEditing(null)}>Cancel</button>
           </div>
         </form>
       )}
@@ -184,22 +189,28 @@ export default function AuthorsManager() {
       ) : (
         <ul className="space-y-2">
           {authors.map((a) => (
-            <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 p-3 text-sm dark:border-[#2b2f36]">
-              <div className="flex items-center gap-2">
-                {a.photo_id && <Photo id={a.photo_id} />}
+            <li key={a.id} className={`${card} flex flex-wrap items-center justify-between gap-3 space-y-0 p-3 text-sm transition-shadow hover:shadow-md ${a.active ? "" : "opacity-75"}`}>
+              <div className="flex items-center gap-3">
+                {a.photo_id ? (
+                  <Photo id={a.photo_id} />
+                ) : (
+                  <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                    {a.display_name_en.trim().charAt(0).toUpperCase() || "?"}
+                  </span>
+                )}
                 <div>
                 <p className="font-semibold">
                   {a.display_name_en}
                   {a.display_name_hi && <span lang="hi" className="ml-2 font-normal text-slate-600 dark:text-slate-300">{a.display_name_hi}</span>}
-                  {!a.active && <span className="ml-2 text-xs font-bold text-slate-500">Retired</span>}
+                  {!a.active && <span className={`${badge} ${tone.slate} ml-2`}>Retired</span>}
                 </p>
-                <p className="text-xs text-slate-500">{KIND_LABELS[a.kind]}{a.beat ? ` · ${a.beat}` : ""}</p>
+                <p className={hint}>{KIND_LABELS[a.kind]}{a.beat ? ` · ${a.beat}` : ""}</p>
                 </div>
               </div>
               {manage && (
                 <div className="flex gap-2">
                   <button type="button" className={button} onClick={() => { setForm(toForm(a)); setEditing(a.id); }}>Edit</button>
-                  <button type="button" className={button} onClick={() => void setActive(a, !a.active)}>{a.active ? "Retire" : "Bring back"}</button>
+                  <button type="button" className={a.active ? buttonDanger : button} onClick={() => void setActive(a, !a.active)}>{a.active ? "Retire" : "Bring back"}</button>
                 </div>
               )}
             </li>

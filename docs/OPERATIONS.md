@@ -1823,6 +1823,16 @@ phases were done:
    - **the review:** each role as a card with its flags, Revoke in red, and "Complete the review"
      as the page's main button.
 
+   The Desk (`fix/admin-ui-desk`; People was PR #53):
+   - **the list:** the page and its tools, with "New story" as its main button; the takedown alerts;
+     then the stories, with their filters, in one card;
+   - **a story:** the editor in a card, with Save in a bar that stays in view; beside it, in the
+     order it is needed, a decision waiting for a second person, the next step (Submit, Approve
+     and Publish in blue; Take down, Retract and Kill in red), the checklist, the details, the
+     credits, a correction, and the history. A step's answer shows in that column, Save's under it;
+   - **a new story, the media library and the authors:** the same page head and back link, forms
+     in cards with their main button last, Retire in red.
+
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
 

@@ -14,9 +14,9 @@ import CreditsPanel, { type Credit } from "./CreditsPanel";
 import { editorExtensions } from "./editorImage";
 import ImagePicker from "./ImagePicker";
 import RevisionsPanel, { type FullRevision } from "./RevisionsPanel";
-import ActionMessage from "../ui/ActionMessage";
+import ActionMessage, { type Message } from "../ui/ActionMessage";
 import { useDialog } from "../ui/Feedback";
-import { button, field } from "../ui/styles";
+import { backLink, badge, button, buttonDanger, buttonPrimary, card, field, hint, label, panel, panelTitle, tone } from "../ui/styles";
 
 // The story screen (Panel 2 design §4 and §5): the editor, the story's details, the pre-publish
 // checklist, the moves its state allows, its open two-person requests, its revisions and its
@@ -81,18 +81,19 @@ const PROBLEM_TEXT: Record<ChecklistProblem, string> = {
 };
 
 /** The moves the screen offers, in the order an editor meets them; the server decides each. */
-const MOVES_SHOWN: Array<{ action: DeskAction; route: string; label: string; needs?: "reason" | "schedule" | "takedown" }> = [
-  { action: "submit", route: "submit", label: "Submit" },
+const MOVES_SHOWN: Array<{ action: DeskAction; route: string; label: string; needs?: "reason" | "schedule" | "takedown"; tone?: "primary" | "danger" }> = [
+  { action: "submit", route: "submit", label: "Submit", tone: "primary" },
   { action: "send_back", route: "send-back", label: "Send back", needs: "reason" },
-  { action: "approve", route: "approve", label: "Approve" },
+  { action: "approve", route: "approve", label: "Approve", tone: "primary" },
   { action: "schedule", route: "schedule", label: "Schedule", needs: "schedule" },
   { action: "unschedule", route: "unschedule", label: "Unschedule" },
-  { action: "publish", route: "publish", label: "Publish" },
-  { action: "publish_direct", route: "publish-direct", label: "Publish now (breaking)" },
-  { action: "unpublish", route: "unpublish", label: "Take down", needs: "takedown" },
-  { action: "retract", route: "retract", label: "Retract", needs: "takedown" },
-  { action: "kill", route: "kill", label: "Kill", needs: "reason" },
+  { action: "publish", route: "publish", label: "Publish", tone: "primary" },
+  { action: "publish_direct", route: "publish-direct", label: "Publish now (breaking)", tone: "primary" },
+  { action: "unpublish", route: "unpublish", label: "Take down", needs: "takedown", tone: "danger" },
+  { action: "retract", route: "retract", label: "Retract", needs: "takedown", tone: "danger" },
+  { action: "kill", route: "kill", label: "Kill", needs: "reason", tone: "danger" },
 ];
+const MOVE_STYLE = { primary: buttonPrimary, danger: buttonDanger, normal: button } as const;
 
 const SAVABLE: StoryState[] = ["pitch", "assigned", "draft", "in_review", "desk_review", "approved", "published"];
 
@@ -180,7 +181,9 @@ export default function StoryEditor({ id }: { id: string }) {
   const [seoDescription, setSeoDescription] = useState("");
   const [substantive, setSubstantive] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  // An answer shows beside what asked: the editor's (Save) under it, the workflow's in the side column.
+  const [message, setMessage] = useState<(Message & { area: "editor" | "side" }) | null>(null);
+  const say = (area: "editor" | "side", m: Message | null) => setMessage(m ? { ...m, area } : null);
   const [busy, setBusy] = useState(false);
   const [lockHolder, setLockHolder] = useState<string | null>(null);
   const [lockReady, setLockReady] = useState(false);
@@ -290,10 +293,10 @@ export default function StoryEditor({ id }: { id: string }) {
     });
     setBusy(false);
     if (res.ok) {
-      setMessage({ ok: true, text: "Saved as a new revision." });
+      say("editor", { ok: true, text: "Saved as a new revision." });
       await load();
     } else {
-      setMessage({ ok: false, text: res.status === 409 && !res.data ? res.error ?? "" : res.error ?? "Not saved." });
+      say("editor", { ok: false, text: res.status === 409 && !res.data ? res.error ?? "" : res.error ?? "Not saved." });
     }
   }
 
@@ -316,7 +319,7 @@ export default function StoryEditor({ id }: { id: string }) {
     setSeoDescription(revision.seo_description ?? "");
     editor?.commands.setContent((revision.body as object | null) ?? EMPTY_DOC);
     setDirty(true);
-    setMessage(null);
+    say("editor", null);
     return true;
   }
 
@@ -328,13 +331,13 @@ export default function StoryEditor({ id }: { id: string }) {
       body: JSON.stringify({ slug: slug || null, embargo_until: embargo ? new Date(embargo).toISOString() : null }),
     });
     setBusy(false);
-    setMessage(res.ok ? { ok: true, text: "Details saved." } : { ok: false, text: res.error ?? "Details not saved." });
+    say("side", res.ok ? { ok: true, text: "Details saved." } : { ok: false, text: res.error ?? "Details not saved." });
     if (res.ok) await load();
   }
 
   async function setLegalReview(required: boolean) {
     const res = await deskCall(`/api/admin/desk/stories/${id}/details`, { method: "POST", body: JSON.stringify({ legal_review_required: required }) });
-    setMessage(res.ok ? { ok: true, text: required ? "Marked for legal review." : "Legal review cleared." } : { ok: false, text: res.error ?? "Not changed." });
+    say("side", res.ok ? { ok: true, text: required ? "Marked for legal review." : "Legal review cleared." } : { ok: false, text: res.error ?? "Not changed." });
     if (res.ok) await load();
   }
 
@@ -357,25 +360,25 @@ export default function StoryEditor({ id }: { id: string }) {
     const res = await deskCall<{ problems?: ChecklistProblem[] }>(`/api/admin/desk/stories/${id}/${route}`, { method: "POST", body: JSON.stringify(body) });
     setBusy(false);
     if (res.ok) {
-      setMessage({ ok: true, text: "Done." });
+      say("side", { ok: true, text: "Done." });
       setReason("");
       await load();
     } else {
       const problems = (res.data as { problems?: ChecklistProblem[] } | null)?.problems;
-      setMessage({ ok: false, text: problems ? `${res.error} Missing: ${problems.map((p) => PROBLEM_TEXT[p]).join("; ")}.` : res.error ?? "Not done." });
+      say("side", { ok: false, text: problems ? `${res.error} Missing: ${problems.map((p) => PROBLEM_TEXT[p]).join("; ")}.` : res.error ?? "Not done." });
     }
   }
 
   async function askRestore() {
     const res = await deskCall(`/api/admin/desk/stories/${id}/restore`, { method: "POST", body: JSON.stringify({ reason }) });
-    setMessage(res.ok ? { ok: true, text: "Restore requested. A second person must approve it." } : { ok: false, text: res.error ?? "Not requested." });
+    say("side", res.ok ? { ok: true, text: "Restore requested. A second person must approve it." } : { ok: false, text: res.error ?? "Not requested." });
     if (res.ok) await load();
   }
 
   async function decide(pending: Pending, outcome: "approved" | "declined") {
     const res = await deskCall(`/api/admin/desk/pending/${pending.id}/decide`, { method: "POST", body: JSON.stringify({ outcome }) });
     const done = pending.action === "correction" ? "Correction published." : "Restored.";
-    setMessage(res.ok ? { ok: true, text: outcome === "approved" ? done : "Request declined." } : { ok: false, text: res.error ?? "Not decided." });
+    say("side", res.ok ? { ok: true, text: outcome === "approved" ? done : "Request declined." } : { ok: false, text: res.error ?? "Not decided." });
     if (res.ok) await load();
   }
 
@@ -384,8 +387,8 @@ export default function StoryEditor({ id }: { id: string }) {
     setBusy(true);
     const res = await deskCall(`/api/admin/desk/stories/${id}/correct`, { method: "POST", body: JSON.stringify({ note: correction }) });
     setBusy(false);
-    if (!res.ok) return setMessage({ ok: false, text: res.error ?? "Not done." });
-    setMessage({
+    if (!res.ok) return say("side", { ok: false, text: res.error ?? "Not done." });
+    say("side", {
       ok: true,
       text: res.status === 201 ? "Correction requested. A Desk Editor or the Managing Editor decides it." : "Correction published. Readers see it under the story.",
     });
@@ -405,30 +408,37 @@ export default function StoryEditor({ id }: { id: string }) {
     return !step.deskOnly || (me?.kind === "staff" && holdsDeskReview(me.roles));
   });
 
+  const smallLink =
+    "inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
+  const sideMessage = message?.area === "side" ? message : null;
+  const editorMessage = message?.area === "editor" ? message : null;
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <Link href="/admin/desk" className="text-sm text-blue-700 hover:underline dark:text-blue-300">← Desk</Link>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATE_STYLES[story.workflow_state]}`}>{STATE_LABELS[story.workflow_state]}</span>
-          <span className="text-sm text-slate-500">{story.language === "hi" ? "Hindi" : "English"} · {story.section}</span>
-          <Link href={`/admin/desk/${id}/preview`} target="_blank" rel="noopener" className="text-sm text-blue-700 hover:underline dark:text-blue-300">
-            Preview ↗
-          </Link>
-          {story.workflow_state === "published" && (
-            <a href={`${SITE_URL}${deskStoryPath(story)}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-700 hover:underline dark:text-blue-300">
-              View on the site ↗
-            </a>
-          )}
-          {dirty && <span className="text-xs font-bold text-amber-700 dark:text-amber-300">Unsaved changes</span>}
+        {/* Where the story is: its desk and state, and the ways to see it as a reader. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link href="/admin/desk" className={backLink}>← Desk</Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATE_STYLES[story.workflow_state]}`}>{STATE_LABELS[story.workflow_state]}</span>
+            <span className="text-sm text-slate-500">{story.language === "hi" ? "Hindi" : "English"} · {story.section}</span>
+            <Link href={`/admin/desk/${id}/preview`} target="_blank" rel="noopener" className={smallLink}>
+              Preview ↗
+            </Link>
+            {story.workflow_state === "published" && (
+              <a href={`${SITE_URL}${deskStoryPath(story)}`} target="_blank" rel="noopener noreferrer" className={smallLink}>
+                View on the site ↗
+              </a>
+            )}
+          </div>
         </div>
 
         {lockHolder && (
-          <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/40">
+          <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/40">
             Someone else is editing this story, so it is read-only for you.
             <button
               type="button"
-              className={button}
+              className={buttonDanger}
               onClick={async () => {
                 const ok = await dialog.confirm({
                   title: "Take over this story?",
@@ -444,47 +454,54 @@ export default function StoryEditor({ id }: { id: string }) {
           </div>
         )}
 
-        <label className="block text-sm font-semibold">
-          Headline
-          <input className={`${field} font-serif text-lg font-bold`} lang={story.language} value={headline} disabled={!editable} onChange={(e) => { setHeadline(e.target.value); setDirty(true); }} />
-        </label>
-        <label className="block text-sm font-semibold">
-          Dek
-          <textarea className={field} rows={2} lang={story.language} value={dek} disabled={!editable} onChange={(e) => { setDek(e.target.value); setDirty(true); }} />
-        </label>
-        <Toolbar editor={editor} disabled={!editable} onImage={() => setPicking("image")} onGallery={() => setPicking("gallery")} />
-        {picking && editable && (
-          <ImagePicker
-            key={picking}
-            mode={picking}
-            language={story.language}
-            onClose={() => setPicking(null)}
-            onPick={(imageId, ratio) => {
-              editor?.chain().focus().insertContent({ type: "image", attrs: { id: imageId, ratio } }).run();
-              setPicking(null);
-            }}
-            onPickMany={(ids, ratio) => {
-              editor?.chain().focus().insertContent({ type: "gallery", content: ids.map((id) => ({ type: "image", attrs: { id, ratio } })) }).run();
-              setPicking(null);
-            }}
-          />
-        )}
-        <EditorContent editor={editor} />
-        <p className="text-xs text-slate-500">{wordCount(editor?.getJSON() ?? loaded.revision?.body)} words</p>
+        {/* The story itself. */}
+        <div className={card}>
+          <label className={label}>
+            Headline
+            <input className={`${field} mt-1 font-serif text-lg font-bold`} lang={story.language} value={headline} disabled={!editable} onChange={(e) => { setHeadline(e.target.value); setDirty(true); }} />
+          </label>
+          <label className={label}>
+            Dek
+            <textarea className={`${field} mt-1`} rows={2} lang={story.language} value={dek} disabled={!editable} onChange={(e) => { setDek(e.target.value); setDirty(true); }} />
+          </label>
+          <Toolbar editor={editor} disabled={!editable} onImage={() => setPicking("image")} onGallery={() => setPicking("gallery")} />
+          {picking && editable && (
+            <ImagePicker
+              key={picking}
+              mode={picking}
+              language={story.language}
+              onClose={() => setPicking(null)}
+              onPick={(imageId, ratio) => {
+                editor?.chain().focus().insertContent({ type: "image", attrs: { id: imageId, ratio } }).run();
+                setPicking(null);
+              }}
+              onPickMany={(ids, ratio) => {
+                editor?.chain().focus().insertContent({ type: "gallery", content: ids.map((id) => ({ type: "image", attrs: { id, ratio } })) }).run();
+                setPicking(null);
+              }}
+            />
+          )}
+          <EditorContent editor={editor} />
 
-        <details className="rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
-          <summary className="cursor-pointer text-sm font-semibold">Search engines</summary>
-          <label className="mt-2 block text-sm">SEO title<input className={field} lang={story.language} value={seoTitle} disabled={!editable} onChange={(e) => { setSeoTitle(e.target.value); setDirty(true); }} /></label>
-          <label className="mt-2 block text-sm">SEO description<textarea className={field} rows={2} lang={story.language} value={seoDescription} disabled={!editable} onChange={(e) => { setSeoDescription(e.target.value); setDirty(true); }} /></label>
-        </details>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button type="button" disabled={!editable || busy} onClick={() => void save()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
-            {busy ? "Saving…" : "Save"}
-          </button>
-          <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={substantive} onChange={(e) => setSubstantive(e.target.checked)} /> A substantive change</label>
+          <details className="rounded-lg border border-slate-200 p-3 transition-colors hover:border-slate-300 dark:border-[#2b2f36] dark:hover:border-[#3a3f47]">
+            <summary className="cursor-pointer text-sm font-semibold">Search engines</summary>
+            <label className={`${label} mt-2 font-normal`}>SEO title<input className={`${field} mt-1`} lang={story.language} value={seoTitle} disabled={!editable} onChange={(e) => { setSeoTitle(e.target.value); setDirty(true); }} /></label>
+            <label className={`${label} mt-2 font-normal`}>SEO description<textarea className={`${field} mt-1`} rows={2} lang={story.language} value={seoDescription} disabled={!editable} onChange={(e) => { setSeoDescription(e.target.value); setDirty(true); }} /></label>
+          </details>
         </div>
-        <ActionMessage message={message} />
+
+        {/* Save stays in view at the bottom of the screen while the story is long. */}
+        <div className="sticky bottom-0 z-10 space-y-2 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-md backdrop-blur dark:border-[#2b2f36] dark:bg-[#202327]/95">
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" disabled={!editable || busy} onClick={() => void save()} className={buttonPrimary}>
+              {busy ? "Saving…" : "Save"}
+            </button>
+            <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={substantive} onChange={(e) => setSubstantive(e.target.checked)} /> A substantive change</label>
+            {dirty && <span className={`${badge} ${tone.amber}`}>Unsaved changes</span>}
+            <span className={`${hint} ml-auto`}>{wordCount(editor?.getJSON() ?? loaded.revision?.body)} words</span>
+          </div>
+          <ActionMessage message={editorMessage} />
+        </div>
 
         <RevisionsPanel
           storyId={story.id}
@@ -496,31 +513,90 @@ export default function StoryEditor({ id }: { id: string }) {
         />
       </div>
 
-      <aside className="space-y-5" aria-label="The story's workflow">
-        <section aria-labelledby="checklist-heading" className="rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
-          <h2 id="checklist-heading" className="mb-2 text-sm font-bold">Before approval</h2>
+      {/* The workflow, in the order it is needed: a decision waiting, the next step, then what it needs. */}
+      <aside className="space-y-4" aria-label="The story's workflow">
+        <ActionMessage message={sideMessage} />
+
+        {loaded.pending.length > 0 && (
+          <section aria-labelledby="pending-heading" className={`${panel} border-amber-300 dark:border-amber-800`}>
+            <h2 id="pending-heading" className={panelTitle}>Waiting for a second person</h2>
+            {loaded.pending.map((p) => (
+              <div key={p.id} className="space-y-2 text-sm">
+                <p>{p.action === "correction" ? "Correction requested" : "Restore requested"}: {p.reason}</p>
+                <div className="flex gap-2">
+                  <button type="button" className={buttonPrimary} onClick={() => void decide(p, "approved")}>Approve</button>
+                  <button type="button" className={button} onClick={() => void decide(p, "declined")}>Decline</button>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        <section aria-labelledby="moves-heading" className={`${panel} border-blue-200 dark:border-blue-900`}>
+          <h2 id="moves-heading" className={panelTitle}>Next step</h2>
+          {moves.length === 0 && story.workflow_state !== "unpublished" && <p className="text-sm text-slate-500">Nothing for you to do on this story now.</p>}
+          {moves.some((m) => m.needs === "reason" || m.needs === "takedown") || story.workflow_state === "unpublished" ? (
+            <label className={`${label} font-normal`}>Reason<textarea className={`${field} mt-1`} rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+          ) : null}
+          {moves.some((m) => m.needs === "takedown") && (
+            <label className={`${label} font-normal`}>Reason code
+              <select className={`${field} mt-1`} value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
+                {TAKEDOWN_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </label>
+          )}
+          {moves.some((m) => m.needs === "schedule") && (
+            <div>
+              <label className={`${label} font-normal`}>
+                Publish at (IST)
+                <input type="datetime-local" className={`${field} mt-1`} value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} aria-describedby="schedule-hint" />
+              </label>
+              <p id="schedule-hint" className={`${hint} mt-1`}>
+                The server publishes it within {PUBLISH_TICK_MINUTES} minutes after this time, if you may still publish it then.
+              </p>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {moves.map((m) => (
+              <button key={m.action} type="button" disabled={busy} className={MOVE_STYLE[m.tone ?? "normal"]} onClick={() => void doMove(m.route, m.needs)}>{m.label}</button>
+            ))}
+            {story.workflow_state === "unpublished" && !loaded.pending.some((p) => p.action === "restore") && (
+              <button type="button" className={button} disabled={busy || !reason.trim()} onClick={() => void askRestore()}>Ask to restore</button>
+            )}
+          </div>
+        </section>
+
+        <section aria-labelledby="checklist-heading" className={panel}>
+          <h2 id="checklist-heading" className={panelTitle}>Before approval</h2>
           {problems.length === 0 ? (
             <p className="text-sm text-green-700 dark:text-green-300">The checklist is complete.</p>
           ) : (
-            <ul className="list-disc space-y-1 pl-5 text-sm">{problems.map((p) => <li key={p}>{PROBLEM_TEXT[p]}</li>)}</ul>
+            <ul className="space-y-1 text-sm">
+              {problems.map((p) => (
+                <li key={p} className="flex items-start gap-2">
+                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                  {PROBLEM_TEXT[p]}
+                </li>
+              ))}
+            </ul>
           )}
           {editor && storyImageIds(editor.getJSON()).length > 0 && (
-            <p className="mt-2 text-xs text-slate-500">Its images are checked when the story is approved or published: credit, source, licence, cleared rights, and alt text and a caption in the story&apos;s language.</p>
+            <p className={hint}>Its images are checked when the story is approved or published: credit, source, licence, cleared rights, and alt text and a caption in the story&apos;s language.</p>
           )}
         </section>
 
         {mayEdit && story.workflow_state !== "published" && (
-          <section aria-labelledby="details-heading" className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
-            <h2 id="details-heading" className="text-sm font-bold">Details</h2>
-            <label className="block text-sm">Slug
-              <div className="flex gap-1">
+          <section aria-labelledby="details-heading" className={panel}>
+            <h2 id="details-heading" className={panelTitle}>Details</h2>
+            <label className={`${label} font-normal`}>Slug
+              <div className="mt-1 flex gap-1">
                 <input className={field} value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="india-wins-the-series" />
                 <button type="button" className={button} onClick={() => setSlug(storySlug(headline))}>Suggest</button>
               </div>
             </label>
-            <label className="block text-sm">Embargo until (IST)<input type="datetime-local" className={field} value={embargo} onChange={(e) => setEmbargo(e.target.value)} /></label>
-            <button type="button" className={button} disabled={busy} onClick={() => void saveDetails()}>Save details</button>
-            <div className="pt-1">
+            <label className={`${label} font-normal`}>Embargo until (IST)<input type="datetime-local" className={`${field} mt-1`} value={embargo} onChange={(e) => setEmbargo(e.target.value)} /></label>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button type="button" className={button} disabled={busy} onClick={() => void saveDetails()}>Save details</button>
               {story.legal_review_required ? (
                 <button type="button" className={button} onClick={() => void setLegalReview(false)}>Clear legal review</button>
               ) : (
@@ -536,86 +612,38 @@ export default function StoryEditor({ id }: { id: string }) {
           credits={loaded.credits}
           editable={canAct(me, "article.edit") && PRE_PUBLISH_STATES.includes(story.workflow_state)}
           onSaved={async (result) => {
-            setMessage(result);
+            say("side", result);
             if (result.ok) await load();
           }}
         />
 
-        <section aria-labelledby="moves-heading" className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
-          <h2 id="moves-heading" className="text-sm font-bold">Next step</h2>
-          {moves.length === 0 && story.workflow_state !== "unpublished" && <p className="text-sm text-slate-500">Nothing for you to do on this story now.</p>}
-          {moves.some((m) => m.needs === "reason" || m.needs === "takedown") || story.workflow_state === "unpublished" ? (
-            <label className="block text-sm">Reason<textarea className={field} rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-          ) : null}
-          {moves.some((m) => m.needs === "takedown") && (
-            <label className="block text-sm">Reason code
-              <select className={field} value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
-                {TAKEDOWN_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </label>
-          )}
-          {moves.some((m) => m.needs === "schedule") && (
-            <div>
-              <label className="block text-sm">
-                Publish at (IST)
-                <input type="datetime-local" className={field} value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} aria-describedby="schedule-hint" />
-              </label>
-              <p id="schedule-hint" className="mt-1 text-xs text-slate-500">
-                The server publishes it within {PUBLISH_TICK_MINUTES} minutes after this time, if you may still publish it then.
-              </p>
-            </div>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {moves.map((m) => (
-              <button key={m.action} type="button" disabled={busy} className={button} onClick={() => void doMove(m.route, m.needs)}>{m.label}</button>
-            ))}
-            {story.workflow_state === "unpublished" && !loaded.pending.some((p) => p.action === "restore") && (
-              <button type="button" className={button} disabled={busy || !reason.trim()} onClick={() => void askRestore()}>Ask to restore</button>
-            )}
-          </div>
-        </section>
-
         {story.workflow_state === "published" && (canAct(me, "correction.publish") || canAsk(me, "correction.publish")) && (
-          <section aria-labelledby="correction-heading" className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
-            <h2 id="correction-heading" className="text-sm font-bold">Correction</h2>
+          <section aria-labelledby="correction-heading" className={panel}>
+            <h2 id="correction-heading" className={panelTitle}>Correction</h2>
             {story.correction_note ? (
               <p className="text-sm">Readers see: <q lang={story.language}>{story.correction_note}</q></p>
             ) : (
               <p className="text-sm text-slate-500">No correction note on this story.</p>
             )}
-            <label className="block text-sm">
+            <label className={`${label} font-normal`}>
               Correction note, shown to readers under the story
-              <textarea className={field} rows={3} lang={story.language} maxLength={CORRECTION_NOTE_MAX} value={correction} onChange={(e) => setCorrection(e.target.value)} />
+              <textarea className={`${field} mt-1`} rows={3} lang={story.language} maxLength={CORRECTION_NOTE_MAX} value={correction} onChange={(e) => setCorrection(e.target.value)} />
             </label>
-            <button type="button" className={button} disabled={busy || !correction.trim()} onClick={() => void publishCorrection()}>
+            <button type="button" className={buttonPrimary} disabled={busy || !correction.trim()} onClick={() => void publishCorrection()}>
               {canAct(me, "correction.publish") ? "Publish correction" : "Ask for a correction"}
             </button>
           </section>
         )}
 
-        {loaded.pending.length > 0 && (
-          <section aria-labelledby="pending-heading" className="space-y-2 rounded-lg border border-amber-300 p-3 dark:border-amber-800">
-            <h2 id="pending-heading" className="text-sm font-bold">Waiting for a second person</h2>
-            {loaded.pending.map((p) => (
-              <div key={p.id} className="space-y-1 text-sm">
-                <p>{p.action === "correction" ? "Correction requested" : "Restore requested"}: {p.reason}</p>
-                <div className="flex gap-2">
-                  <button type="button" className={button} onClick={() => void decide(p, "approved")}>Approve</button>
-                  <button type="button" className={button} onClick={() => void decide(p, "declined")}>Decline</button>
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
-
-        <section aria-labelledby="history-heading" className="rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
-          <h2 id="history-heading" className="mb-2 text-sm font-bold">History</h2>
+        <section aria-labelledby="history-heading" className={panel}>
+          <h2 id="history-heading" className={panelTitle}>History</h2>
           {loaded.history.length === 0 ? (
             <p className="text-sm text-slate-500">No history yet.</p>
           ) : (
-            <ol className="space-y-1 text-xs">
+            <ol className="space-y-2 border-l-2 border-slate-200 pl-3 text-xs dark:border-[#2b2f36]">
               {[...loaded.history].reverse().map((h, i) => (
-                <li key={i}>
+                <li key={i} className="relative">
+                  <span aria-hidden="true" className="absolute -left-[1.05rem] top-1 h-2 w-2 rounded-full bg-slate-400" />
                   <span className="font-semibold">{h.action.replace("_", " ")}</span> → {STATE_LABELS[h.to_state] ?? h.to_state} · {when(h.at)}
                   {h.reason ? <span className="block text-slate-500">{h.reason}</span> : null}
                 </li>

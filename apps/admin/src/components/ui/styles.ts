@@ -83,3 +83,8 @@ export const tone = {
   blue: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
   slate: "bg-slate-100 text-slate-700 dark:bg-[#2b2f36] dark:text-slate-300",
 } as const;
+
+/** A smaller card, for a side column (the story screen's workflow) or a box inside a page. */
+export const panel =
+  "space-y-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-[#2b2f36] dark:bg-[#202327]";
+export const panelTitle = "text-sm font-bold";
