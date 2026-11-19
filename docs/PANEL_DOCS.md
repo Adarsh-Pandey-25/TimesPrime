@@ -203,7 +203,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
-| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2a (the accounts backend) built, M2b (its screens) next | — | — |
+| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PR #46 and the screens) built; M3 (break-glass and the review) next | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
@@ -520,8 +520,8 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 **M1**, "people and roles": M1a, the backend (migration admin-1, the reach rules, the API, every
 route tested allowed and denied; PR #43), and M1b, the screens (PR #44). **M2a**, the accounts
 backend: adding a person, one-time "set your password" links, resetting a lost second factor, and
-the welcome and password routes. M2b (their screens), M3 (break-glass and the review) and M4
-(retiring the shared password) follow.
+the welcome and password routes (PR #46); and **M2b**, their screens. M3 (break-glass and the
+review) and M4 (retiring the shared password) follow.
 
 #### Panel
 
@@ -535,8 +535,7 @@ the welcome and password routes. M2b (their screens), M3 (break-glass and the re
     `cancel`;
   - M2: `POST /api/admin/people` (add a person), `POST /api/admin/people/[id]/password-link` and
     `mfa-reset`; `POST /api/admin/welcome` (public: opens a link) and `POST /api/admin/password`
-    (session-only: sets one's own password). The page `/admin/welcome` is public too (its screen
-    comes with M2b).
+    (session-only: sets one's own password). The page `/admin/welcome` is public too.
 
   The screens: `/admin/people` (the directory, and a Super Admin's requests) and
   `/admin/people/[id]` (one person). "People" is in the top bar for holders of `user.manage`.
@@ -608,8 +607,9 @@ needs two people, and removing it needs one.
   Editor who added the person or asked for it, or, for a Super Admin's request, to the second Super
   Admin when they approve (*as built:* the design said "to the admin who added them"; the token is
   not stored, so it can only be shown to whoever is on screen when it is made). It is never stored
-  or written to the audit log. It works once, until Supabase's email-link expiry (24 hours, the
-  owner's decision 3; an owner setting).
+  or written to the audit log. It works once, until Supabase's email-link expiry: **1 hour** (the
+  owner, 19 Nov 2026, amending decision 3 after Supabase warned that 24 hours is more than it
+  recommends; `LINK_VALID_FOR` in `packages/shared/src/config/people.ts` says it on screen).
 - **Resetting a lost second factor** (M2a): always two Super Admins. One asks, with how they checked
   it is the person; the other approves, and then every factor of the account is deleted and every
   session ended. At their next sign-in the person sets up a new one. A Managing Editor is refused.
@@ -620,8 +620,20 @@ needs two people, and removing it needs one.
   without the email's name; with a second factor set up, only from an `aal2` session, so a link
   or a stolen password alone cannot change it. Afterwards every session of the account ends, and
   the person signs in again. Supabase's own refusals (a reused password) come back in its words.
-- **Partial:** the screens for these (the welcome page, adding a person, the link box, the two new
-  buttons) are M2b.
+- **The screens** (M2b), each with loading, error and empty states:
+  - **`/admin/people/new`, adding a person:** email, name, role (those the caller may grant), desk,
+    days, reason. "Add" for a Managing Editor, "Ask to add" for a Super Admin. An email already on
+    the staff links to their page. The directory has "Add a person" ("Ask to add a person");
+  - **the one-time link box** (`LinkBox.tsx`): the full address (this back office's own origin and
+    the API's path), a Copy button, and the warnings: it works once, for 1 hour; it is shown only
+    now; hand it over directly, never in a group. It appears after adding a person, after making
+    a password link, and, for the approver, after approving an addition or a password link;
+  - **one person:** "Make a password link" ("Ask for a password link") and "Ask to reset the
+    second factor", each with its reason (for a reset: how they checked it is the person);
+  - **`/admin/welcome`** (public): the token leaves the address bar at once and is sent once; a
+    used, expired or incomplete link says so, with the way to sign-in; with a second factor, its
+    code first; then a password, checked on the page and by the server; then "Go to sign-in",
+    where a new person sets up their authenticator (TimesPrime).
 
 #### Access permissions and authorization rules
 
@@ -674,15 +686,16 @@ not stored as an outcome, and it cannot be decided.
 | `apps/admin/src/components/people/people.test.tsx` | The directory and a person's page for each answer: a Super Admin's requests and Approve; a Managing Editor's desks; filters; Grant as a request ("Ask to grant") or at once; Revoke with its reason; Suspend and "Ask to reactivate"; oneself; every filter named | No actions where the API offers none; a refusal and "not found" shown; buttons disabled until a reason is given |
 | `apps/admin/src/components/AdminTopBar.test.tsx` | "People" for a holder of `user.manage` | Not for a Writer |
 | `access.test.ts` (M2) | Adding a person at once (the account confirmed with no password, the profile, the role, the link) or as a request (no account made); a password link at once or asked; a factor reset asked; approving an addition (the account first, then the decision with its id), a reset (every factor deleted, the sessions ended, then the decision) and a link; the link never in the audit log; the public and session-only lists | An email already staff, a bad email, another desk; a Managing Editor resetting a factor; oneself; a suspended person; a decline changes no account |
+| `apps/admin/src/components/people/accounts.test.tsx` | Adding a person (the roles the caller may grant; the link box once, with its warnings; a request with no link; an email already on the staff); a password link and a factor reset on a person's page; the approver's link; the welcome page (the token out of the address and sent once; password, confirm and the page's check; the code first with a factor; back to the code when the server asks) | No form without the right; no reset or link where the API offers none; an incomplete link asks nothing of the server; a used link explained |
+| `e2e/admin-access.spec.ts` (M2b, read-only) | Signed out, adding a person goes to sign-in; `/admin/welcome` without a token explains itself | No call to the server from the welcome page without a token |
 | `apps/admin/src/app/api/admin/welcome/route.test.ts`, `password/route.test.ts` | A good link gives a session and says whether a factor exists; a password is set, then every session ends | A missing, malformed or other-kind token (Supabase not asked); a used or expired link; not staff or suspended (signed out again); 10 tries per address; an `aal1` session with a factor; a weak password; Supabase's refusal |
 | `e2e/admin-access.spec.ts` (read-only) | Signed out, `/admin/people` and a person's page go to sign-in | Three people routes answer 401 |
 
 #### Known limits and not yet built
 
-- **M2b:** the screens for adding a person, the links, the reset and the welcome page. **M3:**
-  break-glass, the access review, roles ending soon. **M4:** retiring the shared password.
-- **Owner action for M2:** Supabase's email-link expiry to 24 hours (OPERATIONS.md, "Panel 1:
-  links and lost factors").
+- **M3:** break-glass, the access review, roles ending soon. **M4:** retiring the shared password.
+- **Owner action for M2:** done. Supabase's email-link expiry is 1 hour (19 Nov 2026; OPERATIONS.md,
+  "Panel 1: links and lost factors"). If it changes, `LINK_VALID_FOR` changes with it.
 - **An added person who is never given their link** has an account nobody can sign in to; a new
   link (password link) or revoking their role and suspending them tidies it. Accounts are never
   deleted.
@@ -1942,7 +1955,10 @@ This section overrides anything later in this design that disagrees with it.
    acts on their own access; break-glass is self-activated. They are written into the access rules
    ("Four-eyes, takedown and MFA rules") in M1.
 3. **A one-time set-password link,** shown to the admin and handed over; email later. The link works
-   for **24 hours** (Supabase's email-link expiry, set by the owner before M2).
+   for **24 hours** (Supabase's email-link expiry, set by the owner before M2). *Then (19 Nov
+   2026):* Supabase warned that more than an hour is above its recommendation, and the owner set
+   **1 hour** (3600 seconds) instead: a link is made when the person is ready to open it, and a new
+   one is made if it lapses.
 4. **Break-glass as in §5:** a Super Admin alone, at most 2 hours, takedown only, the other Super
    Admins alerted on screen; email later.
 5. **Expiry and review:** 180 days by default (30, 90, 180 or 365), 365 for Super Admin, at most 365;

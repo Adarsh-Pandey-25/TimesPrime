@@ -1388,10 +1388,12 @@ For the owner and the Super Admins, from Panel 1's M2 ([entry](PANEL_DOCS.md#pan
 No SQL.
 
 **Once, in Supabase:** Authentication → Sign In / Providers → Email → **Email OTP Expiration**:
-`86400` seconds (24 hours, the most Supabase allows; the owner's decision 3), then Save. It sets how
-long a "set your password" link works. Until it is changed, a link works for 1 hour.
+`3600` seconds (1 hour), then Save. It sets how long a "set your password" link works. *Done by the
+owner on 19 Nov 2026:* first 24 hours (decision 3), then 1 hour after Supabase warned that more than
+an hour is above its recommendation. The screens say "1 hour" (`LINK_VALID_FOR`); change both
+together. Make a link when the person is ready to open it; if it lapses, make another.
 
-**Adding a person** (People → add, from M2b; the API now):
+**Adding a person** (People → Add a person):
 1. A Managing Editor adds Writer, Sub-editor or Desk Editor in their desk and gets the link at
    once. A Super Admin's addition is a request: the second Super Admin who approves it gets the
    link.
@@ -1689,8 +1691,9 @@ phases were done:
    screens (`/admin/people`, on `panel-1-people-screens`). The second Super Admin is Vivek (the
    owner, 19 Nov 2026). The shared password goes in M4, without waiting for the AWS deployment (left
    to the developers by the owner). M2a, the accounts backend (adding a person, one-time links, the
-   two-Super-Admin factor reset), is built on `panel-1-accounts`; M2b, its screens, is next. Owner
-   action: the [24-hour link expiry](#panel-1-links-and-lost-factors) in Supabase.
+   two-Super-Admin factor reset; PR #46) and M2b, its screens (adding a person, the one-time link
+   box, the welcome page; on `panel-1-account-screens`), are built. The owner set the
+   [link expiry](#panel-1-links-and-lost-factors) to 1 hour. Next: M3, break-glass and the review.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
