@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { PUBLISHER_NAME } from "@timesprime/shared/config/site";
 
 // The staff member's second factor, through Supabase Auth's MFA API (design §5). TOTP only: free,
 // on by default. Calls are made with the per-request route client (supabaseServer.ts), so a
@@ -41,10 +42,20 @@ export interface Enrolment {
   secret: string;
 }
 
+/**
+ * The name an authenticator app shows above the account (the otpauth URI's issuer): the
+ * publisher's name, from the one place it is kept. Without it Supabase uses its project's Site URL,
+ * which showed "localhost:3000" (the owner, 19 Nov 2026). It names the publication, not a role: one
+ * staff account has one second factor for every role it holds, so a role in the name would go stale
+ * when roles change, and a new role or panel needs no change here. The account under it is the
+ * person's email, which Supabase sets.
+ */
+export const TOTP_ISSUER = PUBLISHER_NAME;
+
 /** Starts a TOTP enrolment, replacing any unconfirmed one. */
 export async function enrollTotp(client: SupabaseClient, state: MfaState): Promise<Enrolment | null> {
   for (const id of state.unverifiedFactorIds) await client.auth.mfa.unenroll({ factorId: id });
-  const { data, error } = await client.auth.mfa.enroll({ factorType: "totp", friendlyName: `TimesPrime admin ${Date.now()}` });
+  const { data, error } = await client.auth.mfa.enroll({ factorType: "totp", issuer: TOTP_ISSUER, friendlyName: `TimesPrime admin ${Date.now()}` });
   if (error || !data || data.type !== "totp") return null;
   return { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };
 }

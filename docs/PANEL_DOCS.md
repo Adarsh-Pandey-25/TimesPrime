@@ -345,6 +345,11 @@ Panel 0 defines all 15 roles of the plan's matrix ([the access rules](#access-ru
 - Sign-in with email and password for staff, then a second factor. The first time, the user scans a
   QR code (or types the key) and enters one code; every time after, they enter a code. The shared
   password stays one click away until it is retired.
+- The authenticator app shows the entry as **TimesPrime**, with the person's email under it (the
+  owner's choice, 19 Nov 2026; `TOTP_ISSUER` in `packages/server/src/auth/mfa.ts`, from the
+  publisher's name in `packages/shared/src/config/site.ts`). It names the publication, not a role:
+  one account has one second factor for every role it holds, so a new role or panel needs no change.
+  Entries set up before 19 Nov 2026 show "localhost:3000" (OPERATIONS.md, gotcha 3.39).
 - One sign-in page for everyone, then the page of their work (the owner's choice, 18 Nov 2026;
   `landingPath` in `packages/shared/src/lib/staffLanding.ts`): a newsroom role (Writer, Sub-editor,
   Desk Editor, Managing Editor) lands on `/admin/desk`; the Super Admin, even holding a Desk role,

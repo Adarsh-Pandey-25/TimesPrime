@@ -72,6 +72,56 @@ describe("enroll", () => {
     expect(audited()).toEqual(["auth.mfa_enroll_started:succeeded"]);
   });
 
+  // The authenticator app's name (the owner, 19 Nov 2026: it showed "localhost:3000", Supabase's Site
+  // URL, because no issuer was sent). One account has one factor for all its roles, so the name is
+  // the publisher's, whatever the roles; the email under it is Supabase's.
+  const holding = (roles: string[]) => async (id: string) => ({
+    userId: id, displayName: "Asha", status: "active", mfaRequired: true,
+    assignments: roles.map((role, i) => ({ id: `a-${i}`, role, language: null, section: null, isBreakGlass: false, expiresAt: "2099-01-01T00:00:00Z", revokedAt: null, requiresAal2: true, grants: [] })),
+  });
+
+  test.each([
+    ["a Super Admin", ["super_admin"]],
+    ["a Managing Editor", ["managing_editor"]],
+    ["a Desk Editor (the Publisher)", ["desk_editor"]],
+    ["a Writer", ["writer"]],
+    ["someone with several roles", ["super_admin", "desk_editor"]],
+    ["a role added later, unknown to this code", ["future_panel"]],
+    ["someone with no role yet", []],
+  ])("%s enrols with the issuer TimesPrime", async (_who, roles) => {
+    (loadStaffRecord as jest.Mock).mockImplementation(holding(roles));
+    expect((await post({ action: "enroll" })).status).toBe(200);
+    expect(mfa.enroll).toHaveBeenCalledWith(expect.objectContaining({ factorType: "totp", issuer: "TimesPrime" }));
+  });
+
+  test("the issuer names no host, port or URL", async () => {
+    await post({ action: "enroll" });
+    const { issuer } = mfa.enroll.mock.calls[0][0] as { issuer: string };
+    expect(issuer).not.toMatch(/localhost|:\d+|https?:|\//);
+  });
+
+  test("two people enrol separately: each gets their own factor from Supabase, the same issuer", async () => {
+    await post({ action: "enroll" });
+    user += 1;
+    (readSession as jest.Mock).mockResolvedValue({ kind: "staff", userId: `u-${user}`, aal: "aal1", sessionId: "s-2" });
+    await post({ action: "enroll" });
+    expect(mfa.enroll).toHaveBeenCalledTimes(2);
+    expect(mfa.enroll.mock.calls.map(([p]) => (p as { issuer: string }).issuer)).toEqual(["TimesPrime", "TimesPrime"]);
+  });
+
+  test("the secret goes only to the person enrolling: never to a log, Sentry or the audit log", async () => {
+    const logs = [jest.spyOn(console, "log").mockImplementation(() => {}), jest.spyOn(console, "warn").mockImplementation(() => {})];
+    await post({ action: "enroll" });
+    const seen = JSON.stringify([
+      ...logs.flatMap((l) => l.mock.calls),
+      (console.error as jest.Mock).mock.calls,
+      (Sentry.captureMessage as jest.Mock).mock.calls,
+      (Sentry.captureException as jest.Mock).mock.calls,
+      (recordAudit as jest.Mock).mock.calls,
+    ]);
+    expect(seen).not.toContain("JBSWY3DP");
+  });
+
   test("replaces an unconfirmed enrolment", async () => {
     mfa.listFactors.mockResolvedValue({ data: { all: [{ id: "f-old", factor_type: "totp", status: "unverified" }] }, error: null });
     await post({ action: "enroll" });
@@ -104,6 +154,14 @@ describe("verify", () => {
   test("a factor that is not this user's is refused (400)", async () => {
     expect((await post({ action: "verify", factorId: "f-unknown", code: "123456" })).status).toBe(400);
     expect(mfa.challengeAndVerify).not.toHaveBeenCalled();
+  });
+
+  test("an expired code (from an earlier 30-second window) is refused like a wrong one: 401", async () => {
+    mfa.listFactors.mockResolvedValue({ data: { all: [{ id: "f-1", factor_type: "totp", status: "verified" }] }, error: null });
+    mfa.challengeAndVerify.mockResolvedValue({ data: null, error: { message: "Invalid TOTP code entered", code: "mfa_verification_failed" } });
+    const res = await post({ action: "verify", code: "000000" });
+    expect(res.status).toBe(401);
+    expect(audited()).toEqual(["auth.mfa_failed:failed"]);
   });
 
   test("a wrong code: 401, audited as failed", async () => {
