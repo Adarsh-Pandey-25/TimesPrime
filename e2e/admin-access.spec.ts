@@ -43,7 +43,8 @@ test.describe("signed out", () => {
     });
     await page.goto("/admin/welcome");
     await expect(page).toHaveURL(/\/admin\/welcome$/);
-    await expect(page.getByRole("alert")).toContainText("This link is not complete");
+    // Next adds its own route announcer with role="alert", so the page's message is found by its text.
+    await expect(page.getByRole("alert").filter({ hasText: "This link is not complete" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Go to sign-in" })).toHaveAttribute("href", "/admin/login");
     expect(asked).toEqual([]);
   });
