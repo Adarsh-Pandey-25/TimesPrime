@@ -138,6 +138,16 @@ Two design choices in the matrix need explaining. Super Admin holds no editorial
 
 The approval rules borrow directly from documented products. Publishing requires an approval by someone other than the author and the last editor, enforced per object (Contentstack's self-approval block). The Publish action stays hidden until the item is in the Approved state (VIP's Publish Guard). Breaking news gets a narrow escape hatch: `article.publish_direct` held by Desk Editors in scope, which publishes immediately and automatically opens a post-hoc review item. Unpublish and takedown should be **single-actor for speed**, because legal and defamation exposure grows by the hour and intermediary timelines are now measured in hours. They still require a reason code, MFA and an immediate notification to the Managing Editor and Legal. **Restore needs a second approver**, because a wrongful restore is the riskier error. Granting any privileged role (Super Admin, Managing Editor, Legal, Privacy Officer) needs two admins. Bulk purge needs two people and must refuse to delete anything published or aggregated within 60 days, to protect Rule 19(3) records. Every privileged role (Super Admin, Managing Editor, Desk Editor, Legal, Privacy Officer, Security Lead, Ingestion Ops) must sign in at Supabase's **`aal2` assurance level, which is issued only after a verified second factor**. The permission check refuses privileged verbs at `aal1` ([Supabase MFA](https://supabase.com/docs/guides/auth/auth-mfa.md)). Break-glass access is a time-boxed (for example 2-hour) grant with a mandatory reason and an alert. It replaces the habit of sharing the old password. Break-glass is standard practice, but no source here prescribes a specific procedure.
 
+*Note (19 Nov 2026, the owner's approval of the [Panel 1 design](#panel-1-design-administration)):*
+for `user.manage` and `role.assign`, adding access needs two people and removing it needs one.
+- **A counts as read** for the permission it is on: whoever may ask must see what they ask about.
+- **Removing access is single-actor:** revoking a role, suspending an account and ending its
+  sessions, like a takedown. It cannot create privilege.
+- **Nobody acts on their own access:** nobody grants or renews their own role, or approves a request
+  they made or one about themselves.
+- **Break-glass is self-activated:** a Super Admin starts it for themselves, with a reason, for at
+  most 2 hours, and the other Super Admins are alerted.
+
 ### Data model
 
 *Note (4 Nov 2026):* the access tables (`staff_profiles` to `audit_log`) are built in Panel 0. The
@@ -193,7 +203,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
-| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) proposed 18 Nov 2026, at the owner's request while Panel 2's last items are open; no code before its approval | — | — |
+| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); M1 (people and roles) being built | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
@@ -1733,11 +1743,31 @@ once `audit_log` holds real rows, it is never dropped.
 
 ## Panel 1 design: Administration
 
-**Status:** **proposed** on 18 Nov 2026, for the owner's approval. No code before it. Branch
-`panel-1-administration`. **Started at the owner's request** (18 Nov 2026), while Panel 2's last
+**Status:** **approved** by the owner on 19 Nov 2026, with the recommended answer to every question
+in §11 (recorded below). Proposed on 18 Nov 2026 (PR #42). One branch per milestone, starting with
+`panel-1-people-roles` (M1). **Started at the owner's request** (18 Nov 2026), while Panel 2's last
 items are still open: the Hindi typing check, a test project, the worker's Sentry, and two
-walk-through steps. `NEWSROOM_PLAN.md` is unchanged, as it was for Panel 2. Before the build, the
-answers to §11 are recorded here as "Approval: decisions".
+walk-through steps. `NEWSROOM_PLAN.md` is unchanged, as it was for Panel 2.
+
+### Approval: decisions (19 Nov 2026)
+
+This section overrides anything later in this design that disagrees with it.
+1. **Two Super Admins for every Super Admin change** (the matrix's A, as written). A Managing Editor
+   acts alone, up to Desk Editor in their scope. **Open:** who the second Super Admin is; the owner
+   names them, and creates the account (owner action 1) before M1 is shown.
+2. **The four access-rule notes of §3:** A counts as read; removing access is single-actor; nobody
+   acts on their own access; break-glass is self-activated. They are written into the access rules
+   ("Four-eyes, takedown and MFA rules") in M1.
+3. **A one-time set-password link,** shown to the admin and handed over; email later. The link works
+   for **24 hours** (Supabase's email-link expiry, set by the owner before M2).
+4. **Break-glass as in §5:** a Super Admin alone, at most 2 hours, takedown only, the other Super
+   Admins alerted on screen; email later.
+5. **Expiry and review:** 180 days by default (30, 90, 180 or 365), 365 for Super Admin, at most 365;
+   a review every 90 days.
+6. **The shared password goes in M4,** once two Super Admins have signed in with their second
+   factor, without waiting for the AWS deployment. **Open:** Vivek's word that the release does not
+   depend on it, before M4.
+7. **Milestones M1 → M2 → M3 → M4,** each shown to the owner before the next.
 
 **Plan:** Phase D of [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md). Also the [access rules](#access-rules):
 the `user.manage / role.assign` row, "Four-eyes, takedown and MFA rules", and "Retention". Also the

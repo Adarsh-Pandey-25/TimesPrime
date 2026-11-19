@@ -1607,9 +1607,11 @@ phases were done:
    Supabase project (browser tests, the smoke test, an axe pass) and the worker reporting to Sentry. On the server the images need the manager's
    [media steps](#the-desks-images-panel-2-after-the-release); failures: [the Desk is failing](#the-desk-is-failing).
 7. **Panel 1 (Administration)**: its [design](PANEL_DOCS.md#panel-1-design-administration) was
-   proposed on 18 Nov 2026, at the owner's request, on `panel-1-administration`, while Panel 2's
-   last items are open. No code before the owner approves it. Its first owner action is a second
-   Super Admin: every Super Admin change in the app needs one (the matrix's A).
+   proposed on 18 Nov 2026 at the owner's request (PR #42), while Panel 2's last items are open, and
+   approved on 19 Nov 2026 with every recommended answer. M1 (people and roles) is being built on
+   `panel-1-people-roles`. Its first owner action is a second Super Admin: every Super Admin change
+   in the app needs one (the matrix's A). Open: who that is, and Vivek's word on retiring the shared
+   password before the AWS deployment (M4).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
