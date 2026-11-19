@@ -1382,6 +1382,42 @@ Against the real database, in the Supabase SQL editor. No session applies SQL.
 
 **Undo.** The rollback at the end of the file, before the first request or break-glass row.
 
+### Panel 1: applying admin-2
+
+For the owner, before the access review is used (Panel 1, M3). Against the real database, in the
+Supabase SQL editor. No session applies SQL.
+
+1. **Apply the migration.** SQL Editor → New query. Paste
+   `database/migrations/2026-11-19-admin-2-access-reviews.sql` whole, and run it. One transaction:
+   if it fails, nothing changed, and it is safe to run again.
+2. **Then run the check** (one query, one row):
+
+   ```sql
+   SELECT (SELECT count(*) FROM pg_tables WHERE schemaname = 'public' AND tablename = 'access_reviews') AS has_reviews,
+          has_table_privilege('authenticated', 'public.access_reviews', 'SELECT') AS users_read_reviews,
+          has_table_privilege('service_role', 'public.access_reviews', 'UPDATE') AS app_edits_reviews,
+          has_table_privilege('service_role', 'public.access_reviews', 'INSERT') AS app_adds_reviews;
+   ```
+
+   | Column | Expect |
+   |---|---|
+   | `has_reviews` | 1 |
+   | `users_read_reviews` | false |
+   | `app_edits_reviews` | false |
+   | `app_adds_reviews` | true |
+
+**Undo.** The rollback at the end of the file, before the first review.
+
+### Panel 1: emergency access (break-glass)
+
+For the Super Admins (Panel 1, M3). For the night a court order or a serious error needs a story
+down and no editor answers.
+1. People → Emergency access: give the reason (the order, who called, what must come down), then
+   start it. It lasts 2 hours and gives one thing: taking an article or a Desk story down.
+2. The other Super Admins see it at once, in the bar across the back office; the takedown reaches
+   the Managing Editor and Legal through the Desk's alert list; every step is in the audit log.
+3. End it as soon as the story is down. It cannot be extended: another one needs a new reason.
+
 ### Panel 1: links and lost factors
 
 For the owner and the Super Admins, from Panel 1's M2 ([entry](PANEL_DOCS.md#panel-1-administration)).
@@ -1692,8 +1728,10 @@ phases were done:
    owner, 19 Nov 2026). The shared password goes in M4, without waiting for the AWS deployment (left
    to the developers by the owner). M2a, the accounts backend (adding a person, one-time links, the
    two-Super-Admin factor reset; PR #46) and M2b, its screens (adding a person, the one-time link
-   box, the welcome page; on `panel-1-account-screens`), are built. The owner set the
-   [link expiry](#panel-1-links-and-lost-factors) to 1 hour. Next: M3, break-glass and the review.
+   box, the welcome page; PR #47), are built. The owner set the
+   [link expiry](#panel-1-links-and-lost-factors) to 1 hour. M3a, the backend of break-glass, the
+   access review and what needs a look, is built on `panel-1-break-glass-review`; M3b, its screens,
+   is next. Owner action: [apply admin-2](#panel-1-applying-admin-2).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
