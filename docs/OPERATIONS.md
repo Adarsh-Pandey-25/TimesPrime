@@ -1800,6 +1800,16 @@ phases were done:
    Panel 1's definition of done is checked in PANEL_DOCS.md: open are the owner's walk-through of
    the signed-in flows and a test Supabase project. Failures: [People (Panel 1) is
    failing](#people-panel-1-is-failing).
+8. **The back office's UI, made consistent** (the owner, 19 Nov 2026), in four steps, each its
+   own branch and pull request: the shared kit (`fix/admin-ui-kit`), then People, the Desk, and the
+   dashboard with sign-in. Nothing a screen may do changes, and no button changes its words.
+   The kit (`apps/admin/src/components/ui/`):
+   - one set of button, field, card and link styles, with hover and press effects on what can be
+     clicked;
+   - the back office's own popups in place of the browser's confirm, prompt and alert boxes:
+     deleting articles, taking over a story, unsaved changes, and the editor's link, related story
+     and embed;
+   - success messages as toasts in a corner, with refusals kept beside the form.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

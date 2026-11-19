@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { GALLERY_MAX, GALLERY_MIN, type RenditionRatio, type RenditionsState } from "@timesprime/shared/config/media";
 import { deskCall } from "./deskClient";
+import { button } from "../ui/styles";
 
 // Choosing library images (Panel 2 design §7): the images of the person's desks, each with what it
 // still lacks, and, for a story, the crop readers get. Retired images are not offered.
@@ -25,7 +26,6 @@ interface Choice {
 }
 
 const RATIOS: Array<[RenditionRatio, string]> = [["16x9", "16:9 (wide)"], ["4x3", "4:3"], ["1x1", "Square"]];
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
 
 /** What a story in `language` still needs of the image before it is published; for a photo, its rights. */
 function missing(m: Choice, language: "en" | "hi" | null): string[] {

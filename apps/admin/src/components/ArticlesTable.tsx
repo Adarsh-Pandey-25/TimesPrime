@@ -15,6 +15,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
+import { useDialog } from "./ui/Feedback";
 
 interface AdminArticle {
   id: string;
@@ -382,6 +383,7 @@ export default function ArticlesTable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const dialog = useDialog();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -455,7 +457,13 @@ export default function ArticlesTable() {
   };
 
   const handleDelete = async (articleId: string, title: string) => {
-    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    const sure = await dialog.confirm({
+      title: "Delete this article?",
+      message: `"${title}". This cannot be undone.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!sure) return;
 
     setDeletingId(articleId);
     try {
@@ -505,9 +513,13 @@ export default function ArticlesTable() {
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    if (!window.confirm(`Delete ${ids.length} selected article${ids.length === 1 ? "" : "s"}? This cannot be undone.`)) {
-      return;
-    }
+    const sure = await dialog.confirm({
+      title: `Delete ${ids.length} selected article${ids.length === 1 ? "" : "s"}?`,
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!sure) return;
 
     setBulkDeleting(true);
     setError("");

@@ -182,7 +182,11 @@ apps/
                            media library), and people/ (Panel 1's screens: the directory with a Super Admin's
                            requests, one person's roles and account, adding a person, the one-time link box,
                            the welcome page a link opens, emergency access and the access review; AdminTopBar
-                           shows Super Admins the break-glass alert and the review reminder)
+                           shows Super Admins the break-glass alert and the review reminder), and ui/
+                           (the back office's one look: styles.ts, the shared button, field, card and link
+                           classes; Feedback.tsx, the popups (a dialog and toasts) in place of the browser's
+                           confirm, prompt and alert boxes, provided once in the root layout;
+                           ActionMessage.tsx, an action's answer: a toast on success, a refusal inline)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes);

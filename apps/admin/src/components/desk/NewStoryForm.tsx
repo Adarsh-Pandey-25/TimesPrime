@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { DESK_FORMATS, STORY_LANGUAGES } from "@timesprime/shared/config/desk";
 import { SECTION_IDS } from "@timesprime/shared/config/sections";
 import { deskCall } from "./deskClient";
+import { field } from "../ui/styles";
 
 // A new story (Panel 2 design §4): its desk (language and section), its format and a working headline.
 // The server checks the caller may create in that desk; the story then opens in the editor.
-
-const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
 
 export default function NewStoryForm() {
   const router = useRouter();

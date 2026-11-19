@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CREDIT_ROLES, CREDITS_MAX, type CreditRole } from "@timesprime/shared/config/desk";
 import { deskCall } from "./deskClient";
+import { button, field } from "../ui/styles";
 
 // A story's credits on its screen (Panel 2 design §7): who wrote it, who added reporting, who
 // translated it, in the order readers see them. Whoever may edit the story changes them before it is
@@ -27,9 +28,6 @@ export const CREDIT_LABELS: Record<CreditRole, string> = {
   additional_reporting: "Additional reporting",
   translated_by: "Translated by",
 };
-
-const field = "w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
 
 /** The name readers see: the Hindi one on a Hindi story when there is one. */
 const nameIn = (language: "en" | "hi", a: { display_name_en: string; display_name_hi: string | null } | null) =>

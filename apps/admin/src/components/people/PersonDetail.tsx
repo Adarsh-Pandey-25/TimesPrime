@@ -20,6 +20,8 @@ import {
   type RequestView,
   type RoleView,
 } from "./peopleClient";
+import { button, card, field as baseField } from "../ui/styles";
+import ActionMessage from "../ui/ActionMessage";
 
 // One staff member (Panel 1 design §4): their account, every role they hold or held, the requests
 // about them, and what was done to them (for holders of audit.read). The actions shown are the ones
@@ -44,9 +46,7 @@ interface Detail {
   caller: CallerView;
 }
 
-const field = "mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
-const card = "space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-[#2b2f36] dark:bg-[#202327]";
+const field = `mt-0.5 ${baseField}`;
 const STATE_LABEL: Record<RoleView["state"], string> = { live: "Live", expired: "Expired", revoked: "Revoked" };
 const OUTCOME_LABEL: Record<string, string> = { approved: "Approved", declined: "Declined", cancelled: "Cancelled" };
 
@@ -122,9 +122,7 @@ export default function PersonDetail({ id }: { id: string }) {
         {caller.userId === person.userId && <p className="text-xs text-slate-500">This is you: nobody changes their own access. You may sign yourself out everywhere.</p>}
       </section>
 
-      {message && (
-        <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>{message.text}</p>
-      )}
+      <ActionMessage message={message} />
       {link && <LinkBox path={link} who={person.name} />}
 
       <Roles assignments={assignments} plans={can.roles} busy={busy} change={change} />

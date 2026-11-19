@@ -4,13 +4,13 @@ import { useState, type ReactNode } from "react";
 import { deskCall, when } from "../desk/deskClient";
 import LinkBox from "./LinkBox";
 import { describeRequest, type RequestView } from "./peopleClient";
+import { button } from "../ui/styles";
+import ActionMessage from "../ui/ActionMessage";
 
 // A Super Admin's requests (Panel 1 design §3 and §4): those waiting for the caller's decision, and
 // those the caller made. Approve and Decline are offered only where the API says the caller may
 // decide (another Super Admin, not the person it is about, before it lapses); Cancel only on one's
 // own. The server decides each.
-
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
 
 export default function RequestsBox({ requests, onChanged }: { requests: RequestView[]; onChanged: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -52,11 +52,7 @@ export default function RequestsBox({ requests, onChanged }: { requests: Request
         <h2 className="font-serif text-lg font-bold">Waiting for your approval</h2>
         <p className="text-xs text-slate-500">A Super Admin&apos;s change takes a second Super Admin. You cannot decide your own request, or one about you.</p>
       </div>
-      {message && (
-        <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>
-          {message.text}
-        </p>
-      )}
+      <ActionMessage message={message} />
       {link && <LinkBox path={link.path} who={link.who} />}
       {waiting.length === 0 ? (
         <p className="text-sm text-slate-500">Nothing is waiting for you.</p>

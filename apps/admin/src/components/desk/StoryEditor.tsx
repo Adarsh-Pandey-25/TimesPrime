@@ -14,6 +14,9 @@ import CreditsPanel, { type Credit } from "./CreditsPanel";
 import { editorExtensions } from "./editorImage";
 import ImagePicker from "./ImagePicker";
 import RevisionsPanel, { type FullRevision } from "./RevisionsPanel";
+import ActionMessage from "../ui/ActionMessage";
+import { useDialog } from "../ui/Feedback";
+import { button, field } from "../ui/styles";
 
 // The story screen (Panel 2 design §4 and §5): the editor, the story's details, the pre-publish
 // checklist, the moves its state allows, its open two-person requests, its revisions and its
@@ -92,12 +95,55 @@ const MOVES_SHOWN: Array<{ action: DeskAction; route: string; label: string; nee
 ];
 
 const SAVABLE: StoryState[] = ["pitch", "assigned", "draft", "in_review", "desk_review", "approved", "published"];
-const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
 
 function Toolbar({ editor, disabled, onImage, onGallery }: { editor: Editor | null; disabled: boolean; onImage: () => void; onGallery: () => void }) {
+  const dialog = useDialog();
   if (!editor) return null;
-  const run = (fn: () => void) => () => !disabled && fn();
+  const run = (fn: () => unknown) => () => {
+    if (!disabled) void fn();
+  };
+
+  // Link, related story and embed ask for an address in a popup, which checks it before it closes.
+  async function addLink(ed: Editor) {
+    const current = (ed.getAttributes("link").href as string | undefined) ?? "";
+    const values = await dialog.form({
+      title: current ? "Change the link" : "Add a link",
+      message: "Select the words first. Leave the address empty to remove the link.",
+      fields: [{ name: "href", label: "Address", placeholder: "https://… or /section/…", defaultValue: current }],
+      submitLabel: "Apply",
+      validate: ({ href }) => (!href.trim() || isAllowedHref(href.trim()) ? null : "Only https links, site paths or mailto are allowed."),
+    });
+    if (!values) return;
+    const href = values.href.trim();
+    if (!href) ed.chain().focus().unsetLink().run();
+    else ed.chain().focus().setLink({ href }).run();
+  }
+
+  async function addRelated(ed: Editor) {
+    const values = await dialog.form({
+      title: "Add a related story",
+      fields: [
+        { name: "href", label: "The story's address", placeholder: "https://… or /section/…" },
+        { name: "title", label: "Its headline" },
+      ],
+      submitLabel: "Add",
+      validate: ({ href }) => (isAllowedHref(href.trim()) ? null : "Only https links or site paths are allowed."),
+    });
+    if (!values) return;
+    ed.chain().focus().insertContent({ type: "relatedLink", attrs: { href: values.href.trim(), title: values.title.trim() } }).run();
+  }
+
+  async function addEmbed(ed: Editor) {
+    const values = await dialog.form({
+      title: "Embed a post",
+      message: "It shows on the site as a link to the post.",
+      fields: [{ name: "url", label: "A YouTube, X or Instagram post", placeholder: "https://…" }],
+      submitLabel: "Embed",
+      validate: ({ url }) => (embedProvider(url.trim()) ? null : "Only YouTube, X and Instagram posts can be embedded."),
+    });
+    if (!values) return;
+    ed.chain().focus().insertContent({ type: "embed", attrs: { url: values.url.trim() } }).run();
+  }
   const tool = (label: string, onClick: () => void, active = false) => (
     <button type="button" aria-pressed={active} disabled={disabled} onClick={onClick} className={`${button} ${active ? "bg-slate-200 dark:bg-[#33373d]" : ""}`}>
       {label}
@@ -112,25 +158,10 @@ function Toolbar({ editor, disabled, onImage, onGallery }: { editor: Editor | nu
       {tool("• List", run(() => editor.chain().focus().toggleBulletList().run()), editor.isActive("bulletList"))}
       {tool("1. List", run(() => editor.chain().focus().toggleOrderedList().run()), editor.isActive("orderedList"))}
       {tool("Quote", run(() => editor.chain().focus().toggleBlockquote().run()), editor.isActive("blockquote"))}
-      {tool("Link", run(() => {
-        const href = window.prompt("Link (https://… or /section/…). Leave empty to remove.") ?? "";
-        if (!href) editor.chain().focus().unsetLink().run();
-        else if (isAllowedHref(href)) editor.chain().focus().setLink({ href }).run();
-        else window.alert("Only https links, site paths or mailto are allowed.");
-      }), editor.isActive("link"))}
+      {tool("Link", run(() => addLink(editor)), editor.isActive("link"))}
       {tool("Factbox", run(() => editor.chain().focus().insertContent({ type: "factbox", content: [{ type: "paragraph" }] }).run()))}
-      {tool("Related story", run(() => {
-        const href = window.prompt("The story's address (https://… or /section/…)") ?? "";
-        if (!isAllowedHref(href)) return void (href && window.alert("Only https links or site paths are allowed."));
-        const title = window.prompt("Its headline") ?? "";
-        editor.chain().focus().insertContent({ type: "relatedLink", attrs: { href, title } }).run();
-      }))}
-      {tool("Embed", run(() => {
-        const url = window.prompt("A YouTube, X or Instagram post (https://…)") ?? "";
-        if (!url) return;
-        if (!embedProvider(url)) return void window.alert("Only YouTube, X and Instagram posts can be embedded.");
-        editor.chain().focus().insertContent({ type: "embed", attrs: { url } }).run();
-      }))}
+      {tool("Related story", run(() => addRelated(editor)))}
+      {tool("Embed", run(() => addEmbed(editor)))}
       {tool("Image", run(onImage))}
       {tool("Gallery", run(onGallery))}
       {tool("Ad slot", run(() => editor.chain().focus().insertContent({ type: "adSlot" }).run()))}
@@ -140,6 +171,7 @@ function Toolbar({ editor, disabled, onImage, onGallery }: { editor: Editor | nu
 
 export default function StoryEditor({ id }: { id: string }) {
   const { me, error: meError } = useAdminMe();
+  const dialog = useDialog();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [loadError, setLoadError] = useState("");
   const [headline, setHeadline] = useState("");
@@ -266,8 +298,18 @@ export default function StoryEditor({ id }: { id: string }) {
   }
 
   /** An old revision back in the editor, unsaved: Save adds it as a new revision (design §3). */
-  function bringBack(revision: FullRevision, number: number): boolean {
-    if (dirty && !window.confirm(`You have unsaved changes. Replace them with revision ${number}?`)) return false;
+  async function bringBack(revision: FullRevision, number: number): Promise<boolean> {
+    if (
+      dirty &&
+      !(await dialog.confirm({
+        title: `Replace your unsaved changes with revision ${number}?`,
+        message: `What you have not saved is lost. Revision ${number} fills the editor, and Save keeps it as a new revision.`,
+        confirmLabel: "Replace them",
+        tone: "danger",
+      }))
+    ) {
+      return false;
+    }
     setHeadline(revision.headline);
     setDek(revision.dek ?? "");
     setSeoTitle(revision.seo_title ?? "");
@@ -297,7 +339,16 @@ export default function StoryEditor({ id }: { id: string }) {
   }
 
   async function doMove(route: string, needs?: "reason" | "schedule" | "takedown") {
-    if (dirty && !window.confirm("You have unsaved changes. Take this step anyway?")) return;
+    if (
+      dirty &&
+      !(await dialog.confirm({
+        title: "Take this step with unsaved changes?",
+        message: "Unsaved changes are not part of this step. Save first to include them.",
+        confirmLabel: "Take the step",
+      }))
+    ) {
+      return;
+    }
     const body: Record<string, unknown> = {};
     if (needs === "reason" || needs === "takedown") body.reason = reason;
     if (needs === "takedown") body.reason_code = reasonCode;
@@ -375,7 +426,19 @@ export default function StoryEditor({ id }: { id: string }) {
         {lockHolder && (
           <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/40">
             Someone else is editing this story, so it is read-only for you.
-            <button type="button" className={button} onClick={() => window.confirm("Take over? Their unsaved work will be lost.") && void holdLock(true)}>
+            <button
+              type="button"
+              className={button}
+              onClick={async () => {
+                const ok = await dialog.confirm({
+                  title: "Take over this story?",
+                  message: "The person editing it now loses their unsaved work.",
+                  confirmLabel: "Take over",
+                  tone: "danger",
+                });
+                if (ok) void holdLock(true);
+              }}
+            >
               Take over
             </button>
           </div>
@@ -421,7 +484,7 @@ export default function StoryEditor({ id }: { id: string }) {
           </button>
           <label className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={substantive} onChange={(e) => setSubstantive(e.target.checked)} /> A substantive change</label>
         </div>
-        {message && <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>{message.text}</p>}
+        <ActionMessage message={message} />
 
         <RevisionsPanel
           storyId={story.id}

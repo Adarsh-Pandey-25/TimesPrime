@@ -6,6 +6,8 @@ import { STORY_LANGUAGES } from "@timesprime/shared/config/desk";
 import { MEDIA_MAX_BYTES, MEDIA_SOURCES, MEDIA_TEXT_MAX, MEDIA_TYPES, RENDITIONS_TICK_MINUTES, type MediaSource, type RenditionsState } from "@timesprime/shared/config/media";
 import { SECTION_IDS } from "@timesprime/shared/config/sections";
 import { canAct, deskCall, useAdminMe, when } from "./deskClient";
+import { button, field as baseField } from "../ui/styles";
+import ActionMessage from "../ui/ActionMessage";
 
 // The Desk's media library (Panel 2 design §7): the images of the person's desks, an upload for
 // whoever may edit stories (article.edit, in the desk the image is for), and for a holder of
@@ -54,8 +56,7 @@ const RENDITIONS_LABELS: Record<RenditionsState, string> = {
   ready: "Sizes for readers: made",
   failed: "Sizes for readers: could not be made from this file. Upload it again.",
 };
-const field = "mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
+const field = `mt-0.5 ${baseField}`;
 
 const toForm = (m: Media): Form => ({
   credit: m.credit ?? "",
@@ -166,7 +167,7 @@ export default function MediaLibrary() {
           <button type="button" className={button} onClick={() => { setForm(EMPTY); setUploading(true); }}>Upload an image</button>
         )}
       </div>
-      {message && <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>{message.text}</p>}
+      <ActionMessage message={message} />
 
       {mayUpload && uploading && (
         <form onSubmit={(e) => { e.preventDefault(); void upload(); }} aria-label="Upload an image" className="grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-2 dark:border-[#2b2f36]">

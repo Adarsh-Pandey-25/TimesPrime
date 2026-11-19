@@ -5,6 +5,8 @@ import Link from "next/link";
 import { AUTHOR_KINDS, type AuthorKind } from "@timesprime/shared/config/desk";
 import { canAct, deskCall, useAdminMe } from "./deskClient";
 import ImagePicker from "./ImagePicker";
+import { button, field as baseField } from "../ui/styles";
+import ActionMessage from "../ui/ActionMessage";
 
 // The Desk's authors (Panel 2 design §7): the names stories credit. Everyone on the Desk sees the
 // list; a holder of author.manage adds an author, edits one, retires one (it stays credited on what
@@ -37,8 +39,7 @@ interface Form {
 
 const EMPTY: Form = { display_name_en: "", display_name_hi: "", kind: "staff", beat: "", bio_en: "", bio_hi: "", links: "", photo_id: "" };
 const KIND_LABELS: Record<AuthorKind | "agency", string> = { staff: "Staff", columnist: "Columnist", freelancer: "Freelancer", agency: "Agency" };
-const field = "mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
+const field = `mt-0.5 ${baseField}`;
 
 const toForm = (a: Author): Form => ({
   display_name_en: a.display_name_en,
@@ -132,7 +133,7 @@ export default function AuthorsManager() {
           <button type="button" className={button} onClick={() => { setForm(EMPTY); setEditing("new"); }}>New author</button>
         )}
       </div>
-      {message && <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>{message.text}</p>}
+      <ActionMessage message={message} />
 
       {manage && editing !== null && (
         <form onSubmit={(e) => { e.preventDefault(); void save(); }} aria-label={editing === "new" ? "New author" : "Edit the author"} className="grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-2 dark:border-[#2b2f36]">
