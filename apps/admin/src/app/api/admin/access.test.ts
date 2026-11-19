@@ -33,7 +33,20 @@ jest.mock("@timesprime/server/lib/mediaStorage", () => {
   const get = jest.fn(async () => new Uint8Array([0xff, 0xd8, 0xff, 0xe0]));
   return { mediaStorage: () => ({ kind: "local", put, get }), mediaUrl: (key: string) => `/media/${key}`, put, get };
 });
-jest.mock("@timesprime/server/lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn() }, isSupabaseConfigured: jest.fn(() => true) }));
+// Supabase Auth's admin API (Panel 1): each account's email, second factor and last sign-in.
+jest.mock("@timesprime/server/lib/supabase", () => ({
+  supabase: {
+    from: jest.fn(),
+    rpc: jest.fn(),
+    auth: {
+      admin: {
+        listUsers: jest.fn(async () => ({ data: { users: [] }, error: null })),
+        getUserById: jest.fn(async () => ({ data: { user: null }, error: null })),
+      },
+    },
+  },
+  isSupabaseConfigured: jest.fn(() => true),
+}));
 jest.mock("@timesprime/server/services/health/health", () => ({
   getHealth: jest.fn(async () => ({ status: "ok", checkedAt: "2026-11-10T00:00:00Z", dependencies: {} })),
 }));
@@ -95,6 +108,18 @@ import * as deskCredits from "./desk/stories/[id]/credits/route";
 import * as deskMedia from "./desk/media/route";
 import * as deskMediaOne from "./desk/media/[id]/route";
 import * as deskMediaOriginal from "./desk/media/[id]/original/route";
+import * as people from "./people/route";
+import * as person from "./people/[id]/route";
+import * as personSuspend from "./people/[id]/suspend/route";
+import * as personReactivate from "./people/[id]/reactivate/route";
+import * as personSignOut from "./people/[id]/sign-out/route";
+import * as personRoles from "./people/[id]/roles/route";
+import * as personRenew from "./people/[id]/roles/[assignmentId]/renew/route";
+import * as personRevoke from "./people/[id]/roles/[assignmentId]/revoke/route";
+import * as accessRequests from "./people/requests/route";
+import * as requestApprove from "./people/requests/[requestId]/approve/route";
+import * as requestDecline from "./people/requests/[requestId]/decline/route";
+import * as requestCancel from "./people/requests/[requestId]/cancel/route";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
 
@@ -1118,6 +1143,228 @@ describe("the media library (Panel 2 design §7)", () => {
     expect(calls.some(([t, m]) => t === "media_assets" && m === "delete")).toBe(false);
     expect((await call(MEDIA_PATCH, { body: { active: false } }, HI_WRITER)).status).toBe(403);
     expect((await call(MEDIA_PATCH, { body: { active: false } }, HI_DESK, { media_assets: { data: null, error: null } })).status).toBe(404);
+  });
+});
+
+// ---- Panel 1, Administration: people and their roles (design §3) ----
+// user.manage and role.assign: A for a Super Admin (asks; removes at once), S for a Managing Editor
+// (up to Desk Editor in their own scope, at once). The least-privileged holder of S is a Managing
+// Editor for one language; one for the other language does not reach this person.
+const PERSON = "0a1b2c3d-0000-4000-8000-000000000001";
+const ROW_ID = "0a1b2c3d-0000-4000-8000-0000000000a1";
+const REQ_ID = "0a1b2c3d-0000-4000-8000-0000000000b1";
+const PROFILE_ROW = {
+  user_id: PERSON, display_name: "Ravi", status: "active", mfa_required: true,
+  created_at: "2026-11-19T09:00:00Z", created_by: "u-9", last_sign_in_at: null,
+};
+const roleRow = (over: Record<string, unknown> = {}) => ({
+  id: ROW_ID, user_id: PERSON, role_key: "writer", language: "hi", section: "sports", is_break_glass: false,
+  granted_by: "u-9", approved_by: null, reason: "New on the desk.", granted_at: "2026-11-19T09:00:00Z",
+  expires_at: FUTURE, revoked_at: null, revoked_by: null, revoke_reason: null, ...over,
+});
+const REQUEST_ROW = {
+  id: REQ_ID, kind: "grant", user_id: PERSON, details: { role: "writer", language: "hi", section: "sports", days: 90 },
+  reason: "Covers the elections.", requested_by: "u-9", requested_at: "2026-11-19T09:00:00Z", lapses_at: FUTURE,
+  decided_by: null, decided_at: null, outcome: null, note: null,
+};
+const HI_MANAGING: Grantee = { role: "managing_editor", language: "hi" };
+const EN_MANAGING: Grantee = { role: "managing_editor", language: "en" };
+const SUPER_ADMIN: Grantee = { role: "super_admin", language: null };
+const IN_PEOPLE = (profile: Record<string, unknown> = {}, rows: unknown[] = [roleRow()]) => ({
+  staff_profiles: { data: { ...PROFILE_ROW, ...profile }, error: null },
+  role_assignments: { data: rows, error: null },
+});
+const P = "/api/admin/people/[id]" as const;
+const onPerson = (handler: DeskHandler) => withId(handler, { id: PERSON });
+const onRow = (handler: DeskHandler) => withId(handler, { id: PERSON, assignmentId: ROW_ID });
+const onRequest = (handler: DeskHandler) => withId(handler, { requestId: REQ_ID });
+const REASON = { reason: "Moved to the politics desk." };
+
+const PEOPLE_CASES: Case[] = [
+  { path: "/api/admin/people", method: "GET", handler: people.GET, allowed: HI_MANAGING, data: { staff_profiles: { data: [PROFILE_ROW], error: null }, role_assignments: { data: [roleRow()], error: null } }, changes: false },
+  { path: P, method: "GET", handler: onPerson(person.GET), allowed: HI_MANAGING, wrongScope: EN_MANAGING, data: IN_PEOPLE(), changes: false },
+  {
+    path: P, method: "PATCH", handler: onPerson(person.PATCH), body: { display_name: "Ravi Kumar", ...REASON },
+    allowed: HI_MANAGING, wrongScope: EN_MANAGING, data: IN_PEOPLE(), changes: true,
+  },
+  { path: `${P}/suspend`, method: "POST", handler: onPerson(personSuspend.POST), body: REASON, allowed: HI_MANAGING, wrongScope: EN_MANAGING, data: { ...IN_PEOPLE(), "rpc:staff_end_sessions": { data: 1, error: null } }, changes: true },
+  { path: `${P}/reactivate`, method: "POST", handler: onPerson(personReactivate.POST), body: REASON, allowed: HI_MANAGING, wrongScope: EN_MANAGING, data: IN_PEOPLE({ status: "suspended" }), changes: true },
+  { path: `${P}/sign-out`, method: "POST", handler: onPerson(personSignOut.POST), allowed: HI_MANAGING, wrongScope: EN_MANAGING, data: { ...IN_PEOPLE(), "rpc:staff_end_sessions": { data: 2, error: null } }, changes: true },
+  {
+    path: `${P}/roles`, method: "POST", handler: onPerson(personRoles.POST), body: { role: "sub_editor", language: "hi", section: "sports", days: 90, ...REASON },
+    allowed: HI_MANAGING, wrongScope: EN_MANAGING, data: { ...IN_PEOPLE(), "rpc:access_grant": { data: roleRow({ role_key: "sub_editor" }), error: null } }, changes: true,
+  },
+  {
+    path: `${P}/roles/[assignmentId]/renew`, method: "POST", handler: onRow(personRenew.POST), body: { days: 90, ...REASON },
+    allowed: HI_MANAGING, wrongScope: EN_MANAGING, data: { ...IN_PEOPLE(), "rpc:access_grant": { data: roleRow(), error: null } }, changes: true,
+  },
+  { path: `${P}/roles/[assignmentId]/revoke`, method: "POST", handler: onRow(personRevoke.POST), body: REASON, allowed: HI_MANAGING, wrongScope: EN_MANAGING, data: IN_PEOPLE(), changes: true },
+  { path: "/api/admin/people/requests", method: "GET", handler: accessRequests.GET, allowed: HI_MANAGING, data: { access_requests: { data: [], error: null } }, changes: false },
+  // Only a Super Admin decides a request (a Managing Editor holds S, never A), and never their own.
+  {
+    path: "/api/admin/people/requests/[requestId]/approve", method: "POST", handler: onRequest(requestApprove.POST), allowed: SUPER_ADMIN,
+    data: { access_requests: { data: REQUEST_ROW, error: null }, "rpc:access_decide": { data: { ...REQUEST_ROW, decided_by: "u-1", decided_at: "2026-11-19T10:00:00Z", outcome: "approved" }, error: null } },
+    changes: true,
+  },
+  {
+    path: "/api/admin/people/requests/[requestId]/decline", method: "POST", handler: onRequest(requestDecline.POST), body: { note: "Not needed." }, allowed: SUPER_ADMIN,
+    data: { access_requests: { data: REQUEST_ROW, error: null }, "rpc:access_decide": { data: { ...REQUEST_ROW, outcome: "declined" }, error: null } },
+    changes: true,
+  },
+  {
+    path: "/api/admin/people/requests/[requestId]/cancel", method: "POST", handler: onRequest(requestCancel.POST), allowed: SUPER_ADMIN,
+    data: { access_requests: { data: { ...REQUEST_ROW, requested_by: "u-1" }, error: null }, "rpc:access_decide": { data: { ...REQUEST_ROW, outcome: "cancelled" }, error: null } },
+    changes: true,
+  },
+];
+CASES.push(...PEOPLE_CASES);
+
+describe("people and their roles (Panel 1 design §3)", () => {
+  const caseFor = (method: Method, path: string) => PEOPLE_CASES.find((c) => c.method === method && c.path === path) as Case;
+  async function call(c: Case, caller: Grantee, data: Case["data"], body?: unknown, userId = "u-1") {
+    tables = { ...(data ?? {}) };
+    (readSession as jest.Mock).mockResolvedValue({ kind: "staff", userId, aal: "aal2", sessionId: "s-1" });
+    (loadStaffRecord as jest.Mock).mockResolvedValue({ ...staff([caller]), userId });
+    const res = await c.handler(request({ ...c, body: body ?? c.body }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const audited = () => (recordAudit as jest.Mock).mock.calls.map(([row]) => [row.action, row.outcome]);
+  const GRANT = `${P}/roles`;
+
+  test("a Super Admin's grant is a request for a second Super Admin (202): no role is made", async () => {
+    const c = caseFor("POST", GRANT);
+    const r = await call(c, SUPER_ADMIN, { ...IN_PEOPLE(), access_requests: { data: REQUEST_ROW, error: null } }, { role: "managing_editor", language: null, section: null, days: 365, ...REASON });
+    expect(r.status).toBe(202);
+    expect(r.json.asked).toBe(true);
+    expect(calls.some(([t, m]) => t === "access_requests" && m === "insert")).toBe(true);
+    expect(calls.some(([fn]) => fn === "access_grant")).toBe(false);
+    expect(audited()).toEqual([["access.request", "attempted"], ["access.request", "succeeded"]]);
+  });
+
+  test("a Managing Editor grants up to Desk Editor, in their own scope; never a privileged role, never another desk", async () => {
+    const c = caseFor("POST", GRANT);
+    expect((await call(c, HI_MANAGING, c.data, { role: "managing_editor", language: "hi", ...REASON })).status).toBe(403);
+    expect((await call(c, HI_MANAGING, c.data, { role: "sub_editor", language: "en", section: "sports", ...REASON })).status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a grant is checked: a known role, a language where the role needs one, a known section, 30/90/180/365 days, a reason", async () => {
+    const c = caseFor("POST", GRANT);
+    for (const body of [
+      { role: "crm_mgr", language: null, ...REASON },
+      { role: "sub_editor", language: null, ...REASON },
+      { role: "sub_editor", language: "hi", section: "politics", ...REASON },
+      { role: "sub_editor", language: "hi", days: 45, ...REASON },
+      { role: "sub_editor", language: "hi" },
+    ]) {
+      expect((await call(c, HI_MANAGING, c.data, body)).status).toBe(400);
+    }
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a role the person already holds in that scope is renewed, not granted again (409)", async () => {
+    const c = caseFor("POST", GRANT);
+    const r = await call(c, HI_MANAGING, c.data, { role: "writer", language: "hi", section: "sports", ...REASON });
+    expect(r.status).toBe(409);
+    expect(r.json.code).toBe("holds");
+  });
+
+  test("nobody changes their own access: grant, rename, suspend and revoke are refused for oneself", async () => {
+    for (const [method, path, body] of [
+      ["POST", GRANT, { role: "sub_editor", language: "hi", ...REASON }],
+      ["PATCH", P, { display_name: "Me", ...REASON }],
+      ["POST", `${P}/suspend`, REASON],
+      ["POST", `${P}/roles/[assignmentId]/revoke`, REASON],
+    ] as const) {
+      const c = caseFor(method, path);
+      const r = await call(c, SUPER_ADMIN, c.data, body, PERSON);
+      expect(r.status).toBe(403);
+      expect(r.json.code).toBe("own_access");
+    }
+    expect(wrote()).toEqual([]);
+  });
+
+  test("anyone may sign themselves out everywhere", async () => {
+    const c = caseFor("POST", `${P}/sign-out`);
+    expect((await call(c, HI_MANAGING, c.data, {}, PERSON)).status).toBe(200);
+  });
+
+  test("removing access takes one person: a Super Admin revokes and suspends at once, with no request", async () => {
+    const revoke = caseFor("POST", `${P}/roles/[assignmentId]/revoke`);
+    expect((await call(revoke, SUPER_ADMIN, revoke.data)).status).toBe(200);
+    expect(calls.some(([t, m]) => t === "role_assignments" && m === "update")).toBe(true);
+    const suspend = caseFor("POST", `${P}/suspend`);
+    expect((await call(suspend, SUPER_ADMIN, suspend.data)).status).toBe(200);
+    expect(calls.some(([t]) => t === "access_requests")).toBe(false);
+  });
+
+  test("a Managing Editor's people: not a Super Admin or a fellow Managing Editor, even in their language", async () => {
+    const c = caseFor("POST", `${P}/suspend`);
+    const r = await call(c, HI_MANAGING, IN_PEOPLE({}, [roleRow(), roleRow({ id: "x-2", role_key: "managing_editor", section: null })]));
+    expect(r.status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("the last active Super Admin cannot be suspended or lose the role (409)", async () => {
+    const lastAdmin = { ...IN_PEOPLE({}, [roleRow({ role_key: "super_admin", language: null, section: null })]), "rpc:is_active_super_admin": { data: false, error: null } };
+    const suspend = caseFor("POST", `${P}/suspend`);
+    const r = await call(suspend, SUPER_ADMIN, lastAdmin);
+    expect(r.status).toBe(409);
+    expect(r.json.code).toBe("last_super_admin");
+    const revoke = caseFor("POST", `${P}/roles/[assignmentId]/revoke`);
+    expect((await call(revoke, SUPER_ADMIN, lastAdmin)).json.code).toBe("last_super_admin");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a second Super Admin may remove the first: another one is still active", async () => {
+    const other = { ...IN_PEOPLE({}, [roleRow({ role_key: "super_admin", language: null, section: null }), roleRow({ id: "x-3", user_id: "u-7", role_key: "super_admin", language: null, section: null })]), "rpc:is_active_super_admin": { data: true, error: null }, "rpc:staff_end_sessions": { data: 1, error: null } };
+    expect((await call(caseFor("POST", `${P}/suspend`), SUPER_ADMIN, other)).status).toBe(200);
+  });
+
+  test("a request: the asker cannot decide it, nor the person it is about, nor a Managing Editor", async () => {
+    const c = caseFor("POST", "/api/admin/people/requests/[requestId]/approve");
+    expect((await call(c, SUPER_ADMIN, { access_requests: { data: { ...REQUEST_ROW, requested_by: "u-1" }, error: null } })).json.code).toBe("four_eyes");
+    expect((await call(c, SUPER_ADMIN, { access_requests: { data: { ...REQUEST_ROW, user_id: "u-1" }, error: null } })).json.code).toBe("own_access");
+    expect((await call(c, HI_MANAGING, { access_requests: { data: REQUEST_ROW, error: null } })).status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a request that lapsed or was decided cannot be approved (409); only the asker cancels", async () => {
+    const approve = caseFor("POST", "/api/admin/people/requests/[requestId]/approve");
+    expect((await call(approve, SUPER_ADMIN, { access_requests: { data: { ...REQUEST_ROW, lapses_at: PAST }, error: null } })).json.code).toBe("lapsed");
+    expect((await call(approve, SUPER_ADMIN, { access_requests: { data: { ...REQUEST_ROW, decided_at: PAST, outcome: "declined" }, error: null } })).json.code).toBe("decided");
+    const cancel = caseFor("POST", "/api/admin/people/requests/[requestId]/cancel");
+    expect((await call(cancel, SUPER_ADMIN, { access_requests: { data: REQUEST_ROW, error: null } })).json.code).toBe("not_yours");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("an approval is one database call, audited as access.approve", async () => {
+    const c = caseFor("POST", "/api/admin/people/requests/[requestId]/approve");
+    const r = await call(c, SUPER_ADMIN, c.data);
+    expect(r.status).toBe(200);
+    expect(calls.filter(([, m]) => m === "rpc").map(([fn, , args]) => [fn, args])).toEqual([
+      ["access_decide", [{ p_request: REQ_ID, p_decider: "u-1", p_outcome: "approved", p_note: null, p_user: null }]],
+    ]);
+    expect(audited()).toEqual([["access.approve", "attempted"], ["access.approve", "succeeded"]]);
+  });
+
+  test("the directory keeps a Managing Editor to their own desks; a Super Admin sees everyone", async () => {
+    const OTHER = "0a1b2c3d-0000-4000-8000-000000000002";
+    const data = {
+      staff_profiles: { data: [PROFILE_ROW, { ...PROFILE_ROW, user_id: OTHER, display_name: "Meera" }], error: null },
+      role_assignments: { data: [roleRow(), roleRow({ id: "x-4", user_id: OTHER, language: "en" })], error: null },
+    };
+    const c = caseFor("GET", "/api/admin/people");
+    expect((await call(c, HI_MANAGING, data)).json.people.map((p: { name: string }) => p.name)).toEqual(["Ravi"]);
+    expect((await call(c, SUPER_ADMIN, data)).json.people.map((p: { name: string }) => p.name)).toEqual(["Ravi", "Meera"]);
+  });
+
+  test("a person's page says what the caller may do: a Super Admin asks to rename and acts to suspend", async () => {
+    const c = caseFor("GET", P);
+    const r = await call(c, SUPER_ADMIN, c.data);
+    expect(r.json.can).toMatchObject({ rename: "ask", suspend: "act", reactivate: null, grant: "ask", roles: { [ROW_ID]: { renew: "ask", revoke: "act" } } });
+    const me = await call(c, HI_MANAGING, c.data);
+    expect(me.json.can).toMatchObject({ rename: "act", suspend: "act", grant: "act", roles: { [ROW_ID]: { renew: "act", revoke: "act" } } });
   });
 });
 
