@@ -1604,6 +1604,68 @@ anything (check `audit_log` for what was refused, and why). Anything that writes
 server: the storage; until the manager's media steps are done, uploads on the server fail by design.
 Otherwise Sentry names the S3 error (the role's `s3:PutObject` on `media/*`, the IMDS hop limit).
 
+### People (Panel 1) is failing
+
+Panel 1's main flow works like this:
+- a person is added or given a role, at once by a Managing Editor, or asked by one Super Admin and
+  approved by another;
+- they open their one-time link, set a password and a second factor, and sign in;
+- removing access works at once.
+
+This page starts from what the person sees, names the cause, and says what to do. As for
+[staff sign-in](#staff-sign-in-or-an-admin-action-is-failing), the SQL here only reads, and a
+refusal never changed anything. Anything that writes is an owner action.
+
+#### First: where to look
+
+- **The back office's errors** reach Sentry:
+  - a 500 "This could not be done. Nothing was changed." with its operation (`listPeople`,
+    `getPerson`, `access.approve` and so on);
+  - Supabase Auth's failures, tagged `supabase-auth`.
+- **What was attempted and refused:**
+  ```sql
+  SELECT at, actor_label, action, outcome, entity_id, reason
+  FROM public.audit_log
+  WHERE action LIKE 'staff.%' OR action LIKE 'role.%' OR action LIKE 'access.%' OR action LIKE 'auth.%'
+  ORDER BY seq DESC LIMIT 30;
+  ```
+- **The requests still open:**
+  ```sql
+  SELECT id, kind, requested_at, lapses_at, details FROM public.access_requests
+  WHERE decided_at IS NULL ORDER BY requested_at;
+  ```
+
+#### By what the person sees
+
+| They see | Cause | Do |
+|---|---|---|
+| "Asked. A second Super Admin decides it within 72 hours." and nothing changes yet | A Super Admin's change that adds access is a request (the matrix's A) | The other Super Admin approves it: People → "Waiting for your approval" |
+| 403 "A Managing Editor grants Writer, Sub-editor or Desk Editor, in their own scope" | The role or the desk is beyond the Managing Editor | A Super Admin asks instead |
+| 403 `own_access` | Someone acting on their own access, or deciding a request about themselves | Another admin does it |
+| 403 `four_eyes` when approving | The person who asked is approving | The other Super Admin approves |
+| 409 `lapsed` | The request is older than 72 hours | Ask again |
+| 409 `last_super_admin` | Removing the last active Super Admin | Make another one first (staff-access B3); the owner's SQL editor stays the way back in |
+| 409 `holds` | The person already holds that role in that desk | Renew it on their page |
+| 422 "… is privileged and needs a second, different admin to approve" | The database's two-admin rule | A privileged role goes through a Super Admin's request, approved by a second one |
+| "This link does not work any more" on the welcome page | The link was used, or is older than 1 hour (Supabase's email-link expiry, 3600 seconds) | Make a new password link on their page |
+| "Enter the code from your authenticator app first" | The account has a second factor, and a link alone does not change its password | Enter the code. If the phone is lost: two Super Admins reset the factor |
+| "This account cannot use the back office" on the welcome page | Not a staff member, or suspended | Reactivate them, or add them first |
+| The directory without emails or second factors ("could not be read from Supabase Auth") | Supabase Auth's admin API did not answer | Sentry `supabase-auth`; `SUPABASE_SERVICE_ROLE_KEY` must be set for the back office |
+| A suspended person's session lasts until their next click | `staff_end_sessions` could not end the sessions (admin-1's `function_can_end_sessions` check) | Nothing more is needed: their next request is refused, because status is read live. Report it |
+| No access review date, and the review page fails | admin-2 is not applied | [Apply admin-2](#panel-1-applying-admin-2) |
+| 503 "The audit log could not be written" | `audit_log` is unreachable | [Staff sign-in or an admin action is failing](#staff-sign-in-or-an-admin-action-is-failing) |
+
+#### Emergency access
+
+- **409 `active` when starting:** the Super Admin's emergency access is already on. It cannot be
+  extended: end it first, then start a new one with a new reason.
+- **A takedown is refused while it is on:** check the row. It must be live, not revoked and not
+  past `expires_at`, and the person must still be an active Super Admin.
+  ```sql
+  SELECT id, user_id, granted_at, expires_at, revoked_at, revoke_reason FROM public.role_assignments
+  WHERE is_break_glass ORDER BY granted_at DESC LIMIT 5;
+  ```
+
 ## Current status
 
 > **The release first (owner, 2026-11-02; hosting decided 4 and 16 Nov 2026).** The owner's senior
@@ -1734,8 +1796,10 @@ phases were done:
    [applied admin-2](#panel-1-applying-admin-2) on 19 Nov 2026) and the screens (the top bar's
    alert, the emergency box, the review page; PR #49). M4 retires the shared admin password: the
    code, its cookie and its sign-in option are gone (on `panel-1-retire-shared-password`); the owner
-   deletes its variables ([B6](#b6-the-shared-password-is-retired)). Next: Panel 1's definition of
-   done, and the walk-through.
+   deletes its variables ([B6](#b6-the-shared-password-is-retired); done on the laptop, 19 Nov 2026).
+   Panel 1's definition of done is checked in PANEL_DOCS.md: open are the owner's walk-through of
+   the signed-in flows and a test Supabase project. Failures: [People (Panel 1) is
+   failing](#people-panel-1-is-failing).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

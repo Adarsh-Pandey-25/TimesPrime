@@ -203,7 +203,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
-| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PRs #48 and #49) built; M4 (the shared password retired) built; the definition of done next | — | — |
+| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PRs #48 and #49) built; M4 (the shared password retired, PR #50) built; the definition of done checked: open are the owner's walk-through and a test project | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
@@ -524,8 +524,9 @@ route tested allowed and denied; PR #43), and M1b, the screens (PR #44). **M2a**
 backend: adding a person, one-time "set your password" links, resetting a lost second factor, and
 the welcome and password routes (PR #46); and **M2b**, their screens (PR #47). **M3a**, the
 backend of break-glass, the access review and what needs a look (migration admin-2; PR #48), and
-**M3b**, their screens (PR #49). **M4**: the shared admin password is retired. Panel 1's definition
-of done is checked next.
+**M3b**, their screens (PR #49). **M4**: the shared admin password is retired (PR #50). The
+[definition of done](#definition-of-done-checked-19-nov-2026-for-the-owners-sign-off) is checked below: open are
+the owner's walk-through and a test project.
 
 #### Panel
 
@@ -733,6 +734,35 @@ not stored as an outcome, and it cannot be decided.
 | `apps/admin/src/app/api/admin/welcome/route.test.ts`, `password/route.test.ts` | A good link gives a session and says whether a factor exists; a password is set, then every session ends | A missing, malformed or other-kind token (Supabase not asked); a used or expired link; not staff or suspended (signed out again); 10 tries per address; an `aal1` session with a factor; a weak password; Supabase's refusal |
 | `e2e/admin-access.spec.ts` (read-only) | Signed out, `/admin/people` and a person's page go to sign-in | Three people routes answer 401 |
 
+#### Definition of done (checked 19 Nov 2026, for the owner's sign-off)
+
+All four milestones are merged: PRs #43 and #44 (M1), #46 and #47 (M2), #48 and #49 (M3), and #50 (M4).
+The owner applied admin-1 and admin-2, and both checks passed. Each item below was checked against
+the code.
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Every feature works; this entry matches the code | **Partly.** Built and tested with Supabase mocked, and parts were used for real on 19 Nov 2026: Vivek, the second Super Admin, signed in with his second factor; the authenticator shows TimesPrime; the shared password's sign-in answers 400. **Not walked yet:** a request asked by one Super Admin and approved by the other, adding a person and their welcome link, a factor reset, break-glass, the review. The owner deferred this walk-through to the roles-and-testing document |
+| 2 | Server-side permission on every route and action; allowed and denied tests | **Done.** Every Panel 1 route has a rule; `access.test.ts` walks every route on disk and tests each one for its least-privileged holder, no session, no grants, expired, no MFA and the other desk. On top of that it tests Panel 1's own rules: requests, oneself, the last Super Admin, lapsed and decided requests, break-glass and the review. The public `welcome` route and the session-only `password` route have their own tests |
+| 3 | Privileged actions audited; MFA where the plan says | **Done in code.** Every Panel 1 change writes `audit_log` first ("attempted, then outcome") and is refused with 503 if it cannot. Super Admin and Managing Editor need `aal2` by role, and every staff profile needs MFA. A one-time link's token is never written anywhere. The database's own rules (admin-1's guard and functions, admin-2's append-only table) passed the owner's checks |
+| 4 | `npm run verify` and CI green; routes, JS and CSS reported | **Done.** Every PR was green, with its routes and budgets in its report |
+| 5 | SQL in migrations with a rollback, listed as an owner action | **Done.** admin-1 and admin-2, each with its rollback, applied by the owner with their checks (19 Nov 2026) |
+| 6 | This file, the current status and ARCHITECTURE.md updated | **Done,** in each PR |
+| 7 | Real-database tests read-only; the database's own rules verified by the owner | **Partly.** The owner's checks confirmed the grants, the index and the function rights. The functions' refusals (deciding one's own request, a second break-glass, editing a decided request) have not been run against a database: that needs a test project, as for Panel 2's smoke test |
+| 8 | Browser tests cover the critical flows, including a refused-access flow | **Partly.** Signed out, every People page goes to sign-in and the API answers 401; the welcome page explains a missing token and asks the server nothing. The signed-in flows need a test Supabase project, because browser tests may not write to the real database |
+| 9 | Every screen has loading, error and empty states | **Done.** The directory, a person, adding a person, the welcome page, the review and the alerts, tested in `people.test.tsx`, `accounts.test.tsx` and `review.test.tsx` |
+| 10 | Accessibility checked (keyboard, labels) | **Partly.** Every control has a label or an accessible name, and the screen tests find each one by it. axe checks the sign-in and welcome pages (`e2e/accessibility.spec.ts`). **Left:** axe and a keyboard walk-through of the signed-in People screens, which need a sign-in (the test project) |
+| 11 | Failures reach Sentry; privileged actions audited | **Done.** Panel 1's routes report database failures (`peopleFailure`) and Supabase Auth failures (tagged `supabase-auth`) to Sentry; every change is audited |
+| 12 | A JS budget per route in CI | **Done.** `/admin/people`, `/admin/people/[id]`, `/admin/people/new`, `/admin/people/review` and `/admin/welcome` each have their budget in `scripts/js-budget.json` |
+| 13 | A runbook for when the main flow breaks | **Done:** OPERATIONS.md, "People (Panel 1) is failing", with "applying admin-1", "applying admin-2", "links and lost factors", "emergency access" and staff-access B6 |
+
+**So Panel 1 is not yet Done.** Open:
+- the owner's walk-through of the signed-in flows (item 1), with the roles-and-testing document the
+  owner will ask for;
+- a test Supabase project for items 7, 8 and 10, the same one Panel 2 waits for;
+- at the AWS deployment, the three retired variables deleted from the server's `.env.admin`
+  (staff-access B6).
+
 #### Known limits and not yet built
 
 - **The shared admin password is retired** (M4): `adminSession.ts`, the proxy's and the routes'
@@ -742,8 +772,8 @@ not stored as an outcome, and it cannot be decided.
   route takes `{ email, password }` only (a password alone: 400); an old shared-password cookie is
   no session (401). Owner step: delete the variables from the root `.env` and the server
   (OPERATIONS.md, staff-access B6).
-- **Next:** Panel 1's definition of done, and the walk-through
-  with the owner and Vivek (with the roles-and-testing document the owner will ask for).
+- **Next:** the open items of the definition of done (above): the walk-through with the owner and
+  Vivek (with the roles-and-testing document the owner will ask for), and a test project.
 - **Owner action for M3:** done. admin-2 is applied (19 Nov 2026, its check passed).
 - **Owner action for M2:** done. Supabase's email-link expiry is 1 hour (19 Nov 2026; OPERATIONS.md,
   "Panel 1: links and lost factors"). If it changes, `LINK_VALID_FOR` changes with it.
