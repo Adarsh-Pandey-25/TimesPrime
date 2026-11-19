@@ -34,6 +34,10 @@ export default function AdminTopBar() {
           <nav aria-label="Back office" className="flex gap-3 text-sm font-semibold">
             <Link href="/admin" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Dashboard</Link>
             <Link href="/admin/desk" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Desk</Link>
+            {/* Panel 1: for holders of user.manage (a Super Admin asks, a Managing Editor acts). UX only. */}
+            {me?.kind === "staff" && me.permissions["user.manage"] && (
+              <Link href="/admin/people" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">People</Link>
+            )}
           </nav>
         </div>
         <div className="flex items-center gap-3">

@@ -68,3 +68,16 @@ test("Sign out ends the session and goes to the sign-in page", async () => {
   expect(calls.some(([url, init]) => url === "/api/admin/logout" && init?.method === "POST")).toBe(true);
   expect(mockPush).toHaveBeenCalledWith("/admin/login");
 });
+
+// Panel 1: People, for holders of user.manage (a Super Admin asks, a Managing Editor acts).
+test("People is offered to a holder of user.manage, and to nobody else", async () => {
+  me = { ...staff("Adarsh Pandey", [["super_admin", null]]), body: { ...staff("Adarsh Pandey", [["super_admin", null]]).body, permissions: { "user.manage": "ask" } } };
+  await renderBar();
+  expect(screen.getByRole("link", { name: "People" })).toHaveAttribute("href", "/admin/people");
+});
+
+test("a Writer is not offered People", async () => {
+  me = staff("TEST Writer", [["writer", "en"]]);
+  await renderBar();
+  expect(screen.queryByRole("link", { name: "People" })).not.toBeInTheDocument();
+});
