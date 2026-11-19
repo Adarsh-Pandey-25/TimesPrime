@@ -81,10 +81,11 @@ export default function AdminDashboardPage() {
     };
   }, [router]);
 
-  /** Held now, in some scope: "act" for a change, "act" or "read" for a read ("ask" is neither). */
+  /** Held now, in some scope: "act" for a change; any of act, read or ask for a read (the matrix's A
+   * counts as read: Panel 1 approval, 19 Nov 2026). The server decides either way. */
   const can = (permission: string, mode: "act" | "read" = "read") => {
     const held = me?.permissions[permission];
-    return mode === "read" ? held === "act" || held === "read" : held === "act";
+    return mode === "read" ? held === "act" || held === "read" || held === "ask" : held === "act";
   };
   const needsCode = me?.kind === "staff" && me.aal === "aal1" && me.mfa.required;
   const canStats = can("stats.view") && !needsCode;

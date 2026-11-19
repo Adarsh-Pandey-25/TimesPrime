@@ -49,10 +49,12 @@ export type DenyCode = "not_staff" | "suspended" | "mfa_required" | "needs_appro
 export type Decision = { allowed: true; via: string[] } | { allowed: false; status: 403; code: DenyCode };
 
 // R and M are read-only. Own allows the item's owner only (Panel 2): the target names its owner, and
-// it must be the caller. A needs a second person: decide() answers needs_approval, and the route that
-// supports it (Panel 2's restore and correction) turns that into a request a different person decides.
+// it must be the caller. A needs a second person to act: decide() answers needs_approval, and the
+// route that supports it (Panel 2's restore and correction, Panel 1's people) turns that into a
+// request a different person decides. A counts as read (the owner's approval of the Panel 1 design,
+// 19 Nov 2026): whoever may ask must see what they ask about.
 const ALLOWS: Record<Mode, ReadonlySet<AccessCode>> = {
-  read: new Set<AccessCode>(["F", "S", "R", "M"]),
+  read: new Set<AccessCode>(["F", "S", "R", "M", "A"]),
   act: new Set<AccessCode>(["F", "S"]),
 };
 
