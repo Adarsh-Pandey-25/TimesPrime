@@ -1117,9 +1117,10 @@ step is a code change that deletes it, with `ADMIN_PASSWORD` and `ADMIN_SESSION_
 Your own way in never depends on the app: the Supabase dashboard and the SQL editor (locally, Studio
 and `psql`; there, a reset is also always available).
 
-**A staff member lost their authenticator device.** Authentication → Users → the user → remove
-their MFA factor. Then sign them out of all sessions on the same page. At their next sign-in they
-get the set-up step again. Record what you did:
+**A staff member lost their authenticator device.** In the app, two Super Admins reset it (Panel 1,
+M2: [links and lost factors](#panel-1-links-and-lost-factors)). The owner's way, without the app:
+Authentication → Users → the user → remove their MFA factor. Then sign them out of all sessions on
+the same page. At their next sign-in they get the set-up step again. Record what you did:
 
 ```sql
 INSERT INTO public.audit_log (actor_type, actor_label, action, outcome, entity_type, entity_id, reason)
@@ -1380,6 +1381,34 @@ Against the real database, in the Supabase SQL editor. No session applies SQL.
    request can be decided, and no Managing Editor can be granted.
 
 **Undo.** The rollback at the end of the file, before the first request or break-glass row.
+
+### Panel 1: links and lost factors
+
+For the owner and the Super Admins, from Panel 1's M2 ([entry](PANEL_DOCS.md#panel-1-administration)).
+No SQL.
+
+**Once, in Supabase:** Authentication → Sign In / Providers → Email → **Email OTP Expiration**:
+`86400` seconds (24 hours, the most Supabase allows; the owner's decision 3), then Save. It sets how
+long a "set your password" link works. Until it is changed, a link works for 1 hour.
+
+**Adding a person** (People → add, from M2b; the API now):
+1. A Managing Editor adds Writer, Sub-editor or Desk Editor in their desk and gets the link at
+   once. A Super Admin's addition is a request: the second Super Admin who approves it gets the
+   link.
+2. Hand the link over in person, by phone or in a direct message, never in a group: whoever holds
+   it can set the password. It is shown once and kept nowhere.
+3. The person opens it, chooses a password (at least 12 characters), and is sent to sign in, where
+   they set up their second factor. The authenticator lists it as **TimesPrime**.
+
+If the link expired or was lost, make a new one (a password link) from their page.
+
+**A forgotten password:** a password link, the same way. If the person has a second factor, the
+link asks for its code before the new password.
+
+**A lost authenticator device:** a Super Admin asks to reset the person's second factor, saying how
+they checked it is really them (a call on a known number, in person); a second Super Admin
+approves. Every factor of the account is deleted and every session ended; at the next sign-in the
+person sets up a new one. The dashboard way below stays the owner's fallback.
 
 ### Staff sign-in or an admin action is failing
 
@@ -1659,7 +1688,9 @@ phases were done:
    backend (PR #43; the owner [applied admin-1](#panel-1-applying-admin-1) on 19 Nov 2026) and the
    screens (`/admin/people`, on `panel-1-people-screens`). The second Super Admin is Vivek (the
    owner, 19 Nov 2026). The shared password goes in M4, without waiting for the AWS deployment (left
-   to the developers by the owner). Next: M2, accounts.
+   to the developers by the owner). M2a, the accounts backend (adding a person, one-time links, the
+   two-Super-Admin factor reset), is built on `panel-1-accounts`; M2b, its screens, is next. Owner
+   action: the [24-hour link expiry](#panel-1-links-and-lost-factors) in Supabase.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
