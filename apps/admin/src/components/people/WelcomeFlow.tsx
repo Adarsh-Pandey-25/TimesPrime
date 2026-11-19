@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { LINK_VALID_FOR, PASSWORD_MIN, passwordProblem } from "@timesprime/shared/config/people";
+import { KeyRound } from "lucide-react";
 import { deskCall } from "../desk/deskClient";
+import { authCard, authIcon, authPage, buttonBlock, fieldLarge } from "../ui/styles";
 
 // Where a one-time "set your password" link lands (Panel 1 design §4, M2b). The token is taken out
 // of the address bar at once, then sent once to POST /api/admin/welcome, which makes a session. If
@@ -14,8 +16,9 @@ import { deskCall } from "../desk/deskClient";
 
 type Step = "checking" | "invalid" | "code" | "password" | "done";
 
-const field = "mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-medium focus:border-blue-600 focus:outline-none dark:border-[#383d45] dark:bg-[#1a1c1e] dark:text-white dark:focus:border-blue-500";
-const primary = "w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60";
+// The same card, fields and button as the sign-in page (components/ui/styles.ts).
+const field = `${fieldLarge} mt-1 font-medium`;
+const primary = buttonBlock;
 
 export default function WelcomeFlow() {
   const [step, setStep] = useState<Step>("checking");
@@ -98,9 +101,15 @@ export default function WelcomeFlow() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 text-slate-900 dark:bg-[#1a1c1e] dark:text-slate-100">
-      <main className="w-full max-w-sm space-y-6 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-[#34383f] dark:bg-[#25282d]">
-        <div className="space-y-2 text-center">
+    <div className={authPage}>
+      <p className="font-serif text-lg font-extrabold">
+        TimesPrime <span className="text-blue-600 dark:text-blue-400">Admin</span>
+      </p>
+      <main className={authCard}>
+        <div className="flex flex-col items-center space-y-2 text-center">
+          <div className={authIcon}>
+            <KeyRound aria-hidden="true" className="h-5 w-5" />
+          </div>
           <h1 className="font-serif text-xl font-extrabold">{title[step]}</h1>
           {name && step !== "invalid" && <p className="text-sm text-slate-600 dark:text-slate-300">Welcome to TimesPrime, {name}.</p>}
         </div>
@@ -148,7 +157,7 @@ export default function WelcomeFlow() {
         {step === "done" && (
           <div className="space-y-4 text-center text-sm">
             <p>Sign in with your email and the new password. If this is your first time, you will set up your authenticator app there.</p>
-            <Link href="/admin/login" className={`${primary} block`}>Go to sign-in</Link>
+            <Link href="/admin/login" className={`${primary} flex`}>Go to sign-in</Link>
           </div>
         )}
       </main>

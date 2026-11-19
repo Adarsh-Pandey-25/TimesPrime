@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
 import { useDialog } from "./ui/Feedback";
+import { buttonTone, cardTone, fieldTone, windowTone } from "./ui/styles";
 
 interface AdminArticle {
   id: string;
@@ -88,13 +89,7 @@ interface EditFormState {
   language: string;
 }
 
-function fieldClasses(isDark: boolean): string {
-  return `w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-    isDark
-      ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-  }`;
-}
+const FIELD = `w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${fieldTone}`;
 
 function labelClasses(): string {
   return "block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2";
@@ -102,12 +97,11 @@ function labelClasses(): string {
 
 interface EditArticleModalProps {
   article: AdminArticle;
-  isDark: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModalProps) {
+function EditArticleModal({ article, onClose, onSaved }: EditArticleModalProps) {
   const [form, setForm] = useState<EditFormState>({
     title: article.title,
     description: article.description || "",
@@ -160,7 +154,7 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
     >
       <div
         className={`relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-xl ${
-          isDark ? "bg-[#25282d] text-slate-100" : "bg-white text-slate-900"
+          windowTone
         }`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -190,7 +184,7 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
               required
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              className={fieldClasses(isDark)}
+              className={FIELD}
             />
           </div>
 
@@ -200,7 +194,7 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
               rows={3}
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              className={fieldClasses(isDark)}
+              className={FIELD}
             />
           </div>
 
@@ -210,7 +204,7 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
               type="text"
               value={form.image_url}
               onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))}
-              className={fieldClasses(isDark)}
+              className={FIELD}
             />
           </div>
 
@@ -220,7 +214,7 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
               type="text"
               value={form.source_name}
               onChange={(e) => setForm((f) => ({ ...f, source_name: e.target.value }))}
-              className={fieldClasses(isDark)}
+              className={FIELD}
             />
           </div>
 
@@ -231,7 +225,7 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
                 id="edit-category"
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                className={fieldClasses(isDark)}
+                className={FIELD}
               >
                 {EDIT_CATEGORY_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -246,7 +240,7 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
                 id="edit-language"
                 value={form.language}
                 onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
-                className={fieldClasses(isDark)}
+                className={FIELD}
               >
                 <option value="en">English</option>
                 <option value="hi">Hindi</option>
@@ -258,8 +252,8 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
             <button
               type="button"
               onClick={onClose}
-              className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition-colors ${
-                isDark ? "border-[#383d45] text-slate-200 hover:bg-[#2f333a]" : "border-slate-200 text-slate-700 hover:bg-slate-100"
+              className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition-all ${
+                buttonTone
               }`}
             >
               Cancel
@@ -281,11 +275,10 @@ function EditArticleModal({ article, isDark, onClose, onSaved }: EditArticleModa
 
 interface PreviewArticleModalProps {
   article: AdminArticle;
-  isDark: boolean;
   onClose: () => void;
 }
 
-function PreviewArticleModal({ article, isDark, onClose }: PreviewArticleModalProps) {
+function PreviewArticleModal({ article, onClose }: PreviewArticleModalProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -293,7 +286,7 @@ function PreviewArticleModal({ article, isDark, onClose }: PreviewArticleModalPr
     >
       <div
         className={`relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl shadow-xl ${
-          isDark ? "bg-[#25282d] text-slate-100" : "bg-white text-slate-900"
+          windowTone
         }`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -549,7 +542,7 @@ export default function ArticlesTable() {
   return (
     <div
       className={`rounded-2xl border p-6 sm:p-8 shadow-sm transition-colors ${
-        isDark ? "border-[#34383f] bg-[#25282d]" : "border-slate-200 bg-white"
+        cardTone
       }`}
     >
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -566,9 +559,7 @@ export default function ArticlesTable() {
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search by title..."
               className={`w-full sm:w-64 rounded-xl border py-2 pl-9 pr-3 text-xs font-medium focus:outline-none transition-colors ${
-                isDark
-                  ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                  : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
+                fieldTone
               }`}
             />
           </div>
@@ -578,9 +569,7 @@ export default function ArticlesTable() {
             value={category}
             onChange={(e) => handleCategoryChange(e.target.value)}
             className={`rounded-xl border py-2 px-3 text-xs font-medium focus:outline-none transition-colors ${
-              isDark
-                ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
+              fieldTone
             }`}
           >
             {CATEGORY_OPTIONS.map((opt) => (
@@ -665,7 +654,7 @@ export default function ArticlesTable() {
               </tr>
             ) : (
               articles.map((art) => (
-                <tr key={art.article_id} className={`border-b ${isDark ? "border-[#2b2f36]" : "border-slate-100"}`}>
+                <tr key={art.article_id} className={`border-b transition-colors hover:bg-slate-50 dark:hover:bg-[#25282d] ${isDark ? "border-[#2b2f36]" : "border-slate-100"}`}>
                   <td className="py-3 pr-3">
                     <input
                       type="checkbox"
@@ -724,8 +713,8 @@ export default function ArticlesTable() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                isDark ? "border-[#383d45] text-slate-200 hover:bg-[#2f333a]" : "border-slate-200 text-slate-700 hover:bg-slate-100"
+              className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                buttonTone
               }`}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
@@ -734,8 +723,8 @@ export default function ArticlesTable() {
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                isDark ? "border-[#383d45] text-slate-200 hover:bg-[#2f333a]" : "border-slate-200 text-slate-700 hover:bg-slate-100"
+              className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                buttonTone
               }`}
             >
               Next
@@ -748,7 +737,6 @@ export default function ArticlesTable() {
       {editingArticle && (
         <EditArticleModal
           article={editingArticle}
-          isDark={isDark}
           onClose={() => setEditingArticle(null)}
           onSaved={() => {
             setEditingArticle(null);
@@ -759,7 +747,7 @@ export default function ArticlesTable() {
       )}
 
       {previewArticle && (
-        <PreviewArticleModal article={previewArticle} isDark={isDark} onClose={() => setPreviewArticle(null)} />
+        <PreviewArticleModal article={previewArticle} onClose={() => setPreviewArticle(null)} />
       )}
     </div>
   );

@@ -3,18 +3,23 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdminTopBar from "@/components/AdminTopBar";
-import { CheckCircle2, Database, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
-import { useTheme } from "@timesprime/ui/ThemeContext";
+import { Database, ShieldCheck, RefreshCw, Send } from "lucide-react";
 import ArticlesTable from "@/components/ArticlesTable";
 import CategoryStatsCard from "@/components/CategoryStatsCard";
 import BreakingNewsManager from "@/components/BreakingNewsManager";
 import SyncDashboard from "@/components/SyncDashboard";
 import ActivityLog from "@/components/ActivityLog";
+import ActionMessage from "@/components/ui/ActionMessage";
+import { badge, buttonDanger, buttonPrimary, card, cardTitle, field, hint, label, pageTitle, tone } from "@/components/ui/styles";
 import type { AdminMe } from "@timesprime/shared/types";
 
 // Panel 0: what this page shows depends on GET /api/admin/me, which says what the signed-in user
 // holds. Hiding is UX only, never the check: every admin route decides again on the server
 // (packages/server/src/auth/requirePermission.ts). Each widget is shown for the permission its routes need.
+//
+// In the order a visit needs it (the owner, 19 Nov 2026): the numbers (the live statistics beside
+// the 7-day retention); the articles list, the day's work; publishing (a new article beside the
+// breaking-news banner); the news sync; then the activity log.
 
 interface DbStats {
   configured: boolean;
@@ -25,9 +30,18 @@ interface DbStats {
   supabaseUrl?: string;
 }
 
+/** A small figure in a card: its label above, its value below. */
+function Tile({ label: name, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-[#2b2f36] dark:bg-[#25282d]">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{name}</span>
+      {children}
+    </div>
+  );
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const { theme } = useTheme();
 
   // Form State
   const [title, setTitle] = useState("");
@@ -38,10 +52,8 @@ export default function AdminDashboardPage() {
   const [sourceName, setSourceName] = useState("");
   const [summary, setSummary] = useState("");
   const [content, setContent] = useState("");
-  const [submitted, setSubmitted] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [publishError, setPublishError] = useState("");
-  const [publishedArticleId, setPublishedArticleId] = useState<string | null>(null);
+  const [publishMsg, setPublishMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Database Stats State
   const [dbStats, setDbStats] = useState<DbStats | null>(null);
@@ -152,10 +164,10 @@ export default function AdminDashboardPage() {
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPublishError("");
+    setPublishMsg(null);
 
     if (!title.trim() || !link.trim() || !categoryId) {
-      setPublishError("Title, Source Link, and Category are required.");
+      setPublishMsg({ ok: false, text: "Title, Source Link, and Category are required." });
       return;
     }
 
@@ -180,12 +192,12 @@ export default function AdminDashboardPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setPublishError(data.error || `Failed to publish (status ${res.status}).`);
+        setPublishMsg({ ok: false, text: data.error || `Failed to publish (status ${res.status}).` });
         return;
       }
 
-      setPublishedArticleId(data.article?.article_id || null);
-      setSubmitted(true);
+      const id = data.article?.article_id || null;
+      setPublishMsg({ ok: true, text: `Article published successfully — saved to Supabase${id ? ` as ${id}` : ""}.` });
       setTitle("");
       setSlug("");
       setLink("");
@@ -194,361 +206,192 @@ export default function AdminDashboardPage() {
       setSourceName("");
       setSummary("");
       setContent("");
-      setTimeout(() => setSubmitted(false), 6000);
     } catch (err) {
-      setPublishError(err instanceof Error ? err.message : "Network error while publishing.");
+      setPublishMsg({ ok: false, text: err instanceof Error ? err.message : "Network error while publishing." });
     } finally {
       setPublishing(false);
     }
   };
 
-  const isDark = theme === "dark";
+  const showRetention = canStats || can("sync.run", "act") || can("content.purge", "act");
+  const canPublish = can("article.publish_direct", "act") && can("article.create", "act");
+  const canBanner = can("breaking_banner.manage", "act");
 
   return (
-    <div
-      className={`min-h-screen flex flex-col transition-colors duration-200 ${
-        isDark ? "bg-[#1a1c1e] text-slate-100" : "bg-slate-50 text-slate-900"
-      }`}
-    >
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 dark:bg-[#1a1c1e] dark:text-slate-100">
       <AdminTopBar />
 
-      <main className="flex-1 mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-8 lg:px-10 space-y-8">
-        {/* Page Title */}
-        <div className="border-b border-slate-200 dark:border-[#2b2f36] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-3xl font-extrabold text-slate-900 dark:text-white sm:text-4xl">
-              Admin & Database Management
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-              Manage live publishing, 7-day retention engine, and database auto-cleanup rules.
-            </p>
-          </div>
-          {/* Who is signed in, and Sign out: in the top bar, on every page. */}
-        </div>
+      <main className="mx-auto w-full max-w-[1500px] flex-1 space-y-6 px-4 py-6 sm:px-8 lg:px-10">
+        <header className="space-y-1">
+          <h1 className={pageTitle}>Dashboard</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            The news the site carries, the articles list, publishing and the activity log: each part shows for the roles that may use it.
+          </p>
+        </header>
 
         {meError && (
-          <div role="alert" className="rounded-xl border border-red-300 bg-red-50 dark:border-red-900/50 dark:bg-red-950/40 p-3 text-xs font-semibold text-red-700 dark:text-red-300">
+          <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
             {meError}
           </div>
         )}
 
         {needsCode && (
-          <div className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40 p-3 text-xs font-semibold text-amber-800 dark:text-amber-200">
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
             Your account needs a second factor. <a href="/admin/login" className="underline">Finish signing in</a> with your authenticator code.
           </div>
         )}
 
-        {!me && !meError && <p role="status" className="text-xs text-slate-500 dark:text-slate-400">Checking your access…</p>}
+        {!me && !meError && <p role="status" className="text-sm text-slate-500 dark:text-slate-400">Checking your access…</p>}
 
         {me && !needsCode && (
-        <>
-        {can("sync.view") && <SyncDashboard />}
+          <>
+            {/* 1. The numbers: the live statistics beside the 7-day retention. */}
+            {(canStats || showRetention) && (
+              <div className={`grid items-start gap-6 ${canStats && showRetention ? "xl:grid-cols-3" : ""}`}>
+                {canStats && (
+                  <div className={showRetention ? "xl:col-span-2" : ""}>
+                    <CategoryStatsCard />
+                  </div>
+                )}
 
-        {can("breaking_banner.manage", "act") && <BreakingNewsManager />}
+                {showRetention && (
+                  <section aria-label="7-day news retention" className={`${card} space-y-4`}>
+                    <div className="flex items-start gap-3">
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone.red}`}>
+                        <Database aria-hidden="true" className="h-5 w-5" />
+                      </span>
+                      <div className="space-y-1">
+                        <h2 className={`${cardTitle} flex flex-wrap items-center gap-2`}>
+                          <span>7-Day News Retention Engine</span>
+                          <span className={`${badge} ${tone.green} font-sans uppercase tracking-wider`}>Auto-Purge Active</span>
+                        </h2>
+                        <p className={hint}>Every article is stored in database for 7 days. Articles exceeding 7 days are automatically deleted.</p>
+                      </div>
+                    </div>
 
-        {canStats && <CategoryStatsCard />}
+                    {canStats && (
+                      <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+                        <Tile label="Total Stored Articles">
+                          <p className="text-xl font-black">{dbStats ? dbStats.totalStoredArticles : "Loading..."}</p>
+                        </Tile>
+                        <Tile label="Retention Window">
+                          <p className="text-xl font-black text-amber-600 dark:text-amber-400">7 Days</p>
+                        </Tile>
+                        <Tile label="Purge Rule">
+                          <p className="mt-1 flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                            <ShieldCheck aria-hidden="true" className="h-4 w-4" />
+                            Automatic Cleanup
+                          </p>
+                        </Tile>
+                      </div>
+                    )}
 
-        {/* 7-DAY DATABASE CONTROL PANEL CARD */}
-        {(canStats || can("sync.run", "act") || can("content.purge", "act")) && (
-        <div className="rounded-2xl border border-red-200 dark:border-[#383d45] bg-gradient-to-br from-slate-900 to-slate-950 text-white p-6 shadow-md space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-            <div className="flex items-center space-x-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600/20 text-red-500 border border-red-500/30">
-                <Database className="h-5 w-5" />
+                    {/* Manual controls: sync needs sync.run; the purge needs content.purge, which no role
+                        holds outright until its approval flow exists (Panel 4), so it is normally hidden. */}
+                    {(can("sync.run", "act") || can("content.purge", "act")) && (
+                      <div className="flex flex-wrap gap-2">
+                        {can("sync.run", "act") && (
+                          <button onClick={handleSeedSupabase} disabled={seeding} className={buttonPrimary}>
+                            <RefreshCw aria-hidden="true" className={`h-3.5 w-3.5 ${seeding ? "animate-spin" : ""}`} />
+                            {seeding ? "Syncing All Categories..." : "Sync All Categories Now"}
+                          </button>
+                        )}
+                        {can("content.purge", "act") && (
+                          <button onClick={handleManualPurge} disabled={purging} className={buttonDanger}>
+                            <RefreshCw aria-hidden="true" className={`h-3.5 w-3.5 ${purging ? "animate-spin" : ""}`} />
+                            {purging ? "Purging..." : "Run 7-Day Purge Now"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <ActionMessage message={purgeMsg} />
+                  </section>
+                )}
               </div>
-              <div>
-                <h3 className="font-serif text-base font-bold text-white flex items-center gap-2">
-                  <span>7-Day News Retention Engine</span>
-                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-extrabold text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
-                    Auto-Purge Active
-                  </span>
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Every article is stored in database for 7 days. Articles exceeding 7 days are automatically deleted.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Database Metrics Grid */}
-          {canStats && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 pt-2 text-xs">
-            <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5 space-y-1">
-              <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                Total Stored Articles
-              </span>
-              <p className="text-xl font-black text-white">
-                {dbStats ? dbStats.totalStoredArticles : "Loading..."}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5 space-y-1">
-              <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                Retention Window
-              </span>
-              <p className="text-xl font-black text-amber-400">
-                7 Days
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5 space-y-1">
-              <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                Purge Rule
-              </span>
-              <p className="text-xs font-bold text-emerald-400 flex items-center gap-1 mt-1">
-                <ShieldCheck className="h-4 w-4" />
-                Automatic Cleanup
-              </p>
-            </div>
-          </div>
-          )}
-
-          {/* Manual Controls: sync needs sync.run; the purge needs content.purge, which no role
-              holds outright until its approval flow exists (Panel 4), so it is normally hidden. */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            {can("sync.run", "act") && (
-            <button
-              onClick={handleSeedSupabase}
-              disabled={seeding}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${seeding ? "animate-spin" : ""}`} />
-              {seeding ? "Syncing All Categories..." : "Sync All Categories Now"}
-            </button>
             )}
-            {can("content.purge", "act") && (
-            <button
-              onClick={handleManualPurge}
-              disabled={purging}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-bold text-slate-200 hover:bg-slate-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${purging ? "animate-spin" : ""}`} />
-              {purging ? "Purging..." : "Run 7-Day Purge Now"}
-            </button>
+
+            {/* 2. The articles list: the day's work. */}
+            {can("article.view_admin") && <ArticlesTable />}
+
+            {/* 3. Publishing: a new article beside the breaking-news banner. */}
+            {(canPublish || canBanner) && (
+              <div className={`grid items-start gap-6 ${canPublish && canBanner ? "xl:grid-cols-2" : ""}`}>
+                {canPublish && (
+                  <section aria-label="Post a new article" className={`${card} space-y-5`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone.blue}`}>
+                        <Send aria-hidden="true" className="h-5 w-5" />
+                      </span>
+                      <h2 className={cardTitle}>Post New Article</h2>
+                    </div>
+
+                    <form onSubmit={handlePublish} className="space-y-4">
+                      <label className={label}>
+                        Article Title *
+                        <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Enter headline..." className={`${field} mt-1`} />
+                      </label>
+                      <label className={label}>
+                        Source Link (URL) *
+                        <input type="url" required value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://example.com/original-article" className={`${field} mt-1`} />
+                      </label>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className={label}>
+                          Slug (URL)
+                          <input type="text" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="article-url-slug" className={`${field} mt-1`} />
+                        </label>
+                        <div>
+                          <label htmlFor="publish-category" className={label}>
+                            Category ID
+                          </label>
+                          <select id="publish-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={`${field} mt-1`}>
+                            <option value="general">General / Top Stories</option>
+                            <option value="tech">Technology</option>
+                            <option value="business">Business</option>
+                            <option value="sports">Sports</option>
+                            <option value="entertainment">Entertainment</option>
+                            <option value="health">Health</option>
+                            <option value="science">Science</option>
+                          </select>
+                        </div>
+                        <label className={label}>
+                          Image URL
+                          <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://images.unsplash.com/photo-..." className={`${field} mt-1`} />
+                        </label>
+                        <label className={label}>
+                          Source Name
+                          <input type="text" value={sourceName} onChange={(e) => setSourceName(e.target.value)} placeholder="TimesPrime Editorial" className={`${field} mt-1`} />
+                        </label>
+                      </div>
+                      <label className={label}>
+                        Short Summary
+                        <input type="text" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Brief summary sentence..." className={`${field} mt-1`} />
+                      </label>
+                      <label className={label}>
+                        Article Body Paragraphs
+                        <textarea rows={5} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Write article body paragraphs..." className={`${field} mt-1`} />
+                      </label>
+
+                      <ActionMessage message={publishMsg} />
+                      <div className="flex justify-end border-t border-slate-100 pt-4 dark:border-[#2b2f36]">
+                        <button type="submit" disabled={publishing} className={buttonPrimary}>
+                          {publishing && <RefreshCw aria-hidden="true" className="h-4 w-4 animate-spin" />}
+                          <span>{publishing ? "Publishing..." : "Publish Article"}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </section>
+                )}
+
+                {canBanner && <BreakingNewsManager />}
+              </div>
             )}
-          </div>
 
-          {purgeMsg?.ok && (
-            <div className="rounded-xl bg-emerald-950/80 border border-emerald-800 p-3 text-xs font-bold text-emerald-300">
-              {purgeMsg.text}
-            </div>
-          )}
-          {purgeMsg && !purgeMsg.ok && (
-            <div role="alert" className="rounded-xl bg-red-950/40 border border-red-900/50 p-3 text-xs font-bold text-red-300">
-              {purgeMsg.text}
-            </div>
-          )}
-        </div>
-        )}
+            {/* 4. The news sync. */}
+            {can("sync.view") && <SyncDashboard />}
 
-        {can("article.publish_direct", "act") && can("article.create", "act") && (
-        <>
-        {/* Success Alert */}
-        {submitted && (
-          <div className="flex items-center space-x-3 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 p-4 text-emerald-800 dark:text-emerald-200 shadow-sm">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-            <p className="text-sm font-semibold">
-              Article published successfully — saved to Supabase{publishedArticleId ? ` as ${publishedArticleId}` : ""}.
-            </p>
-          </div>
-        )}
-
-        {/* Error Alert */}
-        {publishError && (
-          <div className="flex items-center space-x-3 rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/60 p-4 text-red-800 dark:text-red-200 shadow-sm">
-            <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
-            <p className="text-sm font-semibold">{publishError}</p>
-          </div>
-        )}
-
-        {/* Form Container Card */}
-        <div
-          className={`rounded-2xl border p-6 sm:p-8 shadow-sm transition-colors ${
-            isDark
-              ? "border-[#34383f] bg-[#25282d]"
-              : "border-slate-200 bg-white"
-          }`}
-        >
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-6">
-            Post New Article
-          </h2>
-
-          <form onSubmit={handlePublish} className="space-y-6">
-            {/* Title */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                Article Title *
-              </label>
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter headline..."
-                className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-                  isDark
-                    ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                    : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-                }`}
-              />
-            </div>
-
-            {/* Source Link */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                Source Link (URL) *
-              </label>
-              <input
-                type="url"
-                required
-                value={link}
-                onChange={(e) => setLink(e.target.value)}
-                placeholder="https://example.com/original-article"
-                className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-                  isDark
-                    ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                    : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-                }`}
-              />
-            </div>
-
-            {/* Slug & Category Row */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  Slug (URL)
-                </label>
-                <input
-                  type="text"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
-                  placeholder="article-url-slug"
-                  className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-                    isDark
-                      ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-                  }`}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="publish-category" className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  Category ID
-                </label>
-                <select
-                  id="publish-category"
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-                    isDark
-                      ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-                  }`}
-                >
-                  <option value="general">General / Top Stories</option>
-                  <option value="tech">Technology</option>
-                  <option value="business">Business</option>
-                  <option value="sports">Sports</option>
-                  <option value="entertainment">Entertainment</option>
-                  <option value="health">Health</option>
-                  <option value="science">Science</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Image URL & Source Name Row */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  Image URL
-                </label>
-                <input
-                  type="url"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/photo-..."
-                  className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-                    isDark
-                      ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-                  }`}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  Source Name
-                </label>
-                <input
-                  type="text"
-                  value={sourceName}
-                  onChange={(e) => setSourceName(e.target.value)}
-                  placeholder="TimesPrime Editorial"
-                  className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-                    isDark
-                      ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                      : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-                  }`}
-                />
-              </div>
-            </div>
-
-            {/* Short Summary */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                Short Summary
-              </label>
-              <input
-                type="text"
-                value={summary}
-                onChange={(e) => setSummary(e.target.value)}
-                placeholder="Brief summary sentence..."
-                className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-                  isDark
-                    ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                    : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-                }`}
-              />
-            </div>
-
-            {/* Content Body */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                Article Body Paragraphs
-              </label>
-              <textarea
-                rows={5}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Write article body paragraphs..."
-                className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-                  isDark
-                    ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                    : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-                }`}
-              />
-            </div>
-
-            {/* Submit Button */}
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={publishing}
-                className="inline-flex items-center space-x-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors shadow-md shadow-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {publishing && <RefreshCw className="h-4 w-4 animate-spin" />}
-                <span>{publishing ? "Publishing..." : "Publish Article"}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-        </>
-        )}
-
-        {can("article.view_admin") && <ArticlesTable />}
-
-        {can("audit.read") && <ActivityLog />}
-        </>
+            {/* 5. What was done, and by whom. */}
+            {can("audit.read") && <ActivityLog />}
+          </>
         )}
       </main>
     </div>

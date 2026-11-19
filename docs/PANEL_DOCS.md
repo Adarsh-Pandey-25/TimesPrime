@@ -358,7 +358,8 @@ Panel 0 defines all 15 roles of the plan's matrix ([the access rules](#access-ru
   request, as before. If the roles cannot be read, `/admin`.
 - Every back-office page's top bar says who is signed in and as what (their roles and desks, as
   "Super Admin · Desk Editor (English, Hindi)"), and offers Sign out (the owner asked, 18 Nov 2026;
-  `describeRoles` in `packages/shared/src/lib/staffRoles.ts`).
+  `describeRoles` in `packages/shared/src/lib/staffRoles.ts`). It marks the page's own link, and on
+  a phone it takes three rows, with who is signed in on the last (19 Nov 2026).
 - `/admin` shows only the widgets and buttons the user's permissions allow, and sends a session that
   still owes its code back to finish signing in.
 - Every admin route checks a permission on the server, in the target's scope.
