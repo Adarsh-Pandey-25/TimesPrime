@@ -26,11 +26,27 @@ test.describe("signed out", () => {
   });
 
   // Panel 1: the people screens and API are behind the same session check.
-  test("/admin/people and a person's page redirect to the sign-in page", async ({ page }) => {
+  test("/admin/people, a person's page and adding a person redirect to the sign-in page", async ({ page }) => {
     await page.goto("/admin/people");
     await expect(page).toHaveURL(/\/admin\/login$/);
     await page.goto("/admin/people/00000000-0000-4000-8000-000000000001");
     await expect(page).toHaveURL(/\/admin\/login$/);
+    await page.goto("/admin/people/new");
+    await expect(page).toHaveURL(/\/admin\/login$/);
+  });
+
+  // Panel 1 M2: the welcome page is public; without a token it says so and asks the server nothing.
+  test("/admin/welcome without a token explains itself, with no call to the server", async ({ page }) => {
+    const asked: string[] = [];
+    page.on("request", (r) => {
+      if (r.url().includes("/api/admin/")) asked.push(r.url());
+    });
+    await page.goto("/admin/welcome");
+    await expect(page).toHaveURL(/\/admin\/welcome$/);
+    // Next adds its own route announcer with role="alert", so the page's message is found by its text.
+    await expect(page.getByRole("alert").filter({ hasText: "This link is not complete" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Go to sign-in" })).toHaveAttribute("href", "/admin/login");
+    expect(asked).toEqual([]);
   });
 
   for (const [method, path] of [

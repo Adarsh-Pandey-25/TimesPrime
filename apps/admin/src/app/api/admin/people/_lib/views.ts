@@ -75,6 +75,10 @@ export function personPlans(actor: Actor, profile: ProfileRow, rows: readonly As
     reactivate: profile.status === "suspended" ? account(false) : null,
     signOut: self ? ("act" as Plan) : account(true),
     grant: self ? null : planFor(actor.record, "role.assign", now, (scopes) => scopes.length > 0),
+    // M2: a one-time password link (as rename: their people at once, else a request), and a lost
+    // factor's reset (only Super Admins, always a request).
+    passwordLink: profile.status === "active" ? account(false) : null,
+    mfaReset: self ? null : asks(actor.record, "user.manage", now) ? ("ask" as Plan) : null,
     roles,
   };
 }

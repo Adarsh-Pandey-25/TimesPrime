@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SECTION_IDS } from "@timesprime/shared/config/sections";
 import { DEFAULT_EXPIRY_DAYS, EXPIRY_DAYS, defaultDays, needsLanguage } from "@timesprime/shared/config/people";
 import { deskCall, when } from "../desk/deskClient";
+import LinkBox from "./LinkBox";
 import {
   day,
   describeRequest,
@@ -36,6 +37,8 @@ interface Detail {
     reactivate: Plan;
     signOut: Plan;
     grant: Plan;
+    passwordLink: Plan;
+    mfaReset: Plan;
     roles: Record<string, { renew: Plan; revoke: Plan }>;
   };
   caller: CallerView;
@@ -55,6 +58,8 @@ export default function PersonDetail({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  // A one-time link the server just made: shown once, never kept (M2).
+  const [link, setLink] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await deskCall<Detail>(`/api/admin/people/${id}`);
@@ -75,9 +80,11 @@ export default function PersonDetail({ id }: { id: string }) {
   /** One change: its answer becomes the message, and the page reloads. */
   async function change(path: string, body: Record<string, unknown>, done: string): Promise<boolean> {
     setBusy(true);
-    const res = await deskCall(`/api/admin/people/${id}${path}`, { method: path ? "POST" : "PATCH", body: JSON.stringify(body) });
+    setLink(null);
+    const res = await deskCall<{ link?: string }>(`/api/admin/people/${id}${path}`, { method: path ? "POST" : "PATCH", body: JSON.stringify(body) });
     setBusy(false);
     setMessage(res.ok ? { ok: true, text: doneOrAsked(res.status, done) } : { ok: false, text: res.error ?? "Not done." });
+    if (res.ok && res.data?.link) setLink(res.data.link);
     if (res.ok) await load();
     return res.ok;
   }
@@ -118,6 +125,7 @@ export default function PersonDetail({ id }: { id: string }) {
       {message && (
         <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>{message.text}</p>
       )}
+      {link && <LinkBox path={link} who={person.name} />}
 
       <Roles assignments={assignments} plans={can.roles} busy={busy} change={change} />
       {can.grant && <GrantForm plan={can.grant} grantable={caller.grantable} busy={busy} change={change} />}
@@ -282,8 +290,10 @@ function AccountActions({ person, can, busy, change }: { person: PersonView; can
   const [name, setName] = useState(person.name);
   const [renameReason, setRenameReason] = useState("");
   const [statusReason, setStatusReason] = useState("");
+  const [linkReason, setLinkReason] = useState("");
+  const [resetReason, setResetReason] = useState("");
   const statusPlan = person.status === "active" ? can.suspend : can.reactivate;
-  if (!can.rename && !statusPlan && !can.signOut) return null;
+  if (!can.rename && !statusPlan && !can.signOut && !can.passwordLink && !can.mfaReset) return null;
   return (
     <section aria-label="Account actions" className={card}>
       <h2 className="font-serif text-lg font-bold">Account</h2>
@@ -328,6 +338,38 @@ function AccountActions({ person, can, busy, change }: { person: PersonView; can
         <div>
           <button type="button" className={button} disabled={busy} onClick={() => void change("/sign-out", {}, "Signed out everywhere: they sign in again, with their second factor.")}>
             Sign out everywhere
+          </button>
+        </div>
+      )}
+      {can.passwordLink && (
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-sm font-semibold">
+            Reason for a password link
+            <input className={field} value={linkReason} onChange={(e) => setLinkReason(e.target.value)} />
+          </label>
+          <button
+            type="button"
+            className={button}
+            disabled={busy || !linkReason.trim()}
+            onClick={() => void change("/password-link", { reason: linkReason }, "A one-time link is ready below.").then((ok) => ok && setLinkReason(""))}
+          >
+            {can.passwordLink === "ask" ? "Ask for a password link" : "Make a password link"}
+          </button>
+        </div>
+      )}
+      {can.mfaReset && (
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-sm font-semibold">
+            How did you check it is them? (lost device)
+            <input className={field} value={resetReason} onChange={(e) => setResetReason(e.target.value)} />
+          </label>
+          <button
+            type="button"
+            className={button}
+            disabled={busy || !resetReason.trim()}
+            onClick={() => void change("/mfa-reset", { reason: resetReason }, "Asked.").then((ok) => ok && setResetReason(""))}
+          >
+            Ask to reset the second factor
           </button>
         </div>
       )}
