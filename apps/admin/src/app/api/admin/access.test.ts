@@ -129,6 +129,9 @@ import * as requestDecline from "./people/requests/[requestId]/decline/route";
 import * as requestCancel from "./people/requests/[requestId]/cancel/route";
 import * as personPasswordLink from "./people/[id]/password-link/route";
 import * as personMfaReset from "./people/[id]/mfa-reset/route";
+import * as peopleAlerts from "./people/alerts/route";
+import * as breakGlass from "./people/break-glass/route";
+import * as accessReview from "./people/review/route";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as {
   supabase: {
@@ -1245,7 +1248,122 @@ const ACCOUNT_CASES: Case[] = [
   // Always two Super Admins: the least-privileged holder who may ask is a Super Admin.
   { path: `${P}/mfa-reset`, method: "POST", handler: onPerson(personMfaReset.POST), body: { reason: "Lost phone; called her on the desk line." }, allowed: SUPER_ADMIN, data: { ...IN_PEOPLE(), access_requests: { data: { ...REQUEST_ROW, kind: "mfa_reset", requested_by: "u-1", details: {} }, error: null } }, changes: true },
 ];
-CASES.push(...PEOPLE_CASES, ...ACCOUNT_CASES);
+// ---- Panel 1, M3: break-glass, the access review, what needs a look ----
+const bgRow = (over: Record<string, unknown> = {}) => roleRow({ id: "0a1b2c3d-0000-4000-8000-0000000000d1", user_id: "u-1", role_key: "super_admin", language: null, section: null, is_break_glass: true, ...over });
+const M3_CASES: Case[] = [
+  { path: "/api/admin/people/alerts", method: "GET", handler: peopleAlerts.GET, allowed: HI_MANAGING, data: { staff_profiles: { data: [PROFILE_ROW], error: null }, role_assignments: { data: [roleRow()], error: null } }, changes: false },
+  // A Super Admin's own: the least-privileged holder who may start it is a Super Admin.
+  { path: "/api/admin/people/break-glass", method: "POST", handler: breakGlass.POST, body: { reason: "Court order at 23:40; no editor reachable." }, allowed: SUPER_ADMIN, data: { role_assignments: { data: [], error: null } }, changes: true },
+  { path: "/api/admin/people/break-glass", method: "DELETE", handler: breakGlass.DELETE, allowed: SUPER_ADMIN, data: { role_assignments: { data: [bgRow()], error: null } }, changes: true },
+  { path: "/api/admin/people/review", method: "GET", handler: accessReview.GET, allowed: SUPER_ADMIN, data: { staff_profiles: { data: [PROFILE_ROW], error: null }, role_assignments: { data: [roleRow()], error: null }, access_reviews: { data: null, error: null } }, changes: false },
+  {
+    path: "/api/admin/people/review", method: "POST", handler: accessReview.POST, body: { note: "Quarterly review.", decisions: { [ROW_ID]: "keep" } }, allowed: SUPER_ADMIN,
+    data: { staff_profiles: { data: [PROFILE_ROW], error: null }, role_assignments: { data: [roleRow()], error: null }, access_reviews: { data: { id: "rv-1", completed_by: "u-1", completed_at: "2026-11-19T12:00:00Z", note: "Quarterly review." }, error: null } },
+    changes: true,
+  },
+];
+CASES.push(...PEOPLE_CASES, ...ACCOUNT_CASES, ...M3_CASES);
+
+describe("break-glass, the access review and what needs a look (Panel 1 design §5 and §6, M3)", () => {
+  async function call(c: Case, caller: Grantee, data: Case["data"], body?: unknown) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, body: body ?? c.body }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const caseFor = (method: Method, path: string) => [...M3_CASES, ...PEOPLE_CASES].find((c) => c.method === method && c.path === path) as Case;
+  const START = caseFor("POST", "/api/admin/people/break-glass");
+
+  test("break-glass is a Super Admin's own: a self-granted super_admin row, break-glass, ending in 2 hours, audited", async () => {
+    const r = await call(START, SUPER_ADMIN, START.data);
+    expect(r.status).toBe(201);
+    const inserted = calls.find(([t, m]) => t === "role_assignments" && m === "insert")?.[2][0] as Record<string, unknown>;
+    expect(inserted).toMatchObject({ user_id: "u-1", role_key: "super_admin", is_break_glass: true, granted_by: "u-1", approved_by: null, language: null, section: null });
+    expect(Date.parse(inserted.expires_at as string) - Date.parse(inserted.granted_at as string)).toBe(2 * 3_600_000);
+    expect((recordAudit as jest.Mock).mock.calls.map(([row]) => [row.action, row.outcome])).toEqual([["access.break_glass_start", "attempted"], ["access.break_glass_start", "succeeded"]]);
+  });
+
+  test("a Managing Editor cannot start it; a Super Admin needs a reason, and cannot start a second", async () => {
+    expect((await call(START, HI_MANAGING, START.data)).status).toBe(403);
+    expect((await call(START, SUPER_ADMIN, START.data, {})).status).toBe(400);
+    expect((await call(START, SUPER_ADMIN, { role_assignments: { data: [bgRow()], error: null } })).json.code).toBe("active");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("ending it early when it is not on says so (409)", async () => {
+    const r = await call(caseFor("DELETE", "/api/admin/people/break-glass"), SUPER_ADMIN, { role_assignments: { data: [], error: null } });
+    expect(r.json.code).toBe("not_active");
+    expect(wrote()).toEqual([]);
+  });
+
+  test("with break-glass on, a Super Admin may take a Desk story down; without it, not", async () => {
+    const takedown = CASES.find((c) => c.method === "POST" && c.path === `${S}/unpublish`) as Case;
+    const published = { stories: story({ workflow_state: "published", published_revision_id: "r-1" }), ...moved };
+    const asSuperAdmin = async (withBreakGlass: boolean) => {
+      tables = { ...published };
+      const record = staff([SUPER_ADMIN]);
+      if (withBreakGlass) record.assignments.push({ ...record.assignments[0], id: "as-bg", isBreakGlass: true });
+      (readSession as jest.Mock).mockResolvedValue({ kind: "staff", userId: "u-1", aal: "aal2", sessionId: "s-1" });
+      (loadStaffRecord as jest.Mock).mockResolvedValue(record);
+      const res = await takedown.handler(request(takedown));
+      return res.status;
+    };
+    expect(await asSuperAdmin(false)).toBe(403);
+    expect(await asSuperAdmin(true)).toBe(200);
+  });
+
+  test("revoking a Super Admin's role ends their break-glass with it", async () => {
+    const revoke = caseFor("POST", `${P}/roles/[assignmentId]/revoke`);
+    const data = { ...IN_PEOPLE({}, [roleRow({ role_key: "super_admin", language: null, section: null })]), "rpc:is_active_super_admin": { data: true, error: null } };
+    // Another active Super Admin exists (the caller), so the role may go.
+    tables = { ...data };
+    (data.role_assignments.data as unknown[]).push(roleRow({ id: "x-9", user_id: "u-7", role_key: "super_admin", language: null, section: null }));
+    const r = await call(revoke, SUPER_ADMIN, data);
+    expect(r.status).toBe(200);
+    const updates = calls.filter(([t, m]) => t === "role_assignments" && m === "update").map(([, , a]) => (a[0] as { revoke_reason: string }).revoke_reason);
+    expect(updates).toEqual([REASON.reason, "Super Admin role revoked"]);
+  });
+
+  test("completing the review records a snapshot read from the database, with the marked decisions", async () => {
+    const c = caseFor("POST", "/api/admin/people/review");
+    const r = await call(c, SUPER_ADMIN, c.data, { note: "Q4.", decisions: { [ROW_ID]: "renew_asked" } });
+    expect(r.status).toBe(201);
+    const inserted = calls.find(([t, m]) => t === "access_reviews" && m === "insert")?.[2][0] as { snapshot: Array<{ assignmentId: string; decision: string }>; note: string };
+    expect(inserted.note).toBe("Q4.");
+    expect(inserted.snapshot).toEqual([expect.objectContaining({ assignmentId: ROW_ID, decision: "renew_asked", name: "Ravi" })]);
+  });
+
+  test("the review is a Super Admin's; its decisions are checked", async () => {
+    const c = caseFor("POST", "/api/admin/people/review");
+    expect((await call(c, HI_MANAGING, c.data)).status).toBe(403);
+    expect((await call(caseFor("GET", "/api/admin/people/review"), HI_MANAGING, c.data)).status).toBe(403);
+    expect((await call(c, SUPER_ADMIN, c.data, { decisions: { [ROW_ID]: "maybe" } })).status).toBe(400);
+    expect((await call(c, SUPER_ADMIN, c.data, { decisions: { "not-an-id": "keep" } })).status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("what needs a look: a Super Admin sees break-glass in use and the review due; a Managing Editor neither", async () => {
+    const c = caseFor("GET", "/api/admin/people/alerts");
+    const data = { staff_profiles: { data: [PROFILE_ROW], error: null }, role_assignments: { data: [bgRow({ user_id: PERSON })], error: null }, access_reviews: { data: null, error: null } };
+    const sa = await call(c, SUPER_ADMIN, data);
+    expect(sa.json.breakGlass).toEqual([expect.objectContaining({ userId: PERSON, name: "Ravi", mine: false })]);
+    expect(sa.json.review).toMatchObject({ lastAt: null, overdue: true });
+    const me = await call(c, HI_MANAGING, data);
+    expect(me.json.breakGlass).toEqual([]);
+    expect(me.json.review).toBeNull();
+  });
+
+  test("roles ending within 14 days, among the people the caller sees", async () => {
+    const c = caseFor("GET", "/api/admin/people/alerts");
+    const soon = new Date(Date.now() + 5 * 86_400_000).toISOString();
+    const data = {
+      staff_profiles: { data: [PROFILE_ROW], error: null },
+      role_assignments: { data: [roleRow({ expires_at: soon }), roleRow({ id: "x-5", user_id: "u-8", language: "en", expires_at: soon })], error: null },
+    };
+    const r = await call(c, HI_MANAGING, data);
+    expect(r.json.endingSoon.map((e: { assignmentId: string }) => e.assignmentId)).toEqual([ROW_ID]);
+  });
+});
 
 describe("adding people, one-time links and lost factors (Panel 1 design §4, M2)", () => {
   async function call(c: Case, caller: Grantee, data: Case["data"], body?: unknown) {

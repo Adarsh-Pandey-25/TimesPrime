@@ -261,6 +261,19 @@ export const ADMIN_ROUTE_RULES = {
   "/api/admin/people/[id]/roles/[assignmentId]/revoke": {
     POST: { permissions: ["role.assign"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
   },
+  // M3: what needs a look now (break-glass in use, the review due, roles ending soon), for the top
+  // bar and the directory; a Super Admin's own break-glass (start, end early); the access review.
+  "/api/admin/people/alerts": {
+    GET: { permissions: ["user.manage"], mode: "read", target: "none", staffOnly: true },
+  },
+  "/api/admin/people/break-glass": {
+    POST: { permissions: ["role.assign"], mode: "act", target: "site", staffOnly: true, twoPerson: true },
+    DELETE: { permissions: ["role.assign"], mode: "act", target: "site", staffOnly: true, twoPerson: true },
+  },
+  "/api/admin/people/review": {
+    GET: { permissions: ["role.assign"], mode: "read", target: "none", staffOnly: true },
+    POST: { permissions: ["role.assign"], mode: "act", target: "site", staffOnly: true, twoPerson: true },
+  },
   // A Super Admin's requests: the list, and a second Super Admin's decision (or the asker's cancel).
   "/api/admin/people/requests": {
     GET: { permissions: ["role.assign"], mode: "read", target: "none", staffOnly: true },
