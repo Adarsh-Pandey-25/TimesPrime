@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ROLE_KEYS } from "@timesprime/shared/config/permissions";
 import { deskCall, when } from "../desk/deskClient";
+import AlertsPanel from "./AlertsPanel";
 import RequestsBox from "./RequestsBox";
 import { day, deskLabel, roleLabel, type CallerView, type PersonView, type RequestView } from "./peopleClient";
 
@@ -90,6 +91,7 @@ export default function PeopleDirectory() {
         {!dir.accounts && <p className="text-xs text-amber-700 dark:text-amber-300">Emails and second factors could not be read from Supabase Auth just now.</p>}
       </div>
 
+      <AlertsPanel superAdmin={caller.asks} />
       {caller.asks && <RequestsBox requests={requests} onChanged={() => void load()} />}
 
       <section aria-label="Staff" className="space-y-3">

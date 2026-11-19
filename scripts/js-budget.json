@@ -29,6 +29,7 @@
     "/admin/people/[id]/page": 669696,
     "/admin/people/new/page": 665600,
     "/admin/people/page": 666624,
+    "/admin/people/review/page": 666624,
     "/admin/welcome/page": 656384
   }
 }

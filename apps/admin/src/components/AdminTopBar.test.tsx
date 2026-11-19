@@ -81,3 +81,38 @@ test("a Writer is not offered People", async () => {
   await renderBar();
   expect(screen.queryByRole("link", { name: "People" })).not.toBeInTheDocument();
 });
+
+// Panel 1, M3: a Super Admin sees emergency access in use, and a review that is due, on every page.
+describe("the Super Admins' alerts", () => {
+  const superAdminMe = () => ({ ...staff("Adarsh Pandey", [["super_admin", null]]), body: { ...staff("Adarsh Pandey", [["super_admin", null]]).body, permissions: { "user.manage": "ask", "role.assign": "ask" } } });
+  const answer = (alerts: unknown) => {
+    global.fetch = jest.fn(async (url: string, init?: RequestInit) => {
+      calls.push([url, init]);
+      const a = url === "/api/admin/me" ? me : url === "/api/admin/people/alerts" ? { status: 200, body: alerts } : { status: 200, body: {} };
+      return { ok: a.status >= 200 && a.status < 300, status: a.status, json: async () => a.body };
+    }) as unknown as typeof fetch;
+  };
+
+  test("emergency access in use is a red alert across the top", async () => {
+    me = superAdminMe();
+    answer({ breakGlass: [{ assignmentId: "bg", userId: "u-7", name: "Vivek", since: "2026-11-19T18:00:00Z", until: "2026-11-19T20:00:00Z", reason: "Court order.", mine: false }], review: null, endingSoon: [] });
+    await renderBar();
+    expect(screen.getByRole("alert")).toHaveTextContent("Emergency access is on: Vivek, until");
+    expect(screen.getByRole("alert")).toHaveTextContent("Reason: Court order.");
+  });
+
+  test("a review that is due is a reminder with the way to it", async () => {
+    me = superAdminMe();
+    answer({ breakGlass: [], review: { lastAt: null, lastByName: null, dueAt: "2026-11-19T00:00:00Z", overdue: true }, endingSoon: [] });
+    await renderBar();
+    expect(screen.getByText(/The access review is due/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start it" })).toHaveAttribute("href", "/admin/people/review");
+  });
+
+  test("anyone else is not asked for alerts", async () => {
+    me = staff("TEST Writer", [["writer", "en"]]);
+    await renderBar();
+    expect(calls.some(([url]) => url === "/api/admin/people/alerts")).toBe(false);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});

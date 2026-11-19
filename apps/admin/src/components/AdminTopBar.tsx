@@ -6,6 +6,7 @@ import { LogOut, Moon, Sun } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
 import { describeRoles } from "@timesprime/shared/lib/staffRoles";
 import { useAdminMe } from "./desk/deskClient";
+import { clock, useAlerts } from "./people/alerts";
 
 // The back office's own masthead, on every page: where to go, who is signed in and as what (the
 // owner asked, 18 Nov 2026), signing out, and the theme. The reader site's header and ticker fetch
@@ -15,6 +16,9 @@ export default function AdminTopBar() {
   const { theme, toggleTheme } = useTheme();
   const { me } = useAdminMe();
   const isDark = theme === "dark";
+  // Panel 1, M3: Super Admins see, on every page, any emergency access in use and a review that is due.
+  const superAdmin = me?.kind === "staff" && me.permissions["role.assign"] === "ask";
+  const { alerts } = useAlerts(superAdmin);
 
   const signOut = async () => {
     try {
@@ -67,6 +71,22 @@ export default function AdminTopBar() {
           </button>
         </div>
       </div>
+      {superAdmin && alerts.breakGlass.length > 0 && (
+        <div role="alert" className="bg-red-700 px-4 py-2 text-sm font-semibold text-white sm:px-8 lg:px-10">
+          {alerts.breakGlass.map((b) => (
+            <p key={b.assignmentId}>
+              Emergency access is on: {b.mine ? "yours" : (b.name ?? "a Super Admin")}, until {clock(b.until)}. Reason: {b.reason}{" "}
+              <Link href="/admin/people" className="underline">See People</Link>
+            </p>
+          ))}
+        </div>
+      )}
+      {superAdmin && alerts.review?.overdue && (
+        <p className="bg-amber-100 px-4 py-2 text-sm text-amber-900 sm:px-8 lg:px-10 dark:bg-amber-950/60 dark:text-amber-200">
+          The access review is due.{" "}
+          <Link href="/admin/people/review" className="font-semibold underline">Start it</Link>
+        </p>
+      )}
     </header>
   );
 }
