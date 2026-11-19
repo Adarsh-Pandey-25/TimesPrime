@@ -1803,13 +1803,25 @@ phases were done:
 8. **The back office's UI, made consistent** (the owner, 19 Nov 2026), in four steps, each its
    own branch and pull request: the shared kit (`fix/admin-ui-kit`), then People, the Desk, and the
    dashboard with sign-in. Nothing a screen may do changes, and no button changes its words.
-   The kit (`apps/admin/src/components/ui/`):
+   The kit (`apps/admin/src/components/ui/`; PR #52):
    - one set of button, field, card and link styles, with hover and press effects on what can be
      clicked;
    - the back office's own popups in place of the browser's confirm, prompt and alert boxes:
      deleting articles, taking over a story, unsaved changes, and the editor's link, related story
      and embed;
    - success messages as toasts in a corner, with refusals kept beside the form.
+
+   People (`fix/admin-ui-people`), in the order a visit needs it:
+   - **the directory:** what the page is, with "Add a person" as its main button; then what needs a
+     look (emergency access and the access review side by side, then roles ending soon); then the
+     requests (waiting for you, then yours); then the staff, with the filters in the card's header;
+   - **a person:** who they are; a request about them still open; their roles, with "Grant a role"
+     in the same card; "Manage account", whose actions that take access away sit last in a red box;
+     then the decided requests and the history. An action's answer shows in the card it came from;
+   - **adding a person:** one form in three steps (who, their first role, why), the answer and the
+     one-time link beside its button;
+   - **the review:** each role as a card with its flags, Revoke in red, and "Complete the review"
+     as the page's main button.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

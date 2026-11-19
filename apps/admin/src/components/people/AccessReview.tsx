@@ -5,7 +5,7 @@ import Link from "next/link";
 import { defaultDays, REVIEW_EVERY_DAYS, STALE_SIGN_IN_DAYS } from "@timesprime/shared/config/people";
 import { deskCall, when } from "../desk/deskClient";
 import { day, deskLabel, roleLabel } from "./peopleClient";
-import { button } from "../ui/styles";
+import { backLink, badge, button, buttonDanger, buttonPrimary, card, cardTitle, field, hint, label, link, pageTitle, tone } from "../ui/styles";
 import ActionMessage from "../ui/ActionMessage";
 
 // The access review (Panel 1 design §6, M3b): every 90 days a Super Admin goes through every live
@@ -38,7 +38,7 @@ interface Review {
 
 type Decision = "keep" | "revoked" | "renew_asked" | "renewed";
 
-const flag = "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-200";
+const flag = `${badge} ${tone.amber}`;
 const DECIDED: Record<Exclude<Decision, "keep">, string> = { revoked: "Revoked", renew_asked: "Renewal asked", renewed: "Renewed" };
 
 export default function AccessReview() {
@@ -91,7 +91,7 @@ export default function AccessReview() {
     return (
       <div className="space-y-3">
         <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950/60 dark:text-red-200">{error}</p>
-        <Link href="/admin/people" className="text-sm font-semibold text-blue-700 dark:text-blue-300">← All people</Link>
+        <Link href="/admin/people" className={backLink}>← All people</Link>
       </div>
     );
   }
@@ -100,18 +100,18 @@ export default function AccessReview() {
   const flagged = review.items.filter((i) => i.flags.stale || i.flags.noFactor || i.flags.privileged || i.flags.expired).length;
   return (
     <div className="space-y-6">
-      <Link href="/admin/people" className="text-sm font-semibold text-blue-700 dark:text-blue-300">← All people</Link>
-      <div className="space-y-1">
-        <h1 className="font-serif text-2xl font-extrabold">Access review</h1>
+      <Link href="/admin/people" className={backLink}>← All people</Link>
+      <header className="space-y-1">
+        <h1 className={pageTitle}>Access review</h1>
         <p className="text-sm text-slate-600 dark:text-slate-300">
           {review.due.lastAt ? `Last review: ${day(review.due.lastAt)}. ` : "No review yet. "}
           {review.due.overdue ? "A review is due now." : `Next due: ${day(review.due.dueAt)}.`} Every {REVIEW_EVERY_DAYS} days, go through every role: keep it, revoke it, or renew it.
         </p>
-        <p className="text-sm">
+        <p className="text-sm font-semibold">
           {review.items.length} roles, {flagged} flagged.
-          {!review.accounts && <span className="ml-2 text-amber-700 dark:text-amber-300">Second factors could not be read from Supabase Auth just now.</span>}
+          {!review.accounts && <span className="ml-2 font-normal text-amber-700 dark:text-amber-300">Second factors could not be read from Supabase Auth just now.</span>}
         </p>
-      </div>
+      </header>
 
       <ActionMessage message={message} />
 
@@ -122,37 +122,40 @@ export default function AccessReview() {
           {review.items.map((i) => {
             const decided = decisions[i.assignmentId];
             return (
-              <li key={i.assignmentId} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm dark:border-[#2b2f36] dark:bg-[#202327]">
-                <p>
-                  <Link href={`/admin/people/${i.userId}`} className="font-semibold text-blue-700 hover:underline dark:text-blue-300">{i.name}</Link>{" "}
-                  · {roleLabel(i.role)} · {deskLabel(i)} {i.status === "suspended" && <span className="font-bold text-red-700 dark:text-red-300">· Suspended</span>}
-                </p>
-                <p className="text-xs text-slate-500">
+              <li key={i.assignmentId} className={`${card} text-sm ${decided ? "opacity-80" : ""}`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link href={`/admin/people/${i.userId}`} className={link}>{i.name}</Link>
+                  <span className="text-slate-600 dark:text-slate-300">· {roleLabel(i.role)} · {deskLabel(i)}</span>
+                  {i.status === "suspended" && <span className={`${badge} ${tone.red}`}>Suspended</span>}
+                </div>
+                <p className={hint}>
                   Granted {day(i.grantedAt)}{i.grantedByName ? ` by ${i.grantedByName}` : ""} · {i.flags.expired ? `expired ${day(i.expiresAt)}` : `until ${day(i.expiresAt)}`} · last
                   sign-in {i.lastSignInAt ? when(i.lastSignInAt) : "never"}
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {i.flags.stale && <span className={flag}>No sign-in for {STALE_SIGN_IN_DAYS} days</span>}
-                  {i.flags.noFactor && <span className={flag}>No second factor</span>}
-                  {i.flags.privileged && <span className={flag}>Privileged role</span>}
-                  {i.flags.expired && <span className={flag}>Expired, not revoked</span>}
-                </div>
+                {(i.flags.stale || i.flags.noFactor || i.flags.privileged || i.flags.expired) && (
+                  <div className="flex flex-wrap gap-2">
+                    {i.flags.stale && <span className={flag}>No sign-in for {STALE_SIGN_IN_DAYS} days</span>}
+                    {i.flags.noFactor && <span className={flag}>No second factor</span>}
+                    {i.flags.privileged && <span className={flag}>Privileged role</span>}
+                    {i.flags.expired && <span className={flag}>Expired, not revoked</span>}
+                  </div>
+                )}
                 {decided ? (
-                  <p className="font-semibold">{DECIDED[decided as Exclude<Decision, "keep">]}</p>
+                  <p><span className={`${badge} ${decided === "revoked" ? tone.red : tone.green}`}>{DECIDED[decided as Exclude<Decision, "keep">]}</span></p>
                 ) : (
-                  <div className="flex flex-wrap items-end gap-2">
-                    <label className="text-xs font-semibold">
+                  <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3 dark:border-[#2b2f36]">
+                    <label className={`${label} min-w-[12rem] flex-1 text-xs`}>
                       Reason
                       <input
-                        className="mt-0.5 block rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]"
+                        className={`${field} mt-1`}
                         placeholder="Access review"
                         value={reasons[i.assignmentId] ?? ""}
                         onChange={(e) => setReasons({ ...reasons, [i.assignmentId]: e.target.value })}
                       />
                     </label>
                     <button type="button" className={button} disabled={busy !== null} onClick={() => void act(i, "renew")}>Renew</button>
-                    <button type="button" className={button} disabled={busy !== null} onClick={() => void act(i, "revoke")}>Revoke</button>
-                    <span className="text-xs text-slate-500">Leave it as it is to keep it.</span>
+                    <button type="button" className={buttonDanger} disabled={busy !== null} onClick={() => void act(i, "revoke")}>Revoke</button>
+                    <span className={`${hint} basis-full`}>Leave it as it is to keep it.</span>
                   </div>
                 )}
               </li>
@@ -161,13 +164,16 @@ export default function AccessReview() {
         </ul>
       )}
 
-      <section aria-label="Complete the review" className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-[#2b2f36] dark:bg-[#202327]">
-        <label className="block text-sm font-semibold">
+      <section aria-label="Complete the review" className={`${card} border-blue-200 dark:border-blue-900`}>
+        <h2 className={cardTitle}>Complete the review</h2>
+        <label className={label}>
           Note (what you checked, anything to follow up)
-          <textarea className="mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+          <textarea className={`${field} mt-1`} rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
-        <button type="button" className={button} disabled={busy !== null} onClick={() => void complete()}>Complete the review</button>
-        <p className="text-xs text-slate-500">The record keeps who, when, the note and every role with its decision. It cannot be changed afterwards.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className={hint}>The record keeps who, when, the note and every role with its decision. It cannot be changed afterwards.</p>
+          <button type="button" className={buttonPrimary} disabled={busy !== null} onClick={() => void complete()}>Complete the review</button>
+        </div>
       </section>
     </div>
   );

@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { deskCall, when } from "../desk/deskClient";
 import LinkBox from "./LinkBox";
 import { describeRequest, type RequestView } from "./peopleClient";
-import { button } from "../ui/styles";
+import { badge, button, buttonPrimary, card, cardTitle, field, hint, item, label, tone } from "../ui/styles";
 import ActionMessage from "../ui/ActionMessage";
 
 // A Super Admin's requests (Panel 1 design §3 and §4): those waiting for the caller's decision, and
@@ -35,22 +35,26 @@ export default function RequestsBox({ requests, onChanged }: { requests: Request
     if (res.ok) onChanged();
   }
 
-  const item = (r: RequestView, actions: ReactNode) => (
-    <li key={r.id} className="space-y-2 rounded-lg border border-slate-200 p-3 text-sm dark:border-[#2b2f36]">
-      <p className="font-semibold">{describeRequest(r)}</p>
+  const entry = (r: RequestView, actions: ReactNode) => (
+    <li key={r.id} className={`${item} space-y-2`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="font-semibold">{describeRequest(r)}</p>
+        <span className={`${badge} ${r.lapsed ? tone.slate : tone.amber}`}>{r.lapsed ? "Lapsed: ask again" : `Lapses ${when(r.lapsesAt)}`}</span>
+      </div>
       <p className="text-slate-600 dark:text-slate-300">Reason: {r.reason}</p>
-      <p className="text-xs text-slate-500">
-        Asked by {r.requestedByName ?? "a Super Admin"} · {when(r.requestedAt)} · {r.lapsed ? "lapsed: ask again" : `lapses ${when(r.lapsesAt)}`}
-      </p>
+      <p className={hint}>Asked by {r.requestedByName ?? "a Super Admin"} · {when(r.requestedAt)}</p>
       {actions}
     </li>
   );
 
   return (
-    <section aria-label="Requests" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-[#2b2f36] dark:bg-[#202327]">
-      <div>
-        <h2 className="font-serif text-lg font-bold">Waiting for your approval</h2>
-        <p className="text-xs text-slate-500">A Super Admin&apos;s change takes a second Super Admin. You cannot decide your own request, or one about you.</p>
+    <section aria-label="Requests" className={card}>
+      <div className="space-y-1">
+        <h2 className={`${cardTitle} flex items-center gap-2`}>
+          Waiting for your approval
+          {waiting.length > 0 && <span className={`${badge} ${tone.amber} font-sans`}>{waiting.length}</span>}
+        </h2>
+        <p className={hint}>A Super Admin&apos;s change takes a second Super Admin. You cannot decide your own request, or one about you.</p>
       </div>
       <ActionMessage message={message} />
       {link && <LinkBox path={link.path} who={link.who} />}
@@ -59,18 +63,14 @@ export default function RequestsBox({ requests, onChanged }: { requests: Request
       ) : (
         <ul className="space-y-2">
           {waiting.map((r) =>
-            item(
+            entry(
               r,
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="text-xs font-semibold">
+              <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-2 dark:border-[#2b2f36]">
+                <label className={`${label} min-w-[12rem] flex-1 text-xs`}>
                   Note (optional)
-                  <input
-                    className="ml-2 rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]"
-                    value={notes[r.id] ?? ""}
-                    onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })}
-                  />
+                  <input className={`${field} mt-1 py-1.5`} value={notes[r.id] ?? ""} onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })} />
                 </label>
-                <button type="button" className={button} disabled={busy === r.id} onClick={() => void decide(r, "approve")}>Approve</button>
+                <button type="button" className={buttonPrimary} disabled={busy === r.id} onClick={() => void decide(r, "approve")}>Approve</button>
                 <button type="button" className={button} disabled={busy === r.id} onClick={() => void decide(r, "decline")}>Decline</button>
               </div>
             )
@@ -78,14 +78,17 @@ export default function RequestsBox({ requests, onChanged }: { requests: Request
         </ul>
       )}
       {mine.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-2 border-t border-slate-200 pt-4 dark:border-[#2b2f36]">
           <h3 className="text-sm font-bold">Your requests</h3>
+          <p className={hint}>The other Super Admin decides these. You may cancel your own.</p>
           <ul className="space-y-2">
             {mine.map((r) =>
-              item(
+              entry(
                 r,
                 r.canCancel && (
-                  <button type="button" className={button} disabled={busy === r.id} onClick={() => void decide(r, "cancel")}>Cancel</button>
+                  <div className="flex justify-end">
+                    <button type="button" className={button} disabled={busy === r.id} onClick={() => void decide(r, "cancel")}>Cancel</button>
+                  </div>
                 )
               )
             )}
