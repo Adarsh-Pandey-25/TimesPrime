@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CREDIT_ROLES, CREDITS_MAX, type CreditRole } from "@timesprime/shared/config/desk";
 import { deskCall } from "./deskClient";
-import { button, field } from "../ui/styles";
+import { button, buttonPrimary, field, link, panel, panelTitle, rowHover } from "../ui/styles";
 
 // A story's credits on its screen (Panel 2 design §7): who wrote it, who added reporting, who
 // translated it, in the order readers see them. Whoever may edit the story changes them before it is
@@ -94,14 +94,14 @@ export default function CreditsPanel({
   }
 
   return (
-    <section aria-labelledby="credits-heading" className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-[#2b2f36]">
-      <h2 id="credits-heading" className="text-sm font-bold">Credits</h2>
+    <section aria-labelledby="credits-heading" className={panel}>
+      <h2 id="credits-heading" className={panelTitle}>Credits</h2>
       {draft.length === 0 ? (
         <p className="text-sm text-slate-500">No credits yet.</p>
       ) : (
         <ol className="space-y-1 text-sm">
           {draft.map((c, i) => (
-            <li key={`${c.author_id}-${c.role}`} className="flex items-center justify-between gap-2">
+            <li key={`${c.author_id}-${c.role}`} className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1 ${rowHover}`}>
               <span>
                 <span lang={language}>{nameIn(language, c.author)}</span>
                 <span className="text-slate-500"> · {CREDIT_LABELS[c.role]}</span>
@@ -121,7 +121,7 @@ export default function CreditsPanel({
           {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
           {authors !== null && authors.length === 0 ? (
             <p className="text-sm text-slate-500">
-              No authors yet. <Link href="/admin/desk/authors" className="text-blue-700 hover:underline dark:text-blue-300">Add one on the Authors page.</Link>
+              No authors yet. <Link href="/admin/desk/authors" className={link}>Add one on the Authors page.</Link>
             </p>
           ) : (
             <div className="space-y-1">
@@ -141,7 +141,7 @@ export default function CreditsPanel({
               <button type="button" className={button} disabled={!adding || taken(adding, role) || draft.length >= CREDITS_MAX} onClick={add}>Add</button>
             </div>
           )}
-          <button type="button" className={button} disabled={busy || !changed} onClick={() => void save()}>
+          <button type="button" className={buttonPrimary} disabled={busy || !changed} onClick={() => void save()}>
             {busy ? "Saving…" : "Save credits"}
           </button>
         </>

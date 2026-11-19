@@ -7,6 +7,7 @@ import type { PublishedStory, StoryImageData } from "@timesprime/shared/types";
 import type { StoryState } from "@timesprime/shared/config/desk";
 import type { Credit } from "./CreditsPanel";
 import { deskCall, STATE_LABELS, useAdminMe, when } from "./deskClient";
+import { backLink } from "../ui/styles";
 
 // The Desk's preview (Panel 2 design §6, owner decision 7): a story's last saved version, drawn by
 // the reader site's own view (StoryArticle, with the same text styles), so an editor sees what
@@ -85,7 +86,7 @@ export default function StoryPreview({ id }: { id: string }) {
   }, [id]);
 
   const back = (
-    <Link href={`/admin/desk/${id}`} className="text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300">
+    <Link href={`/admin/desk/${id}`} className={backLink}>
       ← Back to the story
     </Link>
   );
@@ -99,14 +100,14 @@ export default function StoryPreview({ id }: { id: string }) {
   const live = story.workflow_state === "published" && story.published_revision_id === revision.id;
   return (
     <div className="space-y-4">
-      <div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/40">
+      <div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm shadow-sm dark:border-amber-800 dark:bg-amber-950/40">
         <strong>{live ? "Preview of the live version" : "Preview, not published"}</strong>
         <span>
           {STATE_LABELS[story.workflow_state]} · the last saved version, {when(revision.created_at)}. Unsaved changes on the story screen are not shown.
         </span>
         {back}
       </div>
-      <div className="rounded-lg bg-white dark:bg-[#1f2226]">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-[#2b2f36] dark:bg-[#1f2226]">
         <StoryArticle story={asReaderStory({ story, revision, credits: loaded.credits, images: loaded.images, photos: loaded.photos })} sectionLink={false} />
       </div>
     </div>

@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, RefreshCw } from "lucide-react";
+import { Image as ImageIcon, Plus, RefreshCw, Users } from "lucide-react";
 import { STORY_LANGUAGES, STORY_STATES, type StoryLanguage, type StoryState } from "@timesprime/shared/config/desk";
 import { SECTION_IDS } from "@timesprime/shared/config/sections";
 import AlertList from "./AlertList";
 import { canAct, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
-import { fieldInline } from "../ui/styles";
+import { badge, button, buttonPrimary, card, fieldInline, hint, label, link, pageTitle, rowHover, tone } from "../ui/styles";
 
 // The Desk's story list (Panel 2 design §4): the stories of the caller's desks, newest change first,
 // with filters for language, section, state, the caller's own and those waiting for a post-hoc review.
@@ -66,104 +66,114 @@ export default function DeskList() {
   if (meError) return <p role="alert" className="text-sm text-red-700 dark:text-red-300">{meError}</p>;
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const mayCreate = canAct(me, "article.create");
   return (
-    <section aria-labelledby="desk-heading" className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 id="desk-heading" className="font-serif text-2xl font-extrabold">Desk</h1>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => void load()} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-[#3a3f47]">
+    <section aria-labelledby="desk-heading" className="space-y-6">
+      {/* 1. The page, its tools, and its main action. */}
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h1 id="desk-heading" className={pageTitle}>Desk</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-300">The stories of your desks, newest change first.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void load()} className={button}>
             <RefreshCw size={14} aria-hidden="true" /> Refresh
           </button>
-          <Link href="/admin/desk/authors" className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-[#3a3f47]">
-            Authors
+          <Link href="/admin/desk/authors" className={button}>
+            <Users size={14} aria-hidden="true" /> Authors
           </Link>
-          <Link href="/admin/desk/media" className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-[#3a3f47]">
-            Media
+          <Link href="/admin/desk/media" className={button}>
+            <ImageIcon size={14} aria-hidden="true" /> Media
           </Link>
-          {canAct(me, "article.create") && (
-            <Link href="/admin/desk/new" className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-blue-700">
+          {mayCreate && (
+            <Link href="/admin/desk/new" className={buttonPrimary}>
               <Plus size={14} aria-hidden="true" /> New story
             </Link>
           )}
         </div>
-      </div>
+      </header>
 
+      {/* 2. What needs a look: stories taken down lately. */}
       {canAct(me, "article.unpublish") && <AlertList />}
 
-      <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => e.preventDefault()} aria-label="Filter the stories">
-        <label className="flex flex-col text-xs font-semibold">
-          Language
-          <select className={field} value={language} onChange={(e) => { setLanguage(e.target.value); setPage(1); }}>
-            <option value="">All</option>
-            {STORY_LANGUAGES.map((l) => <option key={l} value={l}>{l === "en" ? "English" : "Hindi"}</option>)}
-          </select>
-        </label>
-        <label className="flex flex-col text-xs font-semibold">
-          Section
-          <select className={field} value={section} onChange={(e) => { setSection(e.target.value); setPage(1); }}>
-            <option value="">All</option>
-            {SECTION_IDS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </label>
-        <label className="flex flex-col text-xs font-semibold">
-          State
-          <select className={field} value={state} onChange={(e) => { setState(e.target.value); setPage(1); }}>
-            <option value="">All</option>
-            {STORY_STATES.map((s) => <option key={s} value={s}>{STATE_LABELS[s]}</option>)}
-          </select>
-        </label>
-        <label className="flex items-center gap-1.5 text-sm">
-          <input type="checkbox" checked={mine} onChange={(e) => { setMine(e.target.checked); setPage(1); }} /> Mine
-        </label>
-        <label className="flex items-center gap-1.5 text-sm">
-          <input type="checkbox" checked={postHoc} onChange={(e) => { setPostHoc(e.target.checked); setPage(1); }} /> Needs post-hoc review
-        </label>
-      </form>
+      {/* 3. The stories, with their filters. */}
+      <div className={card}>
+        <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => e.preventDefault()} aria-label="Filter the stories">
+          <label className={`${label} text-xs`}>
+            Language
+            <select className={`${field} mt-1 block`} value={language} onChange={(e) => { setLanguage(e.target.value); setPage(1); }}>
+              <option value="">All</option>
+              {STORY_LANGUAGES.map((l) => <option key={l} value={l}>{l === "en" ? "English" : "Hindi"}</option>)}
+            </select>
+          </label>
+          <label className={`${label} text-xs`}>
+            Section
+            <select className={`${field} mt-1 block`} value={section} onChange={(e) => { setSection(e.target.value); setPage(1); }}>
+              <option value="">All</option>
+              {SECTION_IDS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className={`${label} text-xs`}>
+            State
+            <select className={`${field} mt-1 block`} value={state} onChange={(e) => { setState(e.target.value); setPage(1); }}>
+              <option value="">All</option>
+              {STORY_STATES.map((s) => <option key={s} value={s}>{STATE_LABELS[s]}</option>)}
+            </select>
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm transition-colors hover:bg-slate-50 dark:border-[#3a3f47] dark:hover:bg-[#25282d]">
+            <input type="checkbox" checked={mine} onChange={(e) => { setMine(e.target.checked); setPage(1); }} /> Mine
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm transition-colors hover:bg-slate-50 dark:border-[#3a3f47] dark:hover:bg-[#25282d]">
+            <input type="checkbox" checked={postHoc} onChange={(e) => { setPostHoc(e.target.checked); setPage(1); }} /> Needs post-hoc review
+          </label>
+          {rows !== null && !error && <span className={`${hint} ml-auto`}>{total} {total === 1 ? "story" : "stories"}</span>}
+        </form>
 
-      {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
-      {rows === null ? (
-        <p aria-live="polite" className="text-sm text-slate-500">Loading the stories…</p>
-      ) : rows.length === 0 && !error ? (
-        <p className="text-sm text-slate-500">No stories here yet.{canAct(me, "article.create") ? " Start one with New story." : ""}</p>
-      ) : rows.length > 0 ? (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#2b2f36]">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-[#202327]">
-              <tr>
-                <th scope="col" className="px-3 py-2">Headline</th>
-                <th scope="col" className="px-3 py-2">Desk</th>
-                <th scope="col" className="px-3 py-2">State</th>
-                <th scope="col" className="px-3 py-2">Last change</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t border-slate-100 dark:border-[#2b2f36]">
-                  <td className="px-3 py-2">
-                    <Link href={`/admin/desk/${r.id}`} lang={r.language} className="font-semibold text-blue-700 hover:underline dark:text-blue-300">
-                      {r.current?.headline || "(no headline)"}
-                    </Link>
-                    {r.post_hoc_review_due && <span className="ml-2 text-xs font-bold text-amber-700 dark:text-amber-300">Needs review</span>}
-                  </td>
-                  <td className="px-3 py-2">{r.language === "hi" ? "Hindi" : "English"} · {r.section}</td>
-                  <td className="px-3 py-2">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATE_STYLES[r.workflow_state]}`}>{STATE_LABELS[r.workflow_state]}</span>
-                  </td>
-                  <td className="px-3 py-2 text-slate-500">{when(r.updated_at)}</td>
+        {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
+        {rows === null ? (
+          <p aria-live="polite" className="text-sm text-slate-500">Loading the stories…</p>
+        ) : rows.length === 0 && !error ? (
+          <p className="text-sm text-slate-500">No stories here yet.{mayCreate ? " Start one with New story." : ""}</p>
+        ) : rows.length > 0 ? (
+          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#2b2f36]">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:border-[#2b2f36] dark:bg-[#25282d] dark:text-slate-400">
+                <tr>
+                  <th scope="col" className="px-4 py-3">Headline</th>
+                  <th scope="col" className="px-4 py-3">Desk</th>
+                  <th scope="col" className="px-4 py-3">State</th>
+                  <th scope="col" className="px-4 py-3">Last change</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className={`border-t border-slate-100 dark:border-[#2b2f36] ${rowHover}`}>
+                    <td className="px-4 py-3">
+                      <Link href={`/admin/desk/${r.id}`} lang={r.language} className={link}>
+                        {r.current?.headline || "(no headline)"}
+                      </Link>
+                      {r.post_hoc_review_due && <span className={`${badge} ${tone.amber} ml-2`}>Needs review</span>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{r.language === "hi" ? "Hindi" : "English"} · {r.section}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATE_STYLES[r.workflow_state]}`}>{STATE_LABELS[r.workflow_state]}</span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">{when(r.updated_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
-      {pages > 1 && (
-        <nav aria-label="Pages" className="flex items-center gap-3 text-sm">
-          <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded border px-2 py-1 disabled:opacity-40">Previous</button>
-          <span>Page {page} of {pages}</span>
-          <button type="button" disabled={page >= pages} onClick={() => setPage((p) => p + 1)} className="rounded border px-2 py-1 disabled:opacity-40">Next</button>
-        </nav>
-      )}
+        {pages > 1 && (
+          <nav aria-label="Pages" className="flex items-center justify-end gap-3 text-sm">
+            <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className={button}>Previous</button>
+            <span className={hint}>Page {page} of {pages}</span>
+            <button type="button" disabled={page >= pages} onClick={() => setPage((p) => p + 1)} className={button}>Next</button>
+          </nav>
+        )}
+      </div>
     </section>
   );
 }
