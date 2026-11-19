@@ -63,9 +63,6 @@ export default function DeskList() {
   }, [load]);
 
   if (meError) return <p role="alert" className="text-sm text-red-700 dark:text-red-300">{meError}</p>;
-  if (me && me.kind !== "staff") {
-    return <p role="alert" className="text-sm text-red-700 dark:text-red-300">Sign in with your own staff account to use the Desk. The shared admin password cannot.</p>;
-  }
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   return (

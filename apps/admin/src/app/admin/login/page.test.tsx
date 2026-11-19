@@ -1,6 +1,6 @@
 /**
- * The admin sign-in page. Characterization first: today it has one field, the shared password,
- * posted to /api/admin/login. Panel 0 adds staff accounts and the second factor next to it.
+ * The admin sign-in page: a staff account (email and password), then the second factor (Panel 0).
+ * The shared admin password was retired in Panel 1's M4: the page no longer offers it.
  */
 
 const mockPush = jest.fn();
@@ -45,38 +45,6 @@ async function submit(button: RegExp) {
 }
 
 const typeInto = (label: RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
-// The original page's label was not tied to its input, so the characterization finds the field by type.
-const typePassword = (value: string) => {
-  const field = document.querySelector('input[type="password"]');
-  if (!field) throw new Error("no password field");
-  fireEvent.change(field, { target: { value } });
-};
-
-describe("the shared password (characterization)", () => {
-  async function openSharedPassword() {
-    await renderPage();
-    const toggle = screen.queryByRole("button", { name: /shared admin password/i });
-    if (toggle) await act(async () => void fireEvent.click(toggle));
-  }
-
-  test("posts the password to /api/admin/login and goes to /admin on success", async () => {
-    answers["POST /api/admin/login"] = { status: 200, body: { status: "success" } };
-    await openSharedPassword();
-    typePassword("correct horse");
-    await submit(/^sign in$/i);
-    expect(posted).toEqual([{ url: "/api/admin/login", body: { password: "correct horse" } }]);
-    expect(mockPush).toHaveBeenCalledWith("/admin");
-  });
-
-  test("shows the server's error and stays", async () => {
-    answers["POST /api/admin/login"] = { status: 401, body: { error: "Incorrect password." } };
-    await openSharedPassword();
-    typePassword("wrong");
-    await submit(/^sign in$/i);
-    expect(screen.getByText("Incorrect password.")).toBeInTheDocument();
-    expect(mockPush).not.toHaveBeenCalled();
-  });
-});
 
 // Panel 0: staff accounts sign in with email and password, then the second factor: set it up the
 // first time (QR code and secret, then a code), or enter a code each time after.
@@ -161,9 +129,20 @@ describe("staff sign-in and the second factor (Panel 0)", () => {
     expect(screen.getByLabelText(/authenticator code/i)).toBeInTheDocument();
   });
 
-  test("the shared password stays one click away (no lockout)", async () => {
+  test("the retired shared password is not offered", async () => {
     await renderPage();
-    expect(screen.getByRole("button", { name: /shared admin password/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /shared admin password/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/shared password/i)).not.toBeInTheDocument();
+  });
+
+  test("a wrong email or password: the server's error is shown, and the page stays", async () => {
+    answers["POST /api/admin/login"] = { status: 401, body: { error: "Incorrect email or password." } };
+    await renderPage();
+    typeInto(/email/i, "asha@example.com");
+    typeInto(/^password$/i, "wrong");
+    await submit(/^sign in$/i);
+    expect(screen.getByText("Incorrect email or password.")).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });
 

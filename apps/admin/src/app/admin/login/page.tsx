@@ -9,11 +9,10 @@ import type { AdminMe } from "@timesprime/shared/types";
 
 // Sign-in (Panel 0). A staff account signs in with email and password, then the second factor:
 // set up the first time (QR code and secret, then one code), a code every time after. The shared
-// admin password stays one click away until it is retired, so no one is locked out while staff
-// accounts are set up. Every step is decided by the server (/api/admin/login, /api/admin/mfa); this
-// page only follows the answers.
+// admin password was retired in Panel 1's M4. Every step is decided by the server
+// (/api/admin/login, /api/admin/mfa); this page only follows the answers.
 
-type Step = "staff" | "legacy" | "code" | "enroll";
+type Step = "staff" | "code" | "enroll";
 
 interface Enrolment {
   factorId: string;
@@ -49,7 +48,6 @@ export default function AdminLoginPage() {
     isDark ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500" : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
   }`;
   const labelClass = "block text-xs font-semibold text-slate-600 dark:text-slate-400";
-  const linkClass = "w-full text-center text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline";
 
   // Signed in: to the page of the person's work (landingPath; the owner's choice, 18 Nov 2026), the
   // Desk for a newsroom role, else the dashboard. If the roles cannot be read, the dashboard.
@@ -124,15 +122,6 @@ export default function AdminLoginPage() {
     else await done();
   });
 
-  const signInLegacy = run(async () => {
-    const res = await post("/api/admin/login", { password });
-    if (!res.ok) {
-      setError(String(res.data.error || "Login failed."));
-      return;
-    }
-    await done();
-  });
-
   const verify = run(async () => {
     const body = step === "enroll" && enrolment ? { action: "verify", code, factorId: enrolment.factorId } : { action: "verify", code };
     const res = await post("/api/admin/mfa", body);
@@ -153,12 +142,6 @@ export default function AdminLoginPage() {
       {loading ? busy : idle}
     </button>
   );
-
-  const switchTo = (next: Step) => () => {
-    setError("");
-    setPassword("");
-    setStep(next);
-  };
 
   return (
     <div
@@ -183,9 +166,7 @@ export default function AdminLoginPage() {
               ? "Scan the QR code with an authenticator app, then enter the 6-digit code it shows."
               : step === "code"
                 ? "Enter the 6-digit code from your authenticator app."
-                : step === "legacy"
-                  ? "The shared admin password. It is being retired; use a staff account when you have one."
-                  : "Sign in with your staff account to access the TimesPrime admin panel."}
+                : "Sign in with your staff account to access the TimesPrime admin panel."}
           </p>
         </div>
 
@@ -207,22 +188,6 @@ export default function AdminLoginPage() {
               <input id="admin-password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className={fieldClass} />
             </div>
             {submitButton("Sign In", "Signing in...")}
-            <button type="button" onClick={switchTo("legacy")} className={linkClass}>
-              Use the shared admin password
-            </button>
-          </form>
-        )}
-
-        {step === "legacy" && (
-          <form onSubmit={signInLegacy} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="admin-shared-password" className={labelClass}>Shared password</label>
-              <input id="admin-shared-password" type="password" required autoFocus value={password} onChange={(e) => setPassword(e.target.value)} className={fieldClass} />
-            </div>
-            {submitButton("Sign In", "Signing in...")}
-            <button type="button" onClick={switchTo("staff")} className={linkClass}>
-              Use a staff account
-            </button>
           </form>
         )}
 

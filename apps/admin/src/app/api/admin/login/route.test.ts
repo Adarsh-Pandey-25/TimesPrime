@@ -1,10 +1,11 @@
 /**
  * @jest-environment node
  *
- * POST /api/admin/login. F-004: nothing limited how many passwords one
- * client could try. Upstash is not configured in tests, so the limiter runs
- * on its in-memory fallback; the Redis path has its own tests
- * (packages/server/src/lib/rateLimit.redis.test.ts).
+ * POST /api/admin/login: a staff account signs in with email and password through Supabase Auth
+ * (Panel 0); the second factor comes next, at /api/admin/mfa. The shared admin password was retired
+ * in Panel 1's M4: a body without an email is refused. F-004: attempts are limited per IP. Upstash
+ * is not configured in tests, so the limiter runs on its in-memory fallback; the Redis path has its
+ * own tests (packages/server/src/lib/rateLimit.redis.test.ts).
  */
 
 jest.mock("@sentry/nextjs", () => ({ captureMessage: jest.fn(), captureException: jest.fn() }));
@@ -25,133 +26,37 @@ import { createRouteClient } from "@timesprime/server/auth/supabaseServer";
 import { loadStaffRecord, markSignedIn } from "@timesprime/server/repositories/staff";
 import { recordAudit } from "@timesprime/server/repositories/auditLog";
 
-const env = { ...process.env };
 let ipCounter = 0;
 const nextIp = () => `198.51.100.${++ipCounter}`;
 
-const attempt = (password: unknown, ip: string) =>
+const auth = {
+  signInWithPassword: jest.fn(),
+  signOut: jest.fn(async () => ({ error: null })),
+  mfa: { listFactors: jest.fn() },
+};
+const login = (body: unknown, ip = nextIp()) =>
   POST(
     new NextRequest("http://localhost:3000/api/admin/login", {
       method: "POST",
       headers: { "content-type": "application/json", "x-forwarded-for": ip },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify(body),
     })
   );
-
-// The shared password ends on 2027-01-01 IST (Q3), so these run on a clock fixed before that,
-// not on the real one: they must keep passing after the date.
-const BEFORE_THE_END = Date.parse("2026-11-02T10:00:00Z");
+const staffLogin = (email: unknown, password: unknown, ip = nextIp()) => login({ email, password }, ip);
+const record = (over: object = {}) => ({ userId: "u-1", displayName: "Asha", status: "active", mfaRequired: true, assignments: [], ...over });
 
 beforeEach(() => {
-  process.env.ADMIN_PASSWORD = "correct horse battery staple";
-  process.env.ADMIN_SESSION_SECRET = "session-secret-for-tests";
-  jest.useFakeTimers({ now: BEFORE_THE_END, doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
+  jest.clearAllMocks();
+  (createRouteClient as jest.Mock).mockResolvedValue({ auth });
+  auth.signInWithPassword.mockResolvedValue({ data: { user: { id: "u-1" } }, error: null });
+  auth.mfa.listFactors.mockResolvedValue({ data: { all: [] }, error: null });
+  (loadStaffRecord as jest.Mock).mockResolvedValue(record());
   jest.spyOn(console, "warn").mockImplementation(() => {});
 });
 
-afterEach(() => {
-  jest.useRealTimers();
-  process.env = { ...env };
-  jest.restoreAllMocks();
-});
+afterEach(() => jest.restoreAllMocks());
 
-describe("POST /api/admin/login — the shared password's end (Q3)", () => {
-  test("after 2027-01-01 00:00 IST the right password is refused with 403, and no cookie is set", async () => {
-    jest.setSystemTime(Date.parse("2026-12-31T18:30:00Z"));
-    const res = await attempt("correct horse battery staple", nextIp());
-    expect(res.status).toBe(403);
-    expect(res.headers.get("set-cookie")).toBeNull();
-    expect((await res.json()).error).toMatch(/retired/i);
-  });
-
-  test("ADMIN_LEGACY_LOGIN=on does not bring it back after the date", async () => {
-    jest.setSystemTime(Date.parse("2027-02-01T00:00:00Z"));
-    process.env.ADMIN_LEGACY_LOGIN = "on";
-    expect((await attempt("correct horse battery staple", nextIp())).status).toBe(403);
-  });
-
-  test("ADMIN_LEGACY_LOGIN=off refuses it before the date", async () => {
-    process.env.ADMIN_LEGACY_LOGIN = "off";
-    expect((await attempt("correct horse battery staple", nextIp())).status).toBe(403);
-  });
-
-  test("the last minute of 2026 IST still works", async () => {
-    jest.setSystemTime(Date.parse("2026-12-31T18:29:00Z"));
-    expect((await attempt("correct horse battery staple", nextIp())).status).toBe(200);
-  });
-});
-
-describe("POST /api/admin/login — unchanged behaviour", () => {
-  test("the right password sets the session cookie", async () => {
-    const res = await attempt("correct horse battery staple", nextIp());
-    expect(res.status).toBe(200);
-    expect(res.headers.get("set-cookie")).toMatch(/timesprime_admin_session=/);
-  });
-
-  test("a wrong password is 401", async () => {
-    expect((await attempt("wrong", nextIp())).status).toBe(401);
-  });
-
-  test("503 when login is not configured", async () => {
-    delete process.env.ADMIN_PASSWORD;
-    const res = await attempt("anything", nextIp());
-    expect(res.status).toBe(503);
-    // It names the env file the owner actually has (BL-036): the root .env.
-    expect((await res.json()).error).toBe("Admin login is not configured. Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in .env.");
-  });
-});
-
-describe("POST /api/admin/login — attempts are rate-limited per IP (F-004)", () => {
-  test("10 attempts in 15 minutes are answered; the 11th is 429 with Retry-After", async () => {
-    const ip = nextIp();
-    for (let i = 0; i < 10; i++) expect((await attempt(`guess-${i}`, ip)).status).toBe(401);
-    const res = await attempt("guess-10", ip);
-    expect(res.status).toBe(429);
-    const retryAfter = Number(res.headers.get("retry-after"));
-    expect(retryAfter).toBeGreaterThan(0);
-    expect(retryAfter).toBeLessThanOrEqual(15 * 60);
-    expect((await res.json()).error).toMatch(/too many/i);
-  });
-
-  test("a limited IP is refused even with the right password", async () => {
-    const ip = nextIp();
-    for (let i = 0; i < 10; i++) await attempt(`guess-${i}`, ip);
-    expect((await attempt("correct horse battery staple", ip)).status).toBe(429);
-  });
-
-  test("another IP is not affected", async () => {
-    const ip = nextIp();
-    for (let i = 0; i < 11; i++) await attempt(`guess-${i}`, ip);
-    expect((await attempt("correct horse battery staple", nextIp())).status).toBe(200);
-  });
-});
-
-// Panel 0: a staff account signs in with email and password through Supabase Auth. The shared
-// password path above is unchanged (no lockout). The second factor comes next, at /api/admin/mfa.
-describe("POST /api/admin/login — staff accounts (Panel 0)", () => {
-  const auth = {
-    signInWithPassword: jest.fn(),
-    signOut: jest.fn(async () => ({ error: null })),
-    mfa: { listFactors: jest.fn() },
-  };
-  const staffLogin = (email: unknown, password: unknown, ip = nextIp()) =>
-    POST(
-      new NextRequest("http://localhost:3000/api/admin/login", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-forwarded-for": ip },
-        body: JSON.stringify({ email, password }),
-      })
-    );
-  const record = (over: object = {}) => ({ userId: "u-1", displayName: "Asha", status: "active", mfaRequired: true, assignments: [], ...over });
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    (createRouteClient as jest.Mock).mockResolvedValue({ auth });
-    auth.signInWithPassword.mockResolvedValue({ data: { user: { id: "u-1" } }, error: null });
-    auth.mfa.listFactors.mockResolvedValue({ data: { all: [] }, error: null });
-    (loadStaffRecord as jest.Mock).mockResolvedValue(record());
-  });
-
+describe("staff accounts", () => {
   test("the right email and password: signed in, next step MFA enrolment, audited, last sign-in noted", async () => {
     const res = await staffLogin("asha@example.com", "pw");
     expect(res.status).toBe(200);
@@ -159,7 +64,6 @@ describe("POST /api/admin/login — staff accounts (Panel 0)", () => {
     expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "asha@example.com", password: "pw" });
     expect((recordAudit as jest.Mock).mock.calls.map(([r]) => `${r.action}:${r.outcome}:${r.actor_id}`)).toEqual(["auth.sign_in:succeeded:u-1"]);
     expect(markSignedIn).toHaveBeenCalledWith("u-1");
-    // No shared-password cookie for a staff sign-in.
     expect(res.headers.get("set-cookie") ?? "").not.toMatch(/timesprime_admin_session=/);
   });
 
@@ -200,10 +104,9 @@ describe("POST /api/admin/login — staff accounts (Panel 0)", () => {
     expect(Sentry.captureException).toHaveBeenCalledWith(down, { tags: { source: "supabase" }, extra: { operation: "loadStaffRecord", at: "sign-in" } });
   });
 
-  test("Supabase not configured: 503, the shared password still works", async () => {
+  test("Supabase not configured: 503", async () => {
     (createRouteClient as jest.Mock).mockResolvedValue(null);
     expect((await staffLogin("asha@example.com", "pw")).status).toBe(503);
-    expect((await attempt("correct horse battery staple", nextIp())).status).toBe(200);
   });
 
   test.each([[""], [123], [null]])("a malformed email (%j) or password: 400, nothing sent", async (email) => {
@@ -212,16 +115,39 @@ describe("POST /api/admin/login — staff accounts (Panel 0)", () => {
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
   });
 
-  test("staff attempts count against the same per-IP limit as the shared password (F-004)", async () => {
-    auth.signInWithPassword.mockResolvedValue({ data: { user: null }, error: { message: "Invalid login credentials" } });
+  test("a body that is not JSON: 400", async () => {
+    const res = await POST(new NextRequest("http://localhost:3000/api/admin/login", { method: "POST", headers: { "x-forwarded-for": nextIp() }, body: "{" }));
+    expect(res.status).toBe(400);
+  });
+});
+
+// Panel 1, M4: the shared admin password is retired. A password alone is no way in, and no cookie.
+test("the retired shared password: a body with only a password is refused (400), and Supabase is not asked", async () => {
+  const res = await login({ password: "correct horse battery staple" });
+  expect(res.status).toBe(400);
+  expect(res.headers.get("set-cookie")).toBeNull();
+  expect(auth.signInWithPassword).not.toHaveBeenCalled();
+});
+
+describe("attempts are rate-limited per IP (F-004)", () => {
+  beforeEach(() => auth.signInWithPassword.mockResolvedValue({ data: { user: null }, error: { message: "Invalid login credentials" } }));
+
+  test("10 attempts in 15 minutes are answered; the 11th is 429 with Retry-After", async () => {
     const ip = nextIp();
-    for (let i = 0; i < 10; i++) await staffLogin("asha@example.com", `guess-${i}`, ip);
-    expect((await staffLogin("asha@example.com", "pw", ip)).status).toBe(429);
-    expect((await attempt("correct horse battery staple", ip)).status).toBe(429);
+    for (let i = 0; i < 10; i++) expect((await staffLogin("asha@example.com", `guess-${i}`, ip)).status).toBe(401);
+    const res = await staffLogin("asha@example.com", "guess-10", ip);
+    expect(res.status).toBe(429);
+    const retryAfter = Number(res.headers.get("retry-after"));
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(15 * 60);
+    expect((await res.json()).error).toMatch(/too many/i);
   });
 
-  test("the shared password's end date does not affect staff sign-in", async () => {
-    jest.setSystemTime(Date.parse("2027-02-01T00:00:00Z"));
-    expect((await staffLogin("asha@example.com", "pw")).status).toBe(200);
+  test("a limited IP is refused even with the right password; another IP is not affected", async () => {
+    const ip = nextIp();
+    for (let i = 0; i < 10; i++) await staffLogin("asha@example.com", `guess-${i}`, ip);
+    auth.signInWithPassword.mockResolvedValue({ data: { user: { id: "u-1" } }, error: null });
+    expect((await staffLogin("asha@example.com", "pw", ip)).status).toBe(429);
+    expect((await staffLogin("asha@example.com", "pw", nextIp())).status).toBe(200);
   });
 });

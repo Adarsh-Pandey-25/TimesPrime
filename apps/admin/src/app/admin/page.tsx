@@ -16,11 +16,6 @@ import type { AdminMe } from "@timesprime/shared/types";
 // holds. Hiding is UX only, never the check: every admin route decides again on the server
 // (packages/server/src/auth/requirePermission.ts). Each widget is shown for the permission its routes need.
 
-/** "1 January 2027": the day the shared password stops working, in IST. */
-function retireDay(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric" });
-}
-
 interface DbStats {
   configured: boolean;
   totalStoredArticles: number;
@@ -230,12 +225,6 @@ export default function AdminDashboardPage() {
           </div>
           {/* Who is signed in, and Sign out: in the top bar, on every page. */}
         </div>
-
-        {me?.kind === "legacy" && (
-          <div role="note" className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40 p-3 text-xs font-semibold text-amber-800 dark:text-amber-200">
-            You are using the shared admin password. It stops working on {retireDay(me.retiresAt)}. Ask a Super Admin for a staff account.
-          </div>
-        )}
 
         {meError && (
           <div role="alert" className="rounded-xl border border-red-300 bg-red-50 dark:border-red-900/50 dark:bg-red-950/40 p-3 text-xs font-semibold text-red-700 dark:text-red-300">

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ADMIN_SESSION_COOKIE, verifySessionToken } from "@timesprime/server/auth/adminSession";
 import { isPublicAdminRequest } from "@timesprime/server/auth/adminRoutePolicy";
 import { createProxyClient } from "@timesprime/server/auth/supabaseServer";
 
@@ -13,23 +12,19 @@ import { createProxyClient } from "@timesprime/server/auth/supabaseServer";
 // (packages/server/src/auth/requirePermission.ts), which reads the staff record live. This file only answers
 // "is there a session at all?", and sends everyone else to the sign-in page (or a 401 for the API).
 //
-// Two sessions are accepted, so no one is locked out during the cut-over (owner's condition):
-//   - the shared password's HMAC cookie, until it is retired (adminSession.ts, Q3);
-//   - a Supabase staff session: getClaims() verifies its JWT and refreshes it when due, and the
-//     refreshed cookies go to the browser and on to the route (packages/server/src/auth/supabaseServer.ts).
+// One kind of session is accepted: a Supabase staff session. getClaims() verifies its JWT and
+// refreshes it when due, and the refreshed cookies go to the browser and on to the route
+// (packages/server/src/auth/supabaseServer.ts). The shared admin password and its cookie were
+// retired in Panel 1's M4.
 //
-// What may pass with no session is one list, shared with the route-walk test: the sign-in page,
-// POST login and POST logout (owner decision D10, PUBLIC_ADMIN_ROUTES in
-// packages/server/src/auth/adminRoutePolicy.ts).
+// What may pass with no session is one list, shared with the route-walk test: the sign-in and
+// welcome pages, POST login, POST logout and POST welcome (owner decision D10, Panel 1's M2;
+// PUBLIC_ADMIN_ROUTES in packages/server/src/auth/adminRoutePolicy.ts).
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublicAdminRequest(pathname, request.method)) {
-    return NextResponse.next();
-  }
-
-  if (verifySessionToken(request.cookies.get(ADMIN_SESSION_COOKIE)?.value)) {
     return NextResponse.next();
   }
 

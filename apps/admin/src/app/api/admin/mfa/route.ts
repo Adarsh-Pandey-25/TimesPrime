@@ -26,9 +26,7 @@ export async function POST(request: NextRequest) {
   const gate = await requireSession(request);
   if (!gate.ok) return gate.response;
   const actor = gate.actor;
-  if (actor.kind === "legacy" || !actor.userId) {
-    return json({ error: "The shared password has no second factor. Sign in with your staff account." }, 400);
-  }
+  if (!actor.userId) return json({ error: "Sign in with your staff account." }, 400);
 
   const body = await readJsonBody(request, MAX_BODY_BYTES);
   if (!body.ok) return json({ error: body.tooLarge ? "Request body too large." : "Invalid request body." }, body.tooLarge ? 413 : 400);

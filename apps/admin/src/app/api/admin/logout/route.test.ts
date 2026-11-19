@@ -1,9 +1,9 @@
 /**
  * @jest-environment node
  *
- * POST /api/admin/logout: public (D10), so it works with an expired session too. It clears the
- * shared-password cookie as before, and ends a staff session: this device only (scope "local"), as
- * Supabase advises, since signOut() defaults to every device.
+ * POST /api/admin/logout: public (D10), so it works with an expired session too. It ends a staff
+ * session: this device only (scope "local"), as Supabase advises, since signOut() defaults to every
+ * device.
  */
 
 jest.mock("@sentry/nextjs", () => ({ captureMessage: jest.fn(), captureException: jest.fn() }));
@@ -29,12 +29,11 @@ beforeEach(() => {
 
 const logout = () => POST(new NextRequest("http://localhost:3000/api/admin/logout", { method: "POST" }));
 
-test("always clears the shared-password cookie and answers success, even with no session", async () => {
+test("answers success even with no session", async () => {
   (readSession as jest.Mock).mockResolvedValue(null);
   const res = await logout();
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ status: "success" });
-  expect(res.headers.get("set-cookie")).toMatch(/timesprime_admin_session=;.*Max-Age=0/i);
   expect(recordAudit).not.toHaveBeenCalled();
 });
 
@@ -45,10 +44,9 @@ test("a staff session: signed out on this device only, and audited", async () =>
   expect(recordAudit).toHaveBeenCalledWith(expect.objectContaining({ action: "auth.sign_out", outcome: "succeeded", actor_id: "u-1" }));
 });
 
-test("a failed staff sign-out still clears the cookie and answers success", async () => {
+test("a failed staff sign-out still answers success", async () => {
   (readSession as jest.Mock).mockResolvedValue({ kind: "staff", userId: "u-1", aal: "aal2", sessionId: "s-1" });
   signOut.mockRejectedValueOnce(new Error("network"));
   const res = await logout();
   expect(res.status).toBe(200);
-  expect(res.headers.get("set-cookie")).toMatch(/timesprime_admin_session=/);
 });

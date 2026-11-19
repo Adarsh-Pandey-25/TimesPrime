@@ -168,26 +168,6 @@ describe("revocation applies to the next request (design, 'Approval')", () => {
   });
 });
 
-describe("the legacy shared password (Q3)", () => {
-  beforeEach(() => session.mockResolvedValue({ kind: "legacy" }));
-
-  test("may do today's editorial work, in any scope, without a staff record", async () => {
-    const r = await requirePermission(request(), EDIT, { language: "en", section: "politics" });
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.actor).toMatchObject({ kind: "legacy", userId: null, label: "legacy:shared-password", aal: null, roles: [] });
-    expect(load).not.toHaveBeenCalled();
-  });
-
-  test.each([["audit.read"], ["health.view"], ["user.manage"], ["role.assign"], ["settings.manage"], ["content.purge"]] as const)(
-    "never %s: 403, audited as legacy",
-    async (permission) => {
-      const r = await body(await requirePermission(request(), { permissions: [permission], mode: "act", target: "site" }, { language: null, section: null }));
-      expect(r.status).toBe(403);
-      expect(audit).toHaveBeenCalledWith(expect.objectContaining({ actor_type: "legacy", actor_id: null, actor_label: "legacy:shared-password", outcome: "denied" }));
-    }
-  );
-});
-
 describe("requireTarget: the second check, once the route has loaded its target", () => {
   test("the pre-check passes in some scope; the article's own scope then decides", async () => {
     const pre = await requirePermission(request(), EDIT, "any");

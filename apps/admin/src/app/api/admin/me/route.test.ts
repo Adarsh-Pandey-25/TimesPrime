@@ -23,8 +23,7 @@ import { GET } from "./route";
 import { readSession } from "@timesprime/server/auth/staffSession";
 import { loadStaffRecord } from "@timesprime/server/repositories/staff";
 import { createRouteClient } from "@timesprime/server/auth/supabaseServer";
-import { LEGACY_PERMISSIONS, type Assignment } from "@timesprime/server/auth/decide";
-import { LEGACY_LOGIN_ENDS_AT } from "@timesprime/server/auth/adminSession";
+import type { Assignment } from "@timesprime/server/auth/decide";
 
 const listFactors = jest.fn();
 const desk: Assignment = {
@@ -94,13 +93,4 @@ test("a suspended staff member: 403 suspended", async () => {
   const res = await get();
   expect(res.status).toBe(403);
   expect((await res.json()).code).toBe("suspended");
-});
-
-test("the shared password: its fixed list and the date it retires", async () => {
-  (readSession as jest.Mock).mockResolvedValue({ kind: "legacy" });
-  const body = await (await get()).json();
-  expect(body.kind).toBe("legacy");
-  expect(body.retiresAt).toBe(LEGACY_LOGIN_ENDS_AT.toISOString());
-  expect(Object.keys(body.permissions).sort()).toEqual([...LEGACY_PERMISSIONS].sort());
-  expect(body.permissions["audit.read"]).toBeUndefined();
 });

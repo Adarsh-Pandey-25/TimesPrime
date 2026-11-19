@@ -15,7 +15,6 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { readSession } from "./staffSession";
 import { createRouteClient, hardenCookie } from "./supabaseServer";
-import { ADMIN_SESSION_COOKIE, createSessionToken } from "./adminSession";
 
 const getClaims = jest.fn();
 const getUser = jest.fn();
@@ -26,8 +25,6 @@ beforeEach(() => {
   jest.clearAllMocks();
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
-  process.env.ADMIN_SESSION_SECRET = "session-secret-for-tests";
-  delete process.env.ADMIN_LEGACY_LOGIN;
   (cookies as jest.Mock).mockResolvedValue(store);
   (createServerClient as jest.Mock).mockReturnValue({ auth: { getClaims, getUser } });
   getClaims.mockResolvedValue({ data: { claims: { sub: "u-1", aal: "aal2", session_id: "s-1" } }, error: null });
@@ -80,27 +77,10 @@ describe("a staff session", () => {
   });
 });
 
-describe("the legacy cookie, while the shared password lives (Q3)", () => {
-  beforeEach(() => getClaims.mockResolvedValue({ data: null, error: null }));
-
-  test("a valid legacy cookie: legacy", async () => {
-    expect(await readSession(request(`${ADMIN_SESSION_COOKIE}=${createSessionToken()}`))).toEqual({ kind: "legacy" });
-  });
-
-  test("a forged legacy cookie: no session", async () => {
-    expect(await readSession(request(`${ADMIN_SESSION_COOKIE}=123.abc`))).toBeNull();
-  });
-
-  test("after the end date the same cookie is refused", async () => {
-    const token = createSessionToken();
-    jest.setSystemTime(Date.parse("2026-12-31T18:30:00Z"));
-    expect(await readSession(request(`${ADMIN_SESSION_COOKIE}=${token}`))).toBeNull();
-  });
-
-  test("a staff session wins over a legacy cookie", async () => {
-    getClaims.mockResolvedValue({ data: { claims: { sub: "u-1", aal: "aal2", session_id: "s-1" } }, error: null });
-    expect(await readSession(request(`${ADMIN_SESSION_COOKIE}=${createSessionToken()}`))).toMatchObject({ kind: "staff" });
-  });
+// Panel 1, M4: the shared admin password is retired. Its old cookie is nothing now.
+test("the retired shared password's cookie is no session", async () => {
+  getClaims.mockResolvedValue({ data: null, error: null });
+  expect(await readSession(request("timesprime_admin_session=1700000000000.abcdef"))).toBeNull();
 });
 
 describe("the staff session cookie's flags", () => {

@@ -55,12 +55,6 @@ test("a Writer sees that they are the Writer", async () => {
   expect(screen.getByText("Writer (English)")).toBeInTheDocument();
 });
 
-test("the shared password says so", async () => {
-  me = { status: 200, body: { kind: "legacy", displayName: "Admin", permissions: {}, retiresAt: "2027-01-01T00:00:00+05:30" } };
-  await renderBar();
-  expect(screen.getByText("Signed in with the shared admin password")).toBeInTheDocument();
-});
-
 test("Sign out ends the session and goes to the sign-in page", async () => {
   me = staff("TEST Writer", [["writer", "en"]]);
   await renderBar();

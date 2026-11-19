@@ -37,11 +37,6 @@ export interface RouteRule {
     | "new_person"
     | "request";
   /**
-   * Only a named staff member may use the route: the shared password is refused, whatever its fixed
-   * list holds (Panel 2's Desk, design §0: it cannot be an author, an editor or an approver).
-   */
-  staffOnly?: boolean;
-  /**
    * A two-person route (the matrix's A): a holder of A passes the gate, because the route only lets them
    * ask, or decide what someone else asked (Panel 2's restore). It still needs their second factor
    * (decide() answers mfa_required first) and their scope.
@@ -122,169 +117,169 @@ export const ADMIN_ROUTE_RULES = {
   "/api/admin/stats": {
     GET: { permissions: ["stats.view"], mode: "read", target: "none" },
   },
-  // ---- Panel 2, the Desk (design §4): staff only, every story checked against its own desk ----
+  // ---- Panel 2, the Desk (design §4): every story checked against its own desk ----
   // The alert list (design §8): takedowns, for whoever may take stories down, inside their desks.
   "/api/admin/desk/alerts": {
-    GET: { permissions: ["article.unpublish"], mode: "read", target: "none", staffOnly: true },
+    GET: { permissions: ["article.unpublish"], mode: "read", target: "none" },
   },
   // Authors (design §7): anyone on the Desk reads the list to credit a story; author.manage changes it.
   "/api/admin/desk/authors": {
-    GET: { permissions: ["article.view_admin"], mode: "read", target: "none", staffOnly: true },
-    POST: { permissions: ["author.manage"], mode: "act", target: "author", staffOnly: true },
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "none" },
+    POST: { permissions: ["author.manage"], mode: "act", target: "author" },
   },
   "/api/admin/desk/authors/[id]": {
-    PATCH: { permissions: ["author.manage"], mode: "act", target: "author", staffOnly: true },
+    PATCH: { permissions: ["author.manage"], mode: "act", target: "author" },
   },
   // The media library (design §7): anyone on the Desk sees their desks' images; uploading one rides
   // on article.edit in the desk it is for; its credit, licence, rights and retirement are
   // media.manage (the Managing Editor F, a Desk Editor S), in the image's desk.
   "/api/admin/desk/media": {
-    GET: { permissions: ["article.view_admin"], mode: "read", target: "none", staffOnly: true },
-    POST: { permissions: ["article.edit"], mode: "act", target: "new_media", staffOnly: true },
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "none" },
+    POST: { permissions: ["article.edit"], mode: "act", target: "new_media" },
   },
   "/api/admin/desk/media/[id]": {
-    PATCH: { permissions: ["media.manage"], mode: "act", target: "media", staffOnly: true },
+    PATCH: { permissions: ["media.manage"], mode: "act", target: "media" },
   },
   // An image's original, which keeps the camera's metadata: for staff, in the image's desk, as the
   // library is; readers only ever get the renditions.
   "/api/admin/desk/media/[id]/original": {
-    GET: { permissions: ["article.view_admin"], mode: "read", target: "media", staffOnly: true },
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "media" },
   },
   // A story's credits: set with article.edit, in the story's desk, before publication.
   "/api/admin/desk/stories/[id]/credits": {
-    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.edit"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories": {
     // The list is filtered to the caller's scopes in the route.
-    GET: { permissions: ["article.view_admin"], mode: "read", target: "none", staffOnly: true },
-    POST: { permissions: ["article.create"], mode: "act", target: "new_story", staffOnly: true },
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "none" },
+    POST: { permissions: ["article.create"], mode: "act", target: "new_story" },
   },
   "/api/admin/desk/stories/[id]": {
-    GET: { permissions: ["article.view_admin"], mode: "read", target: "story", staffOnly: true },
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "story" },
   },
   "/api/admin/desk/stories/[id]/revisions": {
-    GET: { permissions: ["article.view_admin"], mode: "read", target: "story", staffOnly: true },
-    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "story" },
+    POST: { permissions: ["article.edit"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/revisions/[revisionId]": {
-    GET: { permissions: ["article.view_admin"], mode: "read", target: "story", staffOnly: true },
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "story" },
   },
   "/api/admin/desk/stories/[id]/lock": {
-    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
-    DELETE: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.edit"], mode: "act", target: "story" },
+    DELETE: { permissions: ["article.edit"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/details": {
-    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.edit"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/assign": {
-    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.edit"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/submit": {
-    POST: { permissions: ["article.submit"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.submit"], mode: "act", target: "story" },
   },
   // From desk review the route also checks article.approve (MOVES in packages/shared/src/config/desk.ts).
   "/api/admin/desk/stories/[id]/send-back": {
-    POST: { permissions: ["article.submit"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.submit"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/approve": {
-    POST: { permissions: ["article.approve"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.approve"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/schedule": {
-    POST: { permissions: ["article.publish"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.publish"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/unschedule": {
-    POST: { permissions: ["article.publish"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.publish"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/publish": {
-    POST: { permissions: ["article.publish"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.publish"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/publish-direct": {
-    POST: { permissions: ["article.publish_direct"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.publish_direct"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/unpublish": {
-    POST: { permissions: ["article.unpublish"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.unpublish"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/retract": {
-    POST: { permissions: ["article.unpublish"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.unpublish"], mode: "act", target: "story" },
   },
   "/api/admin/desk/stories/[id]/restore": {
-    POST: { permissions: ["article.restore"], mode: "act", target: "story", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["article.restore"], mode: "act", target: "story", twoPerson: true },
   },
   // A live story's public correction note: S or F publishes it; A (a Sub-editor) asks, and a holder
   // of S or F decides (pending/[actionId]/decide).
   "/api/admin/desk/stories/[id]/correct": {
-    POST: { permissions: ["correction.publish"], mode: "act", target: "story", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["correction.publish"], mode: "act", target: "story", twoPerson: true },
   },
   "/api/admin/desk/pending/[actionId]/decide": {
-    POST: { permissions: ["article.restore"], mode: "act", target: "story", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["article.restore"], mode: "act", target: "story", twoPerson: true },
   },
   "/api/admin/desk/stories/[id]/kill": {
-    POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+    POST: { permissions: ["article.edit"], mode: "act", target: "story" },
   },
-  // ---- Panel 1, Administration (design §3 and §4): staff only. user.manage and role.assign are A
+  // ---- Panel 1, Administration (design §3 and §4). user.manage and role.assign are A
   // for a Super Admin (twoPerson: they pass the gate to ask, or to remove access) and S for a
   // Managing Editor (up to Desk Editor in their own scope); the route applies the reach rules
   // (services/people/reach.ts) once it has loaded the person.
   "/api/admin/people": {
-    GET: { permissions: ["user.manage"], mode: "read", target: "none", staffOnly: true },
+    GET: { permissions: ["user.manage"], mode: "read", target: "none" },
     // Adding a person: their account and a first role (M2).
-    POST: { permissions: ["user.manage", "role.assign"], mode: "act", target: "new_person", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["user.manage", "role.assign"], mode: "act", target: "new_person", twoPerson: true },
   },
   // A one-time "set your password" link for a forgotten password (M2).
   "/api/admin/people/[id]/password-link": {
-    POST: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["user.manage"], mode: "act", target: "person", twoPerson: true },
   },
   // Resetting a lost second factor: always two Super Admins (M2; Panel 0 design §5).
   "/api/admin/people/[id]/mfa-reset": {
-    POST: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["user.manage"], mode: "act", target: "person", twoPerson: true },
   },
   "/api/admin/people/[id]": {
-    GET: { permissions: ["user.manage"], mode: "read", target: "person", staffOnly: true },
+    GET: { permissions: ["user.manage"], mode: "read", target: "person" },
     // A new display name.
-    PATCH: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+    PATCH: { permissions: ["user.manage"], mode: "act", target: "person", twoPerson: true },
   },
   "/api/admin/people/[id]/suspend": {
-    POST: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["user.manage"], mode: "act", target: "person", twoPerson: true },
   },
   "/api/admin/people/[id]/reactivate": {
-    POST: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["user.manage"], mode: "act", target: "person", twoPerson: true },
   },
   "/api/admin/people/[id]/sign-out": {
-    POST: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["user.manage"], mode: "act", target: "person", twoPerson: true },
   },
   "/api/admin/people/[id]/roles": {
-    POST: { permissions: ["role.assign"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["role.assign"], mode: "act", target: "person", twoPerson: true },
   },
   "/api/admin/people/[id]/roles/[assignmentId]/renew": {
-    POST: { permissions: ["role.assign"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["role.assign"], mode: "act", target: "person", twoPerson: true },
   },
   "/api/admin/people/[id]/roles/[assignmentId]/revoke": {
-    POST: { permissions: ["role.assign"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["role.assign"], mode: "act", target: "person", twoPerson: true },
   },
   // M3: what needs a look now (break-glass in use, the review due, roles ending soon), for the top
   // bar and the directory; a Super Admin's own break-glass (start, end early); the access review.
   "/api/admin/people/alerts": {
-    GET: { permissions: ["user.manage"], mode: "read", target: "none", staffOnly: true },
+    GET: { permissions: ["user.manage"], mode: "read", target: "none" },
   },
   "/api/admin/people/break-glass": {
-    POST: { permissions: ["role.assign"], mode: "act", target: "site", staffOnly: true, twoPerson: true },
-    DELETE: { permissions: ["role.assign"], mode: "act", target: "site", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["role.assign"], mode: "act", target: "site", twoPerson: true },
+    DELETE: { permissions: ["role.assign"], mode: "act", target: "site", twoPerson: true },
   },
   "/api/admin/people/review": {
-    GET: { permissions: ["role.assign"], mode: "read", target: "none", staffOnly: true },
-    POST: { permissions: ["role.assign"], mode: "act", target: "site", staffOnly: true, twoPerson: true },
+    GET: { permissions: ["role.assign"], mode: "read", target: "none" },
+    POST: { permissions: ["role.assign"], mode: "act", target: "site", twoPerson: true },
   },
   // A Super Admin's requests: the list, and a second Super Admin's decision (or the asker's cancel).
   "/api/admin/people/requests": {
-    GET: { permissions: ["role.assign"], mode: "read", target: "none", staffOnly: true },
+    GET: { permissions: ["role.assign"], mode: "read", target: "none" },
   },
   "/api/admin/people/requests/[requestId]/approve": {
-    POST: { permissions: ["role.assign"], mode: "act", target: "request", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["role.assign"], mode: "act", target: "request", twoPerson: true },
   },
   "/api/admin/people/requests/[requestId]/decline": {
-    POST: { permissions: ["role.assign"], mode: "act", target: "request", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["role.assign"], mode: "act", target: "request", twoPerson: true },
   },
   "/api/admin/people/requests/[requestId]/cancel": {
-    POST: { permissions: ["role.assign"], mode: "act", target: "request", staffOnly: true, twoPerson: true },
+    POST: { permissions: ["role.assign"], mode: "act", target: "request", twoPerson: true },
   },
 } as const satisfies Record<string, Partial<Record<Method, RouteRule>>>;

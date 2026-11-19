@@ -46,7 +46,6 @@ const DENIALS: Record<DenyCode, string> = {
   mfa_required: "has not set up a second factor",
   needs_approval: "may only ask for it to be published",
   forbidden: "no longer holds article.publish for this desk",
-  staff_only: "is not a staff member",
 };
 
 const systemRow = (story: StoryRow, action: string): Pick<AuditRow, "actor_type" | "actor_id" | "actor_label" | "action" | "entity_type" | "entity_id" | "language" | "section"> => ({

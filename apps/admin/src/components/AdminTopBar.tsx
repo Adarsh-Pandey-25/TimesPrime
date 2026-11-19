@@ -48,9 +48,9 @@ export default function AdminTopBar() {
           {me && (
             <p className="text-right text-xs">
               <span className="block font-semibold text-slate-900 dark:text-white">
-                {me.kind === "staff" ? `Signed in as ${me.displayName}` : "Signed in with the shared admin password"}
+                {`Signed in as ${me.displayName}`}
               </span>
-              {me.kind === "staff" && me.roles.length > 0 && <span className="block text-slate-500">{describeRoles(me.roles)}</span>}
+              {me.roles.length > 0 && <span className="block text-slate-500">{describeRoles(me.roles)}</span>}
             </p>
           )}
           <button

@@ -1,8 +1,7 @@
 import "server-only";
 
 import { NextResponse, type NextRequest } from "next/server";
-import { LEGACY_LOGIN_ENDS_AT } from "@timesprime/server/auth/adminSession";
-import { ANY_SCOPE, decide, LEGACY_PERMISSIONS, type Mode } from "@timesprime/server/auth/decide";
+import { ANY_SCOPE, decide, type Mode } from "@timesprime/server/auth/decide";
 import { getMfaState } from "@timesprime/server/auth/mfa";
 import { requireSession } from "@timesprime/server/auth/requirePermission";
 import { createRouteClient } from "@timesprime/server/auth/supabaseServer";
@@ -17,16 +16,6 @@ export async function GET(request: NextRequest) {
   const gate = await requireSession(request);
   if (!gate.ok) return gate.response;
   const actor = gate.actor;
-
-  if (actor.kind === "legacy") {
-    const body: AdminMe = {
-      kind: "legacy",
-      displayName: "Shared admin password",
-      retiresAt: LEGACY_LOGIN_ENDS_AT.toISOString(),
-      permissions: Object.fromEntries([...LEGACY_PERMISSIONS].map((p) => [p, "act"])),
-    };
-    return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
-  }
 
   const record = actor.record;
   const now = new Date();

@@ -131,23 +131,16 @@ export type AdminAction =
  * key held now, in some scope, to "act", "read", or "ask" (the matrix's A: the person may ask, and
  * a second person decides) (keys: packages/shared/src/config/permissions.ts).
  */
-export type AdminMe =
-  | {
-      kind: "staff";
-      displayName: string;
-      aal: "aal1" | "aal2";
-      roles: Array<{ role: string; language: string | null; section: string | null; expiresAt: string }>;
-      permissions: Record<string, "act" | "read" | "ask">;
-      /** required: this account needs aal2; enrolled: a TOTP factor is set up. */
-      mfa: { required: boolean; enrolled: boolean };
-    }
-  | {
-      kind: "legacy";
-      displayName: string;
-      /** When the shared password stops working (ISO). */
-      retiresAt: string;
-      permissions: Record<string, "act" | "read" | "ask">;
-    };
+export interface AdminMe {
+  /** A named staff member: the only kind since the shared admin password was retired (Panel 1, M4). */
+  kind: "staff";
+  displayName: string;
+  aal: "aal1" | "aal2";
+  roles: Array<{ role: string; language: string | null; section: string | null; expiresAt: string }>;
+  permissions: Record<string, "act" | "read" | "ask">;
+  /** required: this account needs aal2; enrolled: a TOTP factor is set up. */
+  mfa: { required: boolean; enrolled: boolean };
+}
 
 export interface AdminLog {
   id: string;

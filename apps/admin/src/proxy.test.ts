@@ -2,8 +2,8 @@
  * @jest-environment node
  *
  * apps/admin/src/proxy.ts, the optimistic check in front of /admin/* and /api/admin/* (Next 16's renamed
- * Middleware). Characterization first: this pins its behaviour with the shared-password cookie
- * before Panel 0 teaches it the staff session. It was at 0% coverage.
+ * Middleware). Since Panel 1's M4 it accepts one kind of session, a Supabase staff session; the
+ * shared admin password's cookie, retired, is no session.
  */
 
 jest.mock("@supabase/ssr", () => ({ createServerClient: jest.fn() }));
@@ -11,16 +11,13 @@ jest.mock("@supabase/ssr", () => ({ createServerClient: jest.fn() }));
 import { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { config, proxy } from "./proxy";
-import { ADMIN_SESSION_COOKIE, createSessionToken } from "@timesprime/server/auth/adminSession";
 
 const env = { ...process.env };
 const getClaims = jest.fn();
 
 beforeEach(() => {
-  process.env.ADMIN_SESSION_SECRET = "session-secret-for-tests";
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
-  delete process.env.ADMIN_LEGACY_LOGIN;
   jest.useFakeTimers({ now: Date.parse("2026-11-10T12:00:00Z"), doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
   getClaims.mockReset();
   getClaims.mockResolvedValue({ data: null, error: null });
@@ -35,7 +32,8 @@ afterEach(() => {
 
 const req = (path: string, method = "GET", cookie?: string) =>
   new NextRequest(`http://localhost:3000${path}`, { method, headers: cookie ? { cookie } : {} });
-const legacy = () => `${ADMIN_SESSION_COOKIE}=${createSessionToken()}`;
+// The retired shared password's cookie, as a browser may still send it.
+const OLD_COOKIE = "timesprime_admin_session=1700000000000.abcdef0123456789";
 const passes = (res: Response) => res.headers.get("x-middleware-next") === "1";
 
 describe("the matcher", () => {
@@ -49,6 +47,8 @@ describe("public without a session", () => {
     ["GET", "/admin/login"],
     ["POST", "/api/admin/login"],
     ["POST", "/api/admin/logout"],
+    ["GET", "/admin/welcome"],
+    ["POST", "/api/admin/welcome"],
   ])("%s %s", async (method, path) => {
     expect(passes(await proxy(req(path, method)))).toBe(true);
   });
@@ -72,13 +72,9 @@ describe("everything else needs a session", () => {
     expect(res.headers.get("location")).toBe("http://localhost:3000/admin/login");
   });
 
-  test("a forged cookie is no session", async () => {
-    expect((await proxy(req("/api/admin/articles", "GET", `${ADMIN_SESSION_COOKIE}=123.abc`))).status).toBe(401);
-  });
-
-  test("a valid shared-password cookie passes, for pages and API calls", async () => {
-    expect(passes(await proxy(req("/admin", "GET", legacy())))).toBe(true);
-    expect(passes(await proxy(req("/api/admin/articles", "DELETE", legacy())))).toBe(true);
+  test("the retired shared password's cookie is no session: 401, and a redirect for pages", async () => {
+    expect((await proxy(req("/api/admin/articles", "GET", OLD_COOKIE))).status).toBe(401);
+    expect((await proxy(req("/admin", "GET", OLD_COOKIE))).status).toBe(307);
   });
 });
 
@@ -93,7 +89,7 @@ describe("the staff session (Panel 0)", () => {
     expect(passes(await proxy(req("/api/admin/articles", "PATCH", "sb-ref-auth-token=x")))).toBe(true);
   });
 
-  test("an invalid staff JWT and no legacy cookie: 401", async () => {
+  test("an invalid staff JWT: 401", async () => {
     getClaims.mockResolvedValue({ data: null, error: { message: "invalid JWT" } });
     expect((await proxy(req("/api/admin/articles", "GET", "sb-ref-auth-token=x"))).status).toBe(401);
   });
@@ -103,11 +99,9 @@ describe("the staff session (Panel 0)", () => {
     expect((await proxy(req("/api/admin/articles"))).status).toBe(401);
   });
 
-  test("no lockout: the shared-password cookie still passes alongside, and without Supabase configured", async () => {
-    getClaims.mockResolvedValue({ data: null, error: null });
-    expect(passes(await proxy(req("/api/admin/articles", "GET", legacy())))).toBe(true);
+  test("without Supabase configured, nothing passes: there is no other session", async () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
-    expect(passes(await proxy(req("/api/admin/articles", "GET", legacy())))).toBe(true);
+    expect((await proxy(req("/api/admin/articles", "GET", OLD_COOKIE))).status).toBe(401);
   });
 
   test("a refreshed token is written to the response, HttpOnly, and passed on to the route", async () => {
@@ -128,12 +122,6 @@ describe("the staff session (Panel 0)", () => {
     expect(res.headers.get("cache-control")).toBe("private, no-store");
     // The route handler sees the refreshed cookie, so it does not refresh (and spend the token) again.
     expect(res.headers.get("x-middleware-request-cookie") ?? res.headers.get("x-middleware-override-headers") ?? "").not.toBe("");
-  });
-
-  test("the shared password's end date applies here too: after it, its cookie is refused", async () => {
-    const cookie = legacy();
-    jest.setSystemTime(Date.parse("2026-12-31T18:30:00Z"));
-    expect((await proxy(req("/api/admin/articles", "GET", cookie))).status).toBe(401);
   });
 
   test("the public list is the shared one: GET /api/admin/logout is not public, POST is", async () => {
