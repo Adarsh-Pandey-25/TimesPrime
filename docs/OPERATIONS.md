@@ -1342,6 +1342,8 @@ Against the real database, in the Supabase SQL editor. No session applies SQL.
 
 **Before:** the Panel 0 files (the staff-access runbook, B1) and the Desk's files are applied.
 
+*Applied by the owner on 19 Nov 2026; the check returned true, false, false, true, false, true.*
+
 1. **Apply the migration.** SQL Editor → New query. Paste
    `database/migrations/2026-11-19-admin-1-access-requests.sql` whole, and run it. It is one
    transaction: if it fails, nothing changed, and it is safe to run again.
@@ -1651,11 +1653,11 @@ phases were done:
    [media steps](#the-desks-images-panel-2-after-the-release); failures: [the Desk is failing](#the-desk-is-failing).
 7. **Panel 1 (Administration)**: its [design](PANEL_DOCS.md#panel-1-design-administration) was
    proposed on 18 Nov 2026 at the owner's request (PR #42), while Panel 2's last items are open, and
-   approved on 19 Nov 2026 with every recommended answer. M1a, the people and roles backend
-   (migration admin-1, the reach rules, the API), is built on `panel-1-people-roles`; M1b, the
-   screens, is next. Owner actions: [apply admin-1](#panel-1-applying-admin-1), and a second Super
-   Admin: every Super Admin change in the app needs one (the matrix's A). Open: who that is, and Vivek's word on retiring the shared
-   password before the AWS deployment (M4).
+   approved on 19 Nov 2026 with every recommended answer. M1, people and roles, is built: the
+   backend (PR #43; the owner [applied admin-1](#panel-1-applying-admin-1) on 19 Nov 2026) and the
+   screens (`/admin/people`, on `panel-1-people-screens`). The second Super Admin is Vivek (the
+   owner, 19 Nov 2026). The shared password goes in M4, without waiting for the AWS deployment (left
+   to the developers by the owner). Next: M2, accounts.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

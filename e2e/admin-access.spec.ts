@@ -25,6 +25,14 @@ test.describe("signed out", () => {
     await expect(page).toHaveURL(/\/admin\/login$/);
   });
 
+  // Panel 1: the people screens and API are behind the same session check.
+  test("/admin/people and a person's page redirect to the sign-in page", async ({ page }) => {
+    await page.goto("/admin/people");
+    await expect(page).toHaveURL(/\/admin\/login$/);
+    await page.goto("/admin/people/00000000-0000-4000-8000-000000000001");
+    await expect(page).toHaveURL(/\/admin\/login$/);
+  });
+
   for (const [method, path] of [
     ["GET", "/api/admin/stats"],
     ["GET", "/api/admin/logs"],
@@ -38,6 +46,9 @@ test.describe("signed out", () => {
     ["POST", "/api/admin/desk/media"],
     ["GET", "/api/admin/desk/media/00000000-0000-4000-8000-000000000001/original"],
     ["POST", "/api/admin/desk/stories/00000000-0000-4000-8000-000000000001/publish"],
+    ["GET", "/api/admin/people"],
+    ["POST", "/api/admin/people/00000000-0000-4000-8000-000000000001/roles"],
+    ["POST", "/api/admin/people/requests/00000000-0000-4000-8000-000000000001/approve"],
   ]) {
     test(`${method} ${path} answers 401 and changes nothing`, async ({ request }) => {
       const res = await request.fetch(path, { method, data: method === "POST" ? {} : undefined });
