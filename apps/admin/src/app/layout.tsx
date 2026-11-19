@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@timesprime/ui/ThemeContext";
 import { THEME_INIT_SCRIPT } from "@timesprime/shared/config/theme";
 import { ADMIN_ASSET_PREFIX } from "@timesprime/shared/config/adminAssets";
+import { FeedbackProvider } from "@/components/ui/Feedback";
 
 const ptSerif = PT_Serif({
   weight: ["400", "700"],
@@ -56,7 +57,9 @@ export default function AdminRootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col bg-slate-50 dark:bg-[#1a1c1e] text-slate-900 dark:text-slate-100 font-serif selection:bg-blue-600 selection:text-white transition-colors duration-200">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <FeedbackProvider>{children}</FeedbackProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

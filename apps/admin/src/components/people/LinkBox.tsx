@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { LINK_VALID_FOR } from "@timesprime/shared/config/people";
+import { button } from "../ui/styles";
 
 // A one-time "set your password" link, shown once (Panel 1 design §4): the API gives the path, and
 // the address is this back office's own, which the person will use. It is kept nowhere, so it is
 // shown now or never; whoever holds it can set the password, so it is handed over directly.
-
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
 
 export default function LinkBox({ path, who }: { path: string; who?: string | null }) {
   const [copied, setCopied] = useState(false);

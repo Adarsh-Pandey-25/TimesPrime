@@ -7,6 +7,7 @@ import { STORY_LANGUAGES, STORY_STATES, type StoryLanguage, type StoryState } fr
 import { SECTION_IDS } from "@timesprime/shared/config/sections";
 import AlertList from "./AlertList";
 import { canAct, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
+import { fieldInline } from "../ui/styles";
 
 // The Desk's story list (Panel 2 design §4): the stories of the caller's desks, newest change first,
 // with filters for language, section, state, the caller's own and those waiting for a post-hoc review.
@@ -23,7 +24,7 @@ interface ListRow {
 }
 
 const PAGE_SIZE = 50;
-const field = "rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
+const field = fieldInline;
 
 export default function DeskList() {
   const { me, error: meError } = useAdminMe();

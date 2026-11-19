@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { diffBlocks, diffWords, type BlockDiff, type DiffPart } from "@timesprime/editor/diff";
 import { textBlocks } from "@timesprime/editor/text";
 import { deskCall, when } from "./deskClient";
+import { button, field as baseField } from "../ui/styles";
 
 // A story's revisions (Panel 2 design §3): the list, the difference between any two (headline, dek,
 // SEO fields and the text, word by word), and bringing an old revision back. Bringing one back only
@@ -61,8 +62,7 @@ function compareRevisions(before: FullRevision, after: FullRevision, from: numbe
   return { from, to, fields, text: blocks.some((b) => b.kind !== "same") ? foldText(blocks) : [] };
 }
 
-const field = "mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
+const field = `mt-0.5 ${baseField}`;
 const addedStyle = "bg-green-100 no-underline dark:bg-green-900/50";
 const removedStyle = "bg-red-100 dark:bg-red-900/50";
 
@@ -129,7 +129,7 @@ export default function RevisionsPanel({
   /** Whether the editor is the caller's to change now (permission, state and lock). */
   canBringBack: boolean;
   /** Fills the editor with the revision; false when the person kept their unsaved changes instead. */
-  onBringBack: (revision: FullRevision, number: number) => boolean;
+  onBringBack: (revision: FullRevision, number: number) => boolean | Promise<boolean>;
 }) {
   const [revisions, setRevisions] = useState<RevisionSummary[] | null>(null);
   const [error, setError] = useState("");
@@ -182,7 +182,7 @@ export default function RevisionsPanel({
     if (!res.ok || !res.data) return setError(res.error ?? "Could not load the revision.");
     setError("");
     const n = numberOf(id);
-    if (onBringBack(res.data.revision, n)) {
+    if (await onBringBack(res.data.revision, n)) {
       setNote(`Revision ${n} is in the editor. Save to make it the current version; until then nothing has changed.`);
     }
   }

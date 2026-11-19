@@ -9,7 +9,8 @@ const mockRouter = { push: jest.fn() };
 jest.mock("next/navigation", () => ({ useRouter: () => mockRouter, useParams: () => ({ id: "s-1" }) }));
 const push = mockRouter.push;
 
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { FeedbackProvider } from "../ui/Feedback";
 import DeskList from "./DeskList";
 import AuthorsManager from "./AuthorsManager";
 import MediaLibrary from "./MediaLibrary";
@@ -358,18 +359,35 @@ describe("the story screen", () => {
       expect(JSON.stringify(sent.body)).toContain("The house voted on Monday.");
     });
 
-    test("with unsaved changes, bringing one back asks first, and No keeps them", async () => {
+    test("with unsaved changes, bringing one back asks first in the back office's popup: Cancel keeps them, Replace them brings it back", async () => {
       serveStory({ "article.view_admin": "read", "article.edit": "act" }, {}, undefined, [NEW, OLD]);
-      await act(async () => render(<StoryEditor id="s-1" />));
+      await act(async () =>
+        render(
+          <FeedbackProvider>
+            <StoryEditor id="s-1" />
+          </FeedbackProvider>,
+        ),
+      );
       const bringBack = await screen.findByRole("button", { name: "Bring back revision 1" });
       const headline = screen.getByRole("textbox", { name: "Headline" });
       fireEvent.change(headline, { target: { value: "Budget passes, 300 to 120" } });
-      const confirm = jest.spyOn(window, "confirm").mockReturnValue(false);
+      const browserConfirm = jest.spyOn(window, "confirm");
+
       await act(async () => fireEvent.click(bringBack));
-      await waitFor(() => expect(confirm).toHaveBeenCalledWith("You have unsaved changes. Replace them with revision 1?"));
+      const dialog = await screen.findByRole("dialog", { name: "Replace your unsaved changes with revision 1?" });
+      await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" })));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(headline).toHaveValue("Budget passes, 300 to 120");
       expect(screen.queryByText(/Revision 1 is in the editor/)).not.toBeInTheDocument();
-      confirm.mockRestore();
+
+      await act(async () => fireEvent.click(bringBack));
+      const again = await screen.findByRole("dialog", { name: "Replace your unsaved changes with revision 1?" });
+      await act(async () => fireEvent.click(within(again).getByRole("button", { name: "Replace them" })));
+      expect(await screen.findByText(/Revision 1 is in the editor/)).toBeInTheDocument();
+      expect(headline).toHaveValue("Budget passes");
+      // The browser's own box is never used once the provider is there.
+      expect(browserConfirm).not.toHaveBeenCalled();
+      browserConfirm.mockRestore();
     });
   });
 

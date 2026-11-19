@@ -6,6 +6,8 @@ import { BREAK_GLASS_HOURS } from "@timesprime/shared/config/people";
 import { deskCall, when } from "../desk/deskClient";
 import { clock, useAlerts } from "./alerts";
 import { day, deskLabel, roleLabel } from "./peopleClient";
+import { button, card, field as baseField } from "../ui/styles";
+import ActionMessage from "../ui/ActionMessage";
 
 // What needs a look, on the directory (Panel 1 design §5 and §6, M3b):
 //   - a Super Admin's emergency access (break-glass): start it for themselves with a reason, end it
@@ -14,9 +16,7 @@ import { day, deskLabel, roleLabel } from "./peopleClient";
 //   - roles ending within 14 days, to renew in time (everyone who manages people, their people).
 // The server decides each request.
 
-const field = "mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
-const card = "space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-[#2b2f36] dark:bg-[#202327]";
+const field = `mt-0.5 ${baseField}`;
 
 export default function AlertsPanel({ superAdmin }: { superAdmin: boolean }) {
   const { alerts, reload } = useAlerts(true);
@@ -45,9 +45,7 @@ export default function AlertsPanel({ superAdmin }: { superAdmin: boolean }) {
             For the night a story must come down and no editor answers: {BREAK_GLASS_HOURS} hours, to take articles and stories down, and nothing else. The other Super
             Admins see it at once; every step is in the audit log.
           </p>
-          {message && (
-            <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>{message.text}</p>
-          )}
+          <ActionMessage message={message} />
           {others.map((b) => (
             <p key={b.assignmentId} className="text-sm font-semibold text-red-700 dark:text-red-300">
               {b.name ?? "A Super Admin"} has emergency access until {clock(b.until)}. Reason: {b.reason}

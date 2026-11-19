@@ -5,6 +5,8 @@ import Link from "next/link";
 import { defaultDays, REVIEW_EVERY_DAYS, STALE_SIGN_IN_DAYS } from "@timesprime/shared/config/people";
 import { deskCall, when } from "../desk/deskClient";
 import { day, deskLabel, roleLabel } from "./peopleClient";
+import { button } from "../ui/styles";
+import ActionMessage from "../ui/ActionMessage";
 
 // The access review (Panel 1 design §6, M3b): every 90 days a Super Admin goes through every live
 // assignment, and every expired one never revoked, with what needs a look flagged. Each row is kept,
@@ -36,7 +38,6 @@ interface Review {
 
 type Decision = "keep" | "revoked" | "renew_asked" | "renewed";
 
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
 const flag = "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-900/40 dark:text-amber-200";
 const DECIDED: Record<Exclude<Decision, "keep">, string> = { revoked: "Revoked", renew_asked: "Renewal asked", renewed: "Renewed" };
 
@@ -112,9 +113,7 @@ export default function AccessReview() {
         </p>
       </div>
 
-      {message && (
-        <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>{message.text}</p>
-      )}
+      <ActionMessage message={message} />
 
       {review.items.length === 0 ? (
         <p className="text-sm text-slate-500">No roles to review.</p>

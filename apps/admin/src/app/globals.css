@@ -163,6 +163,26 @@ html.dark .img-skeleton {
   background-size: 2000px 100%;
 }
 
+/* The back office's popups (components/ui/Feedback.tsx): a dialog grows in, a toast slides up.
+   Short and small; the reduced-motion rule below makes both instant. */
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.animate-pop-in {
+  animation: pop-in 160ms ease-out;
+}
+
+.animate-toast-in {
+  animation: toast-in 200ms ease-out;
+}
+
 /* Safe area insets for notched devices */
 @supports (padding-top: env(safe-area-inset-top)) {
   .safe-area-top {

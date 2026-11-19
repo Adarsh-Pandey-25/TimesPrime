@@ -7,14 +7,15 @@ import { DEFAULT_EXPIRY_DAYS, EXPIRY_DAYS, GRANTABLE_ROLES, MANAGING_EDITOR_GRAN
 import { deskCall, useAdminMe } from "../desk/deskClient";
 import LinkBox from "./LinkBox";
 import { roleLabel, sectionLabel } from "./peopleClient";
+import { button, field as baseField } from "../ui/styles";
+import ActionMessage from "../ui/ActionMessage";
 
 // Adding a person (Panel 1 design §4, M2b): their account and a first role. A Managing Editor adds
 // Writer, Sub-editor or Desk Editor in their own scope, at once, and gets the one-time link to hand
 // over. A Super Admin asks: the second Super Admin who approves gets the link. The roles offered
 // follow what /api/admin/me says the person holds; the server decides.
 
-const field = "mt-0.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
-const button = "rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 disabled:opacity-40 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]";
+const field = `mt-0.5 ${baseField}`;
 
 export default function AddPerson() {
   const { me, error: meError } = useAdminMe();
@@ -81,12 +82,7 @@ export default function AddPerson() {
           : "You add Writer, Sub-editor or Desk Editor in your own desk, and get the person's one-time link to hand over."}
       </p>
 
-      {message && (
-        <p role={message.ok ? "status" : "alert"} className={`text-sm ${message.ok ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>
-          {message.text}{" "}
-          {message.staffId && <Link href={`/admin/people/${message.staffId}`} className="font-semibold underline">Open their page</Link>}
-        </p>
-      )}
+      <ActionMessage message={message}>{message?.staffId && <Link href={`/admin/people/${message.staffId}`} className="font-semibold underline">Open their page</Link>}</ActionMessage>
       {link && <LinkBox path={link.path} who={link.who} />}
 
       <section aria-label="The person" className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2 dark:border-[#2b2f36] dark:bg-[#202327]">

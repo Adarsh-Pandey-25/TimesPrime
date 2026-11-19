@@ -7,13 +7,14 @@ import { deskCall, when } from "../desk/deskClient";
 import AlertsPanel from "./AlertsPanel";
 import RequestsBox from "./RequestsBox";
 import { day, deskLabel, roleLabel, type CallerView, type PersonView, type RequestView } from "./peopleClient";
+import { fieldInline } from "../ui/styles";
 
 // The staff directory (Panel 1 design §4): everyone for a Super Admin, the people of a Managing
 // Editor's desks for them. Each person's status, live roles with desk and expiry, second factor and
 // last sign-in, with filters. A Super Admin also sees the requests waiting for them. The server
 // decides what each caller sees and may do.
 
-const field = "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-[#3a3f47] dark:bg-[#25282d]";
+const field = fieldInline;
 
 interface Directory {
   people: PersonView[];
