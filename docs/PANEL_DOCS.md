@@ -512,9 +512,9 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 ### Panel 1: Administration
 
 **In progress.** [Design](#panel-1-design-administration) approved on 19 Nov 2026. Built so far:
-**M1a**, the backend of "people and roles": migration admin-1, the reach rules, and the API, every
-route tested allowed and denied. The screens follow in M1b; M2 (accounts), M3 (break-glass and the
-review) and M4 (retiring the shared password) after them.
+**M1**, "people and roles": M1a, the backend (migration admin-1, the reach rules, the API, every
+route tested allowed and denied; PR #43), and M1b, the screens. M2 (accounts), M3 (break-glass and
+the review) and M4 (retiring the shared password) follow.
 
 #### Panel
 
@@ -527,7 +527,8 @@ review) and M4 (retiring the shared password) after them.
   - `GET /api/admin/people/requests`, and `POST requests/[requestId]/approve`, `decline` and
     `cancel`.
 
-  The screens (`/admin/people`, `/admin/people/[id]`) come with M1b.
+  The screens: `/admin/people` (the directory, and a Super Admin's requests) and
+  `/admin/people/[id]` (one person). "People" is in the top bar for holders of `user.manage`.
 - **Code:**
   - the routes in `apps/admin/src/app/api/admin/people/`, with `_lib/people.ts` (the gate on a
     person, the audit, a request), `_lib/views.ts` (what is sent back, and what the caller may do)
@@ -537,6 +538,8 @@ review) and M4 (retiring the shared password) after them.
     accounts);
   - `packages/shared/src/config/people.ts` (expiry choices, the roles a Managing Editor grants, the
     scope check);
+  - the screens: `apps/admin/src/app/admin/people/` and `apps/admin/src/components/people/`
+    (`PeopleDirectory.tsx`, `RequestsBox.tsx`, `PersonDetail.tsx`, `peopleClient.ts`);
   - the rules in `packages/server/src/auth/adminRoutePolicy.ts`;
   - the SQL in `database/migrations/2026-11-19-admin-1-access-requests.sql`.
 
@@ -574,8 +577,17 @@ needs two people, and removing it needs one.
 - **Requests:** a Super Admin's grant, renewal, rename or reactivation answers 202 with a request.
   Another active Super Admin approves or declines it within 72 hours; the person who asked may
   cancel it. An approval makes the change in the same transaction.
-- **Partial:** no screens yet (M1b). Adding a person, password links and resetting a second factor
-  are M2; their request kinds exist, and approving them answers 409 until then.
+- **The screens** (M1b), each with loading, error and empty states:
+  - **the directory:** search, and filters by role, language and status; each name links to the
+    person. A Super Admin sees "Waiting for your approval" (Approve, Decline, with an optional
+    note) and "Your requests" (Cancel). A Managing Editor is told which desks they manage;
+  - **one person:** the account (email, second factor, last sign-in, staff since); every role,
+    with Renew (for 30, 90, 180 or 365 days) and Revoke where allowed, each needing a reason;
+    "Grant a role" with the roles the caller may grant; rename, suspend or reactivate, and sign
+    out everywhere; the requests about them; their history. A button says "Ask to …" where the
+    change is a request, and the answer says a second Super Admin decides it.
+- **Partial:** adding a person, password links and resetting a second factor are M2; their request
+  kinds exist, and approving them answers 409 until then.
 
 #### Access permissions and authorization rules
 
@@ -605,7 +617,7 @@ needs two people, and removing it needs one.
 
 | Migration file | What it does | Rollback | Applied by the owner |
 |---|---|---|---|
-| `database/migrations/2026-11-19-admin-1-access-requests.sql` | The one-row index gains `is_break_glass`; `is_active_super_admin` ignores break-glass rows; the guard trigger allows a Super Admin's own break-glass row (for M3); `access_requests` with its decide-once trigger; `access_grant`, `access_decide` and `staff_end_sessions` | At the end of the file, before the first request or break-glass row | **No** |
+| `database/migrations/2026-11-19-admin-1-access-requests.sql` | The one-row index gains `is_break_glass`; `is_active_super_admin` ignores break-glass rows; the guard trigger allows a Super Admin's own break-glass row (for M3); `access_requests` with its decide-once trigger; `access_grant`, `access_decide` and `staff_end_sessions` | At the end of the file, before the first request or break-glass row | **Yes,** 19 Nov 2026; its check returned true, false, false, true, false, true |
 
 No column changes meaning. A lapsed request is an open one whose `lapses_at` has passed: it is
 not stored as an outcome, and it cannot be decided.
@@ -620,14 +632,17 @@ not stored as an outcome, and it cannot be decided.
 | `packages/server/src/repositories/people.test.ts` | Database errors as statuses; Supabase Auth's accounts, page by page, a verified factor only; "another active Super Admin" asked of the database | Auth's failure is an error, not an empty answer |
 | `packages/shared/src/config/people.test.ts` | The role lists equal the catalogue SQL's flags; expiry choices; the scope check | Unknown language or section, a desk role with no language |
 | `packages/server/src/auth/decide.test.ts`, `apps/admin/src/app/api/admin/me/route.test.ts` | A counts as read; `/me` still says `ask` | A still cannot act |
+| `apps/admin/src/components/people/people.test.tsx` | The directory and a person's page for each answer: a Super Admin's requests and Approve; a Managing Editor's desks; filters; Grant as a request ("Ask to grant") or at once; Revoke with its reason; Suspend and "Ask to reactivate"; oneself; every filter named | No actions where the API offers none; a refusal and "not found" shown; buttons disabled until a reason is given |
+| `apps/admin/src/components/AdminTopBar.test.tsx` | "People" for a holder of `user.manage` | Not for a Writer |
+| `e2e/admin-access.spec.ts` (read-only) | Signed out, `/admin/people` and a person's page go to sign-in | Three people routes answer 401 |
 
 #### Known limits and not yet built
 
-- **M1b:** the screens. **M2:** adding a person with a one-time link, password links, resetting a
-  second factor. **M3:** break-glass, the access review, roles ending soon. **M4:** retiring the
-  shared password.
-- **Owner actions:** apply admin-1; create a second Super Admin, without whom no Super Admin request
-  can be decided and no Managing Editor granted.
+- **M2:** adding a person with a one-time link, password links, resetting a second factor. **M3:**
+  break-glass, the access review, roles ending soon. **M4:** retiring the shared password.
+- **Owner actions:** admin-1 is applied (19 Nov 2026, its check passed). The second Super Admin is
+  Vivek (the owner, 19 Nov 2026), created with B3 of the staff-access runbook; until then no Super
+  Admin request can be decided and no Managing Editor granted.
 - **Revoking a Super Admin** does not yet revoke their break-glass row; break-glass comes in M3,
   which handles it.
 
@@ -1875,8 +1890,8 @@ walk-through steps. `NEWSROOM_PLAN.md` is unchanged, as it was for Panel 2.
 
 This section overrides anything later in this design that disagrees with it.
 1. **Two Super Admins for every Super Admin change** (the matrix's A, as written). A Managing Editor
-   acts alone, up to Desk Editor in their scope. **Open:** who the second Super Admin is; the owner
-   names them, and creates the account (owner action 1) before M1 is shown.
+   acts alone, up to Desk Editor in their scope. *Then (19 Nov 2026):* the owner named Vivek as the
+   second Super Admin (owner action 1).
 2. **The four access-rule notes of §3:** A counts as read; removing access is single-actor; nobody
    acts on their own access; break-glass is self-activated. They are written into the access rules
    ("Four-eyes, takedown and MFA rules") in M1.
@@ -1887,8 +1902,10 @@ This section overrides anything later in this design that disagrees with it.
 5. **Expiry and review:** 180 days by default (30, 90, 180 or 365), 365 for Super Admin, at most 365;
    a review every 90 days.
 6. **The shared password goes in M4,** once two Super Admins have signed in with their second
-   factor, without waiting for the AWS deployment. **Open:** Vivek's word that the release does not
-   depend on it, before M4.
+   factor, without waiting for the AWS deployment. *Then (19 Nov 2026):* the owner left it to the
+   developers' judgement, so it goes in M4 as recommended: staff sign in with their own accounts on
+   the same database wherever the app runs, so the release does not depend on the shared password.
+   Vivek reviews and merges the M4 pull request.
 7. **Milestones M1 → M2 → M3 → M4,** each shown to the owner before the next.
 
 **Plan:** Phase D of [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md). Also the [access rules](#access-rules):
