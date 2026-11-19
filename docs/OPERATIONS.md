@@ -1334,6 +1334,49 @@ with **InScript** and with a **phonetic** keyboard (Google Input Tools, or the p
 **Undo** (for the role grant above). Revoke the assignment (rows are history, never deleted):
 `UPDATE public.role_assignments SET revoked_at = now(), revoke_reason = '<why>' WHERE id = '<id>';`
 
+### Panel 1: applying admin-1
+
+For the owner, before Panel 1's people screens are used
+([design](PANEL_DOCS.md#panel-1-design-administration), [entry](PANEL_DOCS.md#panel-1-administration)).
+Against the real database, in the Supabase SQL editor. No session applies SQL.
+
+**Before:** the Panel 0 files (the staff-access runbook, B1) and the Desk's files are applied.
+
+1. **Apply the migration.** SQL Editor → New query. Paste
+   `database/migrations/2026-11-19-admin-1-access-requests.sql` whole, and run it. It is one
+   transaction: if it fails, nothing changed, and it is safe to run again.
+2. **Then run the check** (one query, one row):
+
+   ```sql
+   SELECT (SELECT indexdef LIKE '%is_break_glass%' FROM pg_indexes
+            WHERE schemaname = 'public' AND indexname = 'role_assignments_one_active') AS index_has_break_glass,
+          has_table_privilege('authenticated', 'public.access_requests', 'SELECT') AS users_read_requests,
+          has_table_privilege('service_role', 'public.access_requests', 'DELETE') AS app_deletes_requests,
+          has_function_privilege('service_role', 'public.staff_end_sessions(uuid)', 'EXECUTE') AS app_ends_sessions,
+          has_function_privilege('authenticated', 'public.access_decide(uuid,uuid,text,text,uuid)', 'EXECUTE') AS users_decide,
+          has_table_privilege((SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname = 'staff_end_sessions'),
+                              'auth.sessions', 'DELETE') AS function_can_end_sessions;
+   ```
+
+   | Column | Expect |
+   |---|---|
+   | `index_has_break_glass` | true |
+   | `users_read_requests` | false |
+   | `app_deletes_requests` | false |
+   | `app_ends_sessions` | true |
+   | `users_decide` | false |
+   | `function_can_end_sessions` | true |
+
+   If `function_can_end_sessions` is false, "sign out everywhere" and a suspension's sign-out fail
+   (a suspension itself still works: every check says no). Report it; do not change Supabase's
+   `auth` schema by hand.
+3. **A second Super Admin** (the owner's decision 1): B3 of the
+   [staff-access runbook](#staff-access-switching-on-panel-0-and-getting-back-in) (Add user → Create
+   new user, Auto Confirm; then `database/bootstrap/super-admin.sql`). Without one, no Super Admin
+   request can be decided, and no Managing Editor can be granted.
+
+**Undo.** The rollback at the end of the file, before the first request or break-glass row.
+
 ### Staff sign-in or an admin action is failing
 
 Panel 0's main flow is: email and password, then the authenticator code, then an admin action that
@@ -1608,9 +1651,10 @@ phases were done:
    [media steps](#the-desks-images-panel-2-after-the-release); failures: [the Desk is failing](#the-desk-is-failing).
 7. **Panel 1 (Administration)**: its [design](PANEL_DOCS.md#panel-1-design-administration) was
    proposed on 18 Nov 2026 at the owner's request (PR #42), while Panel 2's last items are open, and
-   approved on 19 Nov 2026 with every recommended answer. M1 (people and roles) is being built on
-   `panel-1-people-roles`. Its first owner action is a second Super Admin: every Super Admin change
-   in the app needs one (the matrix's A). Open: who that is, and Vivek's word on retiring the shared
+   approved on 19 Nov 2026 with every recommended answer. M1a, the people and roles backend
+   (migration admin-1, the reach rules, the API), is built on `panel-1-people-roles`; M1b, the
+   screens, is next. Owner actions: [apply admin-1](#panel-1-applying-admin-1), and a second Super
+   Admin: every Super Admin change in the app needs one (the matrix's A). Open: who that is, and Vivek's word on retiring the shared
    password before the AWS deployment (M4).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in

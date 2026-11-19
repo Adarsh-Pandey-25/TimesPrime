@@ -172,7 +172,8 @@ apps/
   admin/                   the back office (Next.js 16); keeps the /admin and /api/admin paths
     src/proxy.ts           the optimistic session check (§1)
     src/app/admin/         the dashboard and the staff sign-in; panels arrive as route folders
-    src/app/api/admin/     every admin route handler, each gated by requirePermission; desk/ is Panel 2
+    src/app/api/admin/     every admin route handler, each gated by requirePermission; desk/ is Panel 2,
+                           people/ is Panel 1 (staff, roles, a Super Admin's requests)
     src/app/media/         the Desk's images from the local folder, on a laptop only (as in web)
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list
                            with its takedown alerts, a new story, the story editor with its revisions
@@ -187,9 +188,11 @@ packages/
     src/auth/              the access foundation (Panel 0): requirePermission (the gate), decide, scope,
                            adminRoutePolicy, staffSession, supabaseServer, mfa, adminSession
     src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk),
-                           authors.ts (the Desk's author records), media.ts (the media library's records)
+                           authors.ts (the Desk's author records), media.ts (the media library's records),
+                           people.ts (Panel 1: profiles, role assignments, requests, Supabase Auth's accounts)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
-                           publishing's rules, the scheduler, the image renditions with sharp, a story's images)
+                           publishing's rules, the scheduler, the image renditions with sharp, a story's images),
+                           people (Panel 1: who may grant, renew, revoke or ask, reach.ts)
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase,
                            mediaStorage (the images' files: S3 on the server, a folder on a laptop;
                            only renditions are ever served publicly), …

@@ -203,7 +203,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
-| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); M1 (people and roles) being built | — | — |
+| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1a](#panel-1-administration) (the people and roles backend) built, M1b (the screens) next | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
@@ -508,6 +508,128 @@ On `main` (the design and the first half): `e9bce19`, `6bcfb4e`, `38ac276`, `b69
 `78e58b6`, `690631e`, `b48998e`, `dfcaf80`, `260bebf`, `7b6d102`, `f0e102d`, `5ba4fd6`, `27b19c7`,
 `6eb0b8e`, `16175b1`, `0bb4fbb`, `bb0bd2c`, `0b3d09f`, `f357d71`, `c35637f`. On `panel-0-access` (the
 second half): `d1bff91` through this entry, listed in the current status (`docs/OPERATIONS.md`), section 4.
+
+### Panel 1: Administration
+
+**In progress.** [Design](#panel-1-design-administration) approved on 19 Nov 2026. Built so far:
+**M1a**, the backend of "people and roles": migration admin-1, the reach rules, and the API, every
+route tested allowed and denied. The screens follow in M1b; M2 (accounts), M3 (break-glass and the
+review) and M4 (retiring the shared password) after them.
+
+#### Panel
+
+- **Name:** Administration.
+- **URLs:**
+  - `GET /api/admin/people` (the directory);
+  - `GET` and `PATCH /api/admin/people/[id]` (one person; a new display name);
+  - `POST /api/admin/people/[id]/suspend`, `reactivate` and `sign-out`;
+  - `POST /api/admin/people/[id]/roles` (grant), `roles/[assignmentId]/renew` and `revoke`;
+  - `GET /api/admin/people/requests`, and `POST requests/[requestId]/approve`, `decline` and
+    `cancel`.
+
+  The screens (`/admin/people`, `/admin/people/[id]`) come with M1b.
+- **Code:**
+  - the routes in `apps/admin/src/app/api/admin/people/`, with `_lib/people.ts` (the gate on a
+    person, the audit, a request), `_lib/views.ts` (what is sent back, and what the caller may do)
+    and `_lib/decision.ts` (deciding a request);
+  - `packages/server/src/services/people/reach.ts` (who may do what to whom);
+  - `packages/server/src/repositories/people.ts` (profiles, assignments, requests, Supabase Auth's
+    accounts);
+  - `packages/shared/src/config/people.ts` (expiry choices, the roles a Managing Editor grants, the
+    scope check);
+  - the rules in `packages/server/src/auth/adminRoutePolicy.ts`;
+  - the SQL in `database/migrations/2026-11-19-admin-1-access-requests.sql`.
+
+#### Purpose
+
+People and their access are managed in the app instead of by SQL: who is staff, which roles they
+hold, in which desk and until when, and taking access away at once when it must go. Adding access
+needs two people, and removing it needs one.
+
+#### Roles and responsibilities
+
+| Role | What they do here |
+|---|---|
+| Super Admin | Sees everyone. Asks to grant, renew, rename or reactivate; a second Super Admin decides. Revokes, suspends and signs out at once |
+| Managing Editor | Sees the people of their desks. Grants, renews and revokes Writer, Sub-editor and Desk Editor in their own scope, and renames, suspends, reactivates and signs out those people, all at once |
+| Everyone else | Nothing here (403) |
+
+#### Features and functionality
+
+- **The directory:** each person's name, email, status, live roles with desk and expiry, whether a
+  second factor is set, and the last sign-in. If Supabase Auth cannot be asked, it still answers,
+  without emails and factors (`accounts: false`).
+- **A person:** their account, every role they hold or held (live, expired or revoked), the
+  requests about them in the last 30 days, their Panel 1 history from the audit log (for holders of
+  `audit.read`), and what the caller may do (`can`: `act`, `ask` or nothing, per action and per
+  role).
+- **Grant** a role, in a scope (a language, a section, or all), for 30, 90, 180 or 365 days (180 by
+  default, 365 for a Super Admin), with a reason. Roles of the matrix's Phase 1 to 3 only; the
+  commercial roles wait for Panel 9.
+- **Renew** a live or expired role: a new row from now, and the old one revoked as "renewed", in
+  one transaction.
+- **Revoke** a role, with a reason. Applies to the person's next request.
+- **Suspend** (with a reason): every check says no, and their sessions are ended; their roles stay
+  for a reactivation. **Reactivate**, **rename**, and **sign out everywhere**.
+- **Requests:** a Super Admin's grant, renewal, rename or reactivation answers 202 with a request.
+  Another active Super Admin approves or declines it within 72 hours; the person who asked may
+  cancel it. An approval makes the change in the same transaction.
+- **Partial:** no screens yet (M1b). Adding a person, password links and resetting a second factor
+  are M2; their request kinds exist, and approving them answers 409 until then.
+
+#### Access permissions and authorization rules
+
+| Route | Permission | Who, and how | Four-eyes | MFA (`aal2`) | Audited |
+|---|---|---|---|---|---|
+| `GET people`, `GET people/[id]` | `user.manage`, read | Super Admin (A, now counted as read): everyone. Managing Editor (S): people with a role in their scope; others 403 | — | yes | denials |
+| `PATCH people/[id]`, `reactivate` | `user.manage`, act | Managing Editor for their people: at once. Super Admin: a request | Super Admin: a second Super Admin | yes | `staff.rename`, `staff.reactivate`, or `access.request` |
+| `suspend`, `sign-out` | `user.manage`, act | Super Admin, or a Managing Editor for their people: at once. Sign-out: anyone for themselves | — (removing access) | yes | `staff.suspend`, `staff.sign_out` |
+| `roles` (grant), `renew` | `role.assign`, act | Managing Editor: Writer, Sub-editor, Desk Editor in their scope, at once. Super Admin: a request | Super Admin: a second Super Admin; the database requires two for a privileged role | yes | `role.assign`, `role.renew`, or `access.request` |
+| `revoke` | `role.assign`, act | Super Admin; a Managing Editor for the roles they could grant | — (removing access) | yes | `role.revoke` |
+| `GET requests` | `role.assign`, read | Super Admins see every open request and those decided in 30 days; others get an empty list | — | yes | denials |
+| `approve`, `decline`, `cancel` | `role.assign`, act | Approve and decline: another active Super Admin, not the person it is about, before it lapses. Cancel: the person who asked | yes | yes | `access.approve`, `access.decline`, `access.cancel` |
+
+- **Nobody changes their own access** (403 `own_access`): no grant, renewal, rename, suspension,
+  reactivation or revocation for oneself, and no decision on a request about oneself.
+- **The last active Super Admin** cannot be suspended or lose the role (409 `last_super_admin`).
+- **Refusals:** 401 with no session; 403 `forbidden`, `mfa_required`, `staff_only` (the shared
+  password), `own_access`, `four_eyes` or `not_yours`; 409 for a state that does not allow it
+  (`holds`, `suspended`, `revoked`, `decided`, `lapsed`); 400 for a bad body (an unknown role, a
+  desk role with no language, an unknown section, days other than 30/90/180/365, no reason).
+- **Every audit row** is about the person (`entity_type` `staff`, the person's id), with the role's
+  scope for a role's change, the state before, the reason, and the outcome's details.
+- **`decide()` change:** A now counts as read for the permission it is on (approval, note a). `/me`
+  still reports such a permission as `ask`.
+
+#### Database changes
+
+| Migration file | What it does | Rollback | Applied by the owner |
+|---|---|---|---|
+| `database/migrations/2026-11-19-admin-1-access-requests.sql` | The one-row index gains `is_break_glass`; `is_active_super_admin` ignores break-glass rows; the guard trigger allows a Super Admin's own break-glass row (for M3); `access_requests` with its decide-once trigger; `access_grant`, `access_decide` and `staff_end_sessions` | At the end of the file, before the first request or break-glass row | **No** |
+
+No column changes meaning. A lapsed request is an open one whose `lapses_at` has passed: it is
+not stored as an outcome, and it cannot be decided.
+
+#### Tests and verification
+
+| Test file | What it proves | Denied cases covered |
+|---|---|---|
+| `apps/admin/src/app/api/admin/access.test.ts` | Every Panel 1 route for its least-privileged holder (a Managing Editor for one language; a Super Admin for a decision), through the real gate; a Super Admin's grant becomes a request; an approval is one database call | No session, no grants, expired, no MFA, the shared password, the other language; a privileged role or another desk for a Managing Editor; oneself; the last Super Admin; the asker, the person it is about, or a Managing Editor deciding; lapsed, decided, someone else's cancel; a bad body |
+| `packages/server/src/services/people/reach.test.ts` | A and S, reach, "their people", the directory, the plan for each change | Expired or revoked grants give no reach; a Super Admin or Managing Editor is never a Managing Editor's person |
+| `packages/server/src/repositories/adminSchema.test.ts` | admin-1, read as text: the index, the guard keeping access-1's rules, the break-glass exception, the checks on requests, the grants, one `SECURITY DEFINER` function | — |
+| `packages/server/src/repositories/people.test.ts` | Database errors as statuses; Supabase Auth's accounts, page by page, a verified factor only; "another active Super Admin" asked of the database | Auth's failure is an error, not an empty answer |
+| `packages/shared/src/config/people.test.ts` | The role lists equal the catalogue SQL's flags; expiry choices; the scope check | Unknown language or section, a desk role with no language |
+| `packages/server/src/auth/decide.test.ts`, `apps/admin/src/app/api/admin/me/route.test.ts` | A counts as read; `/me` still says `ask` | A still cannot act |
+
+#### Known limits and not yet built
+
+- **M1b:** the screens. **M2:** adding a person with a one-time link, password links, resetting a
+  second factor. **M3:** break-glass, the access review, roles ending soon. **M4:** retiring the
+  shared password.
+- **Owner actions:** apply admin-1; create a second Super Admin, without whom no Super Admin request
+  can be decided and no Managing Editor granted.
+- **Revoking a Super Admin** does not yet revoke their break-glass row; break-glass comes in M3,
+  which handles it.
 
 ### Panel 2: Desk (the Publisher)
 
@@ -1855,7 +1977,7 @@ the next one starts. The total is 2.5 to 3.5 weeks; the plan estimates 2 to 3.
 |---|---|---|
 | `role_assignments_one_active` | Recreated over `(user_id, role_key, language, section, is_break_glass)` | A break-glass row can then sit beside the normal one |
 | `role_assignments_guard` | One more exception to the two-admin rule: a `super_admin` break-glass row whose `granted_by` is the person themself, already an active Super Admin, with a reason | Break-glass is self-activated (§5). The 2-hour CHECK stays |
-| `access_requests` (new) | `id`, `kind`, `user_id` (NULL until an added person's account exists), `details` (jsonb: role, scope, expiry, email, name), `reason`, `requested_by`, `requested_at`, `lapses_at` (72 hours later), `decided_by`, `decided_at`, `outcome` (`approved`, `declined`, `cancelled`, `lapsed`), `note` | The matrix's A for Super Admins. A trigger lets a row be decided once and never edited after. A CHECK requires `decided_by` to differ from `requested_by` and from `user_id` |
+| `access_requests` (new) | `id`, `kind`, `user_id` (NULL until an added person's account exists), `details` (jsonb: role, scope, expiry, email, name), `reason`, `requested_by`, `requested_at`, `lapses_at` (72 hours later), `decided_by`, `decided_at`, `outcome` (`approved`, `declined`, `cancelled`; *as built:* a lapsed request is an open one past `lapses_at`, not a stored outcome), `note` | The matrix's A for Super Admins. A trigger lets a row be decided once and never edited after. A CHECK requires `decided_by` to differ from `requested_by` and from `user_id` |
 | `access_grant(...)` (function) | Inserts an assignment. In the same transaction, it revokes the row it replaces (a renewal), or an expired row for the same role and scope | A renewal never leaves a moment with no row, or with two rows |
 | `access_decide(...)` (function) | Marks a request decided. For a grant, renewal, reactivation or rename, it makes the change in the same transaction, with `granted_by` set to the requester and `approved_by` to the decider | The approval and the change cannot come apart |
 | `staff_end_sessions(user)` (function) | Deletes the person's rows in Supabase's `auth.sessions`, and their refresh tokens with them. `SECURITY DEFINER`, executable by `service_role` only | Sign out everywhere, because Supabase's own sign-out needs the person's token |
