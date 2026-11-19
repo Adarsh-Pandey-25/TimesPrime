@@ -9,7 +9,7 @@ import type { AdminLog } from "@timesprime/shared/types";
 
 // The activity log, read from the append-only audit_log (Panel 0; database/migrations/2026-11-02-
 // access-1-foundation.sql). Gated by requirePermission, the only gate on this path (service_role
-// bypasses RLS): audit.read. The shared password holds no audit permission (Q3).
+// bypasses RLS): audit.read.
 //
 // ?source=legacy reads the frozen admin_logs instead: the shared-password era's history, kept
 // readable and never written again (Q7). There is no DELETE: an append-only log cannot be cleared

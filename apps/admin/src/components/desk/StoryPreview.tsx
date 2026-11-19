@@ -67,7 +67,7 @@ function asReaderStory({ story, revision, credits = [], images = {}, photos = {}
 }
 
 export default function StoryPreview({ id }: { id: string }) {
-  const { me, error: meError } = useAdminMe();
+  const { error: meError } = useAdminMe();
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState("");
 
@@ -91,9 +91,6 @@ export default function StoryPreview({ id }: { id: string }) {
   );
 
   if (meError) return <p role="alert" className="text-sm text-red-700 dark:text-red-300">{meError}</p>;
-  if (me && me.kind !== "staff") {
-    return <p role="alert" className="text-sm text-red-700 dark:text-red-300">Sign in with your own staff account to use the Desk. The shared password cannot.</p>;
-  }
   if (error) return <div className="space-y-2">{back}<p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p></div>;
   if (!loaded) return <p aria-live="polite" className="text-sm text-slate-500">Loading the preview…</p>;
   const { story, revision } = loaded;

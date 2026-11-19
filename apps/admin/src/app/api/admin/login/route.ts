@@ -2,13 +2,6 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import {
-  ADMIN_SESSION_COOKIE,
-  createSessionToken,
-  isLegacyLoginAllowed,
-  sessionCookieOptions,
-  verifyAdminPassword,
-} from "@timesprime/server/auth/adminSession";
 import { getMfaState } from "@timesprime/server/auth/mfa";
 import { auditEvent, type Actor } from "@timesprime/server/auth/requirePermission";
 import { createRouteClient } from "@timesprime/server/auth/supabaseServer";
@@ -16,12 +9,9 @@ import { checkRateLimit, getClientIp } from "@timesprime/server/lib/rateLimit";
 import { getRequestId } from "@timesprime/server/lib/requestId";
 import { loadStaffRecord, markSignedIn } from "@timesprime/server/repositories/staff";
 
-// Sign-in, public by necessity (D10). Two ways in during the cut-over:
-//   { email, password }  a staff account, through Supabase Auth (Panel 0). The second factor comes
-//                        next, at /api/admin/mfa; the response says which step.
-//   { password }         the shared admin password, exactly as before, until it is retired (Q3).
-//                        No one is locked out while staff accounts are set up (owner's condition).
-// Both count against one per-IP limit.
+// Sign-in, public by necessity (D10): { email, password }, a staff account through Supabase Auth
+// (Panel 0). The second factor comes next, at /api/admin/mfa; the response says which step. The
+// shared admin password was retired in Panel 1's M4: a body without an email is refused.
 
 // F-004: every attempt counts, right or wrong. An admin who mistypes a few
 // times stays well inside 10 per 15 minutes; a guesser gets 40 an hour per IP.
@@ -32,19 +22,10 @@ export async function POST(request: NextRequest) {
   try {
     body = (await request.json()) ?? {};
   } catch {
-    if (!process.env.ADMIN_PASSWORD || !process.env.ADMIN_SESSION_SECRET) return legacyNotConfigured();
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
-
-  if (body.email !== undefined) return staffSignIn(request, body.email, body.password);
-  return legacySignIn(request, body.password);
+  return staffSignIn(request, body.email, body.password);
 }
-
-const legacyNotConfigured = () =>
-  NextResponse.json(
-    { error: "Admin login is not configured. Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET in .env." },
-    { status: 503 }
-  );
 
 async function rateLimited(request: NextRequest): Promise<NextResponse | null> {
   const rate = await checkRateLimit(getClientIp(request), LOGIN_RATE_LIMIT);
@@ -53,36 +34,6 @@ async function rateLimited(request: NextRequest): Promise<NextResponse | null> {
     { error: `Too many login attempts. Try again in ${rate.retryAfterSeconds} seconds.` },
     { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
   );
-}
-
-/** The shared password: the pre-Panel 0 route body, unchanged in behaviour. */
-async function legacySignIn(request: NextRequest, password: unknown): Promise<NextResponse> {
-  if (!process.env.ADMIN_PASSWORD || !process.env.ADMIN_SESSION_SECRET) return legacyNotConfigured();
-
-  // Q3: refused once retired, before the password is even compared, so a retired password cannot
-  // be tested for correctness either.
-  if (!isLegacyLoginAllowed()) {
-    return NextResponse.json(
-      { error: "The shared admin password has been retired. Sign in with your staff account." },
-      { status: 403 }
-    );
-  }
-
-  const limited = await rateLimited(request);
-  if (limited) return limited;
-
-  if (typeof password !== "string" || !verifyAdminPassword(password)) {
-    return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
-  }
-
-  const token = createSessionToken();
-  if (!token) {
-    return NextResponse.json({ error: "Admin login is not configured." }, { status: 503 });
-  }
-
-  const response = NextResponse.json({ status: "success" });
-  response.cookies.set(ADMIN_SESSION_COOKIE, token, sessionCookieOptions());
-  return response;
 }
 
 /** A staff account. Its session cookies are written by the route client (HttpOnly, supabaseServer.ts). */

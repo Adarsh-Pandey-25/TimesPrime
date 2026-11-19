@@ -43,8 +43,7 @@ export interface StaffRecord {
   assignments: Assignment[];
 }
 
-/** `staff_only`: a route only a named person may use, refused to the shared password (Panel 2's Desk). */
-export type DenyCode = "not_staff" | "suspended" | "mfa_required" | "needs_approval" | "forbidden" | "staff_only";
+export type DenyCode = "not_staff" | "suspended" | "mfa_required" | "needs_approval" | "forbidden";
 
 export type Decision = { allowed: true; via: string[] } | { allowed: false; status: 403; code: DenyCode };
 
@@ -120,27 +119,4 @@ export function decide(input: {
   if (needsMfa) return deny("mfa_required");
   if (needsApproval) return deny("needs_approval");
   return deny("forbidden");
-}
-
-/**
- * What the shared admin password may do during the cut-over (owner decision Q3): today's editorial
- * and sync work, in every scope, and nothing else. Never user.manage or role.assign, so the old
- * password cannot mint admins in the new system; never audit or settings permissions; never the
- * purge (Q5). It is not a person, so it holds no role and needs no MFA.
- */
-export const LEGACY_PERMISSIONS: ReadonlySet<PermissionKey> = new Set<PermissionKey>([
-  "article.view_admin",
-  "article.create",
-  "article.edit",
-  "article.unpublish",
-  "article.bulk_action",
-  "article.publish_direct",
-  "breaking_banner.manage",
-  "sync.run",
-  "sync.view",
-  "stats.view",
-]);
-
-export function decideLegacy(permission: PermissionKey): Decision {
-  return LEGACY_PERMISSIONS.has(permission) ? { allowed: true, via: ["legacy"] } : deny("forbidden");
 }

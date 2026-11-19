@@ -1,7 +1,6 @@
 import "server-only";
 
 import { NextResponse, type NextRequest } from "next/server";
-import { ADMIN_SESSION_COOKIE } from "@timesprime/server/auth/adminSession";
 import { auditEvent } from "@timesprime/server/auth/requirePermission";
 import { readSession } from "@timesprime/server/auth/staffSession";
 import { createRouteClient } from "@timesprime/server/auth/supabaseServer";
@@ -10,12 +9,11 @@ import { getRequestId } from "@timesprime/server/lib/requestId";
 
 // Public (D10, PUBLIC_ADMIN_ROUTES): logout has to succeed even when the session has already
 // expired, so clicking it always lands back on the login page instead of erroring on an invalid
-// session. It clears the shared-password cookie, as before, and ends a staff session on this device
-// only (scope "local"; signOut() would otherwise end it on every device). Nothing here can fail
-// the request: the cookie is cleared whatever happens.
+// session. It ends a staff session on this device only (scope "local"; signOut() would otherwise
+// end it on every device). Nothing here can fail the request.
 export async function POST(request: NextRequest) {
   const session = await readSession(request);
-  if (session?.kind === "staff") {
+  if (session) {
     try {
       const client = await createRouteClient();
       await client?.auth.signOut({ scope: "local" });
@@ -38,7 +36,5 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const response = NextResponse.json({ status: "success" });
-  response.cookies.set(ADMIN_SESSION_COOKIE, "", { path: "/", maxAge: 0 });
-  return response;
+  return NextResponse.json({ status: "success" });
 }

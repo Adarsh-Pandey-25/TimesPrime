@@ -1,22 +1,22 @@
 import "server-only";
 
 import type { NextRequest } from "next/server";
-import { ADMIN_SESSION_COOKIE, verifySessionToken } from "./adminSession";
 import type { Aal } from "./decide";
 import { createRouteClient } from "./supabaseServer";
 
-// Who is asking, for requirePermission (design §3). Two kinds of session, during the cut-over only:
-//   - staff: a Supabase Auth session. getClaims() verifies the JWT's signature and expiry and gives
-//     the user id and assurance level (aal). getUser() then asks Supabase whether the session still
-//     exists: "an unexpired token stays valid even when the session behind it was revoked. Call
-//     getUser() where that gap matters." Here it matters, so both run on every request.
-//   - legacy: the shared password's HMAC cookie, until it is retired (adminSession.ts, Q3).
-// A staff session wins when both cookies are present. Any error reading the staff session is "no
-// staff session", never an error that lets the request through.
+// Who is asking, for requirePermission (design §3): a Supabase Auth staff session, the only kind
+// since the shared admin password was retired (Panel 1, M4). getClaims() verifies the JWT's
+// signature and expiry and gives the user id and assurance level (aal). getUser() then asks
+// Supabase whether the session still exists: "an unexpired token stays valid even when the session
+// behind it was revoked. Call getUser() where that gap matters." Here it matters, so both run on
+// every request. Any error reading the session is "no session", never an error that lets the
+// request through.
 
-export type Session = { kind: "staff"; userId: string; aal: Aal; sessionId: string } | { kind: "legacy" };
+export type Session = { kind: "staff"; userId: string; aal: Aal; sessionId: string };
 
-async function readStaffSession(): Promise<Session | null> {
+/** The request's staff session, or null. The request is kept for the callers' shape: the cookies come from next/headers. */
+export async function readSession(request?: NextRequest): Promise<Session | null> {
+  void request;
   const client = await createRouteClient();
   if (!client) return null;
   try {
@@ -34,11 +34,4 @@ async function readStaffSession(): Promise<Session | null> {
   } catch {
     return null;
   }
-}
-
-export async function readSession(request: NextRequest): Promise<Session | null> {
-  const staff = await readStaffSession();
-  if (staff) return staff;
-  if (verifySessionToken(request.cookies.get(ADMIN_SESSION_COOKIE)?.value)) return { kind: "legacy" };
-  return null;
 }

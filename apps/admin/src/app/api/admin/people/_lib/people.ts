@@ -21,7 +21,7 @@ import { canSee, liveRows } from "@timesprime/server/services/people/reach";
 import type { RequestKind } from "@timesprime/shared/config/people";
 
 // Panel 1's routes (design §3 and §4) share these steps: the gate (requirePermission: the
-// permission in some scope, the second factor, the shared password refused by staffOnly), the
+// permission in some scope, the second factor), the
 // person and their roles, whether the caller may see them, and the audit: attempted, the change,
 // then the outcome (Panel 0, Q2). The reach rules are in packages/server/src/services/people.
 

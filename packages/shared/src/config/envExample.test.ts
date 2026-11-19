@@ -2,7 +2,7 @@
  * @jest-environment node
  *
  * F-009: `.env.example` (then `.env.local.example`) listed a variable no code read
- * (ADMIN_SECRET_TOKEN) and left out two the admin login needs. This keeps
+ * (ADMIN_SECRET_TOKEN) and left out two the admin login then needed. This keeps
  * the two in step: every `process.env.NAME` in the tracked source is named
  * in the example (as a line or a comment), and every variable the example
  * assigns is read somewhere.
@@ -39,13 +39,11 @@ test("every variable .env.example sets is read by the code", () => {
 });
 
 // NEXT_PUBLIC_NEWSDATA_API_KEY: the seed route's fallback, removed in BL-029.
-test.each(["ADMIN_SECRET_TOKEN", "MEDIASTACK_API_KEY", "NEXT_PUBLIC_NEWSDATA_API_KEY"])("%s, which no code reads, is gone", (name) => {
+// ADMIN_PASSWORD, ADMIN_SESSION_SECRET, ADMIN_LEGACY_LOGIN: the shared admin password, retired in
+// Panel 1's M4.
+test.each(["ADMIN_SECRET_TOKEN", "MEDIASTACK_API_KEY", "NEXT_PUBLIC_NEWSDATA_API_KEY", "ADMIN_PASSWORD", "ADMIN_SESSION_SECRET", "ADMIN_LEGACY_LOGIN"])("%s, which no code reads, is gone", (name) => {
   expect(read.has(name)).toBe(false);
   expect(example).not.toContain(name);
-});
-
-test("ADMIN_PASSWORD and ADMIN_SESSION_SECRET are set in the example", () => {
-  expect(assigned).toEqual(expect.arrayContaining(["ADMIN_PASSWORD", "ADMIN_SESSION_SECRET"]));
 });
 
 // BL-036: the env file is the root .env. A message, warning or usage line that still says

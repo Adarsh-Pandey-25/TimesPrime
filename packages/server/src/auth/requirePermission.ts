@@ -8,7 +8,7 @@ import { recordAudit, type AuditRow } from "../repositories/auditLog";
 import { loadStaffRecord } from "../repositories/staff";
 import type { PermissionKey, RoleKey, ScopeLanguage } from "@timesprime/shared/config/permissions";
 import type { RouteRule } from "./adminRoutePolicy";
-import { ANY_SCOPE, decide, decideLegacy, type Aal, type Decision, type DenyCode, type StaffRecord } from "./decide";
+import { ANY_SCOPE, decide, type Aal, type Decision, type DenyCode, type StaffRecord } from "./decide";
 import type { Target } from "./scope";
 import { readSession } from "./staffSession";
 
@@ -29,9 +29,12 @@ export interface ActorRole {
   section: string | null;
 }
 
-/** Who passed the gate, for the route body and its audit rows. Comes only from the session. */
+/**
+ * Who passed the gate, for the route body and its audit rows. Comes only from the session: a named
+ * staff member, the only kind since the shared admin password was retired (Panel 1, M4).
+ */
 export interface Actor {
-  kind: "staff" | "legacy";
+  kind: "staff";
   userId: string | null;
   label: string;
   aal: Aal | null;
@@ -45,15 +48,12 @@ export interface Actor {
 
 export type GateResult = { ok: true; actor: Actor } | { ok: false; response: NextResponse };
 
-const LEGACY_LABEL = "legacy:shared-password";
-
 const MESSAGES: Record<DenyCode, string> = {
   not_staff: "This account is not a staff account.",
   suspended: "This staff account is suspended.",
   mfa_required: "This action needs a second factor. Finish signing in with your authenticator code.",
   needs_approval: "This action needs a second approver, and approvals are not available yet. Nothing was changed.",
   forbidden: "You don't have permission for this action.",
-  staff_only: "Sign in with your own staff account to use the Desk. The shared admin password cannot.",
 };
 
 const unauthorized = () => NextResponse.json({ error: "Unauthorized: please log in." }, { status: 401 });
@@ -97,15 +97,8 @@ async function auditDenial(actor: Actor, permission: PermissionKey | "auth.sessi
 
 /** Runs decide() for every permission the rule names; the first refusal wins. */
 async function check(actor: Actor, rule: RouteRule, target: Target | typeof ANY_SCOPE | undefined, now: Date): Promise<GateResult> {
-  if (actor.kind === "legacy" && rule.staffOnly) {
-    await auditDenial(actor, rule.permissions[0], "staff_only", target);
-    return { ok: false, response: NextResponse.json({ error: MESSAGES.staff_only, code: "staff_only" }, { status: 403 }) };
-  }
   for (const permission of rule.permissions) {
-    const decision: Decision =
-      actor.kind === "legacy"
-        ? decideLegacy(permission)
-        : decide({ staff: actor.record, aal: actor.aal ?? "aal1", permission, mode: rule.mode, target, now });
+    const decision: Decision = decide({ staff: actor.record, aal: actor.aal ?? "aal1", permission, mode: rule.mode, target, now });
     // A two-person route lets a holder of A ask, or decide another's request (see RouteRule.twoPerson).
     if (!decision.allowed && rule.twoPerson && decision.code === "needs_approval") {
       actor.via = [];
@@ -142,11 +135,6 @@ export async function requirePermission(
     requestId: getRequestId(request),
   };
 
-  if (session.kind === "legacy") {
-    const actor: Actor = { kind: "legacy", userId: null, label: LEGACY_LABEL, aal: null, roles: [], via: [], record: null, meta };
-    return check(actor, rule, target, now);
-  }
-
   let record: StaffRecord | null;
   try {
     record = await loadStaffRecord(session.userId, now);
@@ -170,7 +158,7 @@ export async function requirePermission(
 }
 
 /**
- * For the session-only routes (SESSION_ONLY_ADMIN_ROUTES: /me, /mfa): a session and, for staff, an
+ * For the session-only routes (SESSION_ONLY_ADMIN_ROUTES: /me, /mfa, /password): a session and an
  * active staff profile, but no permission. An aal1 session passes, because /mfa is how it becomes
  * aal2. A signed-in user who is not staff, or is suspended, is refused and the refusal audited.
  */
@@ -183,9 +171,6 @@ export async function requireSession(request: NextRequest): Promise<GateResult> 
     userAgent: request.headers.get("user-agent"),
     requestId: getRequestId(request),
   };
-  if (session.kind === "legacy") {
-    return { ok: true, actor: { kind: "legacy", userId: null, label: LEGACY_LABEL, aal: null, roles: [], via: [], record: null, meta } };
-  }
   let record: StaffRecord | null;
   try {
     record = await loadStaffRecord(session.userId, now);

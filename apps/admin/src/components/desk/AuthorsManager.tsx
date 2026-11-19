@@ -118,9 +118,6 @@ export default function AuthorsManager() {
   }
 
   if (meError) return <p role="alert" className="text-sm text-red-700 dark:text-red-300">{meError}</p>;
-  if (me && me.kind !== "staff") {
-    return <p role="alert" className="text-sm text-red-700 dark:text-red-300">Sign in with your own staff account to use the Desk. The shared admin password cannot.</p>;
-  }
 
   const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm({ ...form, [key]: e.target.value });
 

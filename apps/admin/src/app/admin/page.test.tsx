@@ -193,21 +193,11 @@ describe("what the dashboard shows depends on /api/admin/me (Panel 0)", () => {
     expect(screen.queryByRole("button", { name: PURGE })).toBeNull();
   });
 
-  test("the shared password: a notice with the date it retires, and no activity log", async () => {
-    answers["GET /api/admin/me"] = {
-      status: 200,
-      body: {
-        kind: "legacy",
-        displayName: "Shared admin password",
-        retiresAt: "2026-12-31T18:30:00.000Z",
-        permissions: { "article.view_admin": "act", "sync.run": "act", "sync.view": "act", "stats.view": "act", "breaking_banner.manage": "act", "article.publish_direct": "act", "article.create": "act" },
-      },
-    };
+  // Panel 1, M4: the shared admin password is retired; nothing on the dashboard speaks of it.
+  test("no notice about the shared password", async () => {
+    answers["GET /api/admin/me"] = { status: 200, body: staffMe(EVERYTHING.permissions) };
     await renderDashboard();
-    expect(shown()).toMatch(/shared admin password/i);
-    expect(shown()).toMatch(/1 January 2027/);
-    expect(shown()).toContain("[ArticlesTable]");
-    expect(shown()).not.toContain("[ActivityLog]");
+    expect(shown()).not.toMatch(/shared admin password/i);
   });
 
   test("no session (401): sent to the sign-in page", async () => {

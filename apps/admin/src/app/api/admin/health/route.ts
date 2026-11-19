@@ -7,8 +7,7 @@ import { requirePermission } from "@timesprime/server/auth/requirePermission";
 
 // Per-dependency health detail (owner decision D4). Gated by requirePermission, the only gate on
 // this path (Panel 0): health.view, which the matrix gives Super Admin and Security Lead (F) and
-// Managing Editor and Ingestion Ops (R). The shared password holds no settings permission, so it no
-// longer sees this (Q3). The public /api/health returns the overall status only.
+// Managing Editor and Ingestion Ops (R). The public /api/health returns the overall status only.
 const RULE = ADMIN_ROUTE_RULES["/api/admin/health"].GET;
 
 export async function GET(request: NextRequest) {

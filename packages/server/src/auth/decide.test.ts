@@ -6,9 +6,9 @@
  * allowed twin, so a test that passes because everything is refused cannot hide here.
  */
 
-import { ANY_SCOPE, decide, decideLegacy, LEGACY_PERMISSIONS, type Assignment, type StaffRecord } from "./decide";
+import { ANY_SCOPE, decide, type Assignment, type StaffRecord } from "./decide";
 import type { Target } from "./scope";
-import { PERMISSION_KEYS, type AccessCode, type PermissionKey } from "@timesprime/shared/config/permissions";
+import type { AccessCode, PermissionKey } from "@timesprime/shared/config/permissions";
 
 const NOW = new Date("2026-11-10T12:00:00Z");
 const LATER = "2026-12-01T00:00:00Z";
@@ -214,26 +214,3 @@ describe("MFA (D3, Q1)", () => {
   });
 });
 
-describe("the legacy shared password (Q3)", () => {
-  test("holds exactly today's editorial and sync capabilities", () => {
-    expect([...LEGACY_PERMISSIONS].sort()).toEqual(
-      [
-        "article.bulk_action", "article.create", "article.edit", "article.publish_direct", "article.unpublish",
-        "article.view_admin", "breaking_banner.manage", "stats.view", "sync.run", "sync.view",
-      ].sort()
-    );
-  });
-
-  test.each(["user.manage", "role.assign", "audit.read", "settings.manage", "health.view", "content.purge"] as const)(
-    "never %s",
-    (permission) => {
-      expect(decideLegacy(permission)).toEqual({ allowed: false, status: 403, code: "forbidden" });
-    }
-  );
-
-  test("every permission outside the list is refused", () => {
-    for (const permission of PERMISSION_KEYS) {
-      expect(decideLegacy(permission).allowed).toBe(LEGACY_PERMISSIONS.has(permission));
-    }
-  });
-});

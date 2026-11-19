@@ -23,7 +23,7 @@ import { checklist, embargoed, move, TAKEDOWN_REASONS, type DeskAction } from "@
 import type { AccessCode, PermissionKey } from "@timesprime/shared/config/permissions";
 
 // The Desk's routes (Panel 2 design §3 and §4) share these steps: the gate (requirePermission, with
-// the shared password refused by the rule's staffOnly), the story, its scope (language, section, and
+// a named staff member's session), the story, its scope (language, section, and
 // its creator for the matrix's Own), the workflow's own checks, and the audit: attempted, the change,
 // then the outcome (Panel 0, Q2). HTTP answers stay here, in the app; the rules are in packages/.
 

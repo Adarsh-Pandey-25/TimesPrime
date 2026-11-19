@@ -74,15 +74,6 @@ describe("the story list", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("You don't have permission");
   });
 
-  test("the shared password is told to sign in with a staff account", async () => {
-    serve((url) => {
-      if (url === "/api/admin/me") return { status: 200, body: { kind: "legacy", displayName: "Shared", retiresAt: "2027-01-01T00:00:00+05:30", permissions: {} } };
-      if (url.startsWith("/api/admin/desk/stories?")) return { status: 403, body: { error: "x", code: "staff_only" } };
-    });
-    await act(async () => render(<DeskList />));
-    expect(await screen.findByText(/own staff account/)).toBeInTheDocument();
-  });
-
   describe("the alert list of takedowns", () => {
     const ALERTS = [
       { id: 2, action: "retract", reason: "legal: Court order.", at: "2026-11-17T09:00:00Z", by: "Ravi", story: { id: "s-1", language: "hi", section: "sports", workflow_state: "retracted", headline: "मैच रिपोर्ट" } },

@@ -9,7 +9,7 @@
  *   expired       the allowed assignment, expired: 403
  *   wrong scope   the allowed role in another language (or scoped, for a site-wide target): 403
  *   no MFA        the allowed assignment in an aal1 session: 403 mfa_required
- *   legacy        the shared password: allowed only for LEGACY_PERMISSIONS (Q3)
+ *   old cookie    the retired shared password's cookie (Panel 1, M4): no session, 401
  *
  * This is the only gate on the app's path (service_role bypasses RLS), so the denied cases also
  * prove nothing was written. Grants come from the generated catalogue SQL, the matrix itself, so
@@ -77,7 +77,7 @@ import { readSession } from "@timesprime/server/auth/staffSession";
 import { loadStaffRecord } from "@timesprime/server/repositories/staff";
 import { recordAudit } from "@timesprime/server/repositories/auditLog";
 import { ADMIN_ROUTE_RULES, PUBLIC_ADMIN_ROUTES, SESSION_ONLY_ADMIN_ROUTES, type RouteRule } from "@timesprime/server/auth/adminRoutePolicy";
-import { LEGACY_PERMISSIONS, type Assignment, type Grant, type StaffRecord } from "@timesprime/server/auth/decide";
+import type { Assignment, Grant, StaffRecord } from "@timesprime/server/auth/decide";
 import type { AccessCode, PermissionKey, RoleKey, ScopeLanguage } from "@timesprime/shared/config/permissions";
 import * as articles from "./articles/route";
 import * as bulk from "./articles/bulk/route";
@@ -182,7 +182,7 @@ function staff(grantees: Grantee[], expiresAt = FUTURE): StaffRecord {
   return { userId: "u-1", displayName: "Asha", status: "active", mfaRequired: true, assignments };
 }
 
-type Caller = "allowed" | "no session" | "no grants" | "expired" | "wrong scope" | "no MFA" | "legacy";
+type Caller = "allowed" | "no session" | "no grants" | "expired" | "wrong scope" | "no MFA";
 
 function signIn(caller: Caller, c: Case) {
   const session = readSession as jest.Mock;
@@ -191,9 +191,6 @@ function signIn(caller: Caller, c: Case) {
   switch (caller) {
     case "no session":
       session.mockResolvedValue(null);
-      return;
-    case "legacy":
-      session.mockResolvedValue({ kind: "legacy" });
       return;
     case "no grants":
       session.mockResolvedValue(staffSession("aal2"));
@@ -373,7 +370,7 @@ const CASES: Case[] = [
     data: { articles: { data: [], error: null, count: 0 } },
     changes: false,
   },
-  // Ingestion Ops holds health.view as R; the shared password holds no settings permission (Q3).
+  // Ingestion Ops holds health.view as R.
   {
     path: "/api/admin/health",
     method: "GET",
@@ -381,7 +378,7 @@ const CASES: Case[] = [
     allowed: { role: "ingestion_ops", language: null },
     changes: false,
   },
-  // The activity log: audit.read. The shared password holds no audit permission (Q3).
+  // The activity log: audit.read.
   {
     path: "/api/admin/logs",
     method: "GET",
@@ -608,15 +605,6 @@ describe("the Desk's own rules (Panel 2 design §3)", () => {
     expect(r.status).toBe(403);
     expect(r.json.required).toBe("article.approve");
     expect(wrote()).toEqual([]);
-  });
-
-  test("the shared password is refused on the Desk with its own code", async () => {
-    const c = caseFor("GET", "/api/admin/desk/stories");
-    tables = {};
-    (readSession as jest.Mock).mockResolvedValue({ kind: "legacy" });
-    const res = await c.handler(request(c));
-    expect(res.status).toBe(403);
-    expect((await res.json()).code).toBe("staff_only");
   });
 
   test("a save is refused while someone else holds a live lock", async () => {
@@ -1642,8 +1630,6 @@ function request(c: Case): NextRequest {
   return new NextRequest(`http://localhost:3000${c.path}${c.query ?? ""}`, init);
 }
 
-const rule = (c: Case): RouteRule => (ADMIN_ROUTE_RULES[c.path] as Partial<Record<Method, RouteRule>>)[c.method] as RouteRule;
-
 const env = { ...process.env };
 
 beforeEach(() => {
@@ -1851,12 +1837,6 @@ describe.each(REFUSED_FOR_ALL.map((r) => [`${r.method} ${r.path}`, r] as const))
     expect(wrote()).toEqual([]);
   });
 
-  test("legacy shared password: 403, nothing written", async () => {
-    (readSession as jest.Mock).mockResolvedValue({ kind: "legacy" });
-    expect((await go()).status).toBe(403);
-    expect(wrote()).toEqual([]);
-  });
-
   test("no session: 401", async () => {
     (readSession as jest.Mock).mockResolvedValue(null);
     expect((await go()).status).toBe(401);
@@ -1909,15 +1889,4 @@ describe.each(CASES.map((c) => [`${c.method} ${c.path}`, c] as const))("%s", (_n
     });
   }
 
-  // A staff-only route (the Desk) refuses the shared password whatever its fixed list holds.
-  const legacyAllowed = !rule(c).staffOnly && rule(c).permissions.every((p) => LEGACY_PERMISSIONS.has(p));
-  test(`legacy shared password: ${legacyAllowed ? "allowed" : "403"}`, async () => {
-    const r = await run("legacy");
-    if (legacyAllowed) {
-      expect(r.status).toBeLessThan(300);
-    } else {
-      expect(r.status).toBe(403);
-      expect(wrote()).toEqual([]);
-    }
-  });
 });

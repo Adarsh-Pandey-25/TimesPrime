@@ -1,5 +1,6 @@
-// The sign-in page checked with axe (WCAG 2.1 A and AA) and with the keyboard alone. Read-only:
-// nothing is submitted, so nothing reaches the database.
+// The sign-in page and the welcome page (Panel 1) checked with axe (WCAG 2.1 A and AA), and the
+// sign-in page with the keyboard alone. Read-only: nothing is submitted, so nothing reaches the
+// database.
 
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
@@ -17,27 +18,18 @@ test("the staff sign-in step", async ({ page }) => {
   expect(await violations(page)).toEqual([]);
 });
 
-test("the shared-password step", async ({ page }) => {
-  await page.goto("/admin/login");
-  await page.getByRole("button", { name: "Use the shared admin password" }).click();
-  await expect(page.getByLabel("Shared password")).toBeFocused();
+// Panel 1: where a one-time link lands; without a token it explains itself and asks the server nothing.
+test("the welcome page, without a token", async ({ page }) => {
+  await page.goto("/admin/welcome");
+  await expect(page.getByRole("heading", { name: "This link does not work" })).toBeVisible();
   expect(await violations(page)).toEqual([]);
 });
 
-test("keyboard only: Tab reaches every control in order, and Enter switches steps", async ({ page }) => {
+test("keyboard only: Tab reaches every control in order", async ({ page }) => {
   await page.goto("/admin/login");
   await expect(page.getByLabel("Email")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Password")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "Sign In" })).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "Use the shared admin password" })).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(page.getByLabel("Shared password")).toBeFocused();
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "Use a staff account" })).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(page.getByLabel("Email")).toBeFocused();
 });
