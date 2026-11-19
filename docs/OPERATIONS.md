@@ -1053,7 +1053,9 @@ optionally suspends the profile. It applies to the person's next request.
 Each Super Admin, on their own device:
 1. `/admin/login` → email and password → **Sign In**.
 2. The first time: "Set up your second factor". Scan the QR code with an authenticator app (any TOTP
-   app), or type the key shown under it, then enter the 6-digit code.
+   app), or type the key shown under it, then enter the 6-digit code. The app lists it as
+   **TimesPrime**, with the email under it (an entry made before 19 Nov 2026 says "localhost:3000";
+   see gotcha 3.39).
 3. Every time after: the code only.
 
 **Check.**
@@ -2128,6 +2130,22 @@ worker did exactly that after every job, so on a laptop a job that had finished 
 a failure (the owner, 18 Nov 2026). The worker now ends a run with `finishRun`
 (`apps/worker/src/exit.ts`): it sets `process.exitCode` and lets Node exit by itself, and an
 unref'd timer forces the exit after 10 s if something keeps Node alive. Linux was not affected.
+
+#### 3.39 The authenticator showed "localhost:3000": Supabase's TOTP issuer defaults to the Site URL
+
+A TOTP enrolment's otpauth URI carries an issuer, the name an authenticator app shows above the
+account. When `mfa.enroll` is given none, Supabase uses the host of the project's Site URL
+(Authentication → URL Configuration), which is `http://localhost:3000`, so staff saw
+"localhost:3000" (the owner, 19 Nov 2026). The account under it is always the person's email,
+which Supabase sets. Since `fix/totp-issuer`, `enrollTotp` sends `issuer: "TimesPrime"`
+(`TOTP_ISSUER`, from `PUBLISHER_NAME`); the owner chose the publication's name over a role's,
+because one account's one factor serves all its roles.
+- **Entries set up before the fix keep "localhost:3000".** The name is stored in the phone, not on
+  the server, and the codes keep working. To tidy one: in the authenticator app, press and hold the
+  entry, then the pencil, and rename it "TimesPrime". Or reset the factor (the owner in the
+  dashboard now; two Super Admins in Panel 1 M2) and scan again. Nothing is reset automatically.
+- **The Site URL itself** still says localhost; it is set to the real address at the AWS deployment.
+  The issuer no longer depends on it.
 
 ### 4. Commits — restructure 2, then audit Phases 2–5
 
