@@ -42,6 +42,15 @@ export const PRIVILEGED_ROLES = ["super_admin", "managing_editor", "legal_compli
 /** Granted only for one language (roles.scope_required; the database enforces it). */
 export const SCOPE_REQUIRED_ROLES = ["desk_editor", "sub_editor", "writer"] as const satisfies readonly RoleKey[];
 
+/** Break-glass (design §5): a Super Admin's own emergency access, for at most this long (the database's CHECK). */
+export const BREAK_GLASS_HOURS = 2;
+/** The access review (design §6): one every 90 days. */
+export const REVIEW_EVERY_DAYS = 90;
+/** In the review, someone who has not signed in for this long is flagged. */
+export const STALE_SIGN_IN_DAYS = 60;
+/** Roles ending within this many days are listed, to renew in time. */
+export const ENDING_SOON_DAYS = 14;
+
 /** What a Super Admin's request may ask for (access_requests.kind). */
 export const REQUEST_KINDS = ["add_person", "grant", "renew", "reactivate", "rename", "password_link", "mfa_reset"] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];

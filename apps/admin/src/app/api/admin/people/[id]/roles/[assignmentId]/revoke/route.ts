@@ -2,7 +2,7 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
-import { revoke } from "@timesprime/server/repositories/people";
+import { endBreakGlass, revoke } from "@timesprime/server/repositories/people";
 import { planFor, withinReach } from "@timesprime/server/services/people/reach";
 import {
   auditedPerson,
@@ -55,7 +55,12 @@ export async function POST(request: NextRequest, { params }: Params) {
   const result = await auditedPerson(
     actor,
     { action: "role.revoke", personId: profile.user_id, scope, before: { assignment: row.id, role: row.role_key, expires_at: row.expires_at }, reason },
-    () => revoke(row.id, actor.userId as string, reason),
+    async () => {
+      const revoked = await revoke(row.id, actor.userId as string, reason);
+      // A Super Admin who loses the role loses their emergency access with it (M3).
+      if (row.role_key === "super_admin" && !row.is_break_glass) await endBreakGlass(profile.user_id, actor.userId as string, "Super Admin role revoked", now);
+      return revoked;
+    },
     (a) => ({ assignment: a.id, revoked_at: a.revoked_at })
   );
   if (!result.ok) return result.response;

@@ -196,7 +196,8 @@ packages/
                            and its admin steps: making an account, a one-time link's token, removing factors)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
                            publishing's rules, the scheduler, the image renditions with sharp, a story's images),
-                           people (Panel 1: who may grant, renew, revoke or ask, reach.ts)
+                           people (Panel 1: who may grant, renew, revoke or ask, reach.ts; the access review,
+                           its flags and reminders, review.ts)
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase,
                            mediaStorage (the images' files: S3 on the server, a folder on a laptop;
                            only renditions are ever served publicly), …

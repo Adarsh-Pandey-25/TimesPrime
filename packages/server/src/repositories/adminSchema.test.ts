@@ -146,3 +146,38 @@ test("the rollback drops what the file adds and puts the index back as it was", 
   }
   expect(rollback).toMatch(/COALESCE\(section, '\*'\)\)\n--\s+WHERE revoked_at IS NULL;/);
 });
+
+describe("migration admin-2: the access review's record (M3)", () => {
+  const sql2 = fs
+    .readFileSync(path.join(process.cwd(), "database", "migrations", "2026-11-19-admin-2-access-reviews.sql"), "utf8")
+    .replace(/\r\n/g, "\n");
+  const code2 = sql2.slice(0, sql2.indexOf("-- ---- Verify")).replace(/--[^\n]*/g, "");
+
+  test("one transaction", () => {
+    expect(code2.match(/^BEGIN;$/gm)).toHaveLength(1);
+    expect(code2.match(/^COMMIT;$/gm)).toHaveLength(1);
+  });
+
+  test("append-only: no update, delete or truncate, by access-1's reject_change", () => {
+    expect(code2).toMatch(/CREATE TRIGGER access_reviews_no_change\n\s+BEFORE UPDATE OR DELETE ON public\.access_reviews\n\s+FOR EACH ROW EXECUTE FUNCTION public\.reject_change\(\);/);
+    expect(code2).toMatch(/CREATE TRIGGER access_reviews_no_truncate\n\s+BEFORE TRUNCATE ON public\.access_reviews/);
+    expect(code2).toContain("DROP TRIGGER IF EXISTS access_reviews_no_change ON public.access_reviews;");
+  });
+
+  test("starts from no rights; the app reads and adds, nothing more; RLS on", () => {
+    expect(code2).toContain("REVOKE ALL ON public.access_reviews FROM anon, authenticated, service_role;");
+    expect(code2).toContain("GRANT SELECT, INSERT ON public.access_reviews TO service_role;");
+    expect(code2).not.toMatch(/GRANT[^;]*(UPDATE|DELETE)[^;]*access_reviews/);
+    expect(code2).not.toMatch(/GRANT[^;]*TO (anon|authenticated)/);
+    expect(code2).toContain("ALTER TABLE public.access_reviews ENABLE ROW LEVEL SECURITY;");
+  });
+
+  test("a snapshot is an array, and names who completed it", () => {
+    expect(code2).toContain("snapshot JSONB NOT NULL CHECK (jsonb_typeof(snapshot) = 'array')");
+    expect(code2).toContain("completed_by UUID NOT NULL REFERENCES public.staff_profiles (user_id)");
+  });
+
+  test("the rollback drops the table", () => {
+    expect(sql2.slice(sql2.indexOf("-- ---- Rollback"))).toContain("DROP TABLE IF EXISTS public.access_reviews;");
+  });
+});
