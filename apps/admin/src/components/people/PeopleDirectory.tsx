@@ -74,7 +74,14 @@ export default function PeopleDirectory() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="font-serif text-2xl font-extrabold">People</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="font-serif text-2xl font-extrabold">People</h1>
+          {caller.grantable.length > 0 && (
+            <Link href="/admin/people/new" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-50 dark:border-[#3a3f47] dark:hover:bg-[#2b2f36]">
+              {caller.asks ? "Ask to add a person" : "Add a person"}
+            </Link>
+          )}
+        </div>
         <p className="text-sm text-slate-600 dark:text-slate-300">
           {caller.asks
             ? "You see every staff member. Adding access is a request a second Super Admin approves; removing access is done at once."

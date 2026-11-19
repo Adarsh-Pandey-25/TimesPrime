@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { deskCall, when } from "../desk/deskClient";
+import LinkBox from "./LinkBox";
 import { describeRequest, type RequestView } from "./peopleClient";
 
 // A Super Admin's requests (Panel 1 design §3 and §4): those waiting for the caller's decision, and
@@ -15,6 +16,8 @@ export default function RequestsBox({ requests, onChanged }: { requests: Request
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  // Approving an addition or a password link gives a one-time link: shown once, to hand over (M2).
+  const [link, setLink] = useState<{ path: string; who: string | null } | null>(null);
 
   const open = requests.filter((r) => r.outcome === null);
   const waiting = open.filter((r) => r.canDecide);
@@ -22,11 +25,13 @@ export default function RequestsBox({ requests, onChanged }: { requests: Request
 
   async function decide(r: RequestView, step: "approve" | "decline" | "cancel") {
     setBusy(r.id);
+    setLink(null);
     const note = notes[r.id]?.trim();
-    const res = await deskCall(`/api/admin/people/requests/${r.id}/${step}`, { method: "POST", body: JSON.stringify(note ? { note } : {}) });
+    const res = await deskCall<{ link?: string }>(`/api/admin/people/requests/${r.id}/${step}`, { method: "POST", body: JSON.stringify(note ? { note } : {}) });
     setBusy(null);
     const done = step === "approve" ? "Approved: the change is made." : step === "decline" ? "Declined: nothing changed." : "Cancelled.";
     setMessage(res.ok ? { ok: true, text: done } : { ok: false, text: res.error ?? "Not done." });
+    if (res.ok && res.data?.link) setLink({ path: res.data.link, who: r.userName });
     if (res.ok) onChanged();
   }
 
@@ -52,6 +57,7 @@ export default function RequestsBox({ requests, onChanged }: { requests: Request
           {message.text}
         </p>
       )}
+      {link && <LinkBox path={link.path} who={link.who} />}
       {waiting.length === 0 ? (
         <p className="text-sm text-slate-500">Nothing is waiting for you.</p>
       ) : (

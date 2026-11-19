@@ -63,6 +63,13 @@ export function welcomePath(tokenHash: string): string {
   return `/admin/welcome?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`;
 }
 
+/**
+ * How long a one-time link works, as the screens say it. It mirrors a Supabase setting the owner
+ * keeps (Authentication → Email → Email OTP Expiration: 3600 seconds, 19 Nov 2026, after Supabase
+ * warned that 24 hours is more than it recommends); change both together.
+ */
+export const LINK_VALID_FOR = "1 hour";
+
 /** A staff password: long enough to resist guessing; Supabase may ask for more. */
 export const PASSWORD_MIN = 12;
 export const PASSWORD_MAX = 128;

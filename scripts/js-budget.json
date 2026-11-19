@@ -27,6 +27,8 @@
     "/admin/login/page": 643072,
     "/admin/page": 702464,
     "/admin/people/[id]/page": 669696,
-    "/admin/people/page": 666624
+    "/admin/people/new/page": 665600,
+    "/admin/people/page": 666624,
+    "/admin/welcome/page": 656384
   }
 }
