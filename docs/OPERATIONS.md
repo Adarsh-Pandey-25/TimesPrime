@@ -1843,6 +1843,11 @@ phases were done:
    - **focus:** a field that draws its own focus ring shows that one alone (the global ring moved
      into the base layer, `apps/admin/src/app/globals.css`).
 
+   All four steps are on `main` (PRs #52 to #55).
+9. **Panel 3 (Front page)**: its [design](PANEL_DOCS.md#panel-3-design-front-page) was proposed on
+   19 Nov 2026 at the owner's request, on `panel-3-front-page`, while Panels 1 and 2 have open items
+   (the design's §12). The owner put the test Supabase project on hold until he says.
+
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
 

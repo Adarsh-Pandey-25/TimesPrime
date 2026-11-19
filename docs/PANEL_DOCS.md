@@ -205,7 +205,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
 | 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PRs #48 and #49) built; M4 (the shared password retired, PR #50) built; the definition of done checked: open are the owner's walk-through and a test project | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
-| 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
+| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) proposed 19 Nov 2026 for the owner's approval, started at the owner's request while Panels 1 and 2 have open items | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
 | 6 | Insights: read-only stats | Planned | — | — |
@@ -2733,3 +2733,315 @@ A shared-password session gets 403: "Sign in with your own account to use the De
 - **Panel 9:** sponsored stories. **Phase K:** agency copy and bylines.
 - **Bulk actions** (`article.bulk_action`) on stories, until the Desk needs them.
 - **AI help** in the editor.
+
+## Panel 3 design: Front page
+
+**Status:** **proposed** on 19 Nov 2026 for the owner's approval; branch `panel-3-front-page`.
+**Started at the owner's request** (19 Nov 2026) while Panels 1 and 2 still have open items. Those
+items are listed at the end of this section. `NEWSROOM_PLAN.md` is unchanged.
+
+**Plan:** [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md), Phase G. **Access rules:** the
+`homepage.curate`, `breaking_banner.manage / push.send` and `article.*` rows of the
+[access rules](#access-rules). "Question N" below is a question of §11.
+
+Panel 3 is where editors decide what readers see first, and where a running story is told as it
+happens:
+- they pin their own stories above the automatic order on the home and section pages, until a set
+  time;
+- the breaking-news banner gets a language, so each desk runs its own;
+- a live blog takes updates without a second person approving each one.
+
+### 0. What the docs and the code say, and what it changes
+
+- **The home and section pages show only the aggregator's `articles`.**
+  - `apps/web/src/app/_feed/ArticlesFeed.tsx` calls `getTopHeadlines` with the language fixed to
+    English. That reads `articles`, newest first, through a 15-minute Redis cache
+    (`services/news/topHeadlines.ts`, `repositories/db.ts`).
+  - The Desk's stories appear on no list. They have their own pages only
+    (`[section]/[story]`, `hi/[section]/[story]`).
+  - So Panel 3's pinned slots are the first place the newsroom's own stories reach the home page. The
+    automatic order below them stays the aggregator's until Phase F.
+- **There is no Hindi home page or Hindi section page.**
+  - Under `/hi/` there are story pages only. A reader's language is client state (`LanguageContext`),
+    and `HomeClient` refetches the feed in Hindi after the page loads.
+  - So the server can render English pins only. Hindi pins reach a Hindi reader the same way the
+    Hindi feed does, from the browser (§5). `/hi` home and section pages are Phase F.
+- **Nothing on the reader site is cached by Next.**
+  - The home and section pages are dynamic (they read `searchParams`), and CloudFront sends them
+    `no-store`. Story pages are `force-dynamic` (Panel 2).
+  - No code calls `revalidateTag`. The shared cache handler supports tags, but nothing uses them.
+  - Next 16 (`revalidateTag.md`): a call from another service passes `{ expire: 0 }`. The admin is a
+    separate app, so it could not revalidate the reader's cache directly anyway.
+  - Panel 3 therefore keeps to what exists: the pins come from a 60-second Redis entry that the admin
+    deletes on every change (both apps share Redis through `packages/server/src/lib/cache.ts`). Cache
+    tags and a CloudFront purge by tag stay Phase F and I.
+- **The breaking banner has no language and is site-wide.**
+  - The table is `breaking_news(id, text, is_active, expires_at, created_at)`
+    (`database/schema.sql`).
+  - The reader's `BreakingNewsBanner` is in the root layout and shows every live item to everyone,
+    under an English "BREAKING" label.
+  - The admin routes write with the target `SITE_WIDE`, which only an unscoped grant covers
+    (`auth/scope.ts`). So a Desk Editor, who holds the matrix's S, can list the items but cannot set
+    one. Panel 0 left this note: "Panel 3: the banner gets a language".
+- **`homepage.curate` is in the catalogue** (Managing Editor F, Desk Editor S) but no route uses it
+  yet.
+- **Live blogs:**
+  - The `live_blog` format is already allowed by the `stories` table (desk-1) and `STORY_FORMATS`.
+    `DESK_FORMATS` keeps it out of the New story form until this panel.
+  - Story pages carry no structured data yet; the site's `NewsMediaOrganization` is on the home page
+    only.
+  - The research's pattern for live pages (`RESEARCH.md`): "Cached page shell; the fast-changing
+    part is a small JSON endpoint … JSON cached 5–15 s at the edge, polled by the browser".
+
+### 1. Milestones
+
+Each milestone is its own branch and pull request, green on `npm run verify`, and shown to the
+owner before the next one starts.
+
+| Milestone | What it delivers | Rough size |
+|---|---|---|
+| **M1. The banner's language** | A language on each banner item; a Desk Editor runs their own desk's banner; the reader sees their language's items, under a label in their language | 3 to 4 days |
+| **M2. Pinned slots** | The pins table, a "Front page" screen in the back office, and the pinned row above the automatic order on the home and section pages, in English and Hindi | 1.5 to 2 weeks |
+| **M3. Live blogs** | The live blog format, updates posted without four-eyes, key events and a pinned update, the reader's live page polling a cached JSON endpoint, `LiveBlogPosting` markup | 2 to 3 weeks |
+| **M4. Distribution** | RSS per language and section; "Copy for WhatsApp" on a published story; web push, if and when question 8 says so | 3 to 4 days, push extra |
+
+### 2. Data model
+
+Every new table is history: rows are ended or removed, never deleted. Every table has RLS on.
+Readers get one narrow `SELECT` policy and column grants, and the app writes as `service_role`, as
+in Panel 2. Each migration has its rollback at the end and is applied by the owner (§9).
+
+**M1: `front-1-banner-language`**
+- `breaking_news.language text CHECK (language IN ('en','hi'))`.
+- `NULL` means both languages. Existing rows keep `NULL`, so readers see no change until an editor
+  sets a language.
+
+**M2: `front-2-pins`, the table `front_page_pins`**
+
+| Column | Meaning |
+|---|---|
+| `id` | uuid |
+| `language` | `en` or `hi`: whose page it is |
+| `section` | a key of `sections`, or `NULL` for the home page |
+| `slot` | 1 to `PIN_SLOTS` (3 on the home page, 2 on a section page: question 2) |
+| `story_id` | the Desk story pinned |
+| `starts_at`, `ends_at` | when it shows. `ends_at` is required (question 3: at most 7 days later), and a CHECK keeps `ends_at > starts_at` |
+| `pinned_by`, `pinned_at` | who pinned it, and when |
+| `ended_by`, `ended_at`, `end_reason` | set when someone unpins early, or when a new pin takes the slot |
+
+- **One function, `front_pin`,** pins atomically. In one transaction:
+  - it checks that the story is published, in the pin's language and, on a section page, in that
+    section;
+  - it ends whatever holds that slot over the new time window;
+  - it inserts the new row.
+- **The reader's policy:** pins with `ended_at IS NULL` and `starts_at <= now() < ends_at`, and only
+  the columns `language`, `section`, `slot`, `story_id`, `starts_at` and `ends_at`. A pin whose story
+  is taken down shows nothing, because readers see published stories only (desk-1's policy). The
+  reader's query applies the same rules again in code, as `getPublishedStory` does.
+
+**M3: `front-3-live`, the table `live_updates`, and one column on `stories`**
+
+| Column | Meaning |
+|---|---|
+| `id`, `story_id` | the update, and its live blog (a story with the format `live_blog`) |
+| `headline` | optional, at most 110 characters |
+| `body` | the update's text, as Tiptap JSON in a smaller schema: paragraphs, bold, italic, links and one library image |
+| `is_key_event` | listed under "Key events" at the top of the page |
+| `is_pinned` | shown first. At most one per story (a partial unique index) |
+| `posted_by`, `posted_at`, `edited_by`, `edited_at` | who wrote and last changed it |
+| `removed_by`, `removed_at`, `removed_reason` | a removed update stays in the table, which keeps the 60-day content record |
+
+- `stories.live_ended_at`: when the live blog ended. After that it takes no updates.
+- **The reader's policy:** updates of a published, non-embargoed story with `removed_at IS NULL`.
+- The previous text of an edited update is kept in the audit log's before and after (§8), so no
+  second table is needed.
+
+**The catalogue (M3, only if question 6 approves a new verb):** `live_update.post`, added to the
+matrix and shipped as a regenerated catalogue migration, as `author.manage` was in Panel 2.
+
+### 3. Who may do what
+
+| Action | Permission (matrix) | Who | Scope the server checks |
+|---|---|---|---|
+| See the Front page screen | `homepage.curate` or `breaking_banner.manage`, read | Managing Editor, Desk Editor | any scope; actions only where allowed |
+| Pin, unpin, change a pin's end | `homepage.curate`, act | Managing Editor F; Desk Editor S | the pin's language, and its section (`NULL` for the home page). So a Desk Editor for Hindi with no section pins the Hindi home and Hindi sections; one for Hindi sport pins only the Hindi sport page |
+| Set or remove a banner item for one language | `breaking_banner.manage`, act | Managing Editor F; Desk Editor S | that language, all sections |
+| Set a banner item for both languages | the same | unscoped holders only (in practice the Managing Editor) | site-wide, as today |
+| Post, edit, flag (key event, pin) an update | `live_update.post` (question 6) | proposed: Managing Editor F; Desk Editor S; Sub-editor S | the story's desk. The story must be a published, not ended live blog |
+| Remove an update | `article.unpublish` | Managing Editor F, Desk Editor S, Legal F; Super Admin with emergency access | the story's desk. Single actor, with a reason, like a takedown |
+| End a live blog | `article.publish` | Managing Editor F; Desk Editor and Sub-editor S | the story's desk |
+| Copy for WhatsApp | none: it copies text in the browser | whoever can open the story | — |
+| Send a web push | `push.send` (question 8) | Managing Editor F; Desk Editor S | the story's desk; at most a set number a day |
+
+- **No four-eyes in Panel 3.**
+  - A pin places a story that was already approved.
+  - A banner line and a live update are the plan's named exceptions, for speed. Every one is still
+    audited and can be removed by one person at once.
+- **MFA:** every write needs `aal2`, as on the Desk.
+- **Refusals:** Panel 0's codes (401, 403 `forbidden` or `mfa_required`). A wrong state answers 409:
+  the story is not published, the live blog has ended, or the slot number is out of range. A pin
+  whose story's language or section does not match the page answers 422.
+
+### 4. Screens and routes
+
+**Back office: a new "Front page" screen, `/admin/front-page`** (in the top bar for holders of
+either permission). In the order it is used:
+1. **The page being arranged:** English or Hindi, and Home or a section.
+2. **Its slots** (3 or 2):
+   - each slot shows the pinned story (headline, until when, by whom) and anything scheduled next;
+   - "Pin a story" searches the published stories the caller may pin, then takes a slot, a start
+     (now, or a time) and an end (6 hours, 24 hours (the default), 72 hours, or 7 days);
+   - "Unpin" ends a pin at once;
+   - "See the page" opens it on the reader site.
+3. **The breaking banner**, moved here from the dashboard (question 5), with a language for each
+   item. The dashboard keeps a link to it.
+
+**The Desk's story screen:**
+- **"Live blog"** becomes a format in New story.
+- **On a published live blog, a "Live updates" panel:**
+  - a small editor for one update, with "Key event" and "Pin";
+  - the updates, newest first, each with Edit and Remove;
+  - "End the live blog".
+- **On a published story (M4):** "Copy for WhatsApp" and, after question 8, "Send a push".
+
+**Back-office routes:**
+- `GET`, `POST /api/admin/front-page/pins` (list a page's pins, pin a story);
+- `POST /api/admin/front-page/pins/[id]/end` (unpin);
+- `GET /api/admin/front-page/stories?q=` (the published stories the caller may pin);
+- the existing `/api/admin/breaking-news` gains `language`;
+- `POST /api/admin/desk/stories/[id]/live` (post an update);
+- `PATCH /api/admin/desk/stories/[id]/live/[updateId]`;
+- `POST /api/admin/desk/stories/[id]/live/[updateId]/remove`;
+- `POST /api/admin/desk/stories/[id]/end-live`;
+- `POST /api/admin/desk/stories/[id]/push` (after question 8).
+
+**Reader routes:**
+- `GET /api/news/pins?language=&section=`: the pins as JSON, for a Hindi reader's browser;
+- `GET /api/news/breaking-news?language=`;
+- `GET /api/live/[publicId]?after=`: a live blog's new updates, as JSON;
+- `GET /rss/en.xml`, `/rss/hi.xml`, `/rss/en/[section].xml`, `/rss/hi/[section].xml` (M4).
+
+### 5. The reader's pages
+
+- **The pinned row** (M2), above the automatic order on the home page and each section page:
+  - it shows only when a pin is live, so an empty row never shows;
+  - each card shows the story's first image (its 4:3 rendition, when it has one), headline, dek,
+    byline and time, and links to the story's own page;
+  - the server renders the English pins in the page's HTML. For a reader whose language is Hindi,
+    a small client island loads `/api/news/pins?language=hi` and shows the Hindi pins instead, as
+    `HomeClient` does for the feed;
+  - the pins are read through a 60-second Redis entry per page and language, deleted by every
+    pin change. A change shows at once, and a pin that ends disappears within a minute.
+- **The banner** (M1): `BreakingNewsBanner` asks for the reader's language (`LanguageContext`). It
+  shows that language's items and those for both, under "BREAKING" or "ब्रेकिंग न्यूज़".
+- **The live blog page** (M3), the story's own page:
+  - the intro (the story's text), then "Live" or "Ended", the key events as links down the page,
+    the pinned update, and the updates, newest first;
+  - the server renders the first 50 updates. While the tab is visible, a small client island polls
+    `/api/live/[publicId]?after=…` every 15 seconds and adds new ones at the top, with a "New
+    updates" note instead of jumping the page;
+  - the JSON endpoint sends `Cache-Control: public, s-maxage=10, stale-while-revalidate=20` and
+    reads through a 5-second Redis entry, so a crowd of readers costs the database one query every
+    few seconds. On the server, CloudFront must honour that header for `/api/live/*` (an owner step
+    at the deploy, §9);
+  - the page carries `LiveBlogPosting` JSON-LD: `coverageStartTime`, `coverageEndTime` once ended,
+    and the updates as `liveBlogUpdate`.
+- **RSS** (M4): the last 50 published Desk stories per language, or per language and section, with
+  title, link, dek, date and a stable id, cached 5 minutes. The home and section pages link them with
+  `<link rel="alternate" type="application/rss+xml">`. The aggregator's items are not in them
+  (Phase B: they are `noindex`).
+- **JS:** the pinned row is server-rendered, with a small island for Hindi; the live island is on
+  live blog pages only. Each route's budget is reported, and raised only with the owner's say.
+
+### 6. Distribution (M4)
+
+- **Copy for WhatsApp:** on a published story's screen, it copies a ready message in the story's
+  language: the headline in bold, the dek, and the story's address with
+  `utm_source=whatsapp&utm_medium=social&utm_campaign=channel`. It is posted to the WhatsApp Channel
+  by hand (research: channels give publishers no data on followers). Nothing is stored or sent.
+- **Web push** (question 8): the research suggests OneSignal's or iZooto's free tier, with
+  `push.send` "tightly held, audited".
+  - A push needs the reader's browser permission, a vendor account and keys (owner actions), and a
+    line in the privacy notice. The consent banner is Panel 8's launch minimum.
+  - The recommendation is therefore to build it after Panel 8's consent banner, not in M4.
+
+### 7. Audit
+
+Every change writes `audit_log` first ("attempted, then outcome") and is refused with 503 if it
+cannot.
+
+| Action | Entity | Recorded |
+|---|---|---|
+| `breaking_banner.set`, `breaking_banner.remove` | the item | text, language, expiry |
+| `homepage.pin`, `homepage.unpin` | the pin | page, language, slot, story, start and end, and the pin it replaced |
+| `live.post`, `live.edit`, `live.remove`, `live.end` | the update or the story | before and after for an edit; the reason for a removal |
+| `push.send` | the story | title, address, the vendor's message id |
+
+### 8. Not in Panel 3
+
+- `/hi` home and section pages, Desk stories in the automatic order, `NewsArticle` markup on story
+  pages, the sitemap for stories, cache tags and CloudFront purges by tag: Phase F (and I for the
+  purge).
+- The live-blog load test: Phase I.
+- Push to apps and newsletters: later (research: "Buy" for a CDP; SES newsletter at launch is a
+  separate decision).
+- Sponsored content on the front page: Panel 9.
+
+### 9. Owner actions
+
+1. Apply `front-1` (M1), `front-2` (M2) and `front-3` (M3), each with its check, in the SQL editor,
+   as before. If question 6 adds the verb, also apply the regenerated catalogue migration.
+2. At the AWS deploy (the manager): a CloudFront behaviour for `/api/live/*` and `/rss/*` that
+   honours the origin's `Cache-Control`, written into OPERATIONS.md's Deployment.
+3. If question 8 chooses push: the vendor account and its keys in the server's `.env.web`.
+
+### 10. Tests
+
+| Test | What it proves | Denied cases |
+|---|---|---|
+| `access.test.ts` (the route walk) | every new route has a rule and is tested for its least-privileged holder | no session, no grant, expired, no MFA; a Desk Editor for English pinning the Hindi home; a Desk Editor for sport pinning the home page; a Sub-editor pinning; a banner for both languages from a scoped Desk Editor; a Writer posting an update; a removal without a reason; posting to an ended live blog |
+| Service tests (pins) | a new pin ends the slot's holder; only published stories; language and section must match; expiry at read time | a taken-down story vanishes from the row; slot out of range |
+| Schema tests (the migrations as text) | RLS on, the reader's columns only, no `DELETE`, the rollbacks | default rights left on a new table fail, as schema.test.ts already enforces |
+| Component tests | the pinned row, the Hindi island, the banner's language and label, the live page's polling and "New updates", the Front page screen's loading, error and empty states | no actions where the API offers none |
+| Browser tests (read-only) | the pins and live JSON answer with their cache headers; RSS is valid XML; signed out, the Front page screen goes to sign-in | the admin routes answer 401 |
+
+### 11. Questions for the owner
+
+Each has a recommended answer. Saying "approved" takes all of them.
+
+1. **What can be pinned?** **Recommended: Desk stories only**, the newsroom's own journalism. The
+   aggregator's items are `noindex` summaries and stay in the automatic order.
+2. **How many slots?** **Recommended: 3 on the home page, 2 on each section page, per language.**
+3. **How long can a pin last?** **Recommended:** 6 hours, 24 hours (the default), 72 hours or 7
+   days, always with an end. No pin lasts for ever.
+4. **A banner for both languages:** **Recommended:** allowed, for unscoped holders only (the
+   Managing Editor). A Desk Editor sets their own language's banner.
+5. **Where the banner is managed:** **Recommended:** on the new Front page screen, with a link on the
+   dashboard.
+6. **Who posts live updates?**
+   - **Recommended:** a new verb, `live_update.post`, for the Managing Editor (F), the Desk Editor
+     (S) and the Sub-editor (S). A Writer does not post straight to a live page.
+   - Alternative: Writers too, on live blogs they are credited on.
+7. **Removing a live update:** **Recommended:** single actor with a reason, by holders of
+   `article.unpublish` (Desk Editor, Managing Editor, Legal), like a takedown.
+8. **Web push:**
+   - **Recommended:** after Panel 8's consent banner, through OneSignal's free tier, with a daily
+     limit.
+   - Alternative: iZooto; or in M4 now.
+9. **Live polling:** **Recommended:** the browser checks every 15 seconds; the JSON is cached 10
+   seconds at the edge and 5 in Redis.
+10. **Order:** **Recommended:** M1 → M2 → M3 → M4, each shown to you before the next.
+
+### 12. Still open in Panels 1 and 2
+
+Panel 3 starts while these are open (the owner, 19 Nov 2026). Each panel stays *In progress* until
+its items close:
+- **The owner's walk-through** with the roles-and-testing document (tests S, P, M, D and Z):
+  item 1 of both panels.
+- **A test Supabase project**, on hold until the owner says: items 7, 8 and 10 of both panels.
+- **The worker's Sentry** (Panel 2, item 11): it needs `@sentry/node` declared, which is a package
+  for the owner to approve.
+- **The Hindi typing check** (Panel 2, M2), with two Hindi typists.
+- **Scheduled publishing walked through**, after the AWS deploy (Panel 2).
+- **The three retired `ADMIN_*` variables** deleted from the server's `.env.admin` at the deploy
+  (Panel 1).
