@@ -203,7 +203,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
-| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3a (break-glass and the review, backend) built, M3b (their screens) next | — | — |
+| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PR #48 and the screens) built; M4 (retiring the shared password) next | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
@@ -521,8 +521,8 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 route tested allowed and denied; PR #43), and M1b, the screens (PR #44). **M2a**, the accounts
 backend: adding a person, one-time "set your password" links, resetting a lost second factor, and
 the welcome and password routes (PR #46); and **M2b**, their screens (PR #47). **M3a**, the
-backend of break-glass, the access review and what needs a look (migration admin-2). M3b (their
-screens) and M4 (retiring the shared password) follow.
+backend of break-glass, the access review and what needs a look (migration admin-2; PR #48), and
+**M3b**, their screens. M4 (retiring the shared password) follows.
 
 #### Panel
 
@@ -654,6 +654,17 @@ needs two people, and removing it needs one.
   after the last one, or now). Revoking and renewing use their own routes. `POST` completes it: a
   note and a decision per row (`keep`, `revoked`, `renew_asked`, `renewed`; unmarked is `keep`); the
   snapshot is read from the database at that moment, not taken from the screen. Super Admins only.
+- **The screens** (M3b), each with loading, error and empty states:
+  - **the top bar, for Super Admins, on every page:** a red alert while anyone's emergency access is
+    on (whose, until when, why, and a link to People), and a reminder when the access review is due
+    (with "Start it");
+  - **People:** an "Emergency access" box for Super Admins (the reason, "Start emergency access",
+    "End it now", and anyone else's in use); the last review and when the next is due, with the way
+    to it; "Roles ending within 14 days", each linking to the person (everyone who manages people,
+    for their people);
+  - **`/admin/people/review`:** every role with its flags (no sign-in for 60 days, no second factor,
+    privileged, expired), Renew and Revoke with a reason ("Access review" if left empty), and
+    "Complete the review" with a note; the record cannot be changed afterwards.
 
 #### Access permissions and authorization rules
 
@@ -692,7 +703,7 @@ needs two people, and removing it needs one.
 | Migration file | What it does | Rollback | Applied by the owner |
 |---|---|---|---|
 | `database/migrations/2026-11-19-admin-1-access-requests.sql` | The one-row index gains `is_break_glass`; `is_active_super_admin` ignores break-glass rows; the guard trigger allows a Super Admin's own break-glass row (for M3); `access_requests` with its decide-once trigger; `access_grant`, `access_decide` and `staff_end_sessions` | At the end of the file, before the first request or break-glass row | **Yes,** 19 Nov 2026; its check returned true, false, false, true, false, true |
-| `database/migrations/2026-11-19-admin-2-access-reviews.sql` | `access_reviews` (who, when, a note, the snapshot), append-only through access-1's `reject_change`; the app may read and add | At the end of the file, before the first review | **No** |
+| `database/migrations/2026-11-19-admin-2-access-reviews.sql` | `access_reviews` (who, when, a note, the snapshot), append-only through access-1's `reject_change`; the app may read and add | At the end of the file, before the first review | **Yes,** 19 Nov 2026; its check returned 1, false, false, true |
 
 No column changes meaning. A lapsed request is an open one whose `lapses_at` has passed: it is
 not stored as an outcome, and it cannot be decided.
@@ -715,14 +726,16 @@ not stored as an outcome, and it cannot be decided.
 | `access.test.ts` (M3) | Break-glass: a self-granted `super_admin` break-glass row ending in exactly 2 hours, audited; with it a Super Admin takes a Desk story down; revoking a Super Admin's role ends it. The review: a snapshot from the database with the marked decisions. What needs a look: break-glass in use and the review due for a Super Admin; roles ending soon among the people the caller sees | A Managing Editor starting break-glass or reviewing; no reason; a second break-glass; ending one that is not on; without break-glass, no takedown; a bad decision or id |
 | `packages/server/src/services/people/review.test.ts` | What a review goes through (unrevoked, live or expired, never break-glass) and its four flags; when it is due; roles ending within 14 days; the snapshot | An unknown factor is not "none"; a revoked row only if marked |
 | `adminSchema.test.ts` (admin-2) | Append-only, starts from no rights, read and add only, RLS on, the rollback | — |
+| `apps/admin/src/components/people/review.test.tsx`, `AdminTopBar.test.tsx` (M3b) | Emergency access started with a reason and ended; another Super Admin's shown; the review due and the way to it; roles ending soon for a Managing Editor; the review page's flags, Revoke and Renew (a request), and completing it with the decisions; the top bar's red alert and review reminder | No emergency box for a Managing Editor; no alerts asked for anyone else; a refused review shown; a failed revoke explained and left as it was; nothing to review |
+| `e2e/admin-access.spec.ts` (M3b, read-only) | Signed out, the review page goes to sign-in | The alerts and break-glass routes answer 401 |
 | `apps/admin/src/app/api/admin/welcome/route.test.ts`, `password/route.test.ts` | A good link gives a session and says whether a factor exists; a password is set, then every session ends | A missing, malformed or other-kind token (Supabase not asked); a used or expired link; not staff or suspended (signed out again); 10 tries per address; an `aal1` session with a factor; a weak password; Supabase's refusal |
 | `e2e/admin-access.spec.ts` (read-only) | Signed out, `/admin/people` and a person's page go to sign-in | Three people routes answer 401 |
 
 #### Known limits and not yet built
 
-- **M3b:** the screens for break-glass (the box on People, the bar across the back office), the
-  review page and the roles ending soon. **M4:** retiring the shared password.
-- **Owner action for M3:** apply admin-2 (OPERATIONS.md, "Panel 1: applying admin-2").
+- **M4:** retiring the shared password. Then Panel 1's definition of done, and the walk-through
+  with the owner and Vivek (with the roles-and-testing document the owner will ask for).
+- **Owner action for M3:** done. admin-2 is applied (19 Nov 2026, its check passed).
 - **Owner action for M2:** done. Supabase's email-link expiry is 1 hour (19 Nov 2026; OPERATIONS.md,
   "Panel 1: links and lost factors"). If it changes, `LINK_VALID_FOR` changes with it.
 - **An added person who is never given their link** has an account nobody can sign in to; a new
