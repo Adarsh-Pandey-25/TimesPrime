@@ -1387,6 +1387,8 @@ Against the real database, in the Supabase SQL editor. No session applies SQL.
 For the owner, before the access review is used (Panel 1, M3). Against the real database, in the
 Supabase SQL editor. No session applies SQL.
 
+*Applied by the owner on 19 Nov 2026; the check returned 1, false, false, true.*
+
 1. **Apply the migration.** SQL Editor → New query. Paste
    `database/migrations/2026-11-19-admin-2-access-reviews.sql` whole, and run it. One transaction:
    if it fails, nothing changed, and it is safe to run again.
@@ -1729,9 +1731,11 @@ phases were done:
    to the developers by the owner). M2a, the accounts backend (adding a person, one-time links, the
    two-Super-Admin factor reset; PR #46) and M2b, its screens (adding a person, the one-time link
    box, the welcome page; PR #47), are built. The owner set the
-   [link expiry](#panel-1-links-and-lost-factors) to 1 hour. M3a, the backend of break-glass, the
-   access review and what needs a look, is built on `panel-1-break-glass-review`; M3b, its screens,
-   is next. Owner action: [apply admin-2](#panel-1-applying-admin-2).
+   [link expiry](#panel-1-links-and-lost-factors) to 1 hour. M3, break-glass, the access review and
+   what needs a look, is built: the backend (PR #48; the owner
+   [applied admin-2](#panel-1-applying-admin-2) on 19 Nov 2026) and the screens (the top bar's
+   alert, the emergency box, the review page; on `panel-1-review-screens`). Next: M4, retiring the
+   shared password.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

@@ -181,7 +181,8 @@ apps/
                            and credits and its image and gallery picker, the preview, the authors with their photos, the
                            media library), and people/ (Panel 1's screens: the directory with a Super Admin's
                            requests, one person's roles and account, adding a person, the one-time link box,
-                           and the welcome page a link opens)
+                           the welcome page a link opens, emergency access and the access review; AdminTopBar
+                           shows Super Admins the break-glass alert and the review reminder)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes);
