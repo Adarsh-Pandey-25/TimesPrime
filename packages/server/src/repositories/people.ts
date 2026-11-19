@@ -318,6 +318,64 @@ export async function authAccounts(): Promise<Map<string, AuthAccount>> {
   return found;
 }
 
+/** The account with this email, if Supabase Auth has one (its admin API has no lookup by email). */
+export async function findAuthUser(email: string): Promise<{ id: string; email: string } | null> {
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: PAGE });
+    if (error) throw new PeopleStoreError(500, `Supabase Auth: ${error.message}`);
+    const users = (data?.users ?? []) as AuthUser[];
+    const found = users.find((u) => (u.email ?? "").toLowerCase() === email);
+    if (found) return { id: found.id, email };
+    if (users.length < PAGE) break;
+  }
+  return null;
+}
+
+/**
+ * The account for a person being added (Panel 1, M2): made with the email confirmed and no
+ * password, so nobody can sign in to it until they set one with their link. If the email already
+ * has an account (a retry, or someone who is not staff), that one is used. Safe to repeat.
+ */
+export async function ensureAuthUser(email: string): Promise<string> {
+  const existing = await findAuthUser(email);
+  if (existing) return existing.id;
+  const { data, error } = await supabase.auth.admin.createUser({ email, email_confirm: true });
+  if (error || !data?.user) throw new PeopleStoreError(500, `Supabase Auth: ${error?.message ?? "no user made"}`);
+  return data.user.id;
+}
+
+/**
+ * A one-time "set your password" token for the account (generateLink, type recovery): the app
+ * builds its own welcome link from it (welcomePath), and never stores or logs it. It works once,
+ * until Supabase's email-link expiry.
+ */
+export async function recoveryToken(email: string): Promise<string> {
+  const { data, error } = await supabase.auth.admin.generateLink({ type: "recovery", email });
+  const token = data?.properties?.hashed_token;
+  if (error || !token) throw new PeopleStoreError(500, `Supabase Auth: ${error?.message ?? "no link made"}`);
+  return token;
+}
+
+/** Deletes every second factor of the account (a lost device). Returns how many. Safe to repeat. */
+export async function removeFactors(userId: string): Promise<number> {
+  const { data, error } = await supabase.auth.admin.mfa.listFactors({ userId });
+  if (error) throw new PeopleStoreError(500, `Supabase Auth: ${error.message}`);
+  const factors = (data?.factors ?? []) as Array<{ id: string }>;
+  for (const f of factors) {
+    const removed = await supabase.auth.admin.mfa.deleteFactor({ id: f.id, userId });
+    if (removed.error) throw new PeopleStoreError(500, `Supabase Auth: ${removed.error.message}`);
+  }
+  return factors.length;
+}
+
+/** Makes a staff profile for a new account, or leaves an existing one as it is. */
+export async function addProfile(userId: string, displayName: string, createdBy: string): Promise<void> {
+  const { error } = await supabase
+    .from("staff_profiles")
+    .upsert({ user_id: userId, display_name: displayName, status: "active", mfa_required: true, created_by: createdBy }, { onConflict: "user_id", ignoreDuplicates: true });
+  if (error) throw peopleError(error);
+}
+
 export async function authAccount(userId: string): Promise<AuthAccount | null> {
   const { data, error } = await supabase.auth.admin.getUserById(userId);
   if (error) throw new PeopleStoreError(500, `Supabase Auth: ${error.message}`);
