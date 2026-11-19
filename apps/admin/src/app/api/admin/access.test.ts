@@ -41,7 +41,14 @@ jest.mock("@timesprime/server/lib/supabase", () => ({
     auth: {
       admin: {
         listUsers: jest.fn(async () => ({ data: { users: [] }, error: null })),
-        getUserById: jest.fn(async () => ({ data: { user: null }, error: null })),
+        getUserById: jest.fn(async (id: string) => ({ data: { user: { id, email: "person@example.com", factors: [] } }, error: null })),
+        // M2: adding a person, a one-time link, a lost factor.
+        createUser: jest.fn(async () => ({ data: { user: { id: "0a1b2c3d-0000-4000-8000-0000000000c1" } }, error: null })),
+        generateLink: jest.fn(async () => ({ data: { properties: { hashed_token: "TOKEN_abcdef0123456789" } }, error: null })),
+        mfa: {
+          listFactors: jest.fn(async () => ({ data: { factors: [{ id: "f-1" }, { id: "f-2" }] }, error: null })),
+          deleteFactor: jest.fn(async () => ({ data: {}, error: null })),
+        },
       },
     },
   },
@@ -120,8 +127,17 @@ import * as accessRequests from "./people/requests/route";
 import * as requestApprove from "./people/requests/[requestId]/approve/route";
 import * as requestDecline from "./people/requests/[requestId]/decline/route";
 import * as requestCancel from "./people/requests/[requestId]/cancel/route";
+import * as personPasswordLink from "./people/[id]/password-link/route";
+import * as personMfaReset from "./people/[id]/mfa-reset/route";
 
-const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
+const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as {
+  supabase: {
+    from: jest.Mock;
+    rpc: jest.Mock;
+    auth: { admin: { listUsers: jest.Mock; getUserById: jest.Mock; createUser: jest.Mock; generateLink: jest.Mock; mfa: { listFactors: jest.Mock; deleteFactor: jest.Mock } } };
+  };
+};
+const authAdmin = supabase.auth.admin;
 
 // ---- the catalogue, read from the generated SQL (the matrix) -------------------------------
 
@@ -1217,7 +1233,121 @@ const PEOPLE_CASES: Case[] = [
     changes: true,
   },
 ];
-CASES.push(...PEOPLE_CASES);
+// ---- Panel 1, M2: adding people, one-time links, lost factors ----
+const NEW_PERSON = { email: "Neha@Example.com", display_name: "Neha", role: "writer", language: "hi", section: "sports", days: 90, reason: "Joins the sports desk." };
+const ACCOUNT_CASES: Case[] = [
+  {
+    path: "/api/admin/people", method: "POST", handler: people.POST, body: NEW_PERSON, allowed: HI_MANAGING, wrongScope: EN_MANAGING,
+    data: { staff_profiles: { data: null, error: null }, "rpc:access_grant": { data: roleRow({ user_id: "0a1b2c3d-0000-4000-8000-0000000000c1" }), error: null } }, changes: true,
+  },
+  // A link changes nothing in the database (Supabase Auth makes it); its audit pair is tested below.
+  { path: `${P}/password-link`, method: "POST", handler: onPerson(personPasswordLink.POST), body: REASON, allowed: HI_MANAGING, wrongScope: EN_MANAGING, data: IN_PEOPLE(), changes: false },
+  // Always two Super Admins: the least-privileged holder who may ask is a Super Admin.
+  { path: `${P}/mfa-reset`, method: "POST", handler: onPerson(personMfaReset.POST), body: { reason: "Lost phone; called her on the desk line." }, allowed: SUPER_ADMIN, data: { ...IN_PEOPLE(), access_requests: { data: { ...REQUEST_ROW, kind: "mfa_reset", requested_by: "u-1", details: {} }, error: null } }, changes: true },
+];
+CASES.push(...PEOPLE_CASES, ...ACCOUNT_CASES);
+
+describe("adding people, one-time links and lost factors (Panel 1 design §4, M2)", () => {
+  async function call(c: Case, caller: Grantee, data: Case["data"], body?: unknown) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, body: body ?? c.body }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const caseFor = (method: Method, path: string) => [...ACCOUNT_CASES, ...PEOPLE_CASES].find((c) => c.method === method && c.path === path) as Case;
+  const auditText = () => JSON.stringify((recordAudit as jest.Mock).mock.calls);
+  const ADD = caseFor("POST", "/api/admin/people");
+
+  test("a Managing Editor adds a Writer to their desk at once: the account (confirmed, no password), the profile, the role, and a link", async () => {
+    const r = await call(ADD, HI_MANAGING, ADD.data);
+    expect(r.status).toBe(201);
+    expect(authAdmin.createUser).toHaveBeenCalledWith({ email: "neha@example.com", email_confirm: true });
+    expect(calls.some(([t, m]) => t === "staff_profiles" && m === "upsert")).toBe(true);
+    expect(calls.some(([fn]) => fn === "access_grant")).toBe(true);
+    expect(authAdmin.generateLink).toHaveBeenCalledWith({ type: "recovery", email: "neha@example.com" });
+    expect(r.json.link).toBe("/admin/welcome?token_hash=TOKEN_abcdef0123456789&type=recovery");
+    expect(auditText()).not.toContain("TOKEN_abcdef0123456789");
+  });
+
+  test("a Super Admin's addition is a request: no account is made until a second Super Admin approves", async () => {
+    const r = await call(ADD, SUPER_ADMIN, { access_requests: { data: { ...REQUEST_ROW, kind: "add_person", user_id: null }, error: null } });
+    expect(r.status).toBe(202);
+    const inserted = calls.find(([t, m]) => t === "access_requests" && m === "insert")?.[2][0] as { kind: string; user_id: string | null; details: Record<string, unknown> };
+    expect(inserted).toMatchObject({ kind: "add_person", user_id: null, details: { email: "neha@example.com", display_name: "Neha", role: "writer" } });
+    expect(authAdmin.createUser).not.toHaveBeenCalled();
+  });
+
+  test("an email that is already staff, a bad email, or a desk the Managing Editor does not hold, is refused", async () => {
+    authAdmin.listUsers.mockResolvedValueOnce({ data: { users: [{ id: PERSON, email: "neha@example.com" }] }, error: null });
+    expect((await call(ADD, HI_MANAGING, { staff_profiles: { data: PROFILE_ROW, error: null } })).json.code).toBe("staff");
+    expect((await call(ADD, HI_MANAGING, ADD.data, { ...NEW_PERSON, email: "not-an-email" })).status).toBe(400);
+    expect((await call(ADD, HI_MANAGING, ADD.data, { ...NEW_PERSON, language: "en" })).status).toBe(403);
+    expect(authAdmin.createUser).not.toHaveBeenCalled();
+    expect(wrote()).toEqual([]);
+  });
+
+  test("a password link: a Managing Editor gets it at once for their people, audited without the token", async () => {
+    const c = caseFor("POST", `${P}/password-link`);
+    const r = await call(c, HI_MANAGING, c.data);
+    expect(r.status).toBe(200);
+    expect(r.json.link).toContain("/admin/welcome?token_hash=");
+    expect((recordAudit as jest.Mock).mock.calls.map(([row]) => [row.action, row.outcome])).toEqual([["staff.password_link", "attempted"], ["staff.password_link", "succeeded"]]);
+    expect(auditText()).not.toContain("TOKEN_abcdef0123456789");
+  });
+
+  test("a Super Admin asks for a password link; nobody makes one for themselves; not for a suspended person", async () => {
+    const c = caseFor("POST", `${P}/password-link`);
+    const asked = await call(c, SUPER_ADMIN, { ...IN_PEOPLE(), access_requests: { data: { ...REQUEST_ROW, kind: "password_link" }, error: null } });
+    expect(asked.status).toBe(202);
+    expect(authAdmin.generateLink).not.toHaveBeenCalled();
+    expect((await call(c, HI_MANAGING, IN_PEOPLE({ status: "suspended" }))).json.code).toBe("suspended");
+  });
+
+  test("a lost factor is reset only by two Super Admins: a Managing Editor is refused, a Super Admin's is a request", async () => {
+    const c = caseFor("POST", `${P}/mfa-reset`);
+    expect((await call(c, HI_MANAGING, IN_PEOPLE())).status).toBe(403);
+    expect(authAdmin.mfa.deleteFactor).not.toHaveBeenCalled();
+    expect((await call(c, SUPER_ADMIN, c.data, {})).status).toBe(400);
+    const asked = await call(c, SUPER_ADMIN, c.data);
+    expect(asked.status).toBe(202);
+    expect(authAdmin.mfa.deleteFactor).not.toHaveBeenCalled();
+  });
+
+  const APPROVE = caseFor("POST", "/api/admin/people/requests/[requestId]/approve");
+  const approve = (row: Record<string, unknown>) =>
+    call(APPROVE, SUPER_ADMIN, { access_requests: { data: { ...REQUEST_ROW, ...row }, error: null }, "rpc:access_decide": { data: { ...REQUEST_ROW, ...row, outcome: "approved" }, error: null } });
+
+  test("approving an addition makes the account first, then decides with its id; the link goes to the approver only", async () => {
+    const r = await approve({ kind: "add_person", user_id: null, details: { email: "neha@example.com", display_name: "Neha", role: "writer", language: "hi", section: "sports", days: 90 } });
+    expect(r.status).toBe(200);
+    expect(authAdmin.createUser).toHaveBeenCalledWith({ email: "neha@example.com", email_confirm: true });
+    const decided = calls.find(([fn]) => fn === "access_decide")?.[2][0] as { p_user: string };
+    expect(decided.p_user).toBe("0a1b2c3d-0000-4000-8000-0000000000c1");
+    expect(r.json.link).toBe("/admin/welcome?token_hash=TOKEN_abcdef0123456789&type=recovery");
+    expect(auditText()).not.toContain("TOKEN_abcdef0123456789");
+  });
+
+  test("approving a factor reset deletes every factor and ends the sessions, then decides", async () => {
+    const r = await approve({ kind: "mfa_reset", details: {} });
+    expect(r.status).toBe(200);
+    expect(authAdmin.mfa.deleteFactor.mock.calls).toEqual([[{ id: "f-1", userId: PERSON }], [{ id: "f-2", userId: PERSON }]]);
+    expect(calls.map(([fn, m]) => (m === "rpc" ? fn : null)).filter(Boolean)).toEqual(["staff_end_sessions", "access_decide"]);
+    expect(r.json.link).toBeUndefined();
+  });
+
+  test("approving a password link makes one for the person's email", async () => {
+    const r = await approve({ kind: "password_link", details: {} });
+    expect(authAdmin.generateLink).toHaveBeenCalledWith({ type: "recovery", email: "person@example.com" });
+    expect(r.json.link).toContain("/admin/welcome?token_hash=");
+  });
+
+  test("declining changes no account", async () => {
+    const decline = caseFor("POST", "/api/admin/people/requests/[requestId]/decline");
+    await call(decline, SUPER_ADMIN, { access_requests: { data: { ...REQUEST_ROW, kind: "mfa_reset", details: {} }, error: null }, "rpc:access_decide": { data: REQUEST_ROW, error: null } });
+    expect(authAdmin.mfa.deleteFactor).not.toHaveBeenCalled();
+    expect(authAdmin.generateLink).not.toHaveBeenCalled();
+  });
+});
 
 describe("people and their roles (Panel 1 design §3)", () => {
   const caseFor = (method: Method, path: string) => PEOPLE_CASES.find((c) => c.method === method && c.path === path) as Case;
@@ -1450,13 +1580,13 @@ describe("the route walk: every admin route and method on disk is public by name
     expect([isPublic(r), isSessionOnly(r), ruleFor(r) !== undefined].filter(Boolean)).toHaveLength(1);
   });
 
-  test("the session-only list is exactly /me and /mfa", () => {
-    expect(SESSION_ONLY_ADMIN_ROUTES.map((r) => `${r.method} ${r.path}`).sort()).toEqual(["GET /api/admin/me", "POST /api/admin/mfa"]);
+  test("the session-only list is exactly /me, /mfa and, since Panel 1 M2, /password", () => {
+    expect(SESSION_ONLY_ADMIN_ROUTES.map((r) => `${r.method} ${r.path}`).sort()).toEqual(["GET /api/admin/me", "POST /api/admin/mfa", "POST /api/admin/password"]);
   });
 
-  test("the public allowlist is exactly sign-in and sign-out (D10; the banner's public read is on the reader site)", () => {
+  test("the public allowlist is exactly sign-in, sign-out and, since Panel 1 M2, opening a one-time link", () => {
     expect(PUBLIC_ADMIN_ROUTES.map((r) => `${r.method} ${r.path}`).sort()).toEqual(
-      ["POST /api/admin/login", "POST /api/admin/logout"].sort()
+      ["POST /api/admin/login", "POST /api/admin/logout", "POST /api/admin/welcome"].sort()
     );
   });
 
