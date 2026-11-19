@@ -217,6 +217,80 @@ export async function revoke(id: string, by: string, reason: string): Promise<As
   return row;
 }
 
+// ---- break-glass (M3; design §5) ----------------------------------------------------------------
+
+/**
+ * Starts a Super Admin's own break-glass: a super_admin row with is_break_glass, granted by
+ * themselves, ending `hours` later. The database allows it only for an active Super Admin starting
+ * their own (admin-1's guard), for at most 2 hours (access-1's CHECK, which compares the two times
+ * written here), and one at a time (the one-row index).
+ */
+export async function startBreakGlass(userId: string, reason: string, now: Date, hours: number): Promise<AssignmentRow> {
+  const row = await one<AssignmentRow>(
+    supabase
+      .from("role_assignments")
+      .insert({
+        user_id: userId,
+        role_key: "super_admin",
+        language: null,
+        section: null,
+        is_break_glass: true,
+        granted_by: userId,
+        approved_by: null,
+        reason,
+        granted_at: now.toISOString(),
+        expires_at: new Date(now.getTime() + hours * 3_600_000).toISOString(),
+      })
+      .select(ASSIGNMENT)
+      .single()
+  );
+  if (!row) throw new PeopleStoreError(500, "Break-glass was not recorded.");
+  return row;
+}
+
+/** Ends every live break-glass row of the person (early, or with their Super Admin role). */
+export function endBreakGlass(userId: string, by: string, reason: string, now: Date): Promise<AssignmentRow[]> {
+  return rows<AssignmentRow>(
+    supabase
+      .from("role_assignments")
+      .update({ revoked_at: now.toISOString(), revoked_by: by, revoke_reason: reason })
+      .eq("user_id", userId)
+      .eq("is_break_glass", true)
+      .is("revoked_at", null)
+      .gt("expires_at", now.toISOString())
+      .select(ASSIGNMENT)
+  );
+}
+
+/** Every live break-glass row, for the other Super Admins' alert. */
+export function activeBreakGlass(now: Date): Promise<AssignmentRow[]> {
+  return rows<AssignmentRow>(
+    supabase.from("role_assignments").select(ASSIGNMENT).eq("is_break_glass", true).is("revoked_at", null).gt("expires_at", now.toISOString())
+  );
+}
+
+// ---- the access review (M3; design §6, migration admin-2) --------------------------------------
+
+export interface ReviewRow {
+  id: string;
+  completed_by: string;
+  completed_at: string;
+  note: string | null;
+}
+
+/** The last completed review, or null if there has been none. */
+export const lastReview = () =>
+  one<ReviewRow>(supabase.from("access_reviews").select("id, completed_by, completed_at, note").order("completed_at", { ascending: false }).limit(1).maybeSingle());
+
+/** Records a completed review. Reviews are append-only (admin-2's triggers). */
+export async function recordReview(by: string, note: string | null, snapshot: unknown[]): Promise<ReviewRow> {
+  const row = await one<ReviewRow>(
+    supabase.from("access_reviews").insert({ completed_by: by, note, snapshot }).select("id, completed_by, completed_at, note").single()
+  );
+  if (!row) throw new PeopleStoreError(500, "The review was not recorded.");
+  return row;
+}
+
 /** Signs a staff member out everywhere (staff_end_sessions, migration admin-1). Returns the count. */
 export async function endSessions(userId: string): Promise<number> {
   const { data, error } = await supabase.rpc("staff_end_sessions", { p_user: userId });
