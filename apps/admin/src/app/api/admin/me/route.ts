@@ -36,9 +36,10 @@ export async function GET(request: NextRequest) {
   for (const key of PERMISSION_KEYS) {
     const act = decision(key, "act");
     if (act.allowed) permissions[key] = "act";
-    else if (decision(key, "read").allowed) permissions[key] = "read";
-    // The matrix's A: they may ask, and a second person decides (Panel 2's restore and correction).
+    // The matrix's A: they may ask, and a second person decides (Panel 2's restore and correction,
+    // Panel 1's people). Before read, because A also counts as read (Panel 1 approval, 19 Nov 2026).
     else if (act.code === "needs_approval") permissions[key] = "ask";
+    else if (decision(key, "read").allowed) permissions[key] = "read";
   }
 
   const client = await createRouteClient();

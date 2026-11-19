@@ -107,7 +107,8 @@ describe("the cell codes (design §2)", () => {
     ["R", true, false],
     ["M", true, false],
     ["Own", false, false],
-    ["A", false, false],
+    // A counts as read (Panel 1 approval, 19 Nov 2026); acting still needs a second person.
+    ["A", true, false],
   ] as const)("%s: read %s, act %s", (code, canRead, canAct) => {
     expect(read(withCode(code), "sync.view").allowed).toBe(canRead);
     expect(act(withCode(code), "sync.run").allowed).toBe(canAct);

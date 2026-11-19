@@ -16,12 +16,25 @@ import type { Mode } from "./decide";
  * holding the permission in any scope will do, which is the matrix's F for a Desk Editor (a
  * site-wide target would admit only unscoped grants, and a Desk Editor always has a language),
  * "media" an image in the library (loaded by the route: its desk), "new_media" the desk an upload
- * names.
+ * names, "person" a staff member (Panel 1: the route checks the caller's reach over the person's
+ * roles, services/people/reach.ts), "request" a Super Admin's request (Panel 1: decided by another).
  */
 export interface RouteRule {
   permissions: readonly PermissionKey[];
   mode: Mode;
-  target: "article" | "articles" | "new_article" | "story" | "new_story" | "site" | "none" | "author" | "media" | "new_media";
+  target:
+    | "article"
+    | "articles"
+    | "new_article"
+    | "story"
+    | "new_story"
+    | "site"
+    | "none"
+    | "author"
+    | "media"
+    | "new_media"
+    | "person"
+    | "request";
   /**
    * Only a named staff member may use the route: the shared password is refused, whatever its fixed
    * list holds (Panel 2's Desk, design §0: it cannot be an author, an editor or an approver).
@@ -200,5 +213,48 @@ export const ADMIN_ROUTE_RULES = {
   },
   "/api/admin/desk/stories/[id]/kill": {
     POST: { permissions: ["article.edit"], mode: "act", target: "story", staffOnly: true },
+  },
+  // ---- Panel 1, Administration (design §3 and §4): staff only. user.manage and role.assign are A
+  // for a Super Admin (twoPerson: they pass the gate to ask, or to remove access) and S for a
+  // Managing Editor (up to Desk Editor in their own scope); the route applies the reach rules
+  // (services/people/reach.ts) once it has loaded the person.
+  "/api/admin/people": {
+    GET: { permissions: ["user.manage"], mode: "read", target: "none", staffOnly: true },
+  },
+  "/api/admin/people/[id]": {
+    GET: { permissions: ["user.manage"], mode: "read", target: "person", staffOnly: true },
+    // A new display name.
+    PATCH: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+  },
+  "/api/admin/people/[id]/suspend": {
+    POST: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+  },
+  "/api/admin/people/[id]/reactivate": {
+    POST: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+  },
+  "/api/admin/people/[id]/sign-out": {
+    POST: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+  },
+  "/api/admin/people/[id]/roles": {
+    POST: { permissions: ["role.assign"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+  },
+  "/api/admin/people/[id]/roles/[assignmentId]/renew": {
+    POST: { permissions: ["role.assign"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+  },
+  "/api/admin/people/[id]/roles/[assignmentId]/revoke": {
+    POST: { permissions: ["role.assign"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+  },
+  // A Super Admin's requests: the list, and a second Super Admin's decision (or the asker's cancel).
+  "/api/admin/people/requests": {
+    GET: { permissions: ["role.assign"], mode: "read", target: "none", staffOnly: true },
+  },
+  "/api/admin/people/requests/[requestId]/approve": {
+    POST: { permissions: ["role.assign"], mode: "act", target: "request", staffOnly: true, twoPerson: true },
+  },
+  "/api/admin/people/requests/[requestId]/decline": {
+    POST: { permissions: ["role.assign"], mode: "act", target: "request", staffOnly: true, twoPerson: true },
+  },
+  "/api/admin/people/requests/[requestId]/cancel": {
+    POST: { permissions: ["role.assign"], mode: "act", target: "request", staffOnly: true, twoPerson: true },
   },
 } as const satisfies Record<string, Partial<Record<Method, RouteRule>>>;
