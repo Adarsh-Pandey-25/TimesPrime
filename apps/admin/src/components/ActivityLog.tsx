@@ -5,6 +5,7 @@ import { RefreshCw, History, Inbox, ChevronLeft, ChevronRight } from "lucide-rea
 import { useTheme } from "@timesprime/ui/ThemeContext";
 import type { AdminAction, AdminLog } from "@timesprime/shared/types";
 import { ACTION_LABELS, ACTION_ICONS } from "./actionLabels";
+import { buttonTone, cardTone } from "./ui/styles";
 
 interface LogsResponse {
   logs: AdminLog[];
@@ -102,7 +103,7 @@ export default function ActivityLog() {
   return (
     <div
       className={`rounded-2xl border p-6 sm:p-8 shadow-sm transition-colors space-y-5 ${
-        isDark ? "border-[#34383f] bg-[#25282d]" : "border-slate-200 bg-white"
+        cardTone
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -114,8 +115,8 @@ export default function ActivityLog() {
           <button
             onClick={fetchLogs}
             disabled={loading}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
-              isDark ? "border-[#383d45] text-slate-200 hover:bg-[#2f333a]" : "border-slate-200 text-slate-700 hover:bg-slate-100"
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+              buttonTone
             }`}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -180,8 +181,8 @@ export default function ActivityLog() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                isDark ? "border-[#383d45] text-slate-200 hover:bg-[#2f333a]" : "border-slate-200 text-slate-700 hover:bg-slate-100"
+              className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                buttonTone
               }`}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
@@ -190,8 +191,8 @@ export default function ActivityLog() {
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                isDark ? "border-[#383d45] text-slate-200 hover:bg-[#2f333a]" : "border-slate-200 text-slate-700 hover:bg-slate-100"
+              className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                buttonTone
               }`}
             >
               Next

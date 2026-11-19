@@ -4,7 +4,7 @@
  */
 
 const mockPush = jest.fn();
-jest.mock("next/navigation", () => ({ useRouter: () => ({ push: mockPush, refresh: jest.fn() }) }));
+jest.mock("next/navigation", () => ({ useRouter: () => ({ push: mockPush, refresh: jest.fn() }), usePathname: () => "/admin" }));
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ThemeProvider } from "@timesprime/ui/ThemeContext";

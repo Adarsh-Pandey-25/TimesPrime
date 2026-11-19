@@ -1833,6 +1833,16 @@ phases were done:
    - **a new story, the media library and the authors:** the same page head and back link, forms
      in cards with their main button last, Retire in red.
 
+   The dashboard, sign-in and the top bar (`fix/admin-ui-dashboard`; the Desk was PR #54):
+   - **the dashboard (`/admin`):** the numbers (the live statistics beside the 7-day retention, now
+     a card like the others); the articles list; publishing (a new article beside the breaking-news
+     banner); the news sync; the activity log. The older widgets take the kit's colours;
+   - **sign-in and the welcome page:** one card, the same fields and button, the name above it;
+   - **the top bar:** the page's own link is marked; on a phone it takes three rows (the name and
+     the controls, the links, who is signed in) instead of running off the screen;
+   - **focus:** a field that draws its own focus ring shows that one alone (the global ring moved
+     into the base layer, `apps/admin/src/app/globals.css`).
+
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
 

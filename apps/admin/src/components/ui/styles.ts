@@ -88,3 +88,28 @@ export const tone = {
 export const panel =
   "space-y-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-[#2b2f36] dark:bg-[#202327]";
 export const panelTitle = "text-sm font-bold";
+
+// The dashboard's older widgets (Panel 0) keep their own shapes and switched colours with the theme
+// in code. These are those colours with the kit's look, light and dark in one string each.
+/** A widget's card. */
+export const cardTone = "border-slate-200 bg-white dark:border-[#2b2f36] dark:bg-[#202327]";
+/** A widget's small outlined button. */
+export const buttonTone =
+  "border-slate-300 text-slate-700 shadow-sm not-disabled:hover:-translate-y-px not-disabled:hover:border-slate-400 not-disabled:hover:bg-slate-50 " +
+  "not-disabled:hover:shadow-md dark:border-[#3a3f47] dark:text-slate-200 dark:not-disabled:hover:bg-[#2b2f36]";
+/** A widget's field. */
+export const fieldTone =
+  "border-slate-300 bg-white text-slate-900 hover:border-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 " +
+  "dark:border-[#3a3f47] dark:bg-[#25282d] dark:text-white dark:hover:border-[#4b515b] dark:focus:border-blue-400";
+/** A widget's own window (the articles list's edit and preview). */
+export const windowTone = "bg-white text-slate-900 dark:bg-[#202327] dark:text-slate-100";
+
+// Sign-in and the welcome page a one-time link opens: one card in the middle of the screen.
+export const authPage = "flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 px-4 py-10 text-slate-900 dark:bg-[#1a1c1e] dark:text-slate-100";
+export const authCard =
+  "w-full max-w-sm space-y-6 rounded-2xl border border-slate-200 bg-white p-8 shadow-lg dark:border-[#2b2f36] dark:bg-[#202327]";
+export const authIcon =
+  "flex h-11 w-11 items-center justify-center rounded-xl border border-blue-600/20 bg-blue-600/10 text-blue-700 dark:text-blue-300";
+/** The larger field and the full-width main button of those two pages. */
+export const fieldLarge = field.replace("px-3 py-2", "px-3.5 py-2.5");
+export const buttonBlock = buttonPrimary.replace("px-3 py-1.5", "w-full px-4 py-2.5");

@@ -61,11 +61,15 @@ html, body {
   }
 }
 
-/* Accessible focus ring for keyboard navigation */
-:focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: 2px;
-  border-radius: 2px;
+/* Accessible focus ring for keyboard navigation. In the base layer, so that a field that draws its
+   own ring (the kit's `focus:outline-none focus:ring-2`, components/ui/styles.ts) shows that one
+   alone; unlayered, this rule beat every utility and a focused field showed two rings. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
 }
 
 /* Brand-colored text selection */

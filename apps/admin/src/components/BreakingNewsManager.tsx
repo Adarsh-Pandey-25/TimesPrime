@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Radio, Trash2, Megaphone } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
+import { buttonTone, cardTone, fieldTone } from "./ui/styles";
 
 interface BreakingNewsItem {
   id: string;
@@ -156,7 +157,7 @@ export default function BreakingNewsManager() {
   return (
     <div
       className={`rounded-2xl border p-6 sm:p-8 shadow-sm transition-colors space-y-6 ${
-        isDark ? "border-[#34383f] bg-[#25282d]" : "border-slate-200 bg-white"
+        cardTone
       }`}
     >
       <div className="flex items-center justify-between gap-4">
@@ -167,8 +168,8 @@ export default function BreakingNewsManager() {
         <button
           onClick={fetchItems}
           disabled={loading}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
-            isDark ? "border-[#383d45] text-slate-200 hover:bg-[#2f333a]" : "border-slate-200 text-slate-700 hover:bg-slate-100"
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+            buttonTone
           }`}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -246,9 +247,7 @@ export default function BreakingNewsManager() {
               onChange={(e) => setText(e.target.value)}
               placeholder="Enter breaking news text..."
               className={`w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-                isDark
-                  ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                  : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
+                fieldTone
               }`}
             />
             <div className="text-right text-[11px] font-medium text-slate-500 dark:text-slate-400">
@@ -262,9 +261,7 @@ export default function BreakingNewsManager() {
               value={expiryHours === null ? "never" : String(expiryHours)}
               onChange={(e) => setExpiryHours(e.target.value === "never" ? null : Number(e.target.value))}
               className={`rounded-xl border px-3 py-2.5 text-sm font-medium focus:outline-none transition-colors ${
-                isDark
-                  ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500"
-                  : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
+                fieldTone
               }`}
             >
               {EXPIRY_OPTIONS.map((opt) => (

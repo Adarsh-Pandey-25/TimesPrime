@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Clock3, CalendarClock, Database, TimerReset } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
 import { NEWS_REFRESH_INTERVAL_MINUTES } from "@timesprime/shared/config/newsRefresh";
+import { cardTone } from "./ui/styles";
 
 interface StatsResponse {
   totalArticles: number;
@@ -42,7 +43,7 @@ interface StatTileProps {
 
 function StatTile({ icon, label, value, isDark }: StatTileProps) {
   return (
-    <div className={`rounded-xl border p-3.5 space-y-1 ${isDark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50"}`}>
+    <div className={`rounded-xl border p-3.5 space-y-1 ${"border-slate-200 bg-slate-50 dark:border-[#2b2f36] dark:bg-[#25282d]"}`}>
       <span className="flex items-center gap-1.5 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
         {icon}
         {label}
@@ -120,7 +121,7 @@ export default function SyncDashboard() {
   return (
     <div
       className={`rounded-2xl border p-6 sm:p-8 shadow-sm transition-colors space-y-5 ${
-        isDark ? "border-[#34383f] bg-[#25282d]" : "border-slate-200 bg-white"
+        cardTone
       }`}
     >
       <div className="flex items-center justify-between gap-4">

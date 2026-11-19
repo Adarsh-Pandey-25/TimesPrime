@@ -6,7 +6,7 @@
  */
 
 const mockPush = jest.fn();
-jest.mock("next/navigation", () => ({ useRouter: () => ({ push: mockPush, refresh: jest.fn() }) }));
+jest.mock("next/navigation", () => ({ useRouter: () => ({ push: mockPush, refresh: jest.fn() }), usePathname: () => "/admin" }));
 // Each widget renders its name, so a test can see which ones the dashboard shows.
 jest.mock("@/components/ArticlesTable", () => ({ __esModule: true, default: () => "[ArticlesTable]" }));
 jest.mock("@/components/CategoryStatsCard", () => ({ __esModule: true, default: () => "[CategoryStatsCard]" }));

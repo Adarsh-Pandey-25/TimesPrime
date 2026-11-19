@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, AlertTriangle, KeyRound } from "lucide-react";
-import { useTheme } from "@timesprime/ui/ThemeContext";
 import { landingPath } from "@timesprime/shared/lib/staffLanding";
 import type { AdminMe } from "@timesprime/shared/types";
+import { authCard, authIcon, authPage, buttonBlock, fieldLarge } from "@/components/ui/styles";
 
 // Sign-in (Panel 0). A staff account signs in with email and password, then the second factor:
 // set up the first time (QR code and secret, then one code), a code every time after. The shared
@@ -33,8 +33,6 @@ async function post(url: string, body: unknown): Promise<{ ok: boolean; status: 
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
 
   const [step, setStep] = useState<Step>("staff");
   const [email, setEmail] = useState("");
@@ -44,9 +42,8 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const fieldClass = `w-full rounded-xl border p-3 text-sm font-medium focus:outline-none transition-colors ${
-    isDark ? "border-[#383d45] bg-[#1a1c1e] text-white focus:border-blue-500" : "border-slate-200 bg-slate-50 text-slate-900 focus:border-blue-600"
-  }`;
+  // The same card, fields and button as the welcome page (components/ui/styles.ts).
+  const fieldClass = `${fieldLarge} font-medium`;
   const labelClass = "block text-xs font-semibold text-slate-600 dark:text-slate-400";
 
   // Signed in: to the page of the person's work (landingPath; the owner's choice, 18 Nov 2026), the
@@ -134,28 +131,19 @@ export default function AdminLoginPage() {
   });
 
   const submitButton = (idle: string, busy: string) => (
-    <button
-      type="submit"
-      disabled={loading}
-      className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-    >
+    <button type="submit" disabled={loading} className={buttonBlock}>
       {loading ? busy : idle}
     </button>
   );
 
   return (
-    <div
-      className={`min-h-screen flex items-center justify-center px-4 transition-colors duration-200 ${
-        isDark ? "bg-[#1a1c1e] text-slate-100" : "bg-slate-50 text-slate-900"
-      }`}
-    >
-      <div
-        className={`w-full max-w-sm rounded-2xl border p-8 shadow-sm space-y-6 ${
-          isDark ? "border-[#34383f] bg-[#25282d]" : "border-slate-200 bg-white"
-        }`}
-      >
+    <div className={authPage}>
+      <p className="font-serif text-lg font-extrabold">
+        TimesPrime <span className="text-blue-600 dark:text-blue-400">Admin</span>
+      </p>
+      <div className={authCard}>
         <div className="flex flex-col items-center space-y-2 text-center">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-600/10 text-red-600 border border-red-600/20">
+          <div className={authIcon}>
             {step === "code" || step === "enroll" ? <KeyRound className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
           </div>
           <h1 className="font-serif text-xl font-extrabold">
