@@ -203,7 +203,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
-| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PR #48 and the screens) built; M4 (retiring the shared password) next | — | — |
+| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PRs #48 and #49) built; M4 (the shared password retired) built; the definition of done next | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
@@ -310,7 +310,8 @@ backlog entry (`docs/OPERATIONS.md`) or to the later panel that will do it.*
 - **Code:**
   - `packages/server/src/auth/`: `requirePermission.ts` (the gate), `decide.ts` (the rule), `scope.ts`,
     `adminRoutePolicy.ts` (every route's rule), `staffSession.ts`, `supabaseServer.ts`, `mfa.ts`, and
-    `adminSession.ts` (the shared password, with its end date);
+    ~~`adminSession.ts` (the shared password, with its end date)~~, deleted when the shared password
+    was retired (Panel 1, M4);
   - `packages/server/src/repositories/staff.ts` and `auditLog.ts`; `apps/admin/src/app/api/admin/me/route.ts` and `mfa.ts`;
   - `packages/shared/src/config/permissions.ts`, `apps/admin/src/proxy.ts`;
   - `apps/admin/src/app/admin/login/page.tsx` and `apps/admin/src/app/admin/page.tsx` (the dashboard);
@@ -338,7 +339,7 @@ Panel 0 defines all 15 roles of the plan's matrix ([the access rules](#access-ru
 | Legal/Compliance | Unpublishes an article in any scope (takedown, F); reads the articles list and the activity log |
 | Analyst, Security Lead, Privacy Officer | Read what their cells allow (stats, sync status, health, the activity log) |
 | The owner | Applies the SQL, creates the first Super Admins by SQL, and is the way back in ([runbook](OPERATIONS.md#staff-access-switching-on-panel-0-and-getting-back-in)) |
-| The shared password | During the cut-over only: a fixed list of today's editorial and sync work, recorded as `legacy:shared-password` |
+| The shared password *(retired in Panel 1's M4)* | During the cut-over only: a fixed list of today's editorial and sync work, recorded as `legacy:shared-password`. Its audit rows stay in the log |
 
 #### Features and functionality
 
@@ -365,8 +366,8 @@ Panel 0 defines all 15 roles of the plan's matrix ([the access rules](#access-ru
 - The activity log reads that audit log; it cannot be cleared. The shared-password era's
   `admin_logs` stays readable at `?source=legacy`.
 - The cron's runs are logged as `system:cron`.
-- The shared password ends by itself at 00:00 IST on 1 January 2027; `ADMIN_LEGACY_LOGIN=off` ends
-  it sooner.
+- ~~The shared password ends by itself at 00:00 IST on 1 January 2027; `ADMIN_LEGACY_LOGIN=off` ends
+  it sooner.~~ *Retired in Panel 1's M4:* staff accounts are the only way in.
 
 #### Access permissions and authorization rules
 
@@ -411,7 +412,7 @@ suspension applies to the next request.
 - **Two admins:** a privileged role (Super Admin, Managing Editor, Legal/Compliance, Privacy
   Officer) is granted only by two different active Super Admins. The database trigger enforces
   this. The only exception is the owner's bootstrap script, as `postgres`.
-- **The shared password:** it may use only `article.view_admin`, `article.create`, `article.edit`,
+- **The shared password** *(retired in Panel 1's M4)***:** it could use only `article.view_admin`, `article.create`, `article.edit`,
   `article.unpublish`, `article.bulk_action`, `article.publish_direct`, `breaking_banner.manage`,
   `sync.run`, `sync.view` and `stats.view`. It never holds `user.manage`, `role.assign`, an audit or
   settings permission, or the purge.
@@ -491,7 +492,8 @@ Definition of done (CLAUDE.md), at the pause:
   - break-glass grants with their alert;
   - resetting a lost factor in the app;
   - the access review;
-  - removing the shared password, after which `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` go.
+  - removing the shared password, after which `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` go
+    (*done*, Panel 1's M4).
 - **Panel 2:**
   - Own (no `created_by` yet);
   - the reviewed publish path and post-hoc review of direct publishes;
@@ -522,7 +524,8 @@ route tested allowed and denied; PR #43), and M1b, the screens (PR #44). **M2a**
 backend: adding a person, one-time "set your password" links, resetting a lost second factor, and
 the welcome and password routes (PR #46); and **M2b**, their screens (PR #47). **M3a**, the
 backend of break-glass, the access review and what needs a look (migration admin-2; PR #48), and
-**M3b**, their screens. M4 (retiring the shared password) follows.
+**M3b**, their screens (PR #49). **M4**: the shared admin password is retired. Panel 1's definition
+of done is checked next.
 
 #### Panel
 
@@ -689,8 +692,7 @@ needs two people, and removing it needs one.
 - **Nobody changes their own access** (403 `own_access`): no grant, renewal, rename, suspension,
   reactivation or revocation for oneself, and no decision on a request about oneself.
 - **The last active Super Admin** cannot be suspended or lose the role (409 `last_super_admin`).
-- **Refusals:** 401 with no session; 403 `forbidden`, `mfa_required`, `staff_only` (the shared
-  password), `own_access`, `four_eyes` or `not_yours`; 409 for a state that does not allow it
+- **Refusals:** 401 with no session; 403 `forbidden`, `mfa_required`, `own_access`, `four_eyes` or `not_yours`; 409 for a state that does not allow it
   (`holds`, `suspended`, `revoked`, `decided`, `lapsed`); 400 for a bad body (an unknown role, a
   desk role with no language, an unknown section, days other than 30/90/180/365, no reason).
 - **Every audit row** is about the person (`entity_type` `staff`, the person's id), with the role's
@@ -733,7 +735,14 @@ not stored as an outcome, and it cannot be decided.
 
 #### Known limits and not yet built
 
-- **M4:** retiring the shared password. Then Panel 1's definition of done, and the walk-through
+- **The shared admin password is retired** (M4): `adminSession.ts`, the proxy's and the routes'
+  legacy branches, `decideLegacy` and `LEGACY_PERMISSIONS`, the `staffOnly` rule flag and the
+  `staff_only` refusal (their only use), the sign-in page's option and the dashboard's notice, and
+  the variables in `.env.example`, `.env.test` and `deploy/env/admin.env.example` are gone. The login
+  route takes `{ email, password }` only (a password alone: 400); an old shared-password cookie is
+  no session (401). Owner step: delete the variables from the root `.env` and the server
+  (OPERATIONS.md, staff-access B6).
+- **Next:** Panel 1's definition of done, and the walk-through
   with the owner and Vivek (with the roles-and-testing document the owner will ask for).
 - **Owner action for M3:** done. admin-2 is applied (19 Nov 2026, its check passed).
 - **Owner action for M2:** done. Supabase's email-link expiry is 1 hour (19 Nov 2026; OPERATIONS.md,
@@ -829,7 +838,7 @@ not yet Done. Started before Panel 1 at the owner's request (17 Nov 2026);
   - `database/migrations/2026-11-17-desk-1-stories.sql`;
   - the routes in `apps/admin/src/app/api/admin/desk/`, with their shared steps in
     `desk/_lib/desk.ts`;
-  - their rules (all `staffOnly`) in `packages/server/src/auth/adminRoutePolicy.ts`.
+  - their rules in `packages/server/src/auth/adminRoutePolicy.ts`.
 
 #### Purpose
 
@@ -861,7 +870,7 @@ aggregator's `articles` and its 7-day purge.
   - Each move checks: the move's own permission; four-eyes and the checklist on approval; the
     embargo on publishing; a reason code and a note on a takedown; the lock on a save.
   - Every change is audited, attempted then outcome.
-  - The shared password is refused (`staff_only`).
+  - The shared password was refused (`staff_only`) *(retired in Panel 1's M4)*: staff accounts are now the only way in, everywhere.
 - **Built: the two-person restore.**
   - A holder of `article.restore` (A: Desk Editor, Managing Editor, Legal) asks, with a reason.
   - A different holder decides it, in the story's desk: approved puts the story back live with its
@@ -888,7 +897,7 @@ aggregator's `articles` and its 7-day purge.
     - asking for and deciding a restore;
     - the history.
   - **Shown, never decided:** every button is the server's to allow, and the screen shows the server's
-    answer, refusals included. The shared password is told to sign in with a staff account.
+    answer, refusals included.
   - **JS:** the story screen carries Tiptap, about 1.05 MB of raw JS. It is back-office only, under
     its own budget; no reader page loads it.
 - **Built (M2, third part): the story's revisions, on its screen.**
@@ -1113,7 +1122,7 @@ embargo 409.
 | `packages/server/src/services/desk/fourEyes.test.ts` | A third person may approve | The creator and every editor since the last approval may not; a breaking story's publisher may not review it |
 | `packages/server/src/auth/decide.test.ts` | Own allows the caller's own story in scope | Another's story, an ownerless one, one out of scope |
 | `packages/server/src/repositories/stories.test.ts` | Writes go through the `desk_*` functions; lists stay in scope | A malformed scope matches nothing; a moved story answers 409 |
-| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds, opens with no unsaved changes, and keeps unsaved text when the details are saved; two revisions compared field by field and word by word; a revision brought back fills the editor, and only Save sends it, as a new revision; a live story links to its page; the preview opens in a new tab and shows the last saved version in the reader's view, in Hindi for a Hindi story, and says when it is the live version; the schedule field says when the server publishes; a Desk Editor publishes a correction and sees the note readers see; a Sub-editor asks for one; an open correction request names itself, and approving it publishes the note | An empty desk; a refusal shown; the shared password; no session; no `article.edit` (read-only, and no Bring back); a story not found; unsaved changes kept when bringing one back is declined; no link before publication; the preview showing the server's refusal, and a story with no text; no Correction section without `correction.publish` |
+| `apps/admin/src/components/desk/desk.test.tsx` | The list shows the desk's stories (Hindi marked `lang`), New story creates and opens; the story screen shows the checklist and the moves the person holds, opens with no unsaved changes, and keeps unsaved text when the details are saved; two revisions compared field by field and word by word; a revision brought back fills the editor, and only Save sends it, as a new revision; a live story links to its page; the preview opens in a new tab and shows the last saved version in the reader's view, in Hindi for a Hindi story, and says when it is the live version; the schedule field says when the server publishes; a Desk Editor publishes a correction and sees the note readers see; a Sub-editor asks for one; an open correction request names itself, and approving it publishes the note | An empty desk; a refusal shown; no session; no `article.edit` (read-only, and no Bring back); a story not found; unsaved changes kept when bringing one back is declined; no link before publication; the preview showing the server's refusal, and a story with no text; no Correction section without `correction.publish` |
 | `e2e/admin-access.spec.ts` | Signed out, `/admin/desk`, a story's screen, its preview, the authors and the media library go to sign-in; the Desk API calls answer 401, an image's original among them | (all refused) |
 | `packages/server/src/repositories/stories.test.ts` (`getPublishedStory`) | One published story past its embargo, with the reader's columns only; the published revision; active bylines in order, in the story's language | No such story; another story's row; a draft; a story taken down; one under embargo; a revision that is not the published one, or another story's; a number that cannot be a story; a database error (thrown, not a 404) |
 | `packages/editor/src/render.test.tsx` | Every block of the design, drawn by the schema; a site link followed, an https one nofollow; Hindi text as it is; every node and mark of the schema draws only allowed tags | `javascript:`, `data:` and plain-http links; an embed from another site; unknown nodes, marks and attributes; markup in the text (escaped); anything but a document; nesting past the limit; no h1 |
@@ -1161,7 +1170,7 @@ embargo 409.
 | `packages/ui/src/StoryArticle.test.tsx` (photos) | The photo, round, before the byline, from its square rendition, decorative | A photo the page was not given; an address that is not https or a site path |
 | `packages/editor/src/renderImages.test.tsx` (galleries), `desk.test.tsx` (galleries, photos) | A gallery's images together; the schema holds two to twelve images; Gallery adds the chosen images in order with their crop, which Save sends, from the button below the images as from the one above; the Authors page chooses a photo and saves it | A gallery of one, of thirteen, or with anything but images; an image whose rights are not cleared cannot be a photo |
 | `packages/shared/src/config/desk.test.ts`, `access.test.ts`, `desk.test.tsx` (the desk's review steps) | Out of review, Submit and Send back are the only `deskOnly` steps; a Sub-editor passes a story on; a Writer still submits their draft and may kill their own story | A Writer passing their own story on from review, or sending it back (403, `article.submit`), and not offered either on screen |
-| `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope, no MFA and the shared password; four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
+| `apps/admin/src/app/api/admin/access.test.ts` | Every Desk route for its least-privileged holder in scope, with its audit pair | No session, no grants, expired, wrong scope and no MFA (and, until Panel 1's M4, the shared password); four-eyes, the checklist, Publish Guard, the embargo, takedown reasons, Own, send-back's second permission, the lock and take-over, the list's scope |
 
 The database's own rules (immutable revisions, append-only history, RLS) are checked by the owner
 with the queries at the end of the migration (definition of done, item 7).
@@ -1174,7 +1183,7 @@ item, against the code:
 | # | Item | Status |
 |---|---|---|
 | 1 | Every feature works; this entry matches the code | **Met in code and tests, and the core flow walked by the owner** (18 Nov 2026, on a laptop against the real database, a Writer and a Desk Editor): an image uploaded by the Writer; a story written, the image added, its slug set and submitted; passed to the desk; approval refused by the checklist while the image's rights were not cleared, then cleared and approved by the other person; published; the reader's page with the image's rendition; a correction; taken down, with the alert; every step in the audit log. **Then authors' photos and a gallery, walked the same day:** two images uploaded, their rights cleared, their renditions made by the worker; an author added with a photo; the Writer's story with that author as its byline and a gallery of the two images; passed to the desk, approved and published by the Desk Editor; the reader's page with the round photo beside the byline and the gallery, drawn from renditions (AVIF and WebP; the original's address nowhere on the page); then taken down, the author and the images retired. **Not walked yet:** scheduling, the two-person restore |
-| 2 | Server-side permission on every route and action; allowed and denied tests | **Done.** Every Desk route has a rule; `access.test.ts` walks every route on disk and tests each for its least-privileged holder in scope, no session, no grants, expired, no MFA, the wrong desk and the shared password |
+| 2 | Server-side permission on every route and action; allowed and denied tests | **Done.** Every Desk route has a rule; `access.test.ts` walks every route on disk and tests each for its least-privileged holder in scope, no session, no grants, expired, no MFA and the wrong desk (and, until Panel 1's M4, the shared password) |
 | 3 | Privileged actions audited; MFA where the plan says | **Done in code.** Every Desk write writes `audit_log` first (attempted, then outcome) and is refused with 503 if it cannot; every Desk write needs `aal2`; the worker audits as `system:scheduler`. The audit log's own database rules are Panel 0's, verified with its runbook |
 | 4 | `npm run verify` and CI green; routes, JS and CSS reported | **Done.** Every PR green, with its routes, JS budget and CSS bytes in its report |
 | 5 | SQL in migrations with a rollback, listed as owner actions | **Done.** desk-1 to desk-8, each with its rollback (desk-6 needs none), each applied by the owner and its check passed (17 and 18 Nov 2026) |

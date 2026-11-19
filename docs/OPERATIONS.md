@@ -37,9 +37,7 @@ real values.** (Until 2026-11-04 the local file was `.env.local` at the root on 
 | `SUPABASE_SERVICE_ROLE_KEY` | admin, worker (web until R12-03's gate) | Bypasses RLS for server writes. Never expose to the client. The reader site writes nothing (R12-03), so it drops the key once `database/policies.sql` is applied and checked |
 | `NEWSDATA_API_KEY` | worker, admin | NewsData.io: the worker's refresh and the back office's Sync now. The reader site reads only the database (R1-12) and holds no key. Without it the refresh exits 1 and the feed stays as it was; there are no mock articles (B-04) |
 | `ANTHROPIC_API_KEY` | worker, admin; web if the chat is on | Category classification (the refresh and Sync now), and `/api/chat` when `NEXT_PUBLIC_AI_CHAT_ENABLED` is `1` |
-| `ADMIN_PASSWORD` | admin | The shared admin password, compared in constant time. Unset (or without `ADMIN_SESSION_SECRET`), login answers 503 and `/admin` stays locked |
-| `ADMIN_SESSION_SECRET` | admin | HMAC key signing the 12-hour admin session cookie; changing it signs every admin out |
-| `ADMIN_LEGACY_LOGIN` | admin | The two variables above are the shared password, retired in code at 2027-01-01 00:00 IST. Set this to `off` to retire it sooner |
+| ~~`ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `ADMIN_LEGACY_LOGIN`~~ | — | **Retired** with the shared admin password (Panel 1, M4): no code reads them. Delete them from the root `.env` and the server's `.env.admin` (owner; [B6](#b6-the-shared-password-is-retired)) |
 | `UPSTASH_REDIS_REST_URL` | web, admin | The shared cache and rate limits. On the server: the local Redis's REST proxy, `http://redis-rest`, set by `deploy/compose.yml`. Unset locally: an in-process cache |
 | `UPSTASH_REDIS_REST_TOKEN` | web, admin | The proxy's token: the same value as `SRH_TOKEN` in `.env.redis` |
 | `NEXT_PUBLIC_SENTRY_DSN` | build | Error reporting (Sentry, EU region). Not a secret; `NEXT_PUBLIC_` so it reaches the browser. A build argument |
@@ -70,7 +68,7 @@ real values.** (Until 2026-11-04 the local file was `.env.local` at the root on 
   |---|---|---|
   | `.env.shared` | web, admin, worker | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the worker is not a Next build, so it reads them at run time), `UPSTASH_REDIS_REST_TOKEN`, `NEXT_PUBLIC_SENTRY_DSN`; `MEDIA_BUCKET` and `MEDIA_PUBLIC_BASE` once the Desk's images are set up |
   | `.env.web` | web | `SUPABASE_SERVICE_ROLE_KEY`, only until R12-03's gate; then the line is deleted |
-  | `.env.admin` | admin | `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `ADMIN_LEGACY_LOGIN`, `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY` |
+  | `.env.admin` | admin | `SUPABASE_SERVICE_ROLE_KEY`, `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY` |
   | `.env.worker` | worker | `SUPABASE_SERVICE_ROLE_KEY`, `NEWSDATA_API_KEY`, `ANTHROPIC_API_KEY`; `NEWS_REFRESH_BATCHED` once the dry run passes |
   | `.env.redis` | redis, redis-rest | `REDIS_PASSWORD`, `SRH_TOKEN`, `SRH_CONNECTION_STRING` (`redis://:<REDIS_PASSWORD>@redis:6379`) |
   | `.env.edge` | nginx | `READER_ORIGIN_HOST`, `ADMIN_HOST`, `ORIGIN_SECRET` (also CloudFront's custom origin header) |
@@ -660,9 +658,9 @@ Candidates, based on failure modes already observed in this system:
 - **Refresh not running** — stale feed. Check `lastSyncAt` in `/api/admin/stats`
   against the worker's 30-minute schedule (`npm run job -- refresh-news`, started by
   the scheduler; its exit code is 1 when a run failed).
-- **Admin lockout** — `ADMIN_PASSWORD` or `ADMIN_SESSION_SECRET` unset makes
-  the shared-password login return 503 and every `/admin/*` path redirect to the
-  login page. Staff accounts (Panel 0) have their own recovery: `staff-access.md`.
+- **Admin lockout** — staff accounts are the only way in since the shared password
+  was retired (Panel 1, M4). Recovery: [getting back in](#getting-back-in-and-other-emergencies)
+  (the owner's Supabase dashboard and SQL editor never depend on the app).
 - **Restoring the database** — schema from `database/schema.sql`, then
   `database/policies.sql`.
 
@@ -1000,8 +998,9 @@ least one year).
 
 ##### B2. Run the code
 
-Deploy `main` (with Panel 0 merged) on AWS. No new environment variable is needed. `ADMIN_LEGACY_LOGIN` stays unset (the shared password stays
-on).
+Deploy `main` (with Panel 0 merged) on AWS. No new environment variable is needed. *Since Panel
+1's M4 the shared password is gone: the checks below that use it no longer apply; sign in with a
+staff account instead (B4).*
 
 **Check.**
 - `/admin/login` shows the staff form (email and password) and "Use the shared admin password".
@@ -1093,22 +1092,21 @@ Its history stays readable in the app at `GET /api/admin/logs?source=legacy` (`a
 
 **Undo.** `GRANT ALL ON public.admin_logs TO service_role;` (in the file).
 
-##### B6. Only then: turning the shared password off
+##### B6. The shared password is retired
 
-Turn it off only when all three hold:
-- two Super Admins have signed in with their second factor, in production (after the AWS deployment);
-- Panel 1 is done, so editorial staff have their own accounts and roles;
-- you decide to.
+*Done in code in Panel 1's M4 (the owner's decision 6, 19 Nov 2026):* two Super Admins sign in with
+their second factor, and Panel 1 grants roles in the app. The shared password, its cookie and its
+sign-in option are gone; there is no switch to bring them back.
 
-Set `ADMIN_LEGACY_LOGIN=off` in the app's environment (on AWS, where its variables are configured),
-then restart or redeploy it: the variable is read by the running server.
+**Your step:** delete `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET` and `ADMIN_LEGACY_LOGIN` (and the
+unused `ADMIN_SECRET_TOKEN`, if it is there) from the root `.env` on the laptop and from the
+server's `/opt/timesprime/env/.env.admin`, then restart the back office.
 
-**Check.** The shared password gets 403 "The shared admin password has been retired". An old
-shared-password cookie gets 401 from the proxy.
+**Check.** `/admin/login` shows only the staff form. A body with only a password is refused (400),
+and an old shared-password cookie gets 401 from the proxy.
 
-**Undo.** Remove the variable and restart. This works only until 00:00 IST on 1 January 2027. After
-that, the shared password is refused by the code itself and no setting brings it back. The last
-step is a code change that deletes it, with `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` (design §7).
+**Undo.** None in the app: it would be a code change. The way in that never depends on the app stays
+the owner's (below).
 
 ---
 
@@ -1497,7 +1495,7 @@ Every failure of the system on this path reaches Sentry with `tags.source = supa
 | "This action needs a second approver…" (403, `needs_approval`) | The permission is A (two people) in the plan's matrix, and approvals come with a later panel | — | Nothing to fix: refused by design until then |
 | **"The audit log could not be written, so nothing was changed."** (503) | The `attempted` row failed, so the change was refused (owner decision Q2) | Sentry `beginAudit`. `SELECT has_table_privilege('service_role', 'public.audit_log', 'INSERT');` must be `true`. Then `SELECT public.audit_verify_chain();` | Restore the grant (re-apply access-1) or the database. Retry the action: nothing was half-done |
 | "Could not check your permissions. Nothing was changed." (503) | The staff record could not be read on an admin request | Sentry `loadStaffRecord` | As for "Could not check your account" |
-| "The shared admin password has been retired." (403) | `ADMIN_LEGACY_LOGIN=off`, or it is 2027-01-01 IST or later | — | Use a staff account. Before the date, removing the variable brings it back (`staff-access.md`, step B6) |
+| "Enter your email and password." (400) for someone using the old shared password | The shared password was retired (Panel 1, M4) | — | Use a staff account; a Super Admin or Managing Editor adds the person (People → Add a person) |
 | "Unauthorized: please log in." (401) on every request after signing in | The session cookie is not kept: a `secure` cookie over plain HTTP, or a clock far off on the server | The browser's cookies for the site | Serve over HTTPS. A production build (`next start`) marks both session cookies `secure`; browsers accept that on `http://localhost` only, so a LAN address over HTTP signs no one in |
 
 #### If an action happened but its outcome row is missing
@@ -1734,8 +1732,10 @@ phases were done:
    [link expiry](#panel-1-links-and-lost-factors) to 1 hour. M3, break-glass, the access review and
    what needs a look, is built: the backend (PR #48; the owner
    [applied admin-2](#panel-1-applying-admin-2) on 19 Nov 2026) and the screens (the top bar's
-   alert, the emergency box, the review page; on `panel-1-review-screens`). Next: M4, retiring the
-   shared password.
+   alert, the emergency box, the review page; PR #49). M4 retires the shared admin password: the
+   code, its cookie and its sign-in option are gone (on `panel-1-retire-shared-password`); the owner
+   deletes its variables ([B6](#b6-the-shared-password-is-retired)). Next: Panel 1's definition of
+   done, and the walk-through.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

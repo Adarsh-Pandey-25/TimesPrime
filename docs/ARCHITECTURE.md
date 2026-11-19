@@ -62,7 +62,7 @@ AUTHORISE ─ every admin request (apps/admin, Panel 0)
        401 · 403 { error, code, required } (audited as denied) · 503 if the record cannot be read
   3. a change: audit_log 'attempted' (refused with 503 if it cannot be written) → the change →
      'succeeded' or 'failed'. audit_log is append-only and hash-chained, in the database.
-  code: apps/admin/src/proxy.ts → packages/server/src/auth/{adminRoutePolicy, adminSession, supabaseServer}
+  code: apps/admin/src/proxy.ts → packages/server/src/auth/{adminRoutePolicy, supabaseServer}
         apps/admin/src/app/api/admin/* → packages/server/src/auth/requirePermission → staffSession, decide, scope
                                        → packages/server/src/repositories/{staff, auditLog}
 ```
@@ -190,7 +190,7 @@ apps/
 packages/
   server/                  @timesprime/server: server-only, every module opens with import "server-only"
     src/auth/              the access foundation (Panel 0): requirePermission (the gate), decide, scope,
-                           adminRoutePolicy, staffSession, supabaseServer, mfa, adminSession
+                           adminRoutePolicy, staffSession, supabaseServer, mfa
     src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk),
                            authors.ts (the Desk's author records), media.ts (the media library's records),
                            people.ts (Panel 1: profiles, role assignments, requests, Supabase Auth's accounts,
@@ -241,8 +241,8 @@ relative path to the same file are the same import.
 
 Every zone and `server-only-first` were proven when they were written: a deliberate violation
 failed lint with its message, then passed once removed. `apps/admin/src/proxy.ts` imports the
-server-only `packages/server/src/auth/adminSession.ts`, which is valid: Proxy runs on the Node.js
-runtime by default (`proxy.md`, "Runtime").
+server-only `packages/server/src/auth/supabaseServer.ts` and `adminRoutePolicy.ts`, which is valid:
+Proxy runs on the Node.js runtime by default (`proxy.md`, "Runtime").
 
 The worker runs outside Next, so `import "server-only"` would throw there; its `job` script runs
 Node with the `react-server` condition, under which the package resolves to its empty module.
