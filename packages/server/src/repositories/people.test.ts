@@ -79,3 +79,42 @@ test("anotherActiveSuperAdmin: asks the database about each other holder, never 
   mocked.rpc.mockClear().mockResolvedValue({ data: false, error: null });
   await expect(anotherActiveSuperAdmin("u-1", NOW)).resolves.toBe(false);
 });
+
+describe("Supabase Auth's account steps (Panel 1, M2)", () => {
+  const admin = mocked.auth.admin as unknown as {
+    listUsers: jest.Mock;
+    createUser: jest.Mock;
+    generateLink: jest.Mock;
+    mfa: { listFactors: jest.Mock; deleteFactor: jest.Mock };
+  };
+  beforeEach(() => {
+    admin.createUser = jest.fn(async () => ({ data: { user: { id: "u-new" } }, error: null }));
+    admin.generateLink = jest.fn();
+    admin.mfa = { listFactors: jest.fn(), deleteFactor: jest.fn(async () => ({ data: {}, error: null })) };
+  });
+
+  test("ensureAuthUser reuses an account the email already has, and otherwise makes one, confirmed with no password", async () => {
+    const { ensureAuthUser } = await import("./people");
+    admin.listUsers.mockResolvedValueOnce({ data: { users: [{ id: "u-old", email: "neha@example.com" }] }, error: null });
+    await expect(ensureAuthUser("neha@example.com")).resolves.toBe("u-old");
+    expect(admin.createUser).not.toHaveBeenCalled();
+    admin.listUsers.mockResolvedValueOnce({ data: { users: [] }, error: null });
+    await expect(ensureAuthUser("neha@example.com")).resolves.toBe("u-new");
+    expect(admin.createUser).toHaveBeenCalledWith({ email: "neha@example.com", email_confirm: true });
+  });
+
+  test("recoveryToken returns the hashed token, and fails loudly without one", async () => {
+    const { recoveryToken } = await import("./people");
+    admin.generateLink.mockResolvedValueOnce({ data: { properties: { hashed_token: "abc123" } }, error: null });
+    await expect(recoveryToken("neha@example.com")).resolves.toBe("abc123");
+    admin.generateLink.mockResolvedValueOnce({ data: null, error: { message: "User not found" } });
+    await expect(recoveryToken("neha@example.com")).rejects.toThrow("Supabase Auth: User not found");
+  });
+
+  test("removeFactors deletes every factor of the account, and counts them", async () => {
+    const { removeFactors } = await import("./people");
+    admin.mfa.listFactors.mockResolvedValueOnce({ data: { factors: [{ id: "f-1" }, { id: "f-2" }] }, error: null });
+    await expect(removeFactors("u-5")).resolves.toBe(2);
+    expect(admin.mfa.deleteFactor.mock.calls).toEqual([[{ id: "f-1", userId: "u-5" }], [{ id: "f-2", userId: "u-5" }]]);
+  });
+});

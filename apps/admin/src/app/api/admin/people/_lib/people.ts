@@ -129,14 +129,15 @@ export async function auditedPerson<T>(
 export async function ask(
   actor: Actor,
   kind: RequestKind,
-  personId: string,
+  /** null for a person being added, who has no account yet: the audit row names their email. */
+  personId: string | null,
   details: Record<string, unknown>,
   reason: string,
   scope?: PersonEntry["scope"]
 ): Promise<NextResponse> {
   const result = await auditedPerson<RequestRow>(
     actor,
-    { action: "access.request", personId, scope, reason },
+    { action: "access.request", personId: personId ?? `email:${String(details.email ?? "")}`, scope, reason },
     () => createRequest({ kind, userId: personId, details, reason, requestedBy: actor.userId as string }),
     (r) => ({ request: r.id, kind, details })
   );

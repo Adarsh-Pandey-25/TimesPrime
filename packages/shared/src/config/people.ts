@@ -54,6 +54,35 @@ export const needsLanguage = (role: string) => includes(SCOPE_REQUIRED_ROLES, ro
 export const isExpiryDays = (days: unknown): days is ExpiryDays => typeof days === "number" && (EXPIRY_DAYS as readonly number[]).includes(days);
 export const defaultDays = (role: string): ExpiryDays => (role === "super_admin" ? SUPER_ADMIN_EXPIRY_DAYS : DEFAULT_EXPIRY_DAYS);
 
+/**
+ * Where a one-time "set your password" link lands (Panel 1 design §4, M2): the back office's own
+ * welcome page, with the token Supabase's generateLink gave (never its own redirect). A path only:
+ * the screen that shows it adds its own origin, the back office the person will use.
+ */
+export function welcomePath(tokenHash: string): string {
+  return `/admin/welcome?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`;
+}
+
+/** A staff password: long enough to resist guessing; Supabase may ask for more. */
+export const PASSWORD_MIN = 12;
+export const PASSWORD_MAX = 128;
+
+/** What is wrong with a new password, or null. */
+export function passwordProblem(password: unknown, email?: string | null): string | null {
+  if (typeof password !== "string" || password.length < PASSWORD_MIN) return `Use at least ${PASSWORD_MIN} characters.`;
+  if (password.length > PASSWORD_MAX) return `Use at most ${PASSWORD_MAX} characters.`;
+  if (email && password.toLowerCase().includes(email.split("@")[0].toLowerCase())) return "Do not use your email in the password.";
+  return null;
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** An email as Supabase Auth keeps it: trimmed, lower case; or null if it is not one. */
+export function readEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  return email.length <= 254 && EMAIL.test(email) ? email : null;
+}
+
 /** A role's scope: a NULL field means "all". */
 export interface RoleScope {
   language: ScopeLanguage | null;

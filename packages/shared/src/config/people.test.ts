@@ -8,6 +8,9 @@
 import fs from "fs";
 import path from "path";
 import {
+  passwordProblem,
+  readEmail,
+  welcomePath,
   defaultDays,
   EXPIRY_DAYS,
   GRANTABLE_ROLES,
@@ -75,4 +78,22 @@ test("readScope: a known language and section, or all; a desk role needs a langu
   expect(readScope("writer", null, null)).toEqual({ error: expect.stringMatching(/one language/) });
   expect(readScope("writer", "fr", null)).toEqual({ error: expect.stringMatching(/language/) });
   expect(readScope("writer", "hi", "politics")).toEqual({ error: expect.stringMatching(/section/) });
+});
+
+test("the welcome link is the back office's own page, with the token encoded, never Supabase's redirect", () => {
+  expect(welcomePath("ab/c+d")).toBe("/admin/welcome?token_hash=ab%2Fc%2Bd&type=recovery");
+});
+
+test("a password: 12 to 128 characters, without the email's name", () => {
+  expect(passwordProblem("short")).toMatch(/12/);
+  expect(passwordProblem("x".repeat(129))).toMatch(/128/);
+  expect(passwordProblem("ravi-kumar-2026!", "ravi@example.com")).toMatch(/email/);
+  expect(passwordProblem("correct horse battery", "ravi@example.com")).toBeNull();
+  expect(passwordProblem(undefined)).not.toBeNull();
+});
+
+test("an email is trimmed and lower-cased, or refused", () => {
+  expect(readEmail("  Ravi@Example.COM ")).toBe("ravi@example.com");
+  expect(readEmail("not an email")).toBeNull();
+  expect(readEmail(42)).toBeNull();
 });

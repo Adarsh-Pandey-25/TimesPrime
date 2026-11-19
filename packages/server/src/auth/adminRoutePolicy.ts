@@ -34,6 +34,7 @@ export interface RouteRule {
     | "media"
     | "new_media"
     | "person"
+    | "new_person"
     | "request";
   /**
    * Only a named staff member may use the route: the shared password is refused, whatever its fixed
@@ -59,6 +60,9 @@ type Method = "GET" | "POST" | "PATCH" | "DELETE";
 export const PUBLIC_ADMIN_ROUTES: ReadonlyArray<{ path: string; method: Method }> = [
   { path: "/api/admin/login", method: "POST" },
   { path: "/api/admin/logout", method: "POST" },
+  // Panel 1, M2: a one-time "set your password" link is opened before its owner has a session.
+  // The token is the credential; the route is rate-limited by address.
+  { path: "/api/admin/welcome", method: "POST" },
 ];
 
 /**
@@ -70,10 +74,13 @@ export const PUBLIC_ADMIN_ROUTES: ReadonlyArray<{ path: string; method: Method }
 export const SESSION_ONLY_ADMIN_ROUTES: ReadonlyArray<{ path: string; method: Method }> = [
   { path: "/api/admin/me", method: "GET" },
   { path: "/api/admin/mfa", method: "POST" },
+  // Panel 1, M2: a staff member sets their own password (after a welcome link, or to change it);
+  // with a second factor set up, only from an aal2 session.
+  { path: "/api/admin/password", method: "POST" },
 ];
 
 /** The admin pages reachable with no session: the sign-in page only. */
-export const PUBLIC_ADMIN_PAGES: readonly string[] = ["/admin/login"];
+export const PUBLIC_ADMIN_PAGES: readonly string[] = ["/admin/login", "/admin/welcome"];
 
 /** True for a request the proxy lets through with no session. */
 export function isPublicAdminRequest(pathname: string, method: string): boolean {
@@ -220,6 +227,16 @@ export const ADMIN_ROUTE_RULES = {
   // (services/people/reach.ts) once it has loaded the person.
   "/api/admin/people": {
     GET: { permissions: ["user.manage"], mode: "read", target: "none", staffOnly: true },
+    // Adding a person: their account and a first role (M2).
+    POST: { permissions: ["user.manage", "role.assign"], mode: "act", target: "new_person", staffOnly: true, twoPerson: true },
+  },
+  // A one-time "set your password" link for a forgotten password (M2).
+  "/api/admin/people/[id]/password-link": {
+    POST: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
+  },
+  // Resetting a lost second factor: always two Super Admins (M2; Panel 0 design §5).
+  "/api/admin/people/[id]/mfa-reset": {
+    POST: { permissions: ["user.manage"], mode: "act", target: "person", staffOnly: true, twoPerson: true },
   },
   "/api/admin/people/[id]": {
     GET: { permissions: ["user.manage"], mode: "read", target: "person", staffOnly: true },

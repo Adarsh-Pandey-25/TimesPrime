@@ -173,7 +173,8 @@ apps/
     src/proxy.ts           the optimistic session check (§1)
     src/app/admin/         the dashboard and the staff sign-in; panels arrive as route folders
     src/app/api/admin/     every admin route handler, each gated by requirePermission; desk/ is Panel 2,
-                           people/ is Panel 1 (staff, roles, a Super Admin's requests)
+                           people/ is Panel 1 (staff, roles, a Super Admin's requests), with welcome/ (public:
+                           opening a one-time link) and password/ (session-only: setting one's password)
     src/app/media/         the Desk's images from the local folder, on a laptop only (as in web)
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list
                            with its takedown alerts, a new story, the story editor with its revisions
@@ -190,7 +191,8 @@ packages/
                            adminRoutePolicy, staffSession, supabaseServer, mfa, adminSession
     src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk),
                            authors.ts (the Desk's author records), media.ts (the media library's records),
-                           people.ts (Panel 1: profiles, role assignments, requests, Supabase Auth's accounts)
+                           people.ts (Panel 1: profiles, role assignments, requests, Supabase Auth's accounts,
+                           and its admin steps: making an account, a one-time link's token, removing factors)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
                            publishing's rules, the scheduler, the image renditions with sharp, a story's images),
                            people (Panel 1: who may grant, renew, revoke or ask, reach.ts)

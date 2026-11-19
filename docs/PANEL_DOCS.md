@@ -203,7 +203,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | # | Panel | Status | Date completed | Commits |
 |--:|---|---|---|---|
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
-| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1a](#panel-1-administration) (the people and roles backend) built, M1b (the screens) next | — | — |
+| 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2a (the accounts backend) built, M2b (its screens) next | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
 | 3 | Front page: breaking banner, pinned slots, curation | Planned | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
@@ -518,8 +518,10 @@ second half): `d1bff91` through this entry, listed in the current status (`docs/
 
 **In progress.** [Design](#panel-1-design-administration) approved on 19 Nov 2026. Built so far:
 **M1**, "people and roles": M1a, the backend (migration admin-1, the reach rules, the API, every
-route tested allowed and denied; PR #43), and M1b, the screens. M2 (accounts), M3 (break-glass and
-the review) and M4 (retiring the shared password) follow.
+route tested allowed and denied; PR #43), and M1b, the screens (PR #44). **M2a**, the accounts
+backend: adding a person, one-time "set your password" links, resetting a lost second factor, and
+the welcome and password routes. M2b (their screens), M3 (break-glass and the review) and M4
+(retiring the shared password) follow.
 
 #### Panel
 
@@ -530,7 +532,11 @@ the review) and M4 (retiring the shared password) follow.
   - `POST /api/admin/people/[id]/suspend`, `reactivate` and `sign-out`;
   - `POST /api/admin/people/[id]/roles` (grant), `roles/[assignmentId]/renew` and `revoke`;
   - `GET /api/admin/people/requests`, and `POST requests/[requestId]/approve`, `decline` and
-    `cancel`.
+    `cancel`;
+  - M2: `POST /api/admin/people` (add a person), `POST /api/admin/people/[id]/password-link` and
+    `mfa-reset`; `POST /api/admin/welcome` (public: opens a link) and `POST /api/admin/password`
+    (session-only: sets one's own password). The page `/admin/welcome` is public too (its screen
+    comes with M2b).
 
   The screens: `/admin/people` (the directory, and a Super Admin's requests) and
   `/admin/people/[id]` (one person). "People" is in the top bar for holders of `user.manage`.
@@ -591,8 +597,31 @@ needs two people, and removing it needs one.
     "Grant a role" with the roles the caller may grant; rename, suspend or reactivate, and sign
     out everywhere; the requests about them; their history. A button says "Ask to …" where the
     change is a request, and the answer says a second Super Admin decides it.
-- **Partial:** adding a person, password links and resetting a second factor are M2; their request
-  kinds exist, and approving them answers 409 until then.
+- **Adding a person** (M2a): email, name, first role, desk, days, reason. The account is made in
+  Supabase Auth with the email confirmed and no password (an existing account with that email, not
+  staff, is reused), then the staff profile and the role. A Managing Editor adds Writer, Sub-editor
+  or Desk Editor in their scope at once; a Super Admin asks. An email that is already staff is
+  refused (409 `staff`).
+- **A one-time "set your password" link** (M2a): Supabase's `generateLink` (type `recovery`) gives a
+  token, and the app builds its own address, `/admin/welcome?token_hash=…&type=recovery`
+  (`welcomePath`); Supabase's redirect is never used. The link goes back **once**: to a Managing
+  Editor who added the person or asked for it, or, for a Super Admin's request, to the second Super
+  Admin when they approve (*as built:* the design said "to the admin who added them"; the token is
+  not stored, so it can only be shown to whoever is on screen when it is made). It is never stored
+  or written to the audit log. It works once, until Supabase's email-link expiry (24 hours, the
+  owner's decision 3; an owner setting).
+- **Resetting a lost second factor** (M2a): always two Super Admins. One asks, with how they checked
+  it is the person; the other approves, and then every factor of the account is deleted and every
+  session ended. At their next sign-in the person sets up a new one. A Managing Editor is refused.
+- **Opening a link** (`POST /api/admin/welcome`, public, 10 tries per address in 15 minutes):
+  Supabase exchanges the token for a session (`verifyOtp`); someone who is not active staff is
+  signed out again (403). The answer says whether the account already has a second factor.
+- **Setting one's password** (`POST /api/admin/password`, session-only): at least 12 characters,
+  without the email's name; with a second factor set up, only from an `aal2` session, so a link
+  or a stolen password alone cannot change it. Afterwards every session of the account ends, and
+  the person signs in again. Supabase's own refusals (a reused password) come back in its words.
+- **Partial:** the screens for these (the welcome page, adding a person, the link box, the two new
+  buttons) are M2b.
 
 #### Access permissions and authorization rules
 
@@ -605,6 +634,11 @@ needs two people, and removing it needs one.
 | `revoke` | `role.assign`, act | Super Admin; a Managing Editor for the roles they could grant | — (removing access) | yes | `role.revoke` |
 | `GET requests` | `role.assign`, read | Super Admins see every open request and those decided in 30 days; others get an empty list | — | yes | denials |
 | `approve`, `decline`, `cancel` | `role.assign`, act | Approve and decline: another active Super Admin, not the person it is about, before it lapses. Cancel: the person who asked | yes | yes | `access.approve`, `access.decline`, `access.cancel` |
+| `POST people` (add) | `user.manage` and `role.assign`, act | Managing Editor: Writer, Sub-editor, Desk Editor in their scope, at once. Super Admin: a request | Super Admin: a second Super Admin | yes | `staff.add`, or `access.request` |
+| `password-link` | `user.manage`, act | Managing Editor for their people, at once; Super Admin: a request. Not for oneself, not for a suspended person | Super Admin: a second Super Admin | yes | `staff.password_link` (no token), or `access.request` |
+| `mfa-reset` | `user.manage`, act | Super Admin only, always a request; a Managing Editor gets 403 | always two Super Admins | yes | `access.request`, then `access.approve` with the factors removed |
+| `POST /api/admin/welcome` | none: public | Anyone holding a valid token; 10 per address in 15 minutes | — | — | `auth.welcome_link_used` |
+| `POST /api/admin/password` | none: session-only | The account's own session; `aal2` once it has a second factor | — | where a factor exists | `auth.password_set` |
 
 - **Nobody changes their own access** (403 `own_access`): no grant, renewal, rename, suspension,
   reactivation or revocation for oneself, and no decision on a request about oneself.
@@ -639,12 +673,19 @@ not stored as an outcome, and it cannot be decided.
 | `packages/server/src/auth/decide.test.ts`, `apps/admin/src/app/api/admin/me/route.test.ts` | A counts as read; `/me` still says `ask` | A still cannot act |
 | `apps/admin/src/components/people/people.test.tsx` | The directory and a person's page for each answer: a Super Admin's requests and Approve; a Managing Editor's desks; filters; Grant as a request ("Ask to grant") or at once; Revoke with its reason; Suspend and "Ask to reactivate"; oneself; every filter named | No actions where the API offers none; a refusal and "not found" shown; buttons disabled until a reason is given |
 | `apps/admin/src/components/AdminTopBar.test.tsx` | "People" for a holder of `user.manage` | Not for a Writer |
+| `access.test.ts` (M2) | Adding a person at once (the account confirmed with no password, the profile, the role, the link) or as a request (no account made); a password link at once or asked; a factor reset asked; approving an addition (the account first, then the decision with its id), a reset (every factor deleted, the sessions ended, then the decision) and a link; the link never in the audit log; the public and session-only lists | An email already staff, a bad email, another desk; a Managing Editor resetting a factor; oneself; a suspended person; a decline changes no account |
+| `apps/admin/src/app/api/admin/welcome/route.test.ts`, `password/route.test.ts` | A good link gives a session and says whether a factor exists; a password is set, then every session ends | A missing, malformed or other-kind token (Supabase not asked); a used or expired link; not staff or suspended (signed out again); 10 tries per address; an `aal1` session with a factor; a weak password; Supabase's refusal |
 | `e2e/admin-access.spec.ts` (read-only) | Signed out, `/admin/people` and a person's page go to sign-in | Three people routes answer 401 |
 
 #### Known limits and not yet built
 
-- **M2:** adding a person with a one-time link, password links, resetting a second factor. **M3:**
+- **M2b:** the screens for adding a person, the links, the reset and the welcome page. **M3:**
   break-glass, the access review, roles ending soon. **M4:** retiring the shared password.
+- **Owner action for M2:** Supabase's email-link expiry to 24 hours (OPERATIONS.md, "Panel 1:
+  links and lost factors").
+- **An added person who is never given their link** has an account nobody can sign in to; a new
+  link (password link) or revoking their role and suspending them tidies it. Accounts are never
+  deleted.
 - **Owner actions:** admin-1 is applied (19 Nov 2026, its check passed). The second Super Admin is
   Vivek (the owner, 19 Nov 2026), created with B3 of the staff-access runbook; until then no Super
   Admin request can be decided and no Managing Editor granted.
