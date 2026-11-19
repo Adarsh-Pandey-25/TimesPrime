@@ -33,6 +33,8 @@ test.describe("signed out", () => {
     await expect(page).toHaveURL(/\/admin\/login$/);
     await page.goto("/admin/people/new");
     await expect(page).toHaveURL(/\/admin\/login$/);
+    await page.goto("/admin/people/review");
+    await expect(page).toHaveURL(/\/admin\/login$/);
   });
 
   // Panel 1 M2: the welcome page is public; without a token it says so and asks the server nothing.
@@ -65,6 +67,8 @@ test.describe("signed out", () => {
     ["GET", "/api/admin/people"],
     ["POST", "/api/admin/people/00000000-0000-4000-8000-000000000001/roles"],
     ["POST", "/api/admin/people/requests/00000000-0000-4000-8000-000000000001/approve"],
+    ["GET", "/api/admin/people/alerts"],
+    ["POST", "/api/admin/people/break-glass"],
   ]) {
     test(`${method} ${path} answers 401 and changes nothing`, async ({ request }) => {
       const res = await request.fetch(path, { method, data: method === "POST" ? {} : undefined });
