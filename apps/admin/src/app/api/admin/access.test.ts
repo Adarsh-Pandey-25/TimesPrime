@@ -302,9 +302,9 @@ const CASES: Case[] = [
     data: { articles: { data: [HINDI_SPORTS, { ...HINDI_SPORTS, article_id: "a-2" }], error: null } },
     changes: true,
   },
-  // The banner is site-wide, so only an unscoped grant covers it. A Desk Editor always has a
-  // language (scope_required), so in practice it is the Managing Editor's until banners get a
-  // language (Panel 3).
+  // The banner (Panel 3, M1): an item is decided in its language, every section, so a Desk Editor
+  // (S) runs their own desk's banner. An item for both languages is site-wide: below, in "the
+  // banner's language".
   // The manager's list: a read in any scope, so a scoped Desk Editor holds it.
   {
     path: "/api/admin/breaking-news",
@@ -318,10 +318,10 @@ const CASES: Case[] = [
     path: "/api/admin/breaking-news",
     method: "POST",
     handler: breakingNews.POST,
-    body: { text: "Flood alert", expires_in_hours: 2 },
-    allowed: { role: "managing_editor", language: null },
-    wrongScope: { role: "desk_editor", language: "hi" },
-    data: { breaking_news: { data: { id: "b-1", text: "Flood alert", is_active: true, expires_at: null, created_at: "2026-11-10T00:00:00Z" }, error: null } },
+    body: { text: "Flood alert", expires_in_hours: 2, language: "hi" },
+    allowed: { role: "desk_editor", language: "hi" },
+    wrongScope: { role: "desk_editor", language: "en" },
+    data: { breaking_news: { data: { id: "b-1", text: "Flood alert", is_active: true, expires_at: null, created_at: "2026-11-10T00:00:00Z", language: "hi" }, error: null } },
     changes: true,
   },
   {
@@ -329,9 +329,9 @@ const CASES: Case[] = [
     method: "DELETE",
     handler: breakingNews.DELETE,
     body: { id: "b-1" },
-    allowed: { role: "managing_editor", language: null },
-    wrongScope: { role: "desk_editor", language: "hi" },
-    data: { breaking_news: { data: null, error: null } },
+    allowed: { role: "desk_editor", language: "hi" },
+    wrongScope: { role: "desk_editor", language: "en" },
+    data: { breaking_news: { data: { id: "b-1", text: "Flood alert", language: "hi" }, error: null } },
     changes: true,
   },
   // The editorial publish route stores language "english" (BL-004 era code), so its target is
@@ -1889,4 +1889,60 @@ describe.each(CASES.map((c) => [`${c.method} ${c.path}`, c] as const))("%s", (_n
     });
   }
 
+});
+
+describe("the banner's language (Panel 3 design §3, M1)", () => {
+  const caseFor = (method: Method) => CASES.find((c) => c.path === "/api/admin/breaking-news" && c.method === method) as Case;
+  async function call(method: Method, caller: Grantee, data: Case["data"], body: unknown) {
+    const c = caseFor(method);
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, body }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const HI_DESK_EDITOR: Grantee = { role: "desk_editor", language: "hi" };
+  const MANAGING_ALL: Grantee = { role: "managing_editor", language: null };
+  const created = (language: string | null) => ({ breaking_news: { data: { id: "b-2", text: "Polls close", is_active: true, expires_at: null, created_at: "2026-11-19T00:00:00Z", language }, error: null } });
+  const existing = (language: string | null) => ({ breaking_news: { data: { id: "b-2", text: "Polls close", language }, error: null } });
+  const audits = () => (recordAudit as jest.Mock).mock.calls.map(([row]) => row);
+
+  test("an item for both languages is site-wide: a scoped Desk Editor is refused and nothing is written; the Managing Editor (all) sets it", async () => {
+    const refused = await call("POST", HI_DESK_EDITOR, created(null), { text: "Polls close", expires_in_hours: 6, language: null });
+    expect(refused.status).toBe(403);
+    expect(wrote()).toEqual([]);
+    const done = await call("POST", MANAGING_ALL, created(null), { text: "Polls close", expires_in_hours: 6, language: null });
+    expect(done.status).toBe(200);
+    expect(done.json.item.language).toBeNull();
+  });
+
+  test("a missing language means both languages, as before Panel 3", async () => {
+    const r = await call("POST", HI_DESK_EDITOR, created(null), { text: "Polls close", expires_in_hours: 6 });
+    expect(r.status).toBe(403);
+  });
+
+  test("a language other than en, hi or null is refused before anything is written", async () => {
+    const r = await call("POST", MANAGING_ALL, created(null), { text: "Polls close", language: "fr" });
+    expect(r.status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("the audit row names the item's language and scope", async () => {
+    await call("POST", HI_DESK_EDITOR, created("hi"), { text: "Polls close", expires_in_hours: 6, language: "hi" });
+    const set = audits().find((row) => row.action === "breaking_banner.set" && row.outcome === "succeeded");
+    expect(set).toMatchObject({ language: "hi" });
+  });
+
+  test("removing is decided in the item's own language: the other desk and an item for both are refused", async () => {
+    expect((await call("DELETE", { role: "desk_editor", language: "en" }, existing("hi"), { id: "b-2" })).status).toBe(403);
+    expect((await call("DELETE", HI_DESK_EDITOR, existing(null), { id: "b-2" })).status).toBe(403);
+    expect(wrote()).toEqual([]);
+    expect((await call("DELETE", HI_DESK_EDITOR, existing("hi"), { id: "b-2" })).status).toBe(200);
+    expect((await call("DELETE", MANAGING_ALL, existing(null), { id: "b-2" })).status).toBe(200);
+  });
+
+  test("an unknown item is not found, and nothing changes", async () => {
+    const r = await call("DELETE", MANAGING_ALL, { breaking_news: { data: null, error: null } }, { id: "b-9" });
+    expect(r.status).toBe(404);
+    expect(wrote()).toEqual([]);
+  });
 });

@@ -207,7 +207,8 @@ packages/
                            mediaStorage (the images' files: S3 on the server, a folder on a laptop;
                            only renditions are ever served publicly), …
   shared/                  @timesprime/shared: client-safe config (media.ts: the library's image types,
-                           limits and key shapes), types and lib (urlValidation, sentryScrub)
+                           limits and key shapes; breakingNews.ts: the banner's languages, Panel 3), types
+                           and lib (urlValidation, sentryScrub, whatsApp: the "Copy for WhatsApp" message)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and
                            story.css, a Desk story's view for the reader's page and the Desk's preview)
   editor/                  @timesprime/editor: the story schema (Tiptap extensions, the library's image among

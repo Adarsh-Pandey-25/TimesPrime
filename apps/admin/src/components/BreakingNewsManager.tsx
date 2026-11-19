@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Radio, Trash2, Megaphone } from "lucide-react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
-import { buttonTone, cardTone, fieldTone } from "./ui/styles";
+import { bannerLanguageName, isBannerLanguage, type BannerLanguage } from "@timesprime/shared/config/breakingNews";
+import { badge, buttonTone, cardTone, fieldTone, tone } from "./ui/styles";
 
 interface BreakingNewsItem {
   id: string;
@@ -11,6 +12,8 @@ interface BreakingNewsItem {
   is_active: boolean;
   expires_at: string | null;
   created_at: string;
+  /** Panel 3, M1: 'en', 'hi', or null for both languages. */
+  language: BannerLanguage | null;
 }
 
 interface BreakingNewsListResponse {
@@ -47,9 +50,13 @@ function expiresIn(dateStr: string): string {
  * Admin panel for the homepage breaking-news banner: lists active items
  * (soft-delete via "Remove") and a form to add a new one with an optional
  * expiry. Self-contained — owns its own fetch/form state and renders its
- * own card + heading.
+ * own card + heading. Panel 3, M1: each item is for English, Hindi or both;
+ * a Desk Editor sets and removes their own language's items, and an item
+ * for both languages needs an unscoped grant. The server decides; the form
+ * starts on `ownLanguage`, the caller's own (the page that holds /me says
+ * it), or on both languages.
  */
-export default function BreakingNewsManager() {
+export default function BreakingNewsManager({ ownLanguage = null }: { ownLanguage?: BannerLanguage | null } = {}) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -61,6 +68,8 @@ export default function BreakingNewsManager() {
 
   const [text, setText] = useState("");
   const [expiryHours, setExpiryHours] = useState<number | null>(24);
+  const [language, setLanguage] = useState<BannerLanguage | "both" | null>(null);
+  const chosen: BannerLanguage | "both" = language ?? (isBannerLanguage(ownLanguage) ? ownLanguage : "both");
   const [submitting, setSubmitting] = useState(false);
 
   const flashSuccess = (message: string) => {
@@ -109,7 +118,7 @@ export default function BreakingNewsManager() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ text: trimmed, expires_in_hours: expiryHours }),
+        body: JSON.stringify({ text: trimmed, expires_in_hours: expiryHours, language: chosen === "both" ? null : chosen }),
       });
       const data = await res.json().catch(() => ({}));
 
@@ -215,8 +224,9 @@ export default function BreakingNewsManager() {
                 }`}
               >
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 line-clamp-2">{item.text}</p>
-                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 line-clamp-2" lang={item.language ?? undefined}>{item.text}</p>
+                  <span className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    <span className={`${badge} ${item.language === null ? tone.blue : tone.slate}`}>{bannerLanguageName(item.language ?? null)}</span>
                     {item.expires_at ? expiresIn(item.expires_at) : "Never expires"}
                   </span>
                 </div>
@@ -242,6 +252,7 @@ export default function BreakingNewsManager() {
           <div className="space-y-1">
             <textarea
               rows={2}
+              lang={chosen === "both" ? undefined : chosen}
               maxLength={MAX_TEXT_LENGTH}
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -256,6 +267,19 @@ export default function BreakingNewsManager() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
+            <select
+              aria-label="Banner language"
+              value={chosen}
+              onChange={(e) => setLanguage(e.target.value === "both" ? "both" : isBannerLanguage(e.target.value) ? e.target.value : null)}
+              className={`rounded-xl border px-3 py-2.5 text-sm font-medium focus:outline-none transition-colors ${
+                fieldTone
+              }`}
+            >
+              <option value="en">English</option>
+              <option value="hi">Hindi</option>
+              <option value="both">Both languages</option>
+            </select>
+
             <select
               aria-label="Banner expiry"
               value={expiryHours === null ? "never" : String(expiryHours)}

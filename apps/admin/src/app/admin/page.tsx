@@ -12,6 +12,7 @@ import ActivityLog from "@/components/ActivityLog";
 import ActionMessage from "@/components/ui/ActionMessage";
 import { badge, buttonDanger, buttonPrimary, card, cardTitle, field, hint, label, pageTitle, tone } from "@/components/ui/styles";
 import type { AdminMe } from "@timesprime/shared/types";
+import { isBannerLanguage } from "@timesprime/shared/config/breakingNews";
 
 // Panel 0: what this page shows depends on GET /api/admin/me, which says what the signed-in user
 // holds. Hiding is UX only, never the check: every admin route decides again on the server
@@ -216,6 +217,8 @@ export default function AdminDashboardPage() {
   const showRetention = canStats || can("sync.run", "act") || can("content.purge", "act");
   const canPublish = can("article.publish_direct", "act") && can("article.create", "act");
   const canBanner = can("breaking_banner.manage", "act");
+  // The banner form starts on the caller's own language, if a role of theirs has one (Panel 3, M1).
+  const ownLanguage = me?.roles.map((r) => r.language).find(isBannerLanguage) ?? null;
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 dark:bg-[#1a1c1e] dark:text-slate-100">
@@ -382,7 +385,7 @@ export default function AdminDashboardPage() {
                   </section>
                 )}
 
-                {canBanner && <BreakingNewsManager />}
+                {canBanner && <BreakingNewsManager ownLanguage={ownLanguage} />}
               </div>
             )}
 

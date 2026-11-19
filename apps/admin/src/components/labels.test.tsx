@@ -36,9 +36,15 @@ const renderIn = async (node: React.ReactNode) => {
   });
 };
 
-test("the breaking banner's expiry select is named", async () => {
+test("the breaking banner's expiry and language selects are named", async () => {
   await renderIn(<BreakingNewsManager />);
   expect(screen.getByRole("combobox", { name: "Banner expiry" })).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Banner language" })).toHaveValue("both");
+});
+
+test("the banner's language starts on the caller's own (Panel 3, M1)", async () => {
+  await renderIn(<BreakingNewsManager ownLanguage="hi" />);
+  expect(screen.getByRole("combobox", { name: "Banner language" })).toHaveValue("hi");
 });
 
 test("the article list's category filter is named", async () => {

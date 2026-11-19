@@ -205,7 +205,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
 | 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PRs #48 and #49) built; M4 (the shared password retired, PR #50) built; the definition of done checked: open are the owner's walk-through and a test project | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
-| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) proposed 19 Nov 2026 for the owner's approval, started at the owner's request while Panels 1 and 2 have open items | — | — |
+| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) approved 19 Nov 2026, started at the owner's request while Panels 1 and 2 have open items; [M1](#panel-3-front-page) (the banner's language, "Copy for WhatsApp") built | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
 | 6 | Insights: read-only stats | Planned | — | — |
@@ -397,7 +397,7 @@ suspension applies to the next request.
 | `DELETE /api/admin/articles` | `article.unpublish` in the article's scope | Managing Editor, Legal F; Desk Editor S; Super Admin only as break-glass | — | yes | attempted + outcome |
 | `DELETE /api/admin/articles/bulk` | `article.bulk_action` and `article.unpublish`, for every article (at most 100) | Managing Editor F; Desk Editor S | — | yes | one pair naming every article |
 | `GET /api/admin/breaking-news` | `breaking_banner.manage` (read, any scope); the banner manager's list. Readers get the items from `apps/web`'s public `GET /api/news/breaking-news` (since 4 Nov 2026) | Managing Editor F; Desk Editor S | — | yes for these roles | denials |
-| `POST`, `DELETE /api/admin/breaking-news` | `breaking_banner.manage`, site-wide | Managing Editor (unscoped grants only) | — | yes | attempted + outcome |
+| `POST`, `DELETE /api/admin/breaking-news` | `breaking_banner.manage` in the item's language, every section; an item for both languages is site-wide (Panel 3, M1) | Managing Editor F; Desk Editor S for their language; both languages: unscoped grants only | — | yes | attempted + outcome, with the item's language |
 | `POST /api/admin/publish-article` | `article.publish_direct` and `article.create`, in en + the category | Managing Editor F; Desk Editor S | post-hoc review is Panel 2 | yes | attempted + outcome |
 | `POST /api/admin/seed-supabase` | `sync.run`, site-wide | Super Admin, Ingestion Ops F | — | yes | attempted + outcome |
 | `POST /api/admin/db-stats` (purge) | `content.purge` | Super Admin, Ingestion Ops A: **refused for everyone** until Panel 4's approval flow | needs two people | — | denials |
@@ -1279,6 +1279,96 @@ project). Assigning a writer from the screen waits for Panel 1's staff directory
 - **As built, beyond the design's table:**
   - an `unschedule` move (`scheduled` → `approved`, `article.publish`);
   - a scheduled story cannot be saved; it is unscheduled first.
+
+### Panel 3: Front page
+
+**In progress.** [Design](#panel-3-design-front-page) approved on 19 Nov 2026. Built so far: **M1**,
+the banner's language and "Copy for WhatsApp" (branch `panel-3-banner-language`). Started while
+Panels 1 and 2 have open items (the design's §12).
+
+#### Panel
+
+- **Name:** Front page.
+- **URLs (M1):**
+  - `GET`, `POST`, `DELETE /api/admin/breaking-news` (the manager; `POST` takes a `language`);
+  - `GET /api/news/breaking-news?language=en|hi` (the reader's banner, public);
+  - the story screen's "Copy for WhatsApp" (`/admin/desk/[id]`), which calls no route of its own.
+- **Code (M1):**
+  - `packages/shared/src/config/breakingNews.ts` (the languages, the label, who sees an item);
+  - `packages/shared/src/lib/whatsApp.ts` (the WhatsApp message);
+  - `packages/server/src/services/news/breakingNews.ts` (the read, by language);
+  - `apps/admin/src/app/api/admin/breaking-news/route.ts` and `components/BreakingNewsManager.tsx`;
+  - `apps/web/src/app/api/news/breaking-news/route.ts` and `components/news/BreakingNewsBanner.tsx`;
+  - the rule in `packages/server/src/auth/adminRoutePolicy.ts` (target `banner`);
+  - the SQL in `database/migrations/2026-11-19-front-1-banner-language.sql`.
+
+#### Purpose
+
+Editors decide what readers see first, and tell a running story as it happens: their own stories
+pinned above the automatic order, each desk's own breaking banner, live blogs, and the copy and feeds
+that take stories to WhatsApp and RSS readers.
+
+#### Roles and responsibilities
+
+| Role | What they do here |
+|---|---|
+| Managing Editor | Sets and removes banner items in any language, and for both languages (an unscoped grant); later pins, live updates and pushes in every desk |
+| Desk Editor | Sets and removes their own language's banner items; later pins and live updates in their desk |
+| Sub-editor | Later: live updates in their desk (decision 6) |
+| Anyone who can open a live story on the Desk | Copies it for WhatsApp |
+
+#### Features and functionality
+
+- **The banner's language (M1):**
+  - each item is for English, Hindi or both languages (`breaking_news.language`, NULL for both);
+  - the manager asks for a language, starting on the caller's own; each item shows its language;
+  - the reader's banner asks for the reader's language (`LanguageContext`), shows that language's
+    items and those for both, and labels itself "BREAKING" or "ब्रेकिंग न्यूज़"; a change of language
+    fetches again;
+  - before the owner applies front-1, the read falls back to the old columns (Postgres `42703`),
+    and an item for both languages can still be set; one language needs the column.
+- **Copy for WhatsApp (M1, decision 11):** on a published story's screen, a button copies the live
+  version's headline in bold, its dek, and its address tagged
+  `utm_source=whatsapp&utm_medium=social&utm_campaign=channel`, in the story's language. When a newer
+  revision is saved but not published, it reads the published one from the server first. Nothing is
+  stored or sent.
+
+#### Access permissions and authorization rules
+
+| Route | Permission | Who, and how | Four-eyes | MFA (`aal2`) | Audited |
+|---|---|---|---|---|---|
+| `GET /api/admin/breaking-news` | `breaking_banner.manage`, read | Managing Editor, Desk Editor: every item, in every language | — | yes | denials |
+| `POST`, `DELETE /api/admin/breaking-news` | `breaking_banner.manage`, act | Checked first in any scope, then in the item's: its language and every section; an item for both languages is site-wide, so only an unscoped grant covers it | — (single actor, for speed) | yes | `breaking_banner.set`, `breaking_banner.remove`, with the language as the row's scope; a removal records the item before |
+| `GET /api/news/breaking-news` | none: public | Readers | — | — | — |
+
+- **Refusals:** 403 for another language, or for both languages without an unscoped grant; 400 for a
+  language other than `en`, `hi` or null; 404 for an unknown item. Nothing is written for any of
+  them.
+
+#### Database changes
+
+| Migration file | What it does | Rollback | Applied by the owner |
+|---|---|---|---|
+| `database/migrations/2026-11-19-front-1-banner-language.sql` | `breaking_news.language`: `en`, `hi`, or NULL for both, with a CHECK; existing items keep NULL | At the end of the file, before the first item with a language | **Not yet** |
+
+No column changes meaning: an item with no language is for both, as every item was before.
+
+#### Tests and verification
+
+| Test file | What it proves | Denied cases covered |
+|---|---|---|
+| `apps/admin/src/app/api/admin/access.test.ts` (the route walk and "the banner's language") | A Hindi Desk Editor sets and removes a Hindi item; the Managing Editor (all) sets an item for both languages; the audit names the language | An English Desk Editor on a Hindi item; a scoped Desk Editor on an item for both, set or removed, or with no language given; a bad language; an unknown item. Nothing written in any |
+| `packages/server/src/services/news/breakingNews.test.ts` | A reader's language: that language's items and those for both, in order; the read before front-1 | Another database error is not retried |
+| `apps/web/src/app/api/news/breaking-news/route.test.ts`, `components/news/BreakingNewsBanner.test.tsx` | The reader's language is asked for; the label in English and Hindi | Anything but `en` or `hi` asks for every item; nothing live shows nothing |
+| `packages/server/src/repositories/frontSchema.test.ts` | front-1, read as text: one transaction, the CHECK, no grant or policy change, the rollback | — |
+| `packages/shared/src/lib/whatsApp.test.ts`, `apps/admin/src/components/desk/desk.test.tsx` | The message in English and Hindi; the live version copied, read from the server when a newer one is saved | Not offered before the story is live |
+
+#### Known limits and not yet built
+
+- **M2:** pinned slots and the Front page screen, to which the banner manager then moves (decision 5).
+- **M3:** live blogs, with `live_update.post` added to the matrix (decision 6).
+- **M4:** RSS. Web push waits for Panel 8's consent banner (decision 8).
+- **The owner's step:** applying front-1 ([the runbook](OPERATIONS.md#panel-3-applying-front-1)).
 
 ## Panel 0 design: the access foundation
 
@@ -2736,9 +2826,30 @@ A shared-password session gets 403: "Sign in with your own account to use the De
 
 ## Panel 3 design: Front page
 
-**Status:** **proposed** on 19 Nov 2026 for the owner's approval; branch `panel-3-front-page`.
-**Started at the owner's request** (19 Nov 2026) while Panels 1 and 2 still have open items. Those
-items are listed at the end of this section. `NEWSROOM_PLAN.md` is unchanged.
+**Status:** **approved** by the owner on 19 Nov 2026, with the recommended answer to every question
+in §11 and one change (recorded below). Proposed in PR #56. One branch per milestone, starting with
+`panel-3-banner-language` (M1). **Started at the owner's request** (19 Nov 2026) while Panels 1 and 2
+still have open items. Those items are listed at the end of this section. `NEWSROOM_PLAN.md` is
+unchanged.
+
+### Approval: decisions (19 Nov 2026)
+
+The section overrides anything later in this design that disagrees with it.
+1. **What can be pinned:** Desk stories only.
+2. **Slots:** 3 on the home page and 2 on each section page, per language.
+3. **A pin's length:** 6 hours, 24 hours (the default), 72 hours or 7 days, always with an end.
+4. **A banner item for both languages:** allowed, for unscoped holders only. A Desk Editor sets
+   their own language's items.
+5. **The banner** is managed on the Front page screen (M2), with a link on the dashboard. Until M2
+   it stays on the dashboard.
+6. **Live updates:** a new verb, `live_update.post`, for the Managing Editor (F), the Desk Editor
+   (S) and the Sub-editor (S), added to the matrix in M3.
+7. **Removing a live update:** single actor with a reason, by holders of `article.unpublish`.
+8. **Web push:** after Panel 8's consent banner, through OneSignal's free tier, with a daily limit.
+9. **Live polling:** every 15 seconds; the JSON cached 10 seconds at the edge and 5 in Redis.
+10. **Order:** M1 → M2 → M3 → M4.
+11. **"Copy for WhatsApp" moves into M1** (the owner, 19 Nov 2026, on the recommendation that it is
+    a small piece of work and useful from the first day). M4 keeps RSS.
 
 **Plan:** [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md), Phase G. **Access rules:** the
 `homepage.curate`, `breaking_banner.manage / push.send` and `article.*` rows of the
@@ -2800,10 +2911,10 @@ owner before the next one starts.
 
 | Milestone | What it delivers | Rough size |
 |---|---|---|
-| **M1. The banner's language** | A language on each banner item; a Desk Editor runs their own desk's banner; the reader sees their language's items, under a label in their language | 3 to 4 days |
+| **M1. The banner's language** | A language on each banner item; a Desk Editor runs their own desk's banner; the reader sees their language's items, under a label in their language. Also "Copy for WhatsApp" on a published story (decision 11) | 3 to 4 days |
 | **M2. Pinned slots** | The pins table, a "Front page" screen in the back office, and the pinned row above the automatic order on the home and section pages, in English and Hindi | 1.5 to 2 weeks |
 | **M3. Live blogs** | The live blog format, updates posted without four-eyes, key events and a pinned update, the reader's live page polling a cached JSON endpoint, `LiveBlogPosting` markup | 2 to 3 weeks |
-| **M4. Distribution** | RSS per language and section; "Copy for WhatsApp" on a published story; web push, if and when question 8 says so | 3 to 4 days, push extra |
+| **M4. Distribution** | RSS per language and section; web push after Panel 8's consent banner (decision 8) | 2 to 3 days, push extra |
 
 ### 2. Data model
 
@@ -2902,7 +3013,8 @@ either permission). In the order it is used:
   - a small editor for one update, with "Key event" and "Pin";
   - the updates, newest first, each with Edit and Remove;
   - "End the live blog".
-- **On a published story (M4):** "Copy for WhatsApp" and, after question 8, "Send a push".
+- **On a published story:** "Copy for WhatsApp" (M1, decision 11) and, after Panel 8, "Send a
+  push" (decision 8).
 
 **Back-office routes:**
 - `GET`, `POST /api/admin/front-page/pins` (list a page's pins, pin a story);
@@ -2953,7 +3065,7 @@ either permission). In the order it is used:
 - **JS:** the pinned row is server-rendered, with a small island for Hindi; the live island is on
   live blog pages only. Each route's budget is reported, and raised only with the owner's say.
 
-### 6. Distribution (M4)
+### 6. Distribution (M4; "Copy for WhatsApp" in M1, decision 11)
 
 - **Copy for WhatsApp:** on a published story's screen, it copies a ready message in the story's
   language: the headline in bold, the dek, and the story's address with
