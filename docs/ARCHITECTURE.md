@@ -182,7 +182,8 @@ apps/
     src/app/media/         the Desk's images from the local folder, on a laptop only (as in web)
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list
                            with its takedown alerts, a new story, the story editor with its revisions
-                           and credits and its image and gallery picker, the preview, the authors with their photos, the
+                           and credits and its image and gallery picker, a live blog's updates (Panel 3,
+                           LiveUpdatesPanel.tsx, loaded only on a live blog), the preview, the authors with their photos, the
                            media library), and people/ (Panel 1's screens: the directory with a Super Admin's
                            requests, one person's roles and account, adding a person, the one-time link box,
                            the welcome page a link opens, emergency access and the access review; AdminTopBar

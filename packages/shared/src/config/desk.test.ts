@@ -84,7 +84,8 @@ test("send back, unpublish, retract and kill need a reason; the others do not", 
 
 test("the Desk refuses sponsored stories and live blogs (Panels 9 and 3)", () => {
   expect(DESK_FORMATS).not.toContain("sponsored");
-  expect(DESK_FORMATS).not.toContain("live_blog");
+  // Panel 3, M3: a live blog is written on the Desk.
+  expect(DESK_FORMATS).toContain("live_blog");
   expect(DESK_FORMATS).toContain("news");
 });
 

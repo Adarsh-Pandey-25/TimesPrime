@@ -121,6 +121,14 @@ describe("the story list", () => {
   });
 });
 
+test("New story offers a live blog (Panel 3, M3) and not sponsored content", async () => {
+  serve(() => undefined);
+  render(<NewStoryForm />);
+  const formats = screen.getAllByRole("option").map((o) => o.textContent);
+  expect(formats).toContain("live blog");
+  expect(formats).not.toContain("sponsored");
+});
+
 test("a new story is created in its desk and opens in the editor", async () => {
   serve((url, init) => {
     if (url === "/api/admin/desk/stories" && init?.method === "POST") return { status: 201, body: { story: { id: "s-9" } } };
@@ -326,6 +334,140 @@ describe("the story screen", () => {
       await act(async () => render(<StoryEditor id="s-1" />));
       await screen.findByDisplayValue("Budget passes");
       expect(screen.queryByRole("button", { name: "Copy for WhatsApp" })).not.toBeInTheDocument();
+    });
+  });
+
+  // Panel 3, M3 (design §4): a live blog's updates, on its own screen.
+  describe("the live updates panel", () => {
+    const LIVE = { format: "live_blog", workflow_state: "published", published_revision_id: "r-1", slug: "results-live" };
+    const body = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+    const UPDATES = [
+      { id: "lu-2", headline: "Counting begins", body: body("Postal ballots first."), is_key_event: true, is_pinned: true, posted_at: "2026-11-20T09:00:00Z", edited_at: null, removed_at: null, removed_reason: null },
+      { id: "lu-1", headline: null, body: body("A wrong figure."), is_key_event: false, is_pinned: false, posted_at: "2026-11-20T08:00:00Z", edited_at: null, removed_at: "2026-11-20T08:30:00Z", removed_reason: "Wrong figure." },
+    ];
+    const ALL = { "article.view_admin": "read", "article.edit": "act", "live_update.post": "act", "article.unpublish": "act", "article.publish": "act" } as const;
+    let sent: Array<{ url: string; init?: RequestInit }>;
+    const liveRoutes = (endedAt: string | null = null) => (url: string, init?: RequestInit) => {
+      if (url.includes("/live") || url.endsWith("/end-live")) sent.push({ url, init });
+      if (url === "/api/admin/desk/stories/s-1/live" && !init?.method) return { status: 200, body: { updates: UPDATES, live_ended_at: endedAt } };
+      if (init?.method === "POST" || init?.method === "PATCH") return { status: 200, body: { update: UPDATES[0], story: {} } };
+      return undefined;
+    };
+    const show = async () =>
+      act(async () =>
+        render(
+          <FeedbackProvider>
+            <StoryEditor id="s-1" />
+          </FeedbackProvider>
+        )
+      );
+    beforeEach(() => {
+      sent = [];
+    });
+
+    test("a published live blog: Live, the updates newest first (pinned, key event, removed with its reason), and the form to post", async () => {
+      serveStory(ALL, LIVE, liveRoutes());
+      await show();
+      expect(await screen.findByRole("heading", { name: "Live updates" })).toBeInTheDocument();
+      expect(await screen.findByText("Counting begins")).toBeInTheDocument();
+      const list = screen.getByRole("list", { name: "Updates, newest first" });
+      const [first, second] = within(list).getAllByRole("listitem");
+      expect(within(first).getByText("Pinned")).toBeInTheDocument();
+      expect(within(first).getByText("Key event")).toBeInTheDocument();
+      expect(within(second).getByText(/Removed .*: Wrong figure\./)).toBeInTheDocument();
+      expect(within(second).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+      expect(screen.getByText("Live")).toBeInTheDocument();
+      expect(screen.getByRole("textbox", { name: "Headline (optional)" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Post the update" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "End the live blog" })).toBeInTheDocument();
+    });
+
+    test("an empty update is not sent: the screen says it needs text", async () => {
+      serveStory(ALL, LIVE, liveRoutes());
+      await show();
+      await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Post the update" })));
+      expect(await screen.findByRole("alert")).toHaveTextContent("An update needs some text.");
+      expect(sent.filter((s) => s.init?.method)).toEqual([]);
+    });
+
+    test("changing an update sends its whole text and flags, from the update chosen", async () => {
+      serveStory(ALL, LIVE, liveRoutes());
+      await show();
+      const list = await screen.findByRole("list", { name: "Updates, newest first" });
+      await act(async () => fireEvent.click(within(within(list).getAllByRole("listitem")[0]).getByRole("button", { name: "Edit" })));
+      const headline = screen.getByRole("textbox", { name: "Headline (optional)" });
+      expect(headline).toHaveValue("Counting begins");
+      fireEvent.change(headline, { target: { value: "Counting is under way" } });
+      fireEvent.click(screen.getByRole("checkbox", { name: "Key event" }));
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save the change" })));
+      const patch = sent.find((s) => s.init?.method === "PATCH");
+      expect(patch?.url).toBe("/api/admin/desk/stories/s-1/live/lu-2");
+      expect(JSON.parse(String(patch?.init?.body))).toEqual({ headline: "Counting is under way", body: body("Postal ballots first."), is_key_event: false, is_pinned: true });
+      expect(await screen.findByText("The update is changed.")).toBeInTheDocument();
+    });
+
+    test("removing asks for a reason in the back office's popup, then sends it", async () => {
+      serveStory(ALL, LIVE, liveRoutes());
+      await show();
+      const list = await screen.findByRole("list", { name: "Updates, newest first" });
+      await act(async () => fireEvent.click(within(within(list).getAllByRole("listitem")[0]).getByRole("button", { name: "Remove" })));
+      const dialog = await screen.findByRole("dialog", { name: "Remove this update?" });
+      fireEvent.change(within(dialog).getByRole("textbox", { name: "Reason" }), { target: { value: "Not confirmed." } });
+      await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Remove" })));
+      const post = sent.find((s) => s.url.endsWith("/lu-2/remove"));
+      expect(JSON.parse(String(post?.init?.body))).toEqual({ reason: "Not confirmed." });
+    });
+
+    test("ending asks first; Cancel keeps it live, and End sends it", async () => {
+      serveStory(ALL, LIVE, liveRoutes());
+      await show();
+      await act(async () => fireEvent.click(await screen.findByRole("button", { name: "End the live blog" })));
+      const first = await screen.findByRole("dialog", { name: "End the live blog?" });
+      await act(async () => fireEvent.click(within(first).getByRole("button", { name: "Cancel" })));
+      expect(sent.some((s) => s.url.endsWith("/end-live"))).toBe(false);
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "End the live blog" })));
+      const again = await screen.findByRole("dialog", { name: "End the live blog?" });
+      await act(async () => fireEvent.click(within(again).getByRole("button", { name: "End the live blog" })));
+      expect(sent.some((s) => s.url === "/api/admin/desk/stories/s-1/end-live" && s.init?.method === "POST")).toBe(true);
+    });
+
+    test("an ended blog takes no updates: no form, no Edit, no End; an update can still be removed", async () => {
+      serveStory(ALL, LIVE, liveRoutes("2026-11-20T10:00:00Z"));
+      await show();
+      expect(await screen.findByText(/^Ended /)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Post the update" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "End the live blog" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+    });
+
+    test("whoever lacks the permissions sees the updates and nothing to do with them", async () => {
+      serveStory({ "article.view_admin": "read" }, LIVE, liveRoutes());
+      await show();
+      expect(await screen.findByText("Counting begins")).toBeInTheDocument();
+      for (const name of ["Post the update", "Edit", "Remove", "End the live blog"]) expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+    });
+
+    test("before publication the panel says updates come once it is published; another format has no panel", async () => {
+      serveStory(ALL, { format: "live_blog" }, liveRoutes());
+      const { unmount } = await show();
+      expect(await screen.findByText(/Updates are posted once the live blog is published/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Post the update" })).not.toBeInTheDocument();
+      unmount();
+      sent = [];
+
+      serveStory(ALL, { format: "news", workflow_state: "published", published_revision_id: "r-1" }, liveRoutes());
+      await show();
+      await screen.findByDisplayValue("Budget passes");
+      expect(screen.queryByRole("heading", { name: "Live updates" })).not.toBeInTheDocument();
+      expect(sent).toEqual([]);
+    });
+
+    test("the server's refusal of the list is shown, with a way to try again", async () => {
+      serveStory(ALL, LIVE, (url, init) => (url === "/api/admin/desk/stories/s-1/live" && !init?.method ? { status: 500, body: { error: "The Desk could not do this. Nothing was changed." } } : undefined));
+      await show();
+      expect(await screen.findByText(/The Desk could not do this/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     });
   });
 

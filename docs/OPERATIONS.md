@@ -1518,6 +1518,9 @@ Supabase SQL editor. No session applies SQL. Until both steps are done, nobody h
 **Undo.** For front-3, the rollback at the end of the file, before the first update. For the
 catalogue, re-apply the previous version of the file.
 
+**Applied** by the owner on 20 Nov 2026: the catalogue (42, 143, 3) and front-3 (true, true, false,
+false, true, false, true, 0).
+
 ### Panel 1: emergency access (break-glass)
 
 For the Super Admins (Panel 1, M3). For the night a court order or a serious error needs a story
@@ -1961,8 +1964,9 @@ phases were done:
    and "Copy for WhatsApp", is on `main` (PR #57), and the owner applied front-1 on 20 Nov 2026.
    **M2**, pinned slots and the Front page screen (`/admin/front-page`, which now holds the banner),
    is on `main` (PRs #58 and #59), and the owner applied front-2 on 20 Nov 2026. **M3**, live
-   blogs, is being built in three pull requests: the back end first (`panel-3-live-backend`), for
-   which the owner [re-applies the catalogue and applies front-3](#panel-3-applying-front-3).
+   blogs, is being built in three pull requests: the back end is on `main` (PR #60), with the
+   catalogue and front-3 [applied](#panel-3-applying-front-3) by the owner; the Desk's "Live
+   updates" panel is built (`panel-3-live-panel`); the reader's live page comes last.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

@@ -5,7 +5,8 @@
  * or a link, and at most one library image. Anything else is refused before it is stored.
  */
 
-import { LIVE_BLOCKS_MAX, LIVE_TEXT_MAX, liveBodyProblem } from "./live";
+import { getSchema } from "@tiptap/core";
+import { LIVE_BLOCKS_MAX, LIVE_TEXT_MAX, liveBodyProblem, liveExtensions } from "./live";
 
 const IMAGE = "c0ffee00-0000-4000-8000-000000000001";
 const text = (value: string, marks?: unknown[]) => ({ type: "text", text: value, ...(marks ? { marks } : {}) });
@@ -49,4 +50,10 @@ test("the limits: paragraphs and characters", () => {
   expect(liveBodyProblem(doc(...Array.from({ length: LIVE_BLOCKS_MAX + 1 }, () => paragraph(text("x")))))).toMatch(/1 to 30 paragraphs/);
   expect(liveBodyProblem(doc(paragraph(text("x".repeat(LIVE_TEXT_MAX)))))).toBeNull();
   expect(liveBodyProblem(doc(paragraph(text("x".repeat(LIVE_TEXT_MAX + 1)))))).toMatch(/at most 5000 characters/);
+});
+
+test("the editor's schema makes only what the check accepts: no headings, lists, quotes, code, embeds or galleries", () => {
+  const schema = getSchema(liveExtensions());
+  expect(Object.keys(schema.nodes).sort()).toEqual(["doc", "hardBreak", "image", "paragraph", "text"]);
+  expect(Object.keys(schema.marks).sort()).toEqual(["bold", "italic", "link"]);
 });
