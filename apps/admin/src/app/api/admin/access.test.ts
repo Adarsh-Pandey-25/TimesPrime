@@ -139,6 +139,12 @@ import * as liveUpdates from "./desk/stories/[id]/live/route";
 import * as liveUpdate from "./desk/stories/[id]/live/[updateId]/route";
 import * as liveRemove from "./desk/stories/[id]/live/[updateId]/remove/route";
 import * as liveEnd from "./desk/stories/[id]/end-live/route";
+import * as grievances from "./compliance/grievances/route";
+import * as grievanceOne from "./compliance/grievances/[id]/route";
+import * as grievanceAcknowledge from "./compliance/grievances/[id]/acknowledge/route";
+import * as grievanceAssign from "./compliance/grievances/[id]/assign/route";
+import * as grievanceNotes from "./compliance/grievances/[id]/notes/route";
+import * as grievanceDecide from "./compliance/grievances/[id]/decide/route";
 import { cache } from "@timesprime/server/lib/cache";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as {
@@ -1964,6 +1970,184 @@ describe("the front page's pins (Panel 3 design §3, M2)", () => {
     const takedown = CASES.find((c) => c.path === "/api/admin/desk/stories/[id]/unpublish") as Case;
     expect((await call(takedown, HI_DESK, takedown.data)).status).toBe(200);
     expect(del.mock.calls.map(([key]) => key).filter((key) => key.startsWith("front:pins:")).sort()).toEqual(["front:pins:v1:hi:home", "front:pins:v1:hi:sports"]);
+  });
+});
+
+// ---- Panel 7, Compliance: grievances (design §3, M1) ------------------------------------------
+
+const OFFICER: Grantee = { role: "grievance_officer", language: null };
+const HI_OFFICER: Grantee = { role: "grievance_officer", language: "hi" };
+const EDITOR_IN_CHIEF: Grantee = { role: "managing_editor", language: null };
+const GRIEVANCE_ROW = {
+  id: "g-1", ticket: "G-2026-00042", channel: "web", language: "en", name: "Asha Rao", email: "asha@example.com", about_url: null, story_id: null,
+  category: "factual_error", body: "The score was wrong.", received_at: "2026-11-20T06:00:00Z", entered_by: null, entered_at: "2026-11-20T06:00:00Z",
+  ack_due_at: "2026-11-21T06:00:00Z", decide_due_at: "2026-12-05T06:00:00Z", acknowledged_at: "2026-11-20T06:00:00Z", acknowledged_by: null,
+  assigned_to: null, state: "open", outcome: null, reply: null, decided_by: null, decided_at: null,
+};
+const BY_EMAIL = { ...GRIEVANCE_ROW, channel: "email", entered_by: "u-9", acknowledged_at: null };
+const DECIDED = { ...GRIEVANCE_ROW, state: "decided", outcome: "upheld", reply: "We corrected it.", decided_by: "u-9", decided_at: "2026-11-21T06:00:00Z" };
+const one = (row: Record<string, unknown>) => ({ grievances: { data: row, error: null } });
+const onGrievance = (handler: DeskHandler) => withId(handler, { id: "g-1" });
+const ENTER_BODY = { channel: "email", language: "en", name: "Asha Rao", email: "asha@example.com", category: "factual_error", body: "The score was wrong." };
+const REPLY = "We checked the score and corrected the story.";
+const G = "/api/admin/compliance/grievances/[id]" as const;
+const GRIEVANCE_CASES: Case[] = [
+  {
+    path: "/api/admin/compliance/grievances", method: "GET", handler: grievances.GET, allowed: EDITOR_IN_CHIEF,
+    data: { grievances: { data: [GRIEVANCE_ROW], error: null, count: 1 }, staff_profiles: { data: [], error: null } }, changes: false,
+  },
+  {
+    path: "/api/admin/compliance/grievances", method: "POST", handler: grievances.POST, body: ENTER_BODY, allowed: OFFICER, wrongScope: HI_OFFICER,
+    data: { "rpc:grievance_enter": { data: BY_EMAIL, error: null } }, changes: true,
+  },
+  {
+    path: G, method: "GET", handler: onGrievance(grievanceOne.GET), allowed: EDITOR_IN_CHIEF,
+    data: { ...one(GRIEVANCE_ROW), grievance_notes: { data: [], error: null }, staff_profiles: { data: [], error: null } }, changes: false,
+  },
+  {
+    path: `${G}/acknowledge`, method: "POST", handler: onGrievance(grievanceAcknowledge.POST), allowed: OFFICER, wrongScope: HI_OFFICER,
+    data: { ...one(BY_EMAIL), "rpc:grievance_acknowledge": { data: { ...BY_EMAIL, acknowledged_at: "2026-11-20T08:00:00Z", acknowledged_by: "u-1" }, error: null } }, changes: true,
+  },
+  {
+    path: `${G}/assign`, method: "POST", handler: onGrievance(grievanceAssign.POST), allowed: OFFICER, wrongScope: HI_OFFICER,
+    data: { ...one(GRIEVANCE_ROW), "rpc:grievance_assign": { data: { ...GRIEVANCE_ROW, assigned_to: "u-1" }, error: null } }, changes: true,
+  },
+  {
+    path: `${G}/notes`, method: "POST", handler: onGrievance(grievanceNotes.POST), body: { body: "Asked the desk for the match sheet." }, allowed: OFFICER, wrongScope: HI_OFFICER,
+    data: { ...one(GRIEVANCE_ROW), "rpc:grievance_note": { data: { id: "n-1", grievance_id: "g-1", body: "Asked the desk for the match sheet.", author_id: "u-1", created_at: "2026-11-20T08:00:00Z" }, error: null } },
+    changes: true,
+  },
+  {
+    path: `${G}/decide`, method: "POST", handler: onGrievance(grievanceDecide.POST), body: { outcome: "upheld", reply: REPLY }, allowed: OFFICER, wrongScope: HI_OFFICER,
+    data: { ...one(GRIEVANCE_ROW), "rpc:grievance_decide": { data: { ...DECIDED, reply: REPLY, decided_by: "u-1" }, error: null } }, changes: true,
+  },
+];
+CASES.push(...GRIEVANCE_CASES);
+
+describe("grievances (Panel 7 design §3, M1)", () => {
+  const caseFor = (method: Method, path: string) => GRIEVANCE_CASES.find((c) => c.method === method && c.path === path) as Case;
+  const LIST = caseFor("GET", "/api/admin/compliance/grievances");
+  const ENTER = caseFor("POST", "/api/admin/compliance/grievances");
+  const ONE = caseFor("GET", G);
+  const ACK = caseFor("POST", `${G}/acknowledge`);
+  const ASSIGN = caseFor("POST", `${G}/assign`);
+  const NOTE = caseFor("POST", `${G}/notes`);
+  const DECIDE = caseFor("POST", `${G}/decide`);
+  async function call(c: Case, caller: Grantee, data: Case["data"], over: Partial<Case> = {}) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, ...over }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const audits = () => (recordAudit as jest.Mock).mock.calls.map(([row]) => row);
+  const rpcArgs = (fn: string) => calls.filter(([name]) => name === fn).map(([, , args]) => args[0]);
+
+  test("decision 4: the Managing Editor (R) reads the queue with the emails masked, and may not act; the officer and Legal see them", async () => {
+    const editor = await call(LIST, EDITOR_IN_CHIEF, LIST.data);
+    expect(editor.json).toMatchObject({ may_handle: false, counts: { open: 1 } });
+    expect(editor.json.grievances[0]).toMatchObject({ ticket: "G-2026-00042", email: "a•••@example.com", contact_shown: false, name: "Asha Rao" });
+    const officer = await call(LIST, OFFICER, LIST.data);
+    expect(officer.json).toMatchObject({ may_handle: true });
+    expect(officer.json.grievances[0]).toMatchObject({ email: "asha@example.com", contact_shown: true });
+    expect((await call(ONE, EDITOR_IN_CHIEF, ONE.data)).json.grievance.email).toBe("a•••@example.com");
+    expect((await call(ONE, { role: "legal_compliance", language: null }, ONE.data)).json).toMatchObject({ may_handle: true, grievance: { email: "asha@example.com" } });
+  });
+
+  test("the Managing Editor (R) cannot type one in, acknowledge, take, note or decide one: 403, nothing written", async () => {
+    for (const c of [ENTER, ACK, ASSIGN, NOTE, DECIDE]) {
+      const r = await call(c, EDITOR_IN_CHIEF, c.data);
+      expect(r.status).toBe(403);
+      expect(wrote()).toEqual([]);
+    }
+  });
+
+  test("whoever holds no grievance cell sees nothing: a Desk Editor, the Privacy Officer", async () => {
+    for (const caller of [HI_DESK, { role: "privacy_officer", language: null } as Grantee]) {
+      expect((await call(LIST, caller, LIST.data)).status).toBe(403);
+      expect((await call(ONE, caller, ONE.data)).status).toBe(403);
+    }
+    expect(calls.filter(([t]) => t === "grievances")).toEqual([]);
+  });
+
+  test("the queue's filter and ticket are checked; a typed ticket is found in its stored form", async () => {
+    expect((await call(LIST, OFFICER, LIST.data, { query: "?state=late" })).status).toBe(400);
+    expect((await call(LIST, OFFICER, LIST.data, { query: "?ticket=42" })).status).toBe(400);
+    expect((await call(LIST, OFFICER, LIST.data, { query: "?state=all&ticket=g-2026-00042" })).status).toBe(200);
+    expect(calls).toContainEqual(["grievances", "eq", ["ticket", "G-2026-00042"]]);
+  });
+
+  test("one grievance: 404 when unknown; whether it is the caller's own", async () => {
+    expect((await call(ONE, OFFICER, { grievances: { data: null, error: null } })).status).toBe(404);
+    const mine = await call(ONE, OFFICER, { ...ONE.data, ...one({ ...GRIEVANCE_ROW, assigned_to: "u-1" }) });
+    expect(mine.json).toMatchObject({ yours: true, story: null, notes: [] });
+  });
+
+  test("typing one in: only email, post or other; when it arrived is in the past year; a story address links its story", async () => {
+    const enter = (body: Record<string, unknown>, data: Case["data"] = ENTER.data) => call(ENTER, OFFICER, data, { body: { ...ENTER_BODY, ...body } });
+    expect((await enter({ channel: "web" })).status).toBe(400);
+    expect((await enter({ received_at: "2099-01-01T00:00:00Z" })).status).toBe(400);
+    expect((await enter({ received_at: "2020-01-01T00:00:00Z" })).status).toBe(400);
+    expect((await enter({ acknowledged: "yes" })).status).toBe(400);
+    expect((await enter({ email: "not-an-email" })).status).toBe(400);
+    expect(wrote()).toEqual([]);
+
+    const linked = await enter(
+      { about_url: "https://timesprime247.com/india/budget-passes-12", received_at: "2026-11-19T10:00:00Z", acknowledged: true },
+      { ...ENTER.data, stories: { data: { id: "s-1" }, error: null } }
+    );
+    expect(linked.status).toBe(201);
+    expect(rpcArgs("grievance_enter")).toEqual([
+      expect.objectContaining({ p_actor: "u-1", p_channel: "email", p_story: "s-1", p_received_at: "2026-11-19T10:00:00.000Z", p_acknowledged: true, p_about_url: "https://timesprime247.com/india/budget-passes-12" }),
+    ]);
+    expect(calls).toContainEqual(["stories", "eq", ["public_id", 12]]);
+  });
+
+  test("audit rows are site-wide and name the ticket, never the complainant's name or email", async () => {
+    await call(ENTER, OFFICER, ENTER.data);
+    await call(DECIDE, OFFICER, DECIDE.data);
+    const rows = audits();
+    expect(rows.map((r) => `${r.action}:${r.outcome}`)).toEqual(["grievance.create:attempted", "grievance.create:succeeded", "grievance.decide:attempted", "grievance.decide:succeeded"]);
+    for (const row of rows) {
+      expect(row).toMatchObject({ entity_type: "grievance", language: null, section: null });
+      expect(JSON.stringify(row)).not.toMatch(/asha@example\.com|Asha Rao/);
+    }
+    expect(rows[3].after).toMatchObject({ ticket: "G-2026-00042", outcome: "upheld", reply: REPLY, on_time: true });
+  });
+
+  test("acknowledging: only one typed in and not yet acknowledged", async () => {
+    expect((await call(ACK, OFFICER, { ...ACK.data, ...one(GRIEVANCE_ROW) })).status).toBe(409);
+    expect((await call(ACK, OFFICER, { ...ACK.data, ...one({ ...BY_EMAIL, acknowledged_at: "2026-11-20T07:00:00Z", acknowledged_by: "u-9" }) })).status).toBe(409);
+    expect((await call(ACK, OFFICER, { ...ACK.data, ...one({ ...DECIDED, channel: "email", entered_by: "u-9", acknowledged_by: "u-9" }) })).status).toBe(409);
+    expect(wrote()).toEqual([]);
+    expect((await call(ACK, OFFICER, ACK.data)).status).toBe(200);
+    expect(rpcArgs("grievance_acknowledge")).toEqual([{ p_grievance: "g-1", p_actor: "u-1" }]);
+  });
+
+  test("taking one: an open grievance, not already the caller's; a colleague's may be taken over", async () => {
+    expect((await call(ASSIGN, OFFICER, { ...ASSIGN.data, ...one(DECIDED) })).status).toBe(409);
+    expect((await call(ASSIGN, OFFICER, { ...ASSIGN.data, ...one({ ...GRIEVANCE_ROW, assigned_to: "u-1" }) })).status).toBe(409);
+    expect(wrote()).toEqual([]);
+    expect((await call(ASSIGN, OFFICER, { ...ASSIGN.data, ...one({ ...GRIEVANCE_ROW, assigned_to: "u-9" }) })).status).toBe(200);
+    expect(rpcArgs("grievance_assign")).toEqual([{ p_grievance: "g-1", p_actor: "u-1", p_assignee: "u-1" }]);
+    expect(audits()[0]).toMatchObject({ action: "grievance.assign", before: { assigned_to: "u-9" } });
+  });
+
+  test("a note is 1 to 2000 characters, also on a decided grievance", async () => {
+    expect((await call(NOTE, OFFICER, NOTE.data, { body: { body: " " } })).status).toBe(400);
+    expect((await call(NOTE, OFFICER, NOTE.data, { body: { body: "x".repeat(2001) } })).status).toBe(400);
+    expect(wrote()).toEqual([]);
+    expect((await call(NOTE, OFFICER, { ...NOTE.data, ...one(DECIDED) })).status).toBe(201);
+  });
+
+  test("deciding: a listed outcome and a reply of 1 to 5000 characters, once; the database is the backstop", async () => {
+    expect((await call(DECIDE, OFFICER, DECIDE.data, { body: { outcome: "rejected", reply: REPLY } })).status).toBe(400);
+    expect((await call(DECIDE, OFFICER, DECIDE.data, { body: { outcome: "upheld", reply: " " } })).status).toBe(400);
+    expect((await call(DECIDE, OFFICER, DECIDE.data, { body: { outcome: "upheld", reply: "x".repeat(5001) } })).status).toBe(400);
+    expect((await call(DECIDE, OFFICER, { ...DECIDE.data, ...one(DECIDED) })).status).toBe(409);
+    expect(wrote()).toEqual([]);
+    const raced = await call(DECIDE, OFFICER, { ...DECIDE.data, "rpc:grievance_decide": { data: null, error: { code: "55000", message: "grievance_decide: grievance G-2026-00042 is decided" } } });
+    expect(raced.status).toBe(409);
+    expect(audits().map((r) => r.outcome)).toEqual(["attempted", "failed"]);
   });
 });
 

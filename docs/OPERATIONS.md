@@ -1528,6 +1528,48 @@ catalogue, re-apply the previous version of the file.
 **Applied** by the owner on 20 Nov 2026: the catalogue (42, 143, 3) and front-3 (true, true, false,
 false, true, false, true, 0).
 
+### Panel 7: applying compliance-1
+
+For the owner, before grievances are handled in the back office (Panel 7, M1). Against the real
+database, in the Supabase SQL editor. No session applies SQL. Until it is applied, the Compliance
+screen cannot load its grievances (a 500, in Sentry); grievances still arrive by email, as today.
+
+1. **Apply** `database/migrations/2026-11-20-compliance-1-grievances.sql`, whole. One transaction:
+   if it fails, nothing changed, and it is safe to run again. **Check** (one query, one row):
+
+   ```sql
+   SELECT (SELECT rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tablename = 'grievances') AS rls_on,
+          (SELECT rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tablename = 'grievance_notes') AS notes_rls_on,
+          has_table_privilege('service_role', 'public.grievances', 'DELETE') AS app_can_delete,
+          has_table_privilege('anon', 'public.grievances', 'SELECT') AS readers_can_read,
+          has_table_privilege('anon', 'public.grievance_notes', 'SELECT') AS readers_can_read_notes,
+          has_function_privilege('anon', 'public.grievance_submit(text,text,text,text,uuid,text,text)', 'EXECUTE') AS readers_can_send,
+          has_function_privilege('anon', 'public.grievance_status(text,text)', 'EXECUTE') AS readers_can_ask,
+          has_function_privilege('anon', 'public.grievance_decide(uuid,uuid,text,text)', 'EXECUTE') AS readers_can_decide,
+          has_function_privilege('service_role', 'public.grievance_decide(uuid,uuid,text,text)', 'EXECUTE') AS app_can_decide,
+          (SELECT count(*) FROM public.grievances) AS grievances;
+   ```
+
+   | Column | Expect |
+   |---|---|
+   | `rls_on` | true |
+   | `notes_rls_on` | true |
+   | `app_can_delete` | false |
+   | `readers_can_read` | false |
+   | `readers_can_read_notes` | false |
+   | `readers_can_send` | true |
+   | `readers_can_ask` | true |
+   | `readers_can_decide` | false |
+   | `app_can_decide` | true |
+   | `grievances` | 0 |
+
+2. **Who handles grievances:** the Grievance Officer's account, with the Grievance Officer role and
+   no language (People, Panel 1); Legal's when named. Until one exists, the Managing Editor reads the
+   queue and nobody can decide a grievance.
+
+**Undo.** The rollback at the end of the file, before the first grievance. After that the tables are
+a legal record and are kept.
+
 ### Panel 1: emergency access (break-glass)
 
 For the Super Admins (Panel 1, M3). For the night a court order or a serious error needs a story
@@ -2041,7 +2083,9 @@ phases were done:
     [design](PANEL_DOCS.md#panel-7-design-compliance-launch-minimum) was proposed on 20 Nov 2026 at
     the owner's request (PR #67), while the walk-through of Panels 1 to 3 is open (the design's
     §12), and approved the same day with every recommended answer. The matrix is unchanged. **M1**,
-    grievances, is next, on `panel-7-grievances`; it brings `compliance-1` for the owner to apply.
+    grievances, is built in two parts. The first, the back office's queue and compliance-1, is built
+    on `panel-7-grievances`; the owner [applies compliance-1](#panel-7-applying-compliance-1). The
+    second, the reader's form and status page, comes next.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

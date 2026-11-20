@@ -118,6 +118,29 @@ export const ADMIN_ROUTE_RULES = {
   "/api/admin/front-page/stories": {
     GET: { permissions: ["homepage.curate"], mode: "read", target: "none" },
   },
+  // ---- Panel 7, Compliance (design §3 and §4): grievances are site-wide. grievance.handle is F for
+  // the Grievance Officer and Legal, who act on them; R for the Managing Editor, who reads them with
+  // the complainant's email masked (decision 4).
+  "/api/admin/compliance/grievances": {
+    GET: { permissions: ["grievance.handle"], mode: "read", target: "none" },
+    // A grievance received by email, post or another way, typed in by an officer.
+    POST: { permissions: ["grievance.handle"], mode: "act", target: "site" },
+  },
+  "/api/admin/compliance/grievances/[id]": {
+    GET: { permissions: ["grievance.handle"], mode: "read", target: "none" },
+  },
+  "/api/admin/compliance/grievances/[id]/acknowledge": {
+    POST: { permissions: ["grievance.handle"], mode: "act", target: "site" },
+  },
+  "/api/admin/compliance/grievances/[id]/assign": {
+    POST: { permissions: ["grievance.handle"], mode: "act", target: "site" },
+  },
+  "/api/admin/compliance/grievances/[id]/notes": {
+    POST: { permissions: ["grievance.handle"], mode: "act", target: "site" },
+  },
+  "/api/admin/compliance/grievances/[id]/decide": {
+    POST: { permissions: ["grievance.handle"], mode: "act", target: "site" },
+  },
   "/api/admin/db-stats": {
     GET: { permissions: ["stats.view"], mode: "read", target: "none" },
     // Both holders have A (two people); the approval flow is Panel 4, so this is refused (Q5).

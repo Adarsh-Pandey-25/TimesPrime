@@ -76,3 +76,21 @@ export function deskStoryIdFrom(segment: string): number | null {
   const match = /(?:^|-)([1-9][0-9]{0,14})$/.exec(segment || "");
   return match ? Number(match[1]) : null;
 }
+
+/**
+ * The story number of an address a reader gives for a Desk story (a grievance's "about", Panel 7): a
+ * full URL or a path, /{section}/{slug}-{number} or /hi/{section}/{slug}-{number}; null for any other
+ * address. The host is not checked: the officer sees the address as given beside the story it names.
+ */
+export function deskStoryNumberFrom(address: string, isSection: (key: string) => boolean): number | null {
+  let path: string;
+  try {
+    path = new URL(address.trim(), "https://desk.invalid").pathname;
+  } catch {
+    return null;
+  }
+  const parts = path.split("/").filter(Boolean);
+  const [section, segment] = parts[0] === "hi" ? parts.slice(1) : parts;
+  if (parts.length !== (parts[0] === "hi" ? 3 : 2) || !section || !segment || !isSection(section)) return null;
+  return deskStoryIdFrom(segment);
+}
