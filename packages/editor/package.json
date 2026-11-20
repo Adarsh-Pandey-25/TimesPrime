@@ -6,6 +6,7 @@
     "./schema": "./src/schema.ts",
     "./text": "./src/text.ts",
     "./diff": "./src/diff.ts",
-    "./render": "./src/render.ts"
+    "./render": "./src/render.ts",
+    "./live": "./src/live.ts"
   }
 }

@@ -64,8 +64,8 @@ function sqlRows(table: string): string[][] {
 const { keys, cells } = matrixCells();
 
 describe("the permission catalogue matches the matrix in the access rules (docs/PANEL_DOCS.md)", () => {
-  test("the matrix has 33 rows naming 41 permission keys, and the constant lists them in order", () => {
-    expect(keys).toHaveLength(41);
+  test("the matrix has 34 rows naming 42 permission keys, and the constant lists them in order", () => {
+    expect(keys).toHaveLength(42);
     expect([...PERMISSION_KEYS]).toEqual(keys);
   });
 
@@ -86,7 +86,7 @@ describe("the permission catalogue matches the matrix in the access rules (docs/
     expect(flagged("scoped")).toEqual(["desk_editor", "sub_editor", "writer"]);
   });
 
-  test("the SQL seeds exactly the 41 permissions", () => {
+  test("the SQL seeds exactly the 42 permissions", () => {
     expect(sqlRows("permissions").map(([key]) => key)).toEqual(keys);
   });
 
@@ -96,7 +96,7 @@ describe("the permission catalogue matches the matrix in the access rules (docs/
     );
     const fromPlan = cells.map((c) => JSON.stringify(c));
     expect([...fromSql].sort()).toEqual([...fromPlan].sort());
-    expect(fromSql).toHaveLength(140);
+    expect(fromSql).toHaveLength(143);
   });
 
   test("spot checks against the plan's text", () => {

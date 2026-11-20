@@ -43,6 +43,7 @@ INSERT INTO public.permissions (key, matrix_row, risk, description) VALUES
   ('breaking_banner.manage', 'breaking_banner.manage / push.send', 'critical', ''),
   ('push.send', 'breaking_banner.manage / push.send', 'critical', ''),
   ('homepage.curate', 'homepage.curate', 'high', ''),
+  ('live_update.post', 'live_update.post', 'high', ''),
   ('correction.publish', 'correction.publish', 'high', ''),
   ('sponsored.label_remove', 'sponsored.label_remove', 'critical', ''),
   ('sponsored.approve', 'sponsored.approve', 'high', ''),
@@ -128,6 +129,9 @@ INSERT INTO public.role_permissions (role_key, permission_key, access, break_gla
   ('desk_editor', 'push.send', 'S', false, ''),
   ('managing_editor', 'homepage.curate', 'F', false, ''),
   ('desk_editor', 'homepage.curate', 'S', false, ''),
+  ('managing_editor', 'live_update.post', 'F', false, ''),
+  ('desk_editor', 'live_update.post', 'S', false, ''),
+  ('sub_editor', 'live_update.post', 'S', false, ''),
   ('managing_editor', 'correction.publish', 'F', false, ''),
   ('desk_editor', 'correction.publish', 'S', false, ''),
   ('sub_editor', 'correction.publish', 'A', false, ''),
@@ -218,8 +222,8 @@ COMMIT;
 
 -- Verify afterwards (expected counts are from the matrix):
 --   SELECT count(*) FROM public.roles;             -- 15
---   SELECT count(*) FROM public.permissions;       -- 41
---   SELECT count(*) FROM public.role_permissions;  -- 140
+--   SELECT count(*) FROM public.permissions;       -- 42
+--   SELECT count(*) FROM public.role_permissions;  -- 143
 --
 -- Rollback: this file only seeds data. To undo it, run the rollback in 2026-11-02-access-1-foundation.sql,
 -- which drops these tables (only before go-live), or re-apply the previous version of this file.

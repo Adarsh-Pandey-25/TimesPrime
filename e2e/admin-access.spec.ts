@@ -79,6 +79,9 @@ test.describe("signed out", () => {
     ["POST", "/api/admin/front-page/pins"],
     ["POST", "/api/admin/front-page/pins/00000000-0000-4000-8000-000000000001/end"],
     ["GET", "/api/admin/front-page/stories?language=en"],
+    ["GET", "/api/admin/desk/stories/00000000-0000-4000-8000-000000000001/live"],
+    ["POST", "/api/admin/desk/stories/00000000-0000-4000-8000-000000000001/live"],
+    ["POST", "/api/admin/desk/stories/00000000-0000-4000-8000-000000000001/end-live"],
   ]) {
     test(`${method} ${path} answers 401 and changes nothing`, async ({ request }) => {
       const res = await request.fetch(path, { method, data: method === "POST" ? {} : undefined });

@@ -135,6 +135,10 @@ import * as accessReview from "./people/review/route";
 import * as frontPins from "./front-page/pins/route";
 import * as frontPinEnd from "./front-page/pins/[id]/end/route";
 import * as frontStories from "./front-page/stories/route";
+import * as liveUpdates from "./desk/stories/[id]/live/route";
+import * as liveUpdate from "./desk/stories/[id]/live/[updateId]/route";
+import * as liveRemove from "./desk/stories/[id]/live/[updateId]/remove/route";
+import * as liveEnd from "./desk/stories/[id]/end-live/route";
 import { cache } from "@timesprime/server/lib/cache";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as {
@@ -1605,6 +1609,169 @@ describe("people and their roles (Panel 1 design §3)", () => {
     expect(r.json.can).toMatchObject({ rename: "ask", suspend: "act", reactivate: null, grant: "ask", roles: { [ROW_ID]: { renew: "ask", revoke: "act" } } });
     const me = await call(c, HI_MANAGING, c.data);
     expect(me.json.can).toMatchObject({ rename: "act", suspend: "act", grant: "act", roles: { [ROW_ID]: { renew: "act", revoke: "act" } } });
+  });
+});
+
+// ---- Panel 3, M3: the Hindi sports desk's live blog (design §3). Posting and changing an update is
+// live_update.post, whose least-privileged holder is a Sub-editor (S); removing one is article.unpublish
+// (a Desk Editor, S); ending the blog is article.publish (a Sub-editor, S). All in the story's desk.
+const LIVE_BLOG = story({ format: "live_blog", workflow_state: "published", published_revision_id: "r-1", live_ended_at: null });
+const LIVE_BODY = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Polls close at 6 pm." }] }] };
+const UPDATE_ROW = {
+  id: "lu-1", story_id: "s-1", headline: null, body: LIVE_BODY, is_key_event: false, is_pinned: false, posted_by: "u-9",
+  posted_at: "2026-11-20T08:00:00Z", edited_by: null, edited_at: null, removed_by: null, removed_at: null, removed_reason: null,
+};
+const L = "/api/admin/desk/stories/[id]/live" as const;
+const onUpdate = (handler: DeskHandler) => withId(handler, { id: "s-1", updateId: "lu-1" });
+const LIVE_CASES: Case[] = [
+  {
+    path: L, method: "GET", handler: withId(liveUpdates.GET), allowed: HI_WRITER, wrongScope: EN_WRITER,
+    data: { stories: LIVE_BLOG, live_updates: { data: [UPDATE_ROW], error: null } }, changes: false,
+  },
+  {
+    path: L, method: "POST", handler: withId(liveUpdates.POST), body: { body: LIVE_BODY, is_key_event: true }, allowed: HI_SUB, wrongScope: EN_SUB,
+    data: { stories: LIVE_BLOG, "rpc:live_post": { data: { ...UPDATE_ROW, posted_by: "u-1", is_key_event: true }, error: null } }, changes: true,
+  },
+  {
+    path: `${L}/[updateId]`, method: "PATCH", handler: onUpdate(liveUpdate.PATCH), body: { headline: "Polls close" }, allowed: HI_SUB, wrongScope: EN_SUB,
+    data: { stories: LIVE_BLOG, live_updates: { data: UPDATE_ROW, error: null }, "rpc:live_edit": { data: { ...UPDATE_ROW, headline: "Polls close", edited_by: "u-1", edited_at: "2026-11-20T09:00:00Z" }, error: null } },
+    changes: true,
+  },
+  {
+    path: `${L}/[updateId]/remove`, method: "POST", handler: onUpdate(liveRemove.POST), body: { reason: "Wrong figure." }, allowed: HI_DESK, wrongScope: EN_DESK,
+    data: { stories: LIVE_BLOG, live_updates: { data: UPDATE_ROW, error: null }, "rpc:live_remove": { data: { ...UPDATE_ROW, removed_by: "u-1", removed_at: "2026-11-20T09:00:00Z", removed_reason: "Wrong figure." }, error: null } },
+    changes: true,
+  },
+  {
+    path: `${S}/end-live`, method: "POST", handler: withId(liveEnd.POST), allowed: HI_SUB, wrongScope: EN_SUB,
+    data: { stories: LIVE_BLOG, "rpc:live_end": story({ format: "live_blog", workflow_state: "published", published_revision_id: "r-1", live_ended_at: "2026-11-20T10:00:00Z" }) }, changes: true,
+  },
+];
+CASES.push(...LIVE_CASES);
+
+describe("a live blog's updates (Panel 3 design §3, M3)", () => {
+  const caseFor = (method: Method, path: string) => LIVE_CASES.find((c) => c.method === method && c.path === path) as Case;
+  const POST_CASE = caseFor("POST", L);
+  const EDIT = caseFor("PATCH", `${L}/[updateId]`);
+  const REMOVE = caseFor("POST", `${L}/[updateId]/remove`);
+  const END = caseFor("POST", `${S}/end-live`);
+  async function call(c: Case, caller: Grantee, data: Case["data"], body?: unknown) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, body: body === undefined ? c.body : body }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const audits = () => (recordAudit as jest.Mock).mock.calls.map(([row]) => row);
+  const rpcArgs = (fn: string) => calls.find(([name]) => name === fn)?.[2];
+  const IMAGE = "c0ffee00-0000-4000-8000-0000000000aa";
+  const withImage = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "From the counting centre." }] }, { type: "image", attrs: { id: IMAGE, ratio: "16x9" } }] };
+  const READY_IMAGE = {
+    id: IMAGE, active: true, credit: "Staff", source: "Own", licence: "staff", licence_expires_at: null, rights_cleared_at: "2026-11-19T00:00:00Z",
+    alt_en: "Counting", alt_hi: "मतगणना", caption_en: "Counting", caption_hi: "मतगणना",
+  };
+
+  test("decision 6: a Sub-editor posts at once, with no second approver; the update goes through live_post", async () => {
+    const r = await call(POST_CASE, HI_SUB, POST_CASE.data, { headline: " Polls close ", body: LIVE_BODY, is_pinned: true });
+    expect(r.status).toBe(200);
+    expect(rpcArgs("live_post")).toEqual([{ p_story: "s-1", p_actor: "u-1", p_headline: "Polls close", p_body: LIVE_BODY, p_key_event: false, p_pinned: true }]);
+    expect(audits().map((row) => [row.action, row.outcome])).toEqual([["live.post", "attempted"], ["live.post", "succeeded"]]);
+  });
+
+  test("a Writer does not post to a live page, nor does Legal (no live_update.post)", async () => {
+    for (const caller of [HI_WRITER, { role: "legal_compliance", language: null } as Grantee]) {
+      const r = await call(POST_CASE, caller, POST_CASE.data);
+      expect([r.status, r.json.required]).toEqual([403, "live_update.post"]);
+    }
+    expect(wrote()).toEqual([]);
+  });
+
+  test("only an open live blog takes updates: another format, one not published, one that has ended (409); nothing written", async () => {
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [{ format: "news", workflow_state: "published", published_revision_id: "r-1" }, "not_live_blog"],
+      [{ format: "live_blog", workflow_state: "approved", approved_revision_id: "r-1" }, "not_published"],
+      [{ format: "live_blog", workflow_state: "published", published_revision_id: "r-1", live_ended_at: "2026-11-20T07:00:00Z" }, "live_ended"],
+    ];
+    for (const [over, code] of cases) {
+      for (const c of [POST_CASE, EDIT, END]) {
+        const r = await call(c, HI_SUB, { ...c.data, stories: story(over) });
+        expect([r.status, r.json.code]).toEqual([409, code]);
+      }
+    }
+    expect(wrote()).toEqual([]);
+  });
+
+  test("an update's text keeps to the smaller schema; a headline to 110 characters; flags are true or false", async () => {
+    const heading = { type: "doc", content: [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Results" }] }] };
+    for (const body of [{}, { body: heading }, { body: LIVE_BODY, headline: "x".repeat(111) }, { body: LIVE_BODY, is_pinned: "yes" }, { body: LIVE_BODY, headline: 7 }]) {
+      expect((await call(POST_CASE, HI_SUB, POST_CASE.data, body)).status).toBe(400);
+    }
+    expect(wrote()).toEqual([]);
+  });
+
+  test("an image must be ready for readers, as before publication: in the library, rights cleared, alt text in the story's language", async () => {
+    const notReady = await call(POST_CASE, HI_SUB, { ...POST_CASE.data, media_assets: { data: [{ ...READY_IMAGE, rights_cleared_at: null, alt_hi: null }], error: null } }, { body: withImage });
+    expect([notReady.status, notReady.json.code]).toEqual([422, "image"]);
+    expect(notReady.json.problems).toEqual(expect.arrayContaining(["image_rights_missing", "image_text_missing"]));
+    expect((await call(POST_CASE, HI_SUB, { ...POST_CASE.data, media_assets: { data: [], error: null } }, { body: withImage })).json.problems).toEqual(["image_unavailable"]);
+    expect(wrote()).toEqual([]);
+    expect((await call(POST_CASE, HI_SUB, { ...POST_CASE.data, media_assets: { data: [READY_IMAGE], error: null } }, { body: withImage })).status).toBe(200);
+  });
+
+  test("an edit keeps what it does not name, and the audit holds the text before and after", async () => {
+    const r = await call(EDIT, HI_SUB, EDIT.data, { headline: "Polls close" });
+    expect(r.status).toBe(200);
+    expect(rpcArgs("live_edit")).toEqual([{ p_update: "lu-1", p_actor: "u-1", p_headline: "Polls close", p_body: LIVE_BODY, p_key_event: false, p_pinned: false }]);
+    const [attempt, done] = audits();
+    expect(attempt).toMatchObject({ action: "live.edit", entity_type: "live_update", entity_id: "lu-1", language: "hi", section: "sports", before: { headline: null, body: LIVE_BODY } });
+    expect(done).toMatchObject({ outcome: "succeeded", after: { headline: "Polls close" } });
+  });
+
+  test("an edit names something to change, on an update of this story that was not removed", async () => {
+    expect((await call(EDIT, HI_SUB, EDIT.data, {})).status).toBe(400);
+    expect((await call(EDIT, HI_SUB, { ...EDIT.data, live_updates: { data: { ...UPDATE_ROW, story_id: "s-9" }, error: null } })).status).toBe(404);
+    expect((await call(EDIT, HI_SUB, { ...EDIT.data, live_updates: { data: null, error: null } })).status).toBe(404);
+    const removed = await call(EDIT, HI_SUB, { ...EDIT.data, live_updates: { data: { ...UPDATE_ROW, removed_at: "2026-11-20T08:30:00Z", removed_by: "u-9", removed_reason: "x" }, error: null } });
+    expect([removed.status, removed.json.code]).toEqual([409, "removed"]);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("decision 7: removing needs a reason and article.unpublish (not a Sub-editor); it works after the blog ended", async () => {
+    expect((await call(REMOVE, HI_DESK, REMOVE.data, { reason: "  " })).status).toBe(400);
+    expect((await call(REMOVE, HI_DESK, REMOVE.data, { reason: "x".repeat(501) })).status).toBe(400);
+    const sub = await call(REMOVE, HI_SUB, REMOVE.data);
+    expect([sub.status, sub.json.required]).toEqual([403, "article.unpublish"]);
+    expect(wrote()).toEqual([]);
+    const ended = { ...REMOVE.data, stories: story({ format: "live_blog", workflow_state: "published", published_revision_id: "r-1", live_ended_at: "2026-11-20T07:00:00Z" }) };
+    expect((await call(REMOVE, HI_DESK, ended)).status).toBe(200);
+    expect(rpcArgs("live_remove")).toEqual([{ p_update: "lu-1", p_actor: "u-1", p_reason: "Wrong figure." }]);
+    expect(audits().find((row) => row.outcome === "attempted")).toMatchObject({ action: "live.remove", reason: "Wrong figure.", before: { body: LIVE_BODY } });
+  });
+
+  test("Legal removes an update (article.unpublish F); an update already removed is 409", async () => {
+    expect((await call(REMOVE, { role: "legal_compliance", language: null }, REMOVE.data)).status).toBe(200);
+    const again = await call(REMOVE, HI_DESK, { ...REMOVE.data, live_updates: { data: { ...UPDATE_ROW, removed_at: "2026-11-20T08:30:00Z", removed_by: "u-9", removed_reason: "x" }, error: null } });
+    expect([again.status, again.json.code]).toEqual([409, "removed"]);
+  });
+
+  test("ending: article.publish in the story's desk, through live_end, audited as live.end; a Writer cannot", async () => {
+    const writer = await call(END, HI_WRITER, END.data);
+    expect([writer.status, writer.json.required]).toEqual([403, "article.publish"]);
+    const r = await call(END, HI_SUB, END.data);
+    expect(r.status).toBe(200);
+    expect(rpcArgs("live_end")).toEqual([{ p_story: "s-1", p_actor: "u-1" }]);
+    expect(audits().find((row) => row.outcome === "succeeded")).toMatchObject({ action: "live.end", entity_type: "story", after: { live_ended_at: "2026-11-20T10:00:00Z" } });
+  });
+
+  test("the Desk's panel lists the story's updates, removed ones too, and says whether the blog has ended", async () => {
+    const list = caseFor("GET", L);
+    const r = await call(list, HI_WRITER, { ...list.data, stories: story({ format: "live_blog", workflow_state: "published", published_revision_id: "r-1", live_ended_at: "2026-11-20T07:00:00Z" }) });
+    expect(r.json).toEqual({ updates: [expect.objectContaining({ id: "lu-1" })], live_ended_at: "2026-11-20T07:00:00Z" });
+  });
+
+  test("the database's refusal stands: a blog ended meanwhile is 409, and the attempt is recorded as failed", async () => {
+    const data = { ...POST_CASE.data, "rpc:live_post": { data: null, error: { code: "55000", message: "live_post: story s-1 is not an open live blog" } } };
+    expect((await call(POST_CASE, HI_SUB, data)).status).toBe(409);
+    expect(audits().map((row) => row.outcome)).toEqual(["attempted", "failed"]);
   });
 });
 

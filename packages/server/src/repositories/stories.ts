@@ -40,6 +40,8 @@ export interface StoryRow {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Panel 3, M3 (front-3): when a live blog ended; absent on a database without front-3. */
+  live_ended_at?: string | null;
 }
 
 export interface RevisionRow {

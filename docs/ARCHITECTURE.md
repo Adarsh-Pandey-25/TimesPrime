@@ -204,7 +204,8 @@ packages/
                            authors.ts (the Desk's author records), media.ts (the media library's records),
                            people.ts (Panel 1: profiles, role assignments, requests, Supabase Auth's accounts,
                            and its admin steps: making an account, a one-time link's token, removing factors),
-                           frontPage.ts (Panel 3: the front page's pins)
+                           frontPage.ts (Panel 3: the front page's pins), liveUpdates.ts (Panel 3: a live
+                           blog's updates)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
                            publishing's rules, the scheduler, the image renditions with sharp, a story's images),
                            people (Panel 1: who may grant, renew, revoke or ask, reach.ts; the access review,
@@ -220,7 +221,8 @@ packages/
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and
                            story.css, a Desk story's view for the reader's page and the Desk's preview)
   editor/                  @timesprime/editor: the story schema (Tiptap extensions, the library's image among
-                           them), plain text, the revision diff, the reader's server-side renderer
+                           them), plain text, the revision diff, the reader's server-side renderer, and
+                           live.ts (Panel 3: a live update's smaller schema, checked before it is stored)
 database/                  schema.sql, policies.sql, migrations/, bootstrap/, seed/: applied by hand
 scripts/                   generate-access-catalog.mjs: the permission catalogue SQL from docs/PANEL_DOCS.md
 docs/
