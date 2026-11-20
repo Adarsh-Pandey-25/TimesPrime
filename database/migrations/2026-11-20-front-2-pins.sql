@@ -105,7 +105,8 @@ BEGIN
   IF p_hours IS NULL OR p_hours NOT IN (6, 24, 72, 168) THEN
     RAISE EXCEPTION 'front_pin: a pin lasts 6, 24, 72 or 168 hours, not %', p_hours USING ERRCODE = 'invalid_parameter_value';
   END IF;
-  IF p_slot IS NULL OR p_slot < 1 OR p_slot > CASE WHEN p_section IS NULL THEN 3 ELSE 2 END THEN
+  -- The CASE is in brackets: PL/pgSQL ends an IF's condition at the first THEN outside brackets.
+  IF p_slot IS NULL OR p_slot < 1 OR p_slot > (CASE WHEN p_section IS NULL THEN 3 ELSE 2 END) THEN
     RAISE EXCEPTION 'front_pin: this page has no slot %', p_slot USING ERRCODE = 'object_not_in_prerequisite_state';
   END IF;
   v_end := v_start + make_interval(hours => p_hours);

@@ -79,7 +79,7 @@ describe("front-2: pinned slots (M2)", () => {
   test("front_pin: the four lengths, the page's slots, one change per page at a time", () => {
     const pin = fn("front_pin");
     expect(pin).toContain("p_hours NOT IN (6, 24, 72, 168)");
-    expect(pin).toContain("p_slot > CASE WHEN p_section IS NULL THEN 3 ELSE 2 END");
+    expect(pin).toContain("p_slot > (CASE WHEN p_section IS NULL THEN 3 ELSE 2 END) THEN");
     expect(pin).toContain("pg_advisory_xact_lock(");
     expect(pin).toContain("greatest(coalesce(p_starts_at, now()), now())");
   });
