@@ -1768,6 +1768,19 @@ describe("a live blog's updates (Panel 3 design §3, M3)", () => {
     expect(r.json).toEqual({ updates: [expect.objectContaining({ id: "lu-1" })], live_ended_at: "2026-11-20T07:00:00Z" });
   });
 
+  test("every change to the blog forgets its readers' feed (M3, the live page), and so does a takedown", async () => {
+    const del = jest.spyOn(cache, "del");
+    await call(POST_CASE, HI_SUB, POST_CASE.data);
+    await call(EDIT, HI_SUB, EDIT.data);
+    await call(REMOVE, HI_DESK, REMOVE.data);
+    await call(END, HI_SUB, END.data);
+    expect(del.mock.calls.filter(([key]) => key === "live:v1:1")).toHaveLength(4);
+    del.mockClear();
+    const takedown = CASES.find((c) => c.path === "/api/admin/desk/stories/[id]/unpublish") as Case;
+    expect((await call(takedown, HI_DESK, { ...takedown.data, stories: story({ format: "live_blog", workflow_state: "published", published_revision_id: "r-1" }) }, takedown.body)).status).toBe(200);
+    expect(del.mock.calls.map(([key]) => key)).toContain("live:v1:1");
+  });
+
   test("the database's refusal stands: a blog ended meanwhile is 409, and the attempt is recorded as failed", async () => {
     const data = { ...POST_CASE.data, "rpc:live_post": { data: null, error: { code: "55000", message: "live_post: story s-1 is not an open live blog" } } };
     expect((await call(POST_CASE, HI_SUB, data)).status).toBe(409);

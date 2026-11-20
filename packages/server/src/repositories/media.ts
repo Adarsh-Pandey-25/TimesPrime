@@ -165,6 +165,18 @@ export async function listPublishedImages(revisionId: string, ids: readonly stri
 }
 
 /**
+ * The images of a live blog's updates, as readers may see them (Panel 3, M3): an update is live the
+ * moment it is posted, so its image was checked then like a story's before publication. Read again
+ * here: only an active image with cleared rights, and only the readers' columns.
+ */
+export async function listLiveImages(ids: readonly string[]): Promise<ReaderMediaRow[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.from("media_assets").select(`${READER_MEDIA_COLUMNS}, rights_cleared_at`).in("id", [...ids]).eq("active", true);
+  if (error) throw storeError(error);
+  return ((data ?? []) as Array<ReaderMediaRow & { rights_cleared_at: string | null }>).filter((row) => ids.includes(row.id) && row.active && row.rights_cleared_at);
+}
+
+/**
  * Authors' photos, as readers may see them (migration desk-8): only an active author's photo, only an
  * active image, only the readers' columns. Applies the policy in the query too, as
  * listPublishedImages does.

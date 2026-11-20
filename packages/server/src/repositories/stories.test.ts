@@ -204,6 +204,7 @@ describe("getPublishedStory: the reader's read", () => {
       correction_note: null,
       first_published_at: "2026-11-17T08:00:00Z",
       published_at: "2026-11-17T09:00:00Z",
+      live_ended_at: null,
       revision: { id: "r-2", headline: "संसद में बजट पास", dek: "d", seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
       bylines: [
         { role: "byline", name: "Asha Rao", photoId: "c0ffee00-0000-4000-8000-000000000003" },

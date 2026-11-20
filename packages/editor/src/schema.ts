@@ -1,5 +1,6 @@
 import { Node, mergeAttributes, type Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import { isAllowedHref } from "@timesprime/shared/lib/href";
 import { GALLERY_MAX, GALLERY_MIN, isRenditionRatio, MEDIA_ID } from "@timesprime/shared/config/media";
 
 /**
@@ -13,16 +14,7 @@ import { GALLERY_MAX, GALLERY_MIN, isRenditionRatio, MEDIA_ID } from "@timesprim
  */
 
 /** An https URL, or a path on this site: what a link or a related link may point to. */
-export function isAllowedHref(href: string): boolean {
-  if (typeof href !== "string") return false;
-  if (href.startsWith("/") && !href.startsWith("//")) return true;
-  try {
-    const url = new URL(href);
-    return url.protocol === "https:" || url.protocol === "mailto:";
-  } catch {
-    return false;
-  }
-}
+export { isAllowedHref };
 
 export type EmbedProvider = "youtube" | "x" | "instagram";
 

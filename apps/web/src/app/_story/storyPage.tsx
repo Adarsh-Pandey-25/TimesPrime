@@ -6,11 +6,16 @@ import Footer from "@/components/news/Footer";
 import StoryArticle from "@timesprime/ui/StoryArticle";
 import { getPublishedStory } from "@timesprime/server/repositories/stories";
 import { bylinePhotos, publishedImages } from "@timesprime/server/services/desk/storyImages";
+import { liveFeed } from "@timesprime/server/services/front/live";
+import { reportFallback } from "@timesprime/server/lib/reportFallback";
 import { getTopHeadlines } from "@timesprime/server/services/news/topHeadlines";
 import { isSection } from "@timesprime/shared/config/sections";
+import type { LiveFeed } from "@timesprime/shared/config/liveBlog";
 import { SITE_URL } from "@timesprime/shared/config/site";
+import { jsonLdText, liveBlogPosting } from "@timesprime/shared/lib/structuredData";
 import { deskStoryIdFrom, deskStoryPath } from "@timesprime/shared/lib/storyUrl";
 import type { Article, PublishedStory } from "@timesprime/shared/types";
+import LiveBlogFeed from "@/components/live/LiveBlogFeed";
 
 /**
  * A Desk story's page (Panel 2 design §6), for the English route, [section]/[story], and the Hindi
@@ -76,6 +81,17 @@ async function menuHeadlines(): Promise<Article[]> {
   }
 }
 
+/** A live blog's feed (Panel 3, M3), or an empty one when it cannot be read: the intro still shows. */
+async function readLiveFeed(story: PublishedStory): Promise<LiveFeed> {
+  try {
+    return await liveFeed(story);
+  } catch (err) {
+    console.error("Live feed read failed:", err);
+    reportFallback("live_feed_unavailable", { story: story.public_id });
+    return { endedAt: story.live_ended_at ?? null, updates: [] };
+  }
+}
+
 export async function renderStoryPage(language: StoryPageLanguage, { params }: StoryPageProps) {
   const { section, story: segment } = await params;
   const [{ story, redirectTo }, headlines] = await Promise.all([resolveStory(language, section, segment), menuHeadlines()]);
@@ -83,13 +99,38 @@ export async function renderStoryPage(language: StoryPageLanguage, { params }: S
   if (redirectTo) permanentRedirect(redirectTo);
   // The published revision's images and the authors' photos, with their renditions (design §7,
   // desk-8): only what readers may see.
-  const [images, photos] = await Promise.all([publishedImages(story), bylinePhotos(story)]);
+  const live = story.format === "live_blog";
+  const [images, photos, feed] = await Promise.all([publishedImages(story), bylinePhotos(story), live ? readLiveFeed(story) : Promise.resolve(null)]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#1a1c1e] text-slate-900 dark:text-slate-100 transition-colors duration-200">
       <Header articles={headlines} activeCategory={story.section} />
       <main className="flex-1">
         <StoryArticle story={{ ...story, images, photos }} />
+        {/* A live blog's updates, under its intro (Panel 3, M3), and its search-engine markup. */}
+        {feed && (
+          <>
+            <LiveBlogFeed publicId={story.public_id} language={story.language} feed={feed} />
+            <script
+              type="application/ld+json"
+              dangerouslySetInnerHTML={{
+                __html: jsonLdText(
+                  liveBlogPosting(
+                    {
+                      headline: story.revision.headline,
+                      dek: story.revision.dek,
+                      language: story.language,
+                      path: deskStoryPath(story),
+                      firstPublishedAt: story.first_published_at,
+                      publishedAt: story.published_at,
+                    },
+                    feed
+                  )
+                ),
+              }}
+            />
+          </>
+        )}
       </main>
       <Footer />
     </div>

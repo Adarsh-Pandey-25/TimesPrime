@@ -58,6 +58,28 @@ export async function listLiveUpdates(storyId: string, limit: number = LIVE_PANE
   return ((data ?? []) as LiveUpdateRow[]).filter((u) => u.story_id === storyId);
 }
 
+/** What readers may see of an update (front-3's column grants): not who wrote, changed or removed it. */
+export type PublicLiveUpdate = Pick<LiveUpdateRow, "id" | "story_id" | "headline" | "body" | "is_key_event" | "is_pinned" | "posted_at" | "edited_at">;
+
+/**
+ * A live blog's updates as readers see them (Panel 3 design §5): not removed, newest first. The reader
+ * policy is applied in the query and again on the rows; the story itself is checked by the caller
+ * (published, past its embargo: getPublishedStory).
+ */
+export async function listPublicLiveUpdates(storyId: string, limit: number): Promise<PublicLiveUpdate[]> {
+  const { data, error } = await supabase
+    .from("live_updates")
+    .select("id, story_id, headline, body, is_key_event, is_pinned, posted_at, edited_at, removed_at")
+    .eq("story_id", storyId)
+    .is("removed_at", null)
+    .order("posted_at", { ascending: false })
+    .limit(limit);
+  if (error) throw liveError(error);
+  return ((data ?? []) as Array<PublicLiveUpdate & { removed_at: string | null }>)
+    .filter((u) => u.story_id === storyId && u.removed_at === null)
+    .map((u) => ({ id: u.id, story_id: u.story_id, headline: u.headline, body: u.body, is_key_event: u.is_key_event, is_pinned: u.is_pinned, posted_at: u.posted_at, edited_at: u.edited_at }));
+}
+
 export async function getLiveUpdate(id: string): Promise<LiveUpdateRow | null> {
   const { data, error } = await supabase.from("live_updates").select(COLUMNS).eq("id", id).maybeSingle();
   if (error) throw liveError(error);
