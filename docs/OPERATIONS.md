@@ -2399,6 +2399,16 @@ because one account's one factor serves all its roles.
 - **The Site URL itself** still says localhost; it is set to the real address at the AWS deployment.
   The issuer no longer depends on it.
 
+#### 3.40 A CASE in a PL/pgSQL IF condition needs brackets
+
+PL/pgSQL takes an `IF` (or `ELSIF`) condition to end at the first `THEN` that is not inside
+brackets, so `IF x > CASE WHEN y THEN 3 ELSE 2 END THEN` stops at the CASE's own `THEN`, and creating
+the function fails with `42601: syntax error at end of input`. front-2's `front_pin` had this, and
+the owner's first run failed on 20 Nov 2026 (nothing was applied: the block is one transaction).
+Write `IF x > (CASE WHEN y THEN 3 ELSE 2 END) THEN`. A CASE inside an ordinary SQL statement (a
+`CHECK`, an `UPDATE ... SET`) is not affected. `schema.test.ts` now reads every migration's IF
+conditions and fails on a CASE outside brackets, since no test here has a database.
+
 ### 4. Commits — restructure 2, then audit Phases 2–5
 
 `f260d3e` closed audit Phase 1. Everything after it is restructure 2. Restructure 1 and Phase 1 are

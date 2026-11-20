@@ -135,3 +135,43 @@ describe("database/migrations: every new table starts from no rights", () => {
     expect(covered).toEqual(ROLES);
   });
 });
+
+/**
+ * PL/pgSQL ends an IF's (or ELSIF's) condition at the first THEN outside brackets, so a CASE in the
+ * condition must be in brackets: `p_slot > CASE WHEN ... THEN 3 ELSE 2 END THEN` is a syntax error
+ * when the function is created (front-2, the owner's run, 20 Nov 2026). No test here has a database,
+ * so this reads every migration's IF conditions as text.
+ */
+describe("database/migrations: a CASE in an IF condition is in brackets", () => {
+  const dir = path.join(process.cwd(), "database", "migrations");
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
+
+  /** The condition's words outside brackets, from after IF or ELSIF to the first THEN outside them. */
+  function topLevelCondition(text: string, from: number): string {
+    let depth = 0;
+    let out = "";
+    for (let i = from; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+      else if (depth === 0) {
+        if (/^THEN\b/i.test(text.slice(i)) && /\W/.test(text[i - 1] ?? " ")) return out;
+        out += ch;
+      }
+    }
+    return out;
+  }
+
+  const conditions = files.flatMap((file) => {
+    const code = fs.readFileSync(path.join(dir, file), "utf8").replace(/--[^\n]*/g, "");
+    return [...code.matchAll(/^[ \t]*(?:ELSIF|IF)\b(?! (?:NOT )?EXISTS public\.)/gim)].map((m) => [file, topLevelCondition(code, (m.index ?? 0) + m[0].length)] as const);
+  });
+
+  test("the migrations have IF conditions (so this check checks something)", () => {
+    expect(conditions.length).toBeGreaterThanOrEqual(20);
+  });
+
+  test.each(conditions.map(([file, condition], i) => [file, i, condition] as const))("%s, condition %d: no CASE outside brackets", (_file, _i, condition) => {
+    expect(condition).not.toMatch(/\bCASE\b/i);
+  });
+});
