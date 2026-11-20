@@ -29,7 +29,13 @@ test("keyboard only: Tab reaches every control in order", async ({ page }) => {
   await page.goto("/admin/login");
   await expect(page.getByLabel("Email")).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Password")).toBeFocused();
+  await expect(page.getByLabel("Password", { exact: true })).toBeFocused();
+  // The password's eye (20 Nov 2026) comes right after its field, and Enter or Space works it.
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Show password" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("type", "text");
+  await expect(page.getByRole("button", { name: "Hide password" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "Sign In" })).toBeFocused();
 });
