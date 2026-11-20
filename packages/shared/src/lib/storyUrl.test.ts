@@ -5,7 +5,7 @@
  * live at /{section}/{slug}-{number}, and at /hi/{section}/{slug}-{number} in Hindi.
  */
 
-import { deskStoryIdFrom, deskStoryPath, storyIdFrom, storyPath, storySegment, storySlug } from "./storyUrl";
+import { deskStoryIdFrom, deskStoryNumberFrom, deskStoryPath, storyIdFrom, storyPath, storySegment, storySlug } from "./storyUrl";
 
 const ID = "3f9a0c21b7d44e0e9a6b5c4d3e2f1a0b";
 const story = (title: string, article_id = ID) => ({ article_id, title, link: "https://publisher.example/a?b=1" });
@@ -81,5 +81,22 @@ describe("the Desk's stories", () => {
   test("the path round-trips to the number", () => {
     const path = deskStoryPath({ language: "hi", section: "india", slug: "sansad-mein-bajat", public_id: 31 });
     expect(deskStoryIdFrom(path.split("/").pop()!)).toBe(31);
+  });
+
+  // Panel 7: the address a grievance names, as a reader pastes it.
+  const isSection = (key: string) => ["india", "sports"].includes(key);
+  test.each([
+    ["https://timesprime247.com/india/budget-passes-1024", 1024],
+    ["https://timesprime247.com/hi/sports/bharat-jeeta-7?utm_source=whatsapp#top", 7],
+    ["/india/budget-passes-1024", 1024],
+    [" /india/1024 ", 1024],
+    ["https://timesprime247.com/opinion/budget-passes-1024", null],
+    ["https://timesprime247.com/article/budget-passes-1024", null],
+    ["https://timesprime247.com/india/budget-passes-1024/more", null],
+    ["https://timesprime247.com/hi/india", null],
+    ["The budget story from Monday", null],
+    ["", null],
+  ])("a grievance about %j names story %j", (address, id) => {
+    expect(deskStoryNumberFrom(address, isSection)).toBe(id);
   });
 });

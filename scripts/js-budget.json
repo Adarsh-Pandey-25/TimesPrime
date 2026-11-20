@@ -18,6 +18,8 @@
   "admin": {
     "/_global-error/page": 632832,
     "/_not-found/page": 633856,
+    "/admin/compliance/grievances/[id]/page": 683008,
+    "/admin/compliance/page": 684032,
     "/admin/desk/[id]/page": 1097728,
     "/admin/desk/[id]/preview/page": 1077248,
     "/admin/desk/authors/page": 662528,

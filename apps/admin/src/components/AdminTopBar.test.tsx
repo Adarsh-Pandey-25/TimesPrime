@@ -92,6 +92,23 @@ test("a Writer is not offered the Front page", async () => {
   expect(screen.queryByRole("link", { name: "Front page" })).not.toBeInTheDocument();
 });
 
+// Panel 7, M1: Compliance, for holders of grievance.handle: the Grievance Officer and Legal act, the
+// Managing Editor reads.
+test("Compliance is offered to whoever holds grievance.handle, to act or to read, and to nobody else", async () => {
+  for (const [role, access] of [["grievance_officer", "act"], ["managing_editor", "read"]] as const) {
+    const person = staff("Meera", [[role, null]]);
+    me = { ...person, body: { ...person.body, permissions: { "grievance.handle": access } } };
+    await renderBar();
+    expect(screen.getAllByRole("link", { name: "Compliance" }).at(-1)).toHaveAttribute("href", "/admin/compliance");
+  }
+});
+
+test("a Writer is not offered Compliance", async () => {
+  me = staff("TEST Writer", [["writer", "en"]]);
+  await renderBar();
+  expect(screen.queryByRole("link", { name: "Compliance" })).not.toBeInTheDocument();
+});
+
 // Panel 1, M3: a Super Admin sees emergency access in use, and a review that is due, on every page.
 describe("the Super Admins' alerts", () => {
   const superAdminMe = () => ({ ...staff("Adarsh Pandey", [["super_admin", null]]), body: { ...staff("Adarsh Pandey", [["super_admin", null]]).body, permissions: { "user.manage": "ask", "role.assign": "ask" } } });

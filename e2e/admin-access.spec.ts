@@ -31,6 +31,14 @@ test.describe("signed out", () => {
     await expect(page).toHaveURL(/\/admin\/login$/);
   });
 
+  // Panel 7: the Compliance screens too.
+  test("/admin/compliance and a grievance's page redirect to the sign-in page", async ({ page }) => {
+    await page.goto("/admin/compliance");
+    await expect(page).toHaveURL(/\/admin\/login$/);
+    await page.goto("/admin/compliance/grievances/00000000-0000-4000-8000-000000000001");
+    await expect(page).toHaveURL(/\/admin\/login$/);
+  });
+
   // Panel 1: the people screens and API are behind the same session check.
   test("/admin/people, a person's page and adding a person redirect to the sign-in page", async ({ page }) => {
     await page.goto("/admin/people");
@@ -82,6 +90,13 @@ test.describe("signed out", () => {
     ["GET", "/api/admin/desk/stories/00000000-0000-4000-8000-000000000001/live"],
     ["POST", "/api/admin/desk/stories/00000000-0000-4000-8000-000000000001/live"],
     ["POST", "/api/admin/desk/stories/00000000-0000-4000-8000-000000000001/end-live"],
+    ["GET", "/api/admin/compliance/grievances"],
+    ["POST", "/api/admin/compliance/grievances"],
+    ["GET", "/api/admin/compliance/grievances/00000000-0000-4000-8000-000000000001"],
+    ["POST", "/api/admin/compliance/grievances/00000000-0000-4000-8000-000000000001/acknowledge"],
+    ["POST", "/api/admin/compliance/grievances/00000000-0000-4000-8000-000000000001/assign"],
+    ["POST", "/api/admin/compliance/grievances/00000000-0000-4000-8000-000000000001/notes"],
+    ["POST", "/api/admin/compliance/grievances/00000000-0000-4000-8000-000000000001/decide"],
   ]) {
     test(`${method} ${path} answers 401 and changes nothing`, async ({ request }) => {
       const res = await request.fetch(path, { method, data: method === "POST" ? {} : undefined });

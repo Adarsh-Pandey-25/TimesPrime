@@ -21,6 +21,7 @@ const SECTIONS = [
   { href: "/admin/desk", label: "Desk", here: (path: string) => path.startsWith("/admin/desk") },
   { href: "/admin/front-page", label: "Front page", here: (path: string) => path.startsWith("/admin/front-page") },
   { href: "/admin/people", label: "People", here: (path: string) => path.startsWith("/admin/people") },
+  { href: "/admin/compliance", label: "Compliance", here: (path: string) => path.startsWith("/admin/compliance") },
 ] as const;
 
 export default function AdminTopBar() {
@@ -33,11 +34,14 @@ export default function AdminTopBar() {
   const superAdmin = me?.kind === "staff" && me.permissions["role.assign"] === "ask";
   const { alerts } = useAlerts(superAdmin);
   // Panel 1: People is for holders of user.manage (a Super Admin asks, a Managing Editor acts).
-  // Panel 3: the Front page for holders of homepage.curate or breaking_banner.manage. UX only.
+  // Panel 3: the Front page for holders of homepage.curate or breaking_banner.manage.
+  // Panel 7: Compliance for holders of grievance.handle (the Grievance Officer, Legal, the Managing
+  // Editor's read). UX only.
   const holds = (permission: string) => me?.kind === "staff" && Boolean(me.permissions[permission]);
   const sections = SECTIONS.filter((s) => {
     if (s.href === "/admin/people") return holds("user.manage");
     if (s.href === "/admin/front-page") return holds("homepage.curate") || holds("breaking_banner.manage");
+    if (s.href === "/admin/compliance") return holds("grievance.handle");
     return true;
   });
 

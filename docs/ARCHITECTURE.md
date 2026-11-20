@@ -185,7 +185,9 @@ apps/
     src/app/api/admin/     every admin route handler, each gated by requirePermission; desk/ is Panel 2,
                            people/ is Panel 1 (staff, roles, a Super Admin's requests), with welcome/ (public:
                            opening a one-time link) and password/ (session-only: setting one's password);
-                           front-page/ is Panel 3 (a page's pins, pinning, unpinning, the story picker)
+                           front-page/ is Panel 3 (a page's pins, pinning, unpinning, the story picker);
+                           compliance/ is Panel 7 (the grievance queue, one grievance, and typing one in,
+                           acknowledging, taking, a note and the decision)
     src/app/media/         the Desk's images from the local folder, on a laptop only (as in web)
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list
                            with its takedown alerts, a new story, the story editor with its revisions
@@ -199,7 +201,9 @@ apps/
                            classes; Feedback.tsx, the popups (a dialog and toasts) in place of the browser's
                            confirm, prompt and alert boxes, provided once in the root layout;
                            ActionMessage.tsx, an action's answer: a toast on success, a refusal inline),
-                           and front/ (Panel 3's Front page screen: the pinned slots, then the banner)
+                           and front/ (Panel 3's Front page screen: the pinned slots, then the banner),
+                           and compliance/ (Panel 7's screens: the grievance queue with its clocks, one
+                           grievance, typing one in)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes);
@@ -213,7 +217,8 @@ packages/
                            people.ts (Panel 1: profiles, role assignments, requests, Supabase Auth's accounts,
                            and its admin steps: making an account, a one-time link's token, removing factors),
                            frontPage.ts (Panel 3: the front page's pins), liveUpdates.ts (Panel 3: a live
-                           blog's updates)
+                           blog's updates), grievances.ts (Panel 7: readers' grievances, their notes, and
+                           the officers' five database functions)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
                            publishing's rules, the scheduler, the image renditions with sharp, a story's images),
                            people (Panel 1: who may grant, renew, revoke or ask, reach.ts; the access review,
@@ -225,7 +230,8 @@ packages/
   shared/                  @timesprime/shared: client-safe config (media.ts: the library's image types,
                            limits and key shapes; breakingNews.ts, frontPage.ts, liveBlog.ts and rss.ts: the
                            banner's languages, the pinned slots, a live blog's feed and the RSS feeds,
-                           Panel 3), types
+                           Panel 3; grievances.ts: a grievance's categories, outcomes, limits and clocks,
+                           Panel 7), types
                            and lib (urlValidation, sentryScrub, whatsApp: the "Copy for WhatsApp" message;
                            href: what a link may point to; liveBody: what a live update may hold, Panel 3)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and
