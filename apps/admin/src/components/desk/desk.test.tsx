@@ -290,6 +290,45 @@ describe("the story screen", () => {
     expect(link).toHaveAttribute("target", "_blank");
   });
 
+  // Panel 3, M1 (design §6, moved into M1 by the owner): a ready message for the WhatsApp Channel.
+  describe("Copy for WhatsApp", () => {
+    const writeText = jest.fn(async () => undefined);
+    beforeEach(() => {
+      writeText.mockClear();
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    });
+
+    test("a live story copies its headline in bold, its dek, and its address tagged for WhatsApp", async () => {
+      const live = { ...revision("r-1", "Budget passes", "2026-11-17T09:00:00Z", "The house voted."), dek: "300 to 120." };
+      serveStory({ "article.view_admin": "read" }, { workflow_state: "published", published_revision_id: "r-1", slug: "budget-passes" }, undefined, [live]);
+      await act(async () => render(<StoryEditor id="s-1" />));
+      await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Copy for WhatsApp" })));
+      expect(writeText).toHaveBeenCalledTimes(1);
+      const [text] = writeText.mock.calls[0] as unknown as [string];
+      expect(text.split("\n")[0]).toBe("*Budget passes*");
+      expect(text.split("\n")[1]).toBe("300 to 120.");
+      expect(text.split("\n")[2]).toMatch(/\/india\/budget-passes-1024\?utm_source=whatsapp&utm_medium=social&utm_campaign=channel$/);
+      expect(await screen.findByRole("status")).toHaveTextContent("Copied for WhatsApp");
+    });
+
+    test("with a newer revision not yet published, it copies the live version, read from the server", async () => {
+      const published = revision("r-1", "Budget passes", "2026-11-17T09:00:00Z", "The house voted.");
+      const newer = revision("r-2", "Budget passes easily", "2026-11-17T10:00:00Z", "The house voted.");
+      serveStory({ "article.view_admin": "read" }, { workflow_state: "published", published_revision_id: "r-1", slug: "budget-passes" }, undefined, [newer, published]);
+      await act(async () => render(<StoryEditor id="s-1" />));
+      await act(async () => fireEvent.click(await screen.findByRole("button", { name: "Copy for WhatsApp" })));
+      await waitFor(() => expect(writeText).toHaveBeenCalled());
+      expect((writeText.mock.calls[0] as unknown as [string])[0].split("\n")[0]).toBe("*Budget passes*");
+    });
+
+    test("not offered before the story is live", async () => {
+      serveStory({ "article.view_admin": "read" });
+      await act(async () => render(<StoryEditor id="s-1" />));
+      await screen.findByDisplayValue("Budget passes");
+      expect(screen.queryByRole("button", { name: "Copy for WhatsApp" })).not.toBeInTheDocument();
+    });
+  });
+
   test("a person without article.edit sees the story read-only, with no Save", async () => {
     serveStory({ "article.view_admin": "read" });
     await act(async () => render(<StoryEditor id="s-1" />));

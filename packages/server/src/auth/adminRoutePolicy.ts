@@ -17,7 +17,9 @@ import type { Mode } from "./decide";
  * site-wide target would admit only unscoped grants, and a Desk Editor always has a language),
  * "media" an image in the library (loaded by the route: its desk), "new_media" the desk an upload
  * names, "person" a staff member (Panel 1: the route checks the caller's reach over the person's
- * roles, services/people/reach.ts), "request" a Super Admin's request (Panel 1: decided by another).
+ * roles, services/people/reach.ts), "request" a Super Admin's request (Panel 1: decided by another),
+ * "banner" a breaking-news item (Panel 3: its language and every section; an item for both
+ * languages is site-wide, so only an unscoped grant covers it).
  */
 export interface RouteRule {
   permissions: readonly PermissionKey[];
@@ -35,7 +37,8 @@ export interface RouteRule {
     | "new_media"
     | "person"
     | "new_person"
-    | "request";
+    | "request"
+    | "banner";
   /**
    * A two-person route (the matrix's A): a holder of A passes the gate, because the route only lets them
    * ask, or decide what someone else asked (Panel 2's restore). It still needs their second factor
@@ -94,8 +97,9 @@ export const ADMIN_ROUTE_RULES = {
   "/api/admin/breaking-news": {
     // The banner manager's list; readers get the same items from the reader site.
     GET: { permissions: ["breaking_banner.manage"], mode: "read", target: "none" },
-    POST: { permissions: ["breaking_banner.manage"], mode: "act", target: "site" },
-    DELETE: { permissions: ["breaking_banner.manage"], mode: "act", target: "site" },
+    // Panel 3, M1: in the item's language, so a Desk Editor (S) runs their own desk's banner.
+    POST: { permissions: ["breaking_banner.manage"], mode: "act", target: "banner" },
+    DELETE: { permissions: ["breaking_banner.manage"], mode: "act", target: "banner" },
   },
   "/api/admin/db-stats": {
     GET: { permissions: ["stats.view"], mode: "read", target: "none" },

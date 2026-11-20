@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "@timesprime/ui/ThemeContext";
+import { BANNER_LABEL } from "@timesprime/shared/config/breakingNews";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface BreakingNewsItem {
   id: string;
@@ -9,6 +11,7 @@ interface BreakingNewsItem {
   is_active: boolean;
   expires_at: string | null;
   created_at: string;
+  language: "en" | "hi" | null;
 }
 
 interface BreakingNewsListResponse {
@@ -20,17 +23,20 @@ const AUTO_REFRESH_MS = 60 * 1000;
 /**
  * Public homepage banner for active breaking news. Renders nothing when
  * nothing is active. Fetches on mount and polls every 60s so a newly-set
- * or newly-expired item shows up without a page reload.
+ * or newly-expired item shows up without a page reload. In the reader's
+ * language (Panel 3, M1): that language's items and those for both, under
+ * the label in that language; a change of language fetches again.
  */
 export default function BreakingNewsBanner() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const { language } = useLanguage();
 
   const [items, setItems] = useState<BreakingNewsItem[]>([]);
 
   const fetchItems = useCallback(async () => {
     try {
-      const res = await fetch("/api/news/breaking-news");
+      const res = await fetch(`/api/news/breaking-news?language=${language}`);
       if (!res.ok) return;
       const data = (await res.json()) as BreakingNewsListResponse;
       setItems(data.items ?? []);
@@ -38,7 +44,7 @@ export default function BreakingNewsBanner() {
       // Silently keep whatever was last successfully fetched (or nothing) —
       // a failed poll shouldn't flash the banner in and out.
     }
-  }, []);
+  }, [language]);
 
   // Necessary setState-in-effect: breaking news can only come from an
   // async fetch, which can't run synchronously during render.
@@ -63,7 +69,7 @@ export default function BreakingNewsBanner() {
       }`}
     >
       <div className="z-10 flex h-full shrink-0 animate-pulse items-center gap-1.5 rounded-r-lg bg-black/15 px-3 text-xs font-black uppercase tracking-wider text-white sm:px-4">
-        <span className="whitespace-nowrap">🔴 BREAKING</span>
+        <span className="whitespace-nowrap" lang={language}>🔴 {BANNER_LABEL[language]}</span>
       </div>
 
       <div className="flex flex-1 overflow-hidden">

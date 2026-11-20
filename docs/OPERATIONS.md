@@ -1408,6 +1408,32 @@ Supabase SQL editor. No session applies SQL.
 
 **Undo.** The rollback at the end of the file, before the first review.
 
+### Panel 3: applying front-1
+
+For the owner, before a Desk Editor sets a banner item for one language (Panel 3, M1). Against the
+real database, in the Supabase SQL editor. No session applies SQL. Until it is applied the banner
+keeps working, for both languages only.
+
+1. **Apply the migration.** SQL Editor → New query. Paste
+   `database/migrations/2026-11-19-front-1-banner-language.sql` whole, and run it. One transaction:
+   if it fails, nothing changed, and it is safe to run again.
+2. **Then run the check** (one query, one row):
+
+   ```sql
+   SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'breaking_news' AND column_name = 'language') AS has_language,
+          EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'breaking_news_language_check') AS language_checked,
+          (SELECT count(*) FROM public.breaking_news WHERE language IS NOT NULL) AS items_with_a_language;
+   ```
+
+   | Column | Expect |
+   |---|---|
+   | `has_language` | true |
+   | `language_checked` | true |
+   | `items_with_a_language` | 0 |
+
+**Undo.** The rollback at the end of the file, before the first item with a language.
+
 ### Panel 1: emergency access (break-glass)
 
 For the Super Admins (Panel 1, M3). For the night a court order or a serious error needs a story
@@ -1845,8 +1871,11 @@ phases were done:
 
    All four steps are on `main` (PRs #52 to #55).
 9. **Panel 3 (Front page)**: its [design](PANEL_DOCS.md#panel-3-design-front-page) was proposed on
-   19 Nov 2026 at the owner's request, on `panel-3-front-page`, while Panels 1 and 2 have open items
-   (the design's §12). The owner put the test Supabase project on hold until he says.
+   19 Nov 2026 at the owner's request (PR #56), while Panels 1 and 2 have open items (the design's
+   §12), and approved the same day with every recommended answer and "Copy for WhatsApp" moved into
+   M1. The owner put the test Supabase project on hold until he says. **M1**, the banner's language
+   and "Copy for WhatsApp", is built (`panel-3-banner-language`); the owner
+   [applies front-1](#panel-3-applying-front-1).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

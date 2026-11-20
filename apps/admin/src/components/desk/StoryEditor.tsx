@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import { Share2 } from "lucide-react";
 import { embedProvider, isAllowedHref, EMPTY_DOC } from "@timesprime/editor/schema";
 import { wordCount } from "@timesprime/editor/text";
 import { checklist, CORRECTION_NOTE_MAX, holdsDeskReview, move, PRE_PUBLISH_STATES, PUBLISH_TICK_MINUTES, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
 import { storyImageIds } from "@timesprime/shared/config/media";
 import { SITE_URL } from "@timesprime/shared/config/site";
 import { deskStoryPath, storySlug } from "@timesprime/shared/lib/storyUrl";
+import { whatsAppMessage } from "@timesprime/shared/lib/whatsApp";
 import { canAct, canAsk, deskCall, STATE_LABELS, STATE_STYLES, useAdminMe, when } from "./deskClient";
 import CreditsPanel, { type Credit } from "./CreditsPanel";
 import { editorExtensions } from "./editorImage";
@@ -382,6 +384,27 @@ export default function StoryEditor({ id }: { id: string }) {
     if (res.ok) await load();
   }
 
+  /**
+   * "Copy for WhatsApp" (Panel 3, M1): the live version's headline and dek, so a later revision that
+   * is not published yet is never posted. Nothing is stored or sent; the desk pastes it in the channel.
+   */
+  async function copyForWhatsApp() {
+    if (!story?.published_revision_id) return;
+    let live = loaded?.revision?.id === story.published_revision_id ? loaded.revision : null;
+    if (!live) {
+      const res = await deskCall<{ revision: Revision }>(`/api/admin/desk/stories/${id}/revisions/${story.published_revision_id}`);
+      if (!res.ok || !res.data) return say("side", { ok: false, text: res.error ?? "Could not read the live version." });
+      live = res.data.revision;
+    }
+    const text = whatsAppMessage({ headline: live.headline, dek: live.dek, url: `${SITE_URL}${deskStoryPath(story)}` });
+    try {
+      await navigator.clipboard.writeText(text);
+      say("side", { ok: true, text: "Copied for WhatsApp: paste it in the channel." });
+    } catch {
+      say("side", { ok: false, text: "Could not copy: the browser refused. Select the story's address instead." });
+    }
+  }
+
   /** A live story's public correction note: published at once (S or F), or asked for (A). */
   async function publishCorrection() {
     setBusy(true);
@@ -429,6 +452,11 @@ export default function StoryEditor({ id }: { id: string }) {
               <a href={`${SITE_URL}${deskStoryPath(story)}`} target="_blank" rel="noopener noreferrer" className={smallLink}>
                 View on the site ↗
               </a>
+            )}
+            {story.workflow_state === "published" && story.published_revision_id && (
+              <button type="button" className={smallLink} onClick={() => void copyForWhatsApp()}>
+                <Share2 aria-hidden="true" className="h-3 w-3" /> Copy for WhatsApp
+              </button>
             )}
           </div>
         </div>
