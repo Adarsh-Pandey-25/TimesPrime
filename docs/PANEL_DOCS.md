@@ -63,7 +63,10 @@ the four-eyes, takedown and MFA rules, and the data model behind them. The build
 owner approved `NEWSROOM_PLAN.md`. The sections below are copied from it unchanged, except where
 a note says otherwise. *Note (17 Nov 2026):* the rows `author.manage` and `media.manage` were added
 with the owner's approval of the Panel 2 design. *Note (20 Nov 2026):* the row `live_update.post` was
-added with the owner's approval of the Panel 3 design (decision 6). The supporting publisher research is in [`RESEARCH.md`](RESEARCH.md) and in
+added with the owner's approval of the Panel 3 design (decision 6). *Note (20 Nov 2026,
+the owner's approval of the Panel 7 design, decision 4):* a complainant's contact details are part
+of their grievance, under `grievance.handle`: in full for its F holders, masked for its R holders.
+`reader_pii.view` covers readers' accounts. The matrix itself is unchanged. The supporting publisher research is in [`RESEARCH.md`](RESEARCH.md) and in
 git history (`git log --all -- docs/PANEL_PLAN.md`).
 
 **The matrix is canonical.** `scripts/generate-access-catalog.mjs` turns the matrix below into
@@ -211,7 +214,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
 | 6 | Insights: read-only stats | Planned | — | — |
-| 7 | Compliance: grievances, corrections, legal orders, content records | Planned | — | — |
+| 7 | Compliance: grievances, corrections, legal orders, content records | **In progress:** [design](#panel-7-design-compliance-launch-minimum) approved 20 Nov 2026 (PR #67), started at the owner's request while the walk-through of Panels 1 to 3 is open; M1 (grievances) next | — | — |
 | 8 | Privacy & security: data-rights requests, incidents, audit viewer | Planned | — | — |
 | 9 | Commercial: only once ads or subscriptions exist | Planned | — | — |
 
@@ -3409,3 +3412,427 @@ its items close:
 - **Scheduled publishing walked through**, after the AWS deploy (Panel 2).
 - **The three retired `ADMIN_*` variables** deleted from the server's `.env.admin` at the deploy
   (Panel 1).
+
+## Panel 7 design: Compliance (launch minimum)
+
+**Status:** **approved** by the owner on 20 Nov 2026, with the recommended answer to every
+question in §11 (recorded below). Proposed in PR #67. One branch per milestone, starting with
+`panel-7-grievances` (M1). **Started at the owner's request** (20 Nov 2026) while the owner's
+walk-through of Panels 1 to 3 is still open; those items are listed in §12. `NEWSROOM_PLAN.md` is
+unchanged.
+
+### Approval: decisions (20 Nov 2026)
+
+The section overrides anything later in this design that disagrees with it.
+1. **The form reaches the database** through two narrow functions readers may call
+   (`grievance_submit`, `grievance_status`), behind per-IP limits. Readers get no table rights.
+2. **The acknowledgement** is on the page at once, with the ticket and the due date; the decision
+   is on the status page, and the Grievance Officer also emails it by hand from the grievance
+   address. No email service at launch.
+3. **Spam:** 3 an hour and 10 a day per address, 500 a day in all, and a hidden field. No CAPTCHA
+   at launch.
+4. **The complainant's email** is shown in full to the Grievance Officer and Legal, and masked in
+   the Managing Editor's read-only view. `reader_pii.view` covers readers' accounts, not a
+   complaint sent to be answered (noted in the access rules).
+5. **Categories:** factual error; defamation or privacy; obscene or harmful content; copyright;
+   other.
+6. **Corrections:** five kinds (correction, clarification, update, editor's note, retraction);
+   every correction stays under its story; `/corrections` lists them all; the notes already
+   published are copied in.
+7. **The monthly report:** computed by the app, checked and published by the Grievance Officer (or
+   Legal) by the 7th of the next month (the lawyer to confirm), at `/grievance-report`. Published
+   figures never change.
+8. **Legal orders' documents:** no uploads in the minimum; the register records where the
+   original is kept.
+9. **The aggregator's content record:** recorded by the worker from M4 on, kept one year (at least
+   the 60 days the rule asks), exported with the Desk's content as one JSON file per range of up
+   to 3 months.
+10. **Order:** M1 → M2 → M3 → M4, each shown to the owner before the next.
+
+**Plan:** [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md), Phase H, "Panel 7 minimum". **Access rules:**
+the `grievance.handle / report`, `correction.publish`, `legal_order.manage` and
+`content_records.export` rows of the [access rules](#access-rules). "Question N" below is a
+question of §11.
+
+Panel 7 holds the duties that apply from the first public day (the IT Rules, Part III):
+- a reader can complain about anything published, gets a ticket number at once, and has a decision
+  within 15 days;
+- every correction is public, under its story and on one page, and is linked to the complaint that
+  caused it;
+- each month's grievance figures are published (Rule 18(3));
+- what readers were shown can be produced for at least 60 days (Rule 19(3));
+- court and government orders are kept in a register that only Legal sees.
+
+The rest of Panel 7 (the legal-orders workflow, the monthly report's automation) follows straight
+after launch (Phase K).
+
+### 0. What the docs and the code say, and what it changes
+
+- **Grievances arrive by email.**
+  - `apps/web/src/app/grievance/page.tsx` (R3) publishes the Grievance Officer
+    (`GRIEVANCE_OFFICER` in `packages/shared/src/config/site.ts`), the office address and what to
+    put in the email. It promises an acknowledgement within 24 hours and a decision within 15 days,
+    told by email. Its comment says the form with ticket ids comes with Panel 7.
+  - There is no grievance table, no ticket and no clock: a complaint lives only in the mailbox.
+    The page is in English only.
+- **The reader site writes nothing, and a form must write.**
+  - `apps/web/src/readerWrites.test.ts` fails if a reader file names `saveArticlesToDB` or
+    `purgeOldArticles`. It is a list of names, so a new write would pass it unnoticed.
+  - One shared Supabase client (`packages/server/src/lib/supabase.ts`) uses the service-role key
+    when it is set, and the web container keeps that key until R12-03's gate (OPERATIONS.md). After
+    the gate the reader has the anon key only, which reads and cannot write.
+  - The only public POST is `/api/chat`. It already has what a form needs: a per-IP limit
+    (`packages/server/src/lib/rateLimit.ts`), a body cap (`readJsonBody`), length checks and a
+    site-wide daily cap.
+  - There is no email sender and no CAPTCHA in the code.
+- **A correction is one note on the story.**
+  - `stories.correction_note` (desk-1) holds the latest note, and a new one replaces it. The
+    history is in `workflow_transitions` (`action = 'correct'`, the note as its reason). A
+    Sub-editor's correction is a request (`pending_actions`) that a Desk Editor decides (desk-3).
+  - The reader's story page shows the latest note under "Correction"
+    (`packages/ui/src/StoryArticle.tsx`). There is no `/corrections` page, no kind (correction,
+    clarification, retraction) and no link to a complaint.
+- **The content record (Rule 19(3): at least 60 days).**
+  - Desk stories are already kept for good: `story_revisions` refuses UPDATE and DELETE, a
+    takedown only changes a story's state, and a removed live update stays in its table.
+  - The aggregator's items are not: `purgeOldArticles` deletes `articles` older than 7 days.
+    BL-033 (OPERATIONS.md) proposed a `content_records` table kept at least 60 days, and left it
+    "to Panel 4 (Ingestion) or Panel 7 (Compliance), whichever comes first". Panel 7 comes first,
+    so it is here (M4).
+- **The access rules already have Panel 7's verbs,** in the catalogue since Panel 0:
+  `grievance.handle` and `grievance.report` (Grievance Officer F, Legal F, Managing Editor R),
+  `legal_order.manage` (Legal F, Managing Editor R), `content_records.export` (Legal F, Grievance
+  Officer A) and Panel 2's `correction.publish`. No route uses the first three yet. **No new verb is
+  needed, and the matrix does not change.**
+  - The Grievance Officer's role is not marked privileged and does not itself require `aal2`. Every
+    staff profile requires MFA (`staff_profiles.mfa_required`, checked in `auth/decide.ts`), so
+    every Panel 7 action needs `aal2` all the same.
+  - The Panels table names a "Standards Editor", who is not a role in the matrix. Corrections stay
+    with the Desk's editors (Panel 2); this design adds no role.
+  - `reader_pii.view` gives the Grievance Officer a masked view (M). How that applies to a
+    complainant's email is question 4.
+
+### 1. Milestones
+
+Each milestone is its own branch and pull request, green on `npm run verify`, and shown to the
+owner before the next one starts.
+
+| Milestone | What it delivers | Rough size |
+|---|---|---|
+| **M1. Grievances** | The form on `/grievance`, with a ticket at once; a status page; the back office's queue with the 24-hour and 15-day clocks, notes and the decision; grievances that arrive by email or post, entered by the officer | 1.5 to 2 weeks |
+| **M2. The corrections log** | A `corrections` table with a kind; every correction under its story; the public `/corrections` page; a correction linked to the grievance that caused it | 1 week |
+| **M3. The monthly report** | Each month's grievance figures, computed by the app, checked and published by the Grievance Officer at a stable address | 3 to 4 days |
+| **M4. Legal orders and the content record** | The confidential legal-orders register; the aggregator's items recorded for at least 60 days (BL-033); the content-record export | 1.5 weeks |
+
+### 2. Data model
+
+As in Panels 2 and 3: every table has RLS on; rows are closed or followed by new ones, never
+deleted; the app writes as `service_role`. Each migration ends with its rollback and is applied by
+the owner (§9).
+
+**M1: `compliance-1-grievances`, the tables `grievances` and `grievance_notes`**
+
+| Column | Meaning |
+|---|---|
+| `id`, `ticket` | uuid; the number the complainant sees, `G-2026-00042` (the year and a running number), unique |
+| `channel` | `web` (the form), or `email`, `post` or `other` (entered by the officer) |
+| `language` | `en` or `hi`: the language the complaint was made in |
+| `name`, `email` | the complainant, needed to reply. Never shown to readers |
+| `about_url`, `story_id` | the address given, and the Desk story it matches, if any |
+| `category` | question 5 |
+| `body` | the complaint, at most 5,000 characters |
+| `received_at`, `entered_by` | when it reached us (for email and post, when it arrived, not when it was typed in); who typed it in, `NULL` for the form |
+| `ack_due_at`, `decide_due_at` | `received_at` plus 24 hours, and plus 15 days. Set once |
+| `acknowledged_at`, `acknowledged_by` | the form's grievances are acknowledged on the spot (`acknowledged_by` stays `NULL`); the others when the officer has replied |
+| `assigned_to` | the officer or Legal person handling it |
+| `state` | `open`, then `decided` |
+| `outcome` | once decided: `upheld`, `partly_upheld`, `not_upheld`, `outside_scope`, `withdrawn`, `duplicate` or `spam` |
+| `reply` | the decision as told to the complainant, shown on the status page |
+| `decided_by`, `decided_at` | who decided, and when |
+
+- `grievance_notes` (id, grievance, text, author, time) holds the internal notes. Append-only.
+- **The guard trigger:** no DELETE; what the complainant sent (`channel`, `name`, `email`,
+  `about_url`, `body`, `received_at`) and the due times never change; a decided grievance is final.
+- **Two functions are the only database access readers get** (question 1):
+  - `grievance_submit(language, name, email, about_url, story_id, category, body)` checks every
+    length and value, checks that `story_id`, when given, is a published story, inserts the row with
+    its ticket, acknowledged, and returns the ticket and the decision's due date;
+  - `grievance_status(ticket, email)` returns the state, the dates, the outcome and the reply when
+    both match, and nothing otherwise.
+  - Both are `SECURITY DEFINER` and executable by `anon` and `service_role` only. Readers get no
+    grant on the tables themselves.
+
+**M2: `compliance-2-corrections`, the table `corrections`**
+
+| Column | Meaning |
+|---|---|
+| `id`, `story_id`, `language` | the correction, its story, and the story's language |
+| `kind` | `correction`, `clarification`, `update`, `editors_note` or `retraction` (question 6) |
+| `text` | the public text, at most 600 characters (Panel 2's limit), in the story's language |
+| `headline` | the story's headline at the time, for the log |
+| `revision_id` | the story's live revision at the time |
+| `grievance_id` | the grievance that caused it, if any |
+| `published_by`, `approved_by`, `published_at` | `approved_by` when it began as a Sub-editor's request |
+
+- Append-only: a wrong correction is followed by another, never edited.
+- The Desk's two ways to correct (published at once, or a request that is approved, desk-3) write
+  the row in the same transaction, and still set `stories.correction_note` to the latest text, so
+  nothing that reads it breaks.
+- The migration copies every correction already in `workflow_transitions` into the table, with the
+  kind `correction`.
+- **Readers read the log through one function,** `corrections_log(before, limit)`, newest first,
+  without the people's columns. It gives a story's headline and address only while the story is
+  published. A correction of a story taken down keeps its kind, text and date, and shows "A story we
+  have withdrawn" instead of a headline that may be the very thing that was wrong.
+
+**M3: `compliance-3-reports`, the table `grievance_reports`**
+
+- `month` (its first day), `version` (1, then 2 if it is reissued), `figures` (jsonb, §5), `note`,
+  `published_by`, `published_at`. Unique on `month` and `version`; no UPDATE or DELETE.
+- Readers may read every column but `published_by`.
+- `grievance_month_figures(month)` computes a month's draft for the back office (`service_role`
+  only).
+
+**M4: `compliance-4-records`, the tables `legal_orders`, `legal_order_actions`,
+`content_records` and `content_exports`**
+
+| `legal_orders` column | Meaning |
+|---|---|
+| `id`, `reference` | the order, and its own number |
+| `authority_type`, `authority` | `court`, `government` (MIB or another ministry), `police`, `self_regulatory_body` or `other`; its name, for example "Delhi High Court" |
+| `order_date`, `received_at`, `received_via` | when it was made and when and how it reached us |
+| `asks` | one or more of: `remove_or_block`, `preserve_records`, `give_information`, `publish_correction_or_apology`, `other` |
+| `summary` | what it says, in a few lines |
+| `story_ids` | the stories it is about |
+| `due_at` | its deadline, if it has one |
+| `status` | `open`, `complied`, `partly_complied`, `challenged` or `closed` |
+| `original_kept_at` | where the paper or file is kept (question 8) |
+| `created_by`, `created_at`, `updated_by`, `updated_at` | who entered and last changed it |
+
+- `legal_order_actions` (id, order, what was done, by, at) is append-only.
+- **No grant to `anon` or `authenticated` at all, and no reader policy:** only the back office
+  reads the register, for holders of `legal_order.manage`.
+- **`content_records` (BL-033):** the aggregator's items as readers saw them: `article_id`,
+  `title`, `summary`, `source`, `link`, `language`, `category`, `first_seen_at`, `last_seen_at`.
+  The worker's `refresh-news` job writes the row when it saves an item, as part of its normal
+  ingestion; `purgeOldArticles` does not touch this table. Kept at least 60 days (question 9).
+  Readers have no access.
+- **`content_exports`:** `id`, the range (`from_date`, `to_date`), `reason`, `requested_by`,
+  `requested_at`, `approved_by`, `approved_at`, `refused_reason`, `downloaded_at`. A Grievance
+  Officer's request waits for a Legal holder; Legal's own is approved at once. A CHECK keeps
+  `approved_by` different from `requested_by` when the requester holds only A.
+
+### 3. Who may do what
+
+| Action | Permission (matrix) | Who | Scope the server checks |
+|---|---|---|---|
+| Send a grievance; see its status | none: public, with per-IP limits (§4) | anyone; the status needs the ticket and the email | — |
+| See the grievance queue and a grievance | `grievance.handle`, read | Grievance Officer F, Legal F, Managing Editor R | all; the Managing Editor sees the email masked (question 4) |
+| Enter one received by email or post; acknowledge, assign, add a note, decide | `grievance.handle`, act | Grievance Officer, Legal | all |
+| Publish a correction, with its kind and a grievance | `correction.publish` (Panel 2's rules) | Managing Editor F, Desk Editor S, Sub-editor A | the story's desk |
+| Publish the monthly report | `grievance.report`, act | Grievance Officer, Legal | — |
+| See the legal-orders register | `legal_order.manage`, read | Legal F, Managing Editor R | — |
+| Add an order, change its status, record an action | `legal_order.manage`, act | Legal | — |
+| Export the content record | `content_records.export` | Legal F; Grievance Officer A, approved by a Legal holder | — |
+
+- **Four-eyes:** only the Grievance Officer's export (the matrix's A). A grievance's decision is
+  the Grievance Officer's own, as the rules give it to them.
+- **MFA:** every action and every read of a grievance or an order needs `aal2` (§0).
+- **Refusals:** Panel 0's codes (401, 403 `forbidden` or `mfa_required`). A wrong state answers
+  409 (a decided grievance, a closed order, an export already used); an unknown ticket on a
+  correction answers 422.
+- **Legal orders stay out of the audit text:** their audit rows record the action, the order's id
+  and its status, never its summary, because `audit.read` reaches more people than
+  `legal_order.manage`.
+
+### 4. Screens and routes
+
+**Reader site:**
+- **`/grievance`** keeps the officer, the address and the email, and gains the form: name, email,
+  the address of the story (optional), what it is about (question 5), the complaint (5,000
+  characters), and a short notice of what is kept and why. When it is sent, the page shows the
+  ticket, says the grievance is acknowledged, gives the date the decision is due, and links the
+  status page. The page and the form follow the reader's language, English or Hindi.
+- **`/grievance/status`:** the ticket and the email in; the state, the due date, and the decision
+  with its reply out. Sent by POST, so the email is never in an address or a log.
+- **`/corrections`:** every correction, newest first, 30 to a page: its kind, date and text, and
+  the story's link while it is published. Linked from the footer and from each story's corrections.
+- **`/grievance-report`** lists the published months; **`/grievance-report/[month]`** (for example
+  `2026-12`) shows one.
+- **A story's page** shows all its corrections, oldest first, each with its kind and date (today:
+  the latest note only).
+
+**Reader routes:**
+- `POST /api/grievances`: per IP at most 3 an hour and 10 a day, 500 a day across the site
+  (question 3); a 16 KB body cap; a hidden field a person never fills (a filled one is refused).
+  The route matches the address given to a published story, and the function checks it again.
+- `POST /api/grievances/status`: per IP at most 20 an hour. A wrong email gets the same answer as
+  an unknown ticket.
+- `readerWrites.test.ts` names the writes Panel 7 adds, and allows exactly one to reader files: the
+  form's `submitGrievance`, which calls only `grievance_submit`.
+
+**Back office: a new "Compliance" screen, `/admin/compliance`,** in the top bar for holders of any
+Panel 7 permission, with a tab for each part the caller may see:
+1. **Grievances:** the queue, the soonest due first, each with its clock: "Acknowledge by …" (red
+   when late), "Decide by …", "Due in 2 days", "Late". Filters: open, decided, all; a search by
+   ticket. A grievance's page shows what was sent, its story (linked to the Desk), its clocks, the
+   notes, the corrections linked to it, and the decision (outcome and reply). "Add a grievance"
+   enters one received by email or post.
+2. **Corrections:** the log as on `/corrections`, with who published each and its grievance.
+   Read-only here: corrections are published on the Desk.
+3. **Monthly report:** last month's draft figures, a note, "Publish"; the months already published.
+4. **Legal orders** (holders of `legal_order.manage` only): the register, open orders first by
+   deadline; an order's page with its actions; "Add an order".
+5. **Content record:** "Export" with a range (at most 3 months) and a reason; the requests, with
+   Approve and Refuse for Legal; "Download" for 24 hours after approval.
+
+**Elsewhere in the back office:**
+- the Desk's "Publish correction" gains the kind and an optional grievance ticket;
+- the dashboard gains a card for holders of `grievance.handle`: open grievances, and how many are
+  late.
+
+**Back-office routes:**
+- `GET`, `POST /api/admin/compliance/grievances` (the queue; add one received by email or post);
+- `GET /api/admin/compliance/grievances/[id]`;
+- `POST /api/admin/compliance/grievances/[id]/acknowledge`, `.../assign`, `.../notes`,
+  `.../decide`;
+- `GET /api/admin/compliance/corrections`;
+- `GET`, `POST /api/admin/compliance/reports` (a month's draft; publish it);
+- `GET`, `POST /api/admin/compliance/legal-orders`; `PATCH .../legal-orders/[id]`;
+  `POST .../legal-orders/[id]/actions`;
+- `GET`, `POST /api/admin/compliance/exports`; `POST .../exports/[id]/decide`;
+  `GET .../exports/[id]/download`;
+- the existing `POST /api/admin/desk/stories/[id]/correct` gains `kind` and `grievance`.
+
+### 5. The monthly report (M3)
+
+For each month (IST), from the grievances received in it, with no personal data:
+- received: in all, by category, by language and by channel;
+- decided: by outcome; within 15 days and later; the median number of days to decide;
+- still open at the month's end, and how many of those are late;
+- the corrections published in the month, by kind.
+
+`grievance_month_figures` computes the draft. The officer reads it, adds a note if one is needed
+("three grievances were about the same story"), and publishes it. Published figures never change:
+a reissue is version 2, shown beside the first. Due by the 7th of the next month (question 7).
+Publishing without a person is Phase K's automation.
+
+### 6. The content record (M4)
+
+What the record holds:
+- **Desk stories:** every published revision (headline, dek, body, search fields), when it went
+  live and when it was replaced; every change of state with its reason (takedowns, retractions);
+  the corrections; the live updates, removed ones included. All of it is kept for good already.
+- **The aggregator's items:** `content_records` (§2), from M4 on. Items purged before M4 are gone,
+  and the export says from when it holds them.
+
+The export is one JSON file for a range of at most 3 months, `content-record-<from>-<to>.json`: a
+header (the range, who asked, who approved, when it was made) and one list for each kind of
+content. The route builds it from read-only queries while it is downloaded; only the request row is
+stored. No new package.
+
+### 7. Audit
+
+Every change writes `audit_log` first ("attempted, then outcome") and is refused with 503 if it
+cannot.
+
+| Action | Entity | Recorded |
+|---|---|---|
+| `grievance.create` (email or post), `grievance.acknowledge`, `grievance.assign`, `grievance.note`, `grievance.decide` | the grievance | ticket, channel, outcome, the note's and the reply's text; never the complainant's name or email |
+| `story.correct` (Panel 2's), now with the kind and the ticket | the story | as today, plus the kind and the ticket |
+| `grievance.report_publish` | the report | month, version |
+| `legal_order.create`, `legal_order.update`, `legal_order.action` | the order | id, status, deadline; never the summary or an action's text |
+| `content_records.export_request`, `.export_decide`, `.export_download` | the request | range, reason, decision |
+
+The public form writes no audit row: the grievance is its own record, and a failure goes to Sentry.
+
+### 8. Not in Panel 7
+
+- **Email:** nothing is sent by email (question 2). Amazon SES comes with the newsletter (Phase
+  K), or earlier if the owner chooses it.
+- **Files:** an order's document or a grievance's attachment (question 8).
+- The legal-orders workflow (reminders, the emergency blocking process), the monthly report's
+  automation, appeals to a self-regulatory body: Phase K.
+- Data-rights requests, the incident clock and the audit-log viewer: Panel 8.
+- The 60-day floor on purging `articles`, and the two-person purge: Panel 4 (`content.purge`).
+- Intermediary duties (3-hour takedowns, 7-day grievances): only if comments or uploads launch
+  (research, D10).
+- `/hi/` copies of these pages: Phase F.
+
+### 9. Owner actions
+
+1. Apply `compliance-1` to `compliance-4`, each with its check, in the SQL editor, as before. The
+   catalogue does not change.
+2. Give the named Grievance Officer an account with the Grievance Officer role (People, Panel 1),
+   and Legal theirs when named. Until then the Managing Editor sees the queue read-only and nobody
+   can decide a grievance.
+3. Ask the lawyer (the plan, §8): the monthly report's deadline and form; how long grievances and
+   the aggregator's records are kept beyond the minimum; the wording of the form's notice (BL-008).
+4. When a self-regulatory body is joined (research, D12): its name, for the line on appeals under
+   each decision.
+
+### 10. Tests
+
+| Test | What it proves | Denied cases |
+|---|---|---|
+| `access.test.ts` (the route walk) | every new route has a rule and is tested for its least-privileged holder | no session, no grant, expired, no MFA; a Desk Editor opening the queue; the Managing Editor deciding a grievance or adding an order; the Grievance Officer opening the register; the Grievance Officer approving their own export, or downloading one not approved; a correction with an unknown ticket |
+| Reader route tests | the form's checks, limits and hidden field; the ticket returned; the status only with the ticket and the email | over a limit is 429; a wrong email answers as an unknown ticket |
+| `readerWrites.test.ts` | no reader file writes, except the grievance form's one function | a new write in a reader file fails the test |
+| Schema tests (the migrations as text) | RLS on, no DELETE, the guards, the functions' grants (`anon` may run the two grievance functions and the log, nothing else), no reader grant on the register, the rollbacks | default rights left on a new table fail, as `schema.test.ts` already enforces |
+| Service tests | the clocks; a month's figures from a fixed set; the export's contents | a decided grievance and a published report cannot change |
+| Component tests | the form (sending, sent, refused, failed), the status page, `/corrections`, the queue's clocks, each screen's loading, error and empty states | no actions where the API offers none |
+| Browser tests (read-only) | `/grievance`, `/corrections` and `/grievance-report` render; signed out, `/admin/compliance` goes to sign-in | the admin routes answer 401. No grievance is sent: that would write |
+
+### 11. Questions for the owner
+
+Each has a recommended answer. Saying "approved" takes all of them.
+
+1. **How the form reaches the database:**
+   - **Recommended:** two narrow database functions readers may call (send a grievance; read its
+     status), behind per-IP limits. Readers get no table rights, so the reader site stays
+     read-only otherwise, and the form keeps working when the reader loses the service-role key
+     (R12-03).
+   - Alternative: the form posts to the back office's app.
+2. **The acknowledgement and the reply:**
+   - **Recommended:** the page acknowledges at once, with the ticket and the due date; the status
+     page shows the decision; the Grievance Officer also emails the decision from the published
+     grievance address, by hand, as the page promises. No email service at launch.
+   - Alternative: Amazon SES now (a new package, an AWS setup, and a line in the privacy notice).
+3. **Spam:** **Recommended:** the limits (3 an hour and 10 a day per address, 500 a day in all) and
+   a hidden field; no CAPTCHA at launch. Cloudflare Turnstile later, if spam comes.
+4. **The complainant's email:**
+   - **Recommended:** shown in full to the Grievance Officer and Legal, who must reply to it, and
+     masked in the Managing Editor's read-only view. This reads the matrix's `reader_pii.view` (M
+     for the officer) as covering readers' accounts (Panels 8 and 9), not a complaint sent to us to
+     be answered.
+   - Alternative: masked for everyone, shown with a logged reason.
+5. **Categories:** **Recommended:** factual error; defamation or privacy; obscene or harmful
+   content; copyright; other.
+6. **Corrections:** **Recommended:** five kinds (correction, clarification, update, editor's note,
+   retraction); every correction stays under its story, not only the latest; `/corrections` lists
+   them all; the notes already published are copied in.
+7. **The monthly report:** **Recommended:** the app computes it; the Grievance Officer (or Legal)
+   checks and publishes it by the 7th of the next month (the lawyer to confirm), at
+   `/grievance-report`. Published figures never change.
+8. **Legal orders' documents:** **Recommended:** no uploads in the minimum; the register records
+   where the original is kept. A private file store comes with Phase K's legal-orders workflow.
+9. **The aggregator's content record:** **Recommended:** recorded by the worker from M4 on, kept at
+   least 60 days (proposed: one year, until Panel 4's purge takes it over), and exported with the
+   Desk's content as one JSON file per range of up to 3 months.
+10. **Order:** **Recommended:** M1 → M2 → M3 → M4, each shown to you before the next.
+
+### 12. Still open in Panels 1 to 3
+
+This design is proposed while these are open (the owner, 20 Nov 2026). Each panel stays *In
+progress* until its items close:
+- **The owner's walk-through:** the roles-and-testing document (tests S, P, M, D and Z) for Panels
+  1 and 2; Panel 3's tests 5 (a live blog) and 6 (taking the test stories down). Panel 3's tests 1
+  to 4 (the banner in Hindi only, a pin on the home page, "Copy for WhatsApp", the RSS feed) passed
+  on 20 Nov 2026.
+- **A test Supabase project**, on hold until the owner says: items 7, 8 and 10 of Panels 1 to 3.
+- **The worker's Sentry** (Panel 2, item 11): it needs `@sentry/node` declared, a package for the
+  owner to approve.
+- **The Hindi typing check** (Panel 2, M2), with two Hindi typists.
+- **Scheduled publishing walked through**, after the AWS deploy (Panel 2).
+- **At the AWS deploy:** the three retired `ADMIN_*` variables deleted from the server's
+  `.env.admin` (Panel 1); CloudFront's `/api/live/*` behaviour (Panel 3).
