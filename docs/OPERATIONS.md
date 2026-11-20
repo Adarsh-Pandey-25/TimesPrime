@@ -1786,6 +1786,62 @@ refusal never changed anything. Anything that writes is an owner action.
   WHERE is_break_glass ORDER BY granted_at DESC LIMIT 5;
   ```
 
+### The Front page (Panel 3) is failing
+
+Panel 3's main flows: a pin puts a published story above a page's automatic order; each desk's
+banner lines show to readers of its language; a live blog's updates reach readers within about 15
+seconds; the RSS feeds list the newest stories. This page starts from what the person sees, names
+the cause, says how to confirm it, and what to do.
+
+The same two rules hold as for [staff sign-in](#staff-sign-in-or-an-admin-action-is-failing): the
+SQL here only reads and runs in the Supabase SQL editor at any time, and a refusal never changed
+anything. Anything that writes is an owner action.
+
+#### First: where to look
+
+- **Sentry:** the back office's 500s, by operation (`listPagePins`, `pinStory`, `unpin`,
+  `listLiveUpdates` and so on); the reader site's `pinnedStories`, `liveFeed` and `rssFeed`; and the
+  rate-limited `pins_unavailable` and `live_feed_unavailable`, sent when a page showed without its
+  pinned row or its updates.
+- **The public reads,** from any browser: `/api/news/pins?language=hi`, `/api/live/<the story's
+  number>`, `/rss/en.xml`. Each answers 200 with its content, or a status that says what is wrong.
+- **What was attempted and refused:**
+  ```sql
+  SELECT at, actor_label, action, outcome, entity_id, language, section, reason
+  FROM public.audit_log
+  WHERE action LIKE 'homepage.%' OR action LIKE 'breaking_banner.%' OR action LIKE 'live.%'
+  ORDER BY seq DESC LIMIT 30;
+  ```
+
+#### By what the person sees
+
+| They see | Cause | Do |
+|---|---|---|
+| A pinned story is not on the page | Its pin has not started, has ended or was replaced, or the story is not live | The Front page screen says which: "From …", or "Story not live: not showing". Pin it again, or publish the story |
+| A pin that ended by its time still shows, for up to a minute | The pins' 60-second cache entry | Wait a minute; any change on the screen clears it at once |
+| A Hindi reader sees no pinned row | No Hindi pin on that page, or `/api/news/pins?language=hi` fails | Pin in Hindi on the screen; open the JSON |
+| 403 on a page of the Front page screen | The page is outside their desk: a home page needs a grant with no section | A Managing Editor pins it, or the right grant (owner) |
+| 409 `no_slot`, `already_pinned`, `not_published` | As named | Another slot; unpin it in its other slot; publish the story first |
+| The screen's slots cannot load | front-2 is not applied, or the database | [Applying front-2](#panel-3-applying-front-2); Sentry |
+| A banner line does not show to a reader | It is for the other language, or it expired | Its language badge and expiry on the Front page screen |
+| Live updates do not reach readers | The reader's tab is hidden (no checks then), the blog ended, the update was removed, or `/api/live/<number>` fails | Open the JSON: 404, not a published live blog; 503, Sentry. On the server, CloudFront's `/api/live/*` behaviour (Deployment, step 14) |
+| 409 `live_ended`, `not_published`, `not_live_blog`, `removed` | As named | Nothing to fix: the blog or update is in that state |
+| 422 `image` on an update | Its image is not ready for readers | Fix it in the media library (credit, source, licence, rights, alt text and caption in the story's language) |
+| A new story is not in an RSS feed | The feed's 5-minute entry, for a story the worker published on schedule | Wait 5 minutes; a story published from the Desk clears its feeds at once |
+| `/rss/…` answers 503 | The database | Sentry |
+| The pins, a live blog and the feeds look stale everywhere at once | Redis is down: each server process answers from its own memory copy | `/api/health` names Redis; the entries lapse by themselves (60 s, 5 s, 5 min) |
+
+#### When readers must stop seeing something at once
+
+- **A pinned story:** Unpin on the Front page screen. Taking the story down on the Desk also works:
+  its pins show nothing, and its feeds and live JSON are cleared.
+- **A banner line:** Remove, on the Front page screen.
+- **A live update:** Remove, with the reason, in the story's "Live updates" panel. Readers' pages
+  drop it at their next check (15 seconds). **The whole live blog:** take the story down.
+- **The edge keeps** the live JSON up to 30 seconds and a feed up to 15 minutes. For an urgent legal
+  case on the server, the manager clears them:
+  `aws cloudfront create-invalidation --distribution-id <id> --paths "/api/live/*" "/rss/*"`.
+
 ## Current status
 
 > **The release first (owner, 2026-11-02; hosting decided 4 and 16 Nov 2026).** The owner's senior
@@ -1974,9 +2030,12 @@ phases were done:
    blogs, is being built in three pull requests: the back end is on `main` (PR #60), with the
    catalogue and front-3 [applied](#panel-3-applying-front-3) by the owner; the Desk's "Live
    updates" panel (PR #61) and the reader's live page (PR #62) are on `main`. At the AWS deploy,
-   CloudFront needs its `/api/live/*` behaviour (Deployment, step 14). **M4**, the RSS feeds, is
-   built (`panel-3-rss`); it needs no SQL. Every milestone of the design is then built, and Panel
-   3's definition of done is checked next.
+   CloudFront needs its `/api/live/*` behaviour (Deployment, step 14). **M4**, the RSS feeds, is on
+   `main` (PR #63). Every milestone of the design is built. The
+   [definition of done](PANEL_DOCS.md#panel-3-front-page) was checked on 20 Nov 2026: Panel 3 is not
+   yet Done, as the owner's walk-through and the test project (items 7, 8 and 10, as for Panels 1
+   and 2) are open. When it breaks: [The Front page (Panel 3) is
+   failing](#the-front-page-panel-3-is-failing).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
