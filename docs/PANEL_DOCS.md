@@ -631,6 +631,10 @@ needs two people, and removing it needs one.
   without the email's name; with a second factor set up, only from an `aal2` session, so a link
   or a stolen password alone cannot change it. Afterwards every session of the account ends, and
   the person signs in again. Supabase's own refusals (a reused password) come back in its words.
+- **Seeing one's password** (the owner, 20 Nov 2026): every password field of the back office (the
+  sign-in page, and the welcome page's two) has an eye button that shows what was typed and hides
+  it again (`components/ui/PasswordInput.tsx`, named "Show password" or "Hide password", with
+  `aria-pressed`). Edge's own eye is hidden, so there is one in every browser.
 - **The screens** (M2b), each with loading, error and empty states:
   - **`/admin/people/new`, adding a person:** email, name, role (those the caller may grant), desk,
     days, reason. "Add" for a Managing Editor, "Ask to add" for a Super Admin. An email already on

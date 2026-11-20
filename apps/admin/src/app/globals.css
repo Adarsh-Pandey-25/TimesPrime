@@ -275,3 +275,12 @@ html.dark .img-skeleton {
 .story-editor div[data-type="ad-slot"] { border: 1px dashed #94a3b8; border-radius: 0.5rem; padding: 0.5rem 0.75rem; margin: 0 0 0.8em; font-size: 0.875rem; }
 .story-editor div[data-type="ad-slot"]::before { content: "Ad slot"; color: #64748b; }
 .story-editor:lang(hi) { line-height: 1.9; }
+
+/* Edge draws its own "reveal password" eye inside a password field. The back office has its own
+   (components/ui/PasswordInput.tsx), so Edge's is hidden: one eye, the same in every browser. */
+@layer base {
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear {
+    display: none;
+  }
+}

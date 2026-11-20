@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Lock, AlertTriangle, KeyRound } from "lucide-react";
 import { landingPath } from "@timesprime/shared/lib/staffLanding";
 import type { AdminMe } from "@timesprime/shared/types";
+import PasswordInput from "@/components/ui/PasswordInput";
 import { authCard, authIcon, authPage, buttonBlock, fieldLarge } from "@/components/ui/styles";
 
 // Sign-in (Panel 0). A staff account signs in with email and password, then the second factor:
@@ -173,7 +174,7 @@ export default function AdminLoginPage() {
             </div>
             <div className="space-y-2">
               <label htmlFor="admin-password" className={labelClass}>Password</label>
-              <input id="admin-password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className={fieldClass} />
+              <PasswordInput id="admin-password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className={fieldClass} />
             </div>
             {submitButton("Sign In", "Signing in...")}
           </form>
