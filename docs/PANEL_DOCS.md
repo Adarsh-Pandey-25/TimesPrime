@@ -63,7 +63,10 @@ the four-eyes, takedown and MFA rules, and the data model behind them. The build
 owner approved `NEWSROOM_PLAN.md`. The sections below are copied from it unchanged, except where
 a note says otherwise. *Note (17 Nov 2026):* the rows `author.manage` and `media.manage` were added
 with the owner's approval of the Panel 2 design. *Note (20 Nov 2026):* the row `live_update.post` was
-added with the owner's approval of the Panel 3 design (decision 6). The supporting publisher research is in [`RESEARCH.md`](RESEARCH.md) and in
+added with the owner's approval of the Panel 3 design (decision 6). *Note (20 Nov 2026,
+the owner's approval of the Panel 7 design, decision 4):* a complainant's contact details are part
+of their grievance, under `grievance.handle`: in full for its F holders, masked for its R holders.
+`reader_pii.view` covers readers' accounts. The matrix itself is unchanged. The supporting publisher research is in [`RESEARCH.md`](RESEARCH.md) and in
 git history (`git log --all -- docs/PANEL_PLAN.md`).
 
 **The matrix is canonical.** `scripts/generate-access-catalog.mjs` turns the matrix below into
@@ -211,7 +214,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
 | 6 | Insights: read-only stats | Planned | — | — |
-| 7 | Compliance: grievances, corrections, legal orders, content records | **In progress:** [design](#panel-7-design-compliance-launch-minimum) proposed 20 Nov 2026 for the owner's approval, at the owner's request while the walk-through of Panels 1 to 3 is open | — | — |
+| 7 | Compliance: grievances, corrections, legal orders, content records | **In progress:** [design](#panel-7-design-compliance-launch-minimum) approved 20 Nov 2026 (PR #67), started at the owner's request while the walk-through of Panels 1 to 3 is open; M1 (grievances) next | — | — |
 | 8 | Privacy & security: data-rights requests, incidents, audit viewer | Planned | — | — |
 | 9 | Commercial: only once ads or subscriptions exist | Planned | — | — |
 
@@ -3412,10 +3415,39 @@ its items close:
 
 ## Panel 7 design: Compliance (launch minimum)
 
-**Status:** **proposed** on 20 Nov 2026 for the owner's approval, on `panel-7-compliance`.
-**Started at the owner's request** (20 Nov 2026) while the owner's walk-through of Panels 1 to 3
-is still open; those items are listed in §12. No code is written before the owner approves.
-`NEWSROOM_PLAN.md` is unchanged.
+**Status:** **approved** by the owner on 20 Nov 2026, with the recommended answer to every
+question in §11 (recorded below). Proposed in PR #67. One branch per milestone, starting with
+`panel-7-grievances` (M1). **Started at the owner's request** (20 Nov 2026) while the owner's
+walk-through of Panels 1 to 3 is still open; those items are listed in §12. `NEWSROOM_PLAN.md` is
+unchanged.
+
+### Approval: decisions (20 Nov 2026)
+
+The section overrides anything later in this design that disagrees with it.
+1. **The form reaches the database** through two narrow functions readers may call
+   (`grievance_submit`, `grievance_status`), behind per-IP limits. Readers get no table rights.
+2. **The acknowledgement** is on the page at once, with the ticket and the due date; the decision
+   is on the status page, and the Grievance Officer also emails it by hand from the grievance
+   address. No email service at launch.
+3. **Spam:** 3 an hour and 10 a day per address, 500 a day in all, and a hidden field. No CAPTCHA
+   at launch.
+4. **The complainant's email** is shown in full to the Grievance Officer and Legal, and masked in
+   the Managing Editor's read-only view. `reader_pii.view` covers readers' accounts, not a
+   complaint sent to be answered (noted in the access rules).
+5. **Categories:** factual error; defamation or privacy; obscene or harmful content; copyright;
+   other.
+6. **Corrections:** five kinds (correction, clarification, update, editor's note, retraction);
+   every correction stays under its story; `/corrections` lists them all; the notes already
+   published are copied in.
+7. **The monthly report:** computed by the app, checked and published by the Grievance Officer (or
+   Legal) by the 7th of the next month (the lawyer to confirm), at `/grievance-report`. Published
+   figures never change.
+8. **Legal orders' documents:** no uploads in the minimum; the register records where the
+   original is kept.
+9. **The aggregator's content record:** recorded by the worker from M4 on, kept one year (at least
+   the 60 days the rule asks), exported with the Desk's content as one JSON file per range of up
+   to 3 months.
+10. **Order:** M1 → M2 → M3 → M4, each shown to the owner before the next.
 
 **Plan:** [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md), Phase H, "Panel 7 minimum". **Access rules:**
 the `grievance.handle / report`, `correction.publish`, `legal_order.manage` and

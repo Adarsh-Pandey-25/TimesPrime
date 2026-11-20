@@ -2039,8 +2039,9 @@ phases were done:
    1 to 4 on 20 Nov 2026; tests 5 and 6 (a live blog, the clean-up) are left.
 10. **Panel 7 (Compliance, launch minimum)**: its
     [design](PANEL_DOCS.md#panel-7-design-compliance-launch-minimum) was proposed on 20 Nov 2026 at
-    the owner's request, on `panel-7-compliance`, while the walk-through of Panels 1 to 3 is open
-    (the design's §12). No code and no SQL until the owner approves it.
+    the owner's request (PR #67), while the walk-through of Panels 1 to 3 is open (the design's
+    §12), and approved the same day with every recommended answer. The matrix is unchanged. **M1**,
+    grievances, is next, on `panel-7-grievances`; it brings `compliance-1` for the owner to apply.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
