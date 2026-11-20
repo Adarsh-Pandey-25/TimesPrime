@@ -207,7 +207,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
 | 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PRs #48 and #49) built; M4 (the shared password retired, PR #50) built; the definition of done checked: open are the owner's walk-through and a test project | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
-| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) approved 19 Nov 2026, started at the owner's request while Panels 1 and 2 have open items; [M1](#panel-3-front-page) (the banner's language, "Copy for WhatsApp", PR #57) built, front-1 applied; M2 (pinned slots and the Front page screen, PRs #58 and #59) built, front-2 applied; M3 (live blogs, PRs #60 to #62) built, catalogue and front-3 applied; M4 (RSS) built; the definition of done next | — | — |
+| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) approved 19 Nov 2026, started at the owner's request while Panels 1 and 2 have open items; [M1](#panel-3-front-page) (the banner's language, "Copy for WhatsApp", PR #57) built, front-1 applied; M2 (pinned slots and the Front page screen, PRs #58 and #59) built, front-2 applied; M3 (live blogs, PRs #60 to #62) built, catalogue and front-3 applied; M4 (RSS, PR #63) built; the definition of done checked (20 Nov 2026): open are the owner's walk-through and a test project | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
 | 6 | Insights: read-only stats | Planned | — | — |
@@ -1296,9 +1296,10 @@ project). Assigning a writer from the screen waits for Panel 1's staff directory
   on `main`);
 - **M3, third part:** the reader's live page, its feed as JSON and its `LiveBlogPosting` markup
   (PR #62, on `main`). M3 is complete;
-- **M4:** the RSS feeds, per language and per language and section (branch `panel-3-rss`). With it,
-  every milestone of the design is built; web push waits for Panel 8's consent banner (decision 8).
-  Panel 3's definition of done is checked next.
+- **M4:** the RSS feeds, per language and per language and section (PR #63, on `main`). Every
+  milestone of the design is built; web push waits for Panel 8's consent banner (decision 8). The
+  [definition of done](#definition-of-done-checked-20-nov-2026-for-the-owners-sign-off) was checked
+  on 20 Nov 2026.
 
 Started while Panels 1 and 2 have open items (the design's §12).
 
@@ -1569,6 +1570,37 @@ that take stories to WhatsApp and RSS readers.
 | `packages/server/src/services/news/breakingNews.test.ts` | A reader's language: that language's items and those for both, in order; the read without front-1 | Another database error is not retried |
 | `apps/web/src/app/api/news/breaking-news/route.test.ts`, `components/news/BreakingNewsBanner.test.tsx` | The reader's language is asked for; the label in English and Hindi | Anything but `en` or `hi` asks for every item; nothing live shows nothing |
 | `packages/shared/src/lib/whatsApp.test.ts`, `apps/admin/src/components/desk/desk.test.tsx` | The message in English and Hindi; the live version copied, read from the server when a newer one is saved | Not offered before the story is live |
+
+#### Definition of done (checked 20 Nov 2026, for the owner's sign-off)
+
+Every PR of the panel is merged: the design (#56), M1 (#57), M2 (#58, and #59 for front-2's
+syntax), M3 (#60, #61 and #62) and M4 (#63). front-1, front-2, front-3 and the regenerated
+catalogue are applied. Item by item, against the code:
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Every feature works; this entry matches the code | **Partly.** Built and tested with the database mocked, and seen in a browser on preview pages with made-up data (the Front page screen, the pinned row, the Live updates panel, the reader's live page). Against the real database, read-only: the pins JSON, the banner by language and the RSS feeds answer as they should. **Not walked yet by the owner:** pinning and unpinning a story and seeing the pinned row; a banner line in Hindi only; a live blog posted, changed, removed and ended, seen on the reader's page; Copy for WhatsApp; a published story in its feeds |
+| 2 | Server-side permission on every route and action; allowed and denied tests | **Done.** Every Panel 3 route has a rule (targets `banner`, `page`, `story`); `access.test.ts` walks every route on disk and tests each for its least-privileged holder, no session, no grants, expired, no MFA and the other desk, then Panel 3's own rules: the banner's language, a page's language and section, slots, pins already on the page, live blogs' states, removal with a reason. The public reads (`/api/news/breaking-news`, `/api/news/pins`, `/api/live/[publicId]`, `/rss/…`) have their own tests |
+| 3 | Privileged actions audited; MFA where the plan says | **Done in code.** Every Panel 3 change writes `audit_log` first (attempted, then outcome) and is refused with 503 if it cannot: `breaking_banner.set` and `.remove`, `homepage.pin` and `.unpin`, `live.post`, `.edit`, `.remove` and `.end`. Every staff profile needs MFA, so every write needs `aal2` |
+| 4 | `npm run verify` and CI green; routes, JS and CSS reported | **Done.** Every PR green, with its routes and JS in its report. No budget was raised; the Live updates panel is loaded only on a live blog, so the story screen grew 1.2 kB |
+| 5 | SQL in migrations with a rollback, listed as owner actions | **Done.** front-1, front-2, front-3 and the catalogue, each with its rollback and its runbook; applied by the owner on 20 Nov 2026, with the checks of front-1 (true, true), the catalogue (42, 143, 3) and front-3 (as expected). front-2 was reported applied; its check's row was not sent |
+| 6 | This file, the current status and ARCHITECTURE.md updated | **Done,** in each PR |
+| 7 | Real-database tests read-only; the database's own rules verified by the owner | **Partly.** The owner's checks confirmed the columns, RLS, grants and function rights. The functions' refusals and the guard triggers (pinning a draft, a second pin of a story on a page, changing a removed update, deleting a pin or an update) have not run against a database: that needs a test project, as for Panels 1 and 2. Every migration's text is tested, including its IF conditions (gotcha 3.40) |
+| 8 | Browser tests cover the critical flows, including a refused-access flow | **Partly.** Signed out, the Front page screen goes to sign-in, and its routes and the live blog's answer 401; the public reads are tested (the pins JSON, a live feed's 404, the feeds as RSS 2.0, the home page's feed links). The signed-in flows need the test project |
+| 9 | Every screen has loading, error and empty states | **Done.** The Front page screen, the Live updates panel and the banner manager in the back office; the pinned row and the live page for readers (no row with no pin, the intro kept when the feed fails), each tested |
+| 10 | Accessibility checked (keyboard, labels) | **Partly.** Every control has a label or an accessible name, and the tests find each by it; the editor's toolbar is a labelled `toolbar` with `aria-pressed`; the new-updates button is in a polite live region; Hindi text is marked `lang="hi"`. **Left:** axe and a keyboard walk-through of the signed-in screens (the test project), and of the pinned row and the live page with real content |
+| 11 | Failures reach Sentry; privileged actions audited | **Done.** The back office's routes report their failures; the reader's pins, live feed and RSS routes report theirs, and the pages report, rate-limited, when they showed without the pinned row or the updates |
+| 12 | A JS budget per route in CI | **Done.** `/admin/front-page` has its budget; every other route stayed within its own |
+| 13 | A runbook for when the main flow breaks | **Done:** OPERATIONS.md, "The Front page (Panel 3) is failing", with the runbooks for front-1, front-2 and front-3, and gotcha 3.40 |
+
+**So Panel 3 is not yet Done.** Open:
+- the owner's walk-through of the flows in item 1;
+- front-2's check row, for the record (item 5);
+- the test Supabase project for items 7, 8 and 10, on hold until the owner says, the same one
+  Panels 1 and 2 wait for;
+- at the AWS deploy, CloudFront's `/api/live/*` behaviour (Deployment, step 14).
+
+Web push is not open here: decision 8 moved it after Panel 8's consent banner.
 
 #### Known limits and not yet built
 
