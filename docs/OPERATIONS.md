@@ -2035,7 +2035,12 @@ phases were done:
    [definition of done](PANEL_DOCS.md#panel-3-front-page) was checked on 20 Nov 2026: Panel 3 is not
    yet Done, as the owner's walk-through and the test project (items 7, 8 and 10, as for Panels 1
    and 2) are open. When it breaks: [The Front page (Panel 3) is
-   failing](#the-front-page-panel-3-is-failing).
+   failing](#the-front-page-panel-3-is-failing). The owner's walk-through of Panel 3 passed tests
+   1 to 4 on 20 Nov 2026; tests 5 and 6 (a live blog, the clean-up) are left.
+10. **Panel 7 (Compliance, launch minimum)**: its
+    [design](PANEL_DOCS.md#panel-7-design-compliance-launch-minimum) was proposed on 20 Nov 2026 at
+    the owner's request, on `panel-7-compliance`, while the walk-through of Panels 1 to 3 is open
+    (the design's §12). No code and no SQL until the owner approves it.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
