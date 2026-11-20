@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { rssAlternates } from "@timesprime/shared/config/rss";
 import { isSection, SECTION_IDS, sectionMetadata } from "@timesprime/shared/config/sections";
 import ArticlesFeed from "../_feed/ArticlesFeed";
 
@@ -25,7 +26,13 @@ export async function generateMetadata({ params }: SectionPageProps): Promise<Me
   if (!isSection(section)) return {};
   const { title, description } = sectionMetadata(section);
   // A search within a section is a view of the section, so it points search engines here too.
-  return { title, description, alternates: { canonical: `/${section}` }, openGraph: { title: `${title} | TimesPrime News`, description, url: `/${section}` } };
+  // Panel 3, M4: the section's RSS feeds, in English and Hindi.
+  return {
+    title,
+    description,
+    alternates: { canonical: `/${section}`, types: { "application/rss+xml": rssAlternates(section) } },
+    openGraph: { title: `${title} | TimesPrime News`, description, url: `/${section}` },
+  };
 }
 
 export default async function SectionPage({ params, searchParams }: SectionPageProps) {

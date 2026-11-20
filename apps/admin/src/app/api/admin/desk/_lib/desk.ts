@@ -10,6 +10,7 @@ import { publishFields, publishRefusal, storyTarget } from "@timesprime/server/s
 import { checklistImages } from "@timesprime/server/services/desk/storyImages";
 import { forgetLive } from "@timesprime/server/services/front/live";
 import { forgetStoryPins } from "@timesprime/server/services/front/pins";
+import { forgetStoryFeeds } from "@timesprime/server/services/front/rss";
 import {
   DeskStoreError,
   getRevision,
@@ -296,6 +297,8 @@ export async function moveStory(request: NextRequest, { params }: Params, action
   if (!result.ok) return result.response;
   // A story taken down leaves the front page's pinned rows at once (Panel 3, M2), not when the
   // pins' 60-second cache lapses: its pin stays, and shows nothing while the story is not live.
+  // The RSS feeds (Panel 3, M4) gain a new story, or lose one taken down, at once.
+  if (action === "publish" || action === "publish_direct" || action === "unpublish" || action === "retract") await forgetStoryFeeds(story);
   if (action === "unpublish" || action === "retract") {
     await forgetStoryPins(story);
     // A live blog's feed too (Panel 3, M3): its JSON answers 404 at the next read.

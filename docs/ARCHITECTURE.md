@@ -51,8 +51,10 @@ SERVE ─ per reader request (apps/web); readers read the database only (R1-12)
   serves a Hindi reader's. Redis, 60 s per page and language, deleted by every pin change.
   A live blog (Panel 3): its page draws the newest 50 updates on the server; the page reads
   /api/live/[publicId] every 15 s (edge: s-maxage=10, stale 20; Redis 5 s, deleted by every change).
+  The RSS feeds (Panel 3): /rss/<language>.xml and /rss/<language>/<section>.xml, the last 50 Desk
+  stories; Redis and the edge 5 min, forgotten when the back office publishes or takes one down.
   code: packages/server/src/services/news/topHeadlines.ts, breakingNews.ts, services/front/pins.ts,
-        services/front/live.ts
+        services/front/live.ts, services/front/rss.ts
 
 AUTHORISE ─ every admin request (apps/admin, Panel 0)
   1. apps/admin/src/proxy.ts   matcher: /admin/*, /api/admin/*      OPTIMISTIC: is there a session?
@@ -169,7 +171,7 @@ apps/
                            privacy, terms; media/ (the Desk's images from the local folder, on a
                            laptop only; the server's come from CloudFront);
                            public APIs: /api/news/{top-headlines, breaking-news, check-new, pins},
-                           /api/live/[publicId] (a live blog's feed),
+                           /api/live/[publicId] (a live blog's feed); rss/ (the RSS feeds, Panel 3),
                            /api/chat, /api/health
     src/components/        news/ (cards, masthead, footer, menu, ticker, banner), home/ (the feed and,
                            Panel 3, the pinned row), live/ (Panel 3: a live blog's updates and the
@@ -216,13 +218,14 @@ packages/
                            publishing's rules, the scheduler, the image renditions with sharp, a story's images),
                            people (Panel 1: who may grant, renew, revoke or ask, reach.ts; the access review,
                            its flags and reminders, review.ts), front (Panel 3: the reader's pinned row and its
-                           cache entry, pins.ts; a live blog's feed, live.ts)
+                           cache entry, pins.ts; a live blog's feed, live.ts; the RSS feeds, rss.ts)
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase,
                            mediaStorage (the images' files: S3 on the server, a folder on a laptop;
                            only renditions are ever served publicly), …
   shared/                  @timesprime/shared: client-safe config (media.ts: the library's image types,
-                           limits and key shapes; breakingNews.ts and frontPage.ts: the banner's languages
-                           and the pinned slots, Panel 3), types
+                           limits and key shapes; breakingNews.ts, frontPage.ts, liveBlog.ts and rss.ts: the
+                           banner's languages, the pinned slots, a live blog's feed and the RSS feeds,
+                           Panel 3), types
                            and lib (urlValidation, sentryScrub, whatsApp: the "Copy for WhatsApp" message;
                            href: what a link may point to; liveBody: what a live update may hold, Panel 3)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and
