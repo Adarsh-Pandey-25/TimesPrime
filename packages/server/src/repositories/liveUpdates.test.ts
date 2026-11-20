@@ -7,7 +7,7 @@
 
 jest.mock("../lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn() } }));
 
-import { editLiveUpdate, endLiveBlog, liveError, listLiveUpdates, postLiveUpdate, removeLiveUpdate } from "./liveUpdates";
+import { editLiveUpdate, endLiveBlog, liveError, listLiveUpdates, listPublicLiveUpdates, postLiveUpdate, removeLiveUpdate } from "./liveUpdates";
 import { DeskStoreError } from "./stories";
 
 const { supabase } = jest.requireMock("../lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
@@ -65,6 +65,17 @@ test("the panel's list: one story's updates, newest first, and only that story's
   supabase.from.mockReturnValue(query({ data: [{ id: "a", story_id: "s-1" }, { id: "x", story_id: "s-9" }], error: null }, calls));
   expect((await listLiveUpdates("s-1")).map((u) => u.id)).toEqual(["a"]);
   expect(calls).toEqual(expect.arrayContaining([["eq", ["story_id", "s-1"]], ["order", ["posted_at", { ascending: false }]]]));
+});
+
+test("readers' list: not removed (in the query and again on the rows), newest first, without who wrote them", async () => {
+  const calls: Array<[string, unknown[]]> = [];
+  const row = (id: string, over: Record<string, unknown> = {}) => ({ id, story_id: "s-1", headline: null, body: {}, is_key_event: false, is_pinned: false, posted_at: "t", edited_at: null, removed_at: null, ...over });
+  supabase.from.mockReturnValue(query({ data: [row("a"), row("gone", { removed_at: "t2" }), row("other", { story_id: "s-9" })], error: null }, calls));
+  const rows = await listPublicLiveUpdates("s-1", 50);
+  expect(rows.map((u) => u.id)).toEqual(["a"]);
+  expect(Object.keys(rows[0]).sort()).toEqual(["body", "edited_at", "headline", "id", "is_key_event", "is_pinned", "posted_at", "story_id"]);
+  expect(String(calls.find(([m]) => m === "select")![1][0])).not.toMatch(/posted_by|edited_by|removed_by|removed_reason/);
+  expect(calls).toEqual(expect.arrayContaining([["is", ["removed_at", null]], ["limit", [50]]]));
 });
 
 test("a refused write is thrown with its status, and an empty answer is a 500", async () => {

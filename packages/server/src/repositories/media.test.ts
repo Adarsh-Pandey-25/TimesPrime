@@ -7,7 +7,7 @@
 
 jest.mock("../lib/supabase", () => ({ supabase: { from: jest.fn(), rpc: jest.fn() } }));
 
-import { createMedia, getMedia, getMediaByIds, listAuthorPhotos, listMedia, listPendingRenditions, listPublishedImages, recordRenditions, updateMedia } from "./media";
+import { createMedia, getMedia, getMediaByIds, listAuthorPhotos, listLiveImages, listMedia, listPendingRenditions, listPublishedImages, recordRenditions, updateMedia } from "./media";
 import { DeskStoreError } from "./stories";
 
 const { supabase } = jest.requireMock("../lib/supabase") as { supabase: { from: jest.Mock } };
@@ -118,6 +118,22 @@ test("readers get an author's photo only when an active author has it, the image
   ]);
   supabase.from.mockClear();
   expect(await listAuthorPhotos([])).toEqual([]);
+  expect(supabase.from).not.toHaveBeenCalled();
+});
+
+test("a live update's image (Panel 3, M3): only an active image with cleared rights, of those asked for", async () => {
+  const calls: Array<[string, unknown[]]> = [];
+  supabase.from.mockReturnValue(
+    query({ data: [{ id: "m-1", active: true, rights_cleared_at: "2026-11-19T00:00:00Z" }, { id: "m-2", active: true, rights_cleared_at: null }, { id: "m-9", active: true, rights_cleared_at: "t" }], error: null }, calls)
+  );
+  expect((await listLiveImages(["m-1", "m-2"])).map((row) => row.id)).toEqual(["m-1"]);
+  expect(calls).toEqual([
+    ["select", ["id, storage_key, width, height, credit, alt_en, alt_hi, caption_en, caption_hi, renditions, active, rights_cleared_at"]],
+    ["in", ["id", ["m-1", "m-2"]]],
+    ["eq", ["active", true]],
+  ]);
+  supabase.from.mockClear();
+  expect(await listLiveImages([])).toEqual([]);
   expect(supabase.from).not.toHaveBeenCalled();
 });
 

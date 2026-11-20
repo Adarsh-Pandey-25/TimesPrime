@@ -3,6 +3,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
 import { endLiveBlog } from "@timesprime/server/repositories/liveUpdates";
+import { forgetLive } from "@timesprime/server/services/front/live";
 import { audited, gateStory, type Params } from "../../../_lib/desk";
 import { closedLiveBlog } from "../../../_lib/live";
 
@@ -26,5 +27,6 @@ export async function POST(request: NextRequest, { params }: Params) {
     (ended) => ({ live_ended_at: ended.live_ended_at ?? null })
   );
   if (!result.ok) return result.response;
+  await forgetLive(story.public_id);
   return NextResponse.json({ story: result.value });
 }

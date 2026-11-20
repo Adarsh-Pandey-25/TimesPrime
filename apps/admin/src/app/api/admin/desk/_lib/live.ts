@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import type { LiveFields, LiveUpdateRow } from "@timesprime/server/repositories/liveUpdates";
 import type { StoryRow } from "@timesprime/server/repositories/stories";
 import { checklistImages } from "@timesprime/server/services/desk/storyImages";
-import { liveBodyProblem } from "@timesprime/editor/live";
+import { liveBodyProblem } from "@timesprime/shared/lib/liveBody";
 import { HEADLINE_MAX, imageChecklist } from "@timesprime/shared/config/desk";
 
 // A live blog's routes (Panel 3 design §3 and §4, M3) share these: whether the story takes updates,

@@ -13,6 +13,8 @@ export interface PublishedStory {
   correction_note: string | null;
   first_published_at: string | null;
   published_at: string | null;
+  /** A live blog's end (Panel 3, M3, front-3); null while it is live, and for every other story. */
+  live_ended_at?: string | null;
   revision: {
     id: string;
     headline: string;

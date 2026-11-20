@@ -223,7 +223,7 @@ export default function LiveUpdatesPanel({ storyId, language, published, canPost
       </div>
 
       {!published && <p className={hint}>Updates are posted once the live blog is published. Its text here is the intro readers see above them.</p>}
-      {published && <p className={hint}>Until the reader&apos;s live page is ready, readers see the story&apos;s intro only, not its updates.</p>}
+      {published && <p className={hint}>Readers see a new update within about 15 seconds, under the intro; a removed one leaves their page at its next check.</p>}
 
       {open && canPost && (
         <form onSubmit={submit} className="space-y-3 rounded-xl border border-slate-200 p-3 dark:border-[#2b2f36]">

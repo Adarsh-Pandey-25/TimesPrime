@@ -13,6 +13,10 @@ jest.mock("@timesprime/server/services/desk/storyImages", () => ({ publishedImag
 jest.mock("@timesprime/server/services/news/topHeadlines", () => ({
   getTopHeadlines: jest.fn(async () => ({ body: { results: [] }, source: "cache", status: 200 })),
 }));
+// Panel 3, M3: a live blog's feed; none unless a test gives one. The page's check for new updates is
+// browser code (live.test.tsx), drawn here as a marker.
+jest.mock("@timesprime/server/services/front/live", () => ({ liveFeed: jest.fn() }));
+jest.mock("@/components/live/LiveWatcher", () => ({ __esModule: true, default: () => "[watcher]" }));
 jest.mock("@/components/news/Header", () => ({ __esModule: true, default: () => null }));
 jest.mock("@/components/news/Footer", () => ({ __esModule: true, default: () => null }));
 
@@ -22,6 +26,7 @@ import EnglishStoryPage, * as english from "../[section]/[story]/page";
 import HindiStoryPage, * as hindi from "../hi/[section]/[story]/page";
 
 const { getPublishedStory } = jest.requireMock("@timesprime/server/repositories/stories") as { getPublishedStory: jest.Mock };
+const { liveFeed } = jest.requireMock("@timesprime/server/services/front/live") as { liveFeed: jest.Mock };
 
 const story = (over: Partial<PublishedStory> = {}): PublishedStory => ({
   id: "s-1",
@@ -127,5 +132,65 @@ describe("anything not live is a real 404", () => {
   test("a store failure is an error, not a 404", async () => {
     getPublishedStory.mockRejectedValue(new Error("database unavailable"));
     await expect(EnglishStoryPage(props("india", "budget-passes-1024"))).rejects.toThrow("database unavailable");
+  });
+});
+
+describe("a live blog (Panel 3, M3)", () => {
+  const LIVE = story({ public_id: 55, format: "live_blog", slug: "results-live", live_ended_at: null });
+  const FEED = {
+    endedAt: null,
+    updates: [
+      { id: "u-2", headline: "Counting begins", blocks: [{ kind: "p", runs: [{ text: "Postal ballots first." }] }], keyEvent: true, pinned: false, postedAt: "2026-11-20T09:00:00Z", editedAt: null, time: "20 Nov, 2:30 pm IST" },
+      { id: "u-1", headline: null, blocks: [{ kind: "p", runs: [{ text: "Polls closed." }] }], keyEvent: false, pinned: false, postedAt: "2026-11-20T08:00:00Z", editedAt: null, time: "20 Nov, 1:30 pm IST" },
+    ],
+  };
+  beforeEach(() => {
+    liveFeed.mockReset();
+    getPublishedStory.mockImplementation(async (n: number) => (n === 55 ? LIVE : null));
+  });
+
+  test("the updates under the intro, newest first, with the key events as links, and the page's check for new ones", async () => {
+    liveFeed.mockResolvedValue(FEED);
+    const html = renderToStaticMarkup(await EnglishStoryPage(props("india", "results-live-55")));
+    expect(liveFeed).toHaveBeenCalledWith(expect.objectContaining({ id: "s-1", public_id: 55 }));
+    expect(html).toContain("<p>The vote was 300 to 120.</p>");
+    expect(html.indexOf("Counting begins")).toBeLessThan(html.indexOf("Polls closed."));
+    expect(html.indexOf("The vote was 300 to 120.")).toBeLessThan(html.indexOf("Polls closed."));
+    expect(html).toContain('href="#update-u-2"');
+    expect(html).toContain('id="update-u-1"');
+    expect(html).toContain("[watcher]");
+    expect(html).toContain(">Live<");
+  });
+
+  test("LiveBlogPosting markup: its coverage, and each update as a BlogPosting with its own address", async () => {
+    liveFeed.mockResolvedValue({ ...FEED, endedAt: "2026-11-20T12:00:00Z" });
+    const html = renderToStaticMarkup(await EnglishStoryPage(props("india", "results-live-55")));
+    const [, json] = /<script type="application\/ld\+json">(.*?)<\/script>/.exec(html) ?? [];
+    const data = JSON.parse(json);
+    expect(data).toMatchObject({
+      "@type": "LiveBlogPosting",
+      url: "https://timesprime247.com/india/results-live-55",
+      coverageStartTime: "2026-11-17T08:00:00Z",
+      coverageEndTime: "2026-11-20T12:00:00Z",
+      inLanguage: "en-IN",
+    });
+    expect(data.liveBlogUpdate).toEqual([
+      expect.objectContaining({ "@type": "BlogPosting", headline: "Counting begins", articleBody: "Postal ballots first.", url: "https://timesprime247.com/india/results-live-55#update-u-2" }),
+      expect.objectContaining({ headline: "Polls closed.", datePublished: "2026-11-20T08:00:00Z" }),
+    ]);
+    expect(html).toContain(">Ended<");
+  });
+
+  test("a feed that cannot be read leaves the intro on the page; another story reads no feed", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    liveFeed.mockRejectedValue(new Error("timeout"));
+    const html = renderToStaticMarkup(await EnglishStoryPage(props("india", "results-live-55")));
+    expect(html).toContain("<p>The vote was 300 to 120.</p>");
+    expect(html).toContain("No updates yet.");
+    liveFeed.mockClear();
+    getPublishedStory.mockImplementation(async (n: number) => (n === 1024 ? story() : null));
+    const plain = renderToStaticMarkup(await EnglishStoryPage(props("india", "budget-passes-1024")));
+    expect(liveFeed).not.toHaveBeenCalled();
+    expect(plain).not.toContain("LiveBlogPosting");
   });
 });

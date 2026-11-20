@@ -280,9 +280,13 @@ answers before CloudFront points at it.
       | Path | Cache policy | Origin request policy |
       |---|---|---|
       | `/_next/static/*` | CachingOptimized | none |
+      | `/api/live/*` | UseOriginCacheControlHeaders | AllViewerExceptHostHeader |
       | `/api/*` | CachingDisabled | AllViewerExceptHostHeader |
       | default (`*`) | UseOriginCacheControlHeaders-QueryStrings | AllViewerExceptHostHeader |
 
+    - `/api/live/*` (Panel 3, M3) comes before `/api/*`: a live blog's feed sends
+      `public, s-maxage=10, stale-while-revalidate=20`, and every reader's 15-second check then
+      shares one copy. It has no query string. Its 404 and 503 answers send `no-store`.
     - **CloudFront Function** `www-to-apex`, on viewer request for every behaviour. It keeps the
       query string (`?search=`), building it as AWS's own example does
       (aws-samples/amazon-cloudfront-functions, normalize-query-string-parameters):
@@ -1966,7 +1970,8 @@ phases were done:
    is on `main` (PRs #58 and #59), and the owner applied front-2 on 20 Nov 2026. **M3**, live
    blogs, is being built in three pull requests: the back end is on `main` (PR #60), with the
    catalogue and front-3 [applied](#panel-3-applying-front-3) by the owner; the Desk's "Live
-   updates" panel is built (`panel-3-live-panel`); the reader's live page comes last.
+   updates" panel is on `main` (PR #61); the reader's live page is built (`panel-3-live-page`). At
+   the AWS deploy, CloudFront needs its `/api/live/*` behaviour (Deployment, step 14).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

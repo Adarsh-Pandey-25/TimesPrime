@@ -112,3 +112,12 @@ test("the pinned row's JSON answers a list in each language, and 400 for an unkn
   }
   expect((await request.get("/api/news/pins?language=hi&section=no-such-section")).status()).toBe(400);
 });
+
+// Panel 3, M3: a live blog's feed. Read-only: no live blog, or not a number, is a 404 never cached.
+test("the live feed answers 404 for a story that is not a live blog", async ({ request }) => {
+  for (const path of ["/api/live/999999999999", "/api/live/abc"]) {
+    const res = await request.get(path);
+    expect(res.status()).toBe(404);
+    expect(res.headers()["cache-control"]).toBe("no-store");
+  }
+});

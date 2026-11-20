@@ -312,7 +312,7 @@ export async function hasCounterpart(story: Pick<StoryRow, "id" | "language" | "
  */
 const READER_SELECT = [
   "id, public_id, language, section, format, slug, correction_note, first_published_at, published_at,",
-  "workflow_state, embargo_until, published_revision_id,",
+  "workflow_state, embargo_until, published_revision_id, live_ended_at,",
   "revision:story_revisions!stories_published_revision_fk(id, story_id, headline, dek, seo_title, seo_description, body),",
   "bylines:story_authors(role, position, author:authors(display_name_en, display_name_hi, photo_id, active))",
 ].join(" ");
@@ -388,6 +388,7 @@ function readerStory(row: ReaderRow, now: Date): PublishedStory | null {
     correction_note: row.correction_note,
     first_published_at: row.first_published_at,
     published_at: row.published_at,
+    live_ended_at: row.live_ended_at ?? null,
     revision: { id: revision.id, headline: revision.headline, dek: revision.dek, seo_title: revision.seo_title, seo_description: revision.seo_description, body: revision.body },
     bylines,
   };

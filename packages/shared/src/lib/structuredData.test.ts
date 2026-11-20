@@ -4,7 +4,7 @@
  * R2: the publisher and the site as JSON-LD, from the site config only.
  */
 
-import { jsonLdText, siteStructuredData } from "./structuredData";
+import { jsonLdText, liveBlogPosting, siteStructuredData } from "./structuredData";
 
 test("a NewsMediaOrganization with the name, logo, email, address and the Grievance Officer", () => {
   const [organization] = siteStructuredData()["@graph"] as Array<Record<string, unknown>>;
@@ -50,4 +50,29 @@ test("the script text cannot close its element, and parses back unchanged", () =
   const text = jsonLdText(data);
   expect(text).not.toContain("<");
   expect(JSON.parse(text)).toEqual(data);
+});
+
+// Panel 3, M3: a live blog's markup.
+describe("LiveBlogPosting", () => {
+  const STORY = { headline: "Results live", dek: null, language: "hi" as const, path: "/hi/india/results-live-55", firstPublishedAt: "2026-11-20T03:00:00Z", publishedAt: "2026-11-20T03:00:00Z" };
+  const update = (id: string, headline: string | null, text: string) => ({
+    id, headline, blocks: [{ kind: "p" as const, runs: [{ text }] }], keyEvent: false, pinned: false, postedAt: `2026-11-20T0${id}:00:00Z`, editedAt: null, time: "t",
+  });
+
+  test("while live: no end, modified at the newest update, each update named by its headline or its first words", () => {
+    const data = liveBlogPosting(STORY, { endedAt: null, updates: [update("5", null, "x".repeat(200)), update("4", "Counting", "Postal ballots.")] });
+    expect(data).toMatchObject({ "@type": "LiveBlogPosting", inLanguage: "hi-IN", coverageStartTime: "2026-11-20T03:00:00Z", dateModified: "2026-11-20T05:00:00Z" });
+    expect(data).not.toHaveProperty("coverageEndTime");
+    expect(data).not.toHaveProperty("description");
+    const updates = data.liveBlogUpdate as Array<Record<string, string>>;
+    expect([...updates[0].headline].length).toBe(110);
+    expect(updates[0].headline.endsWith("…")).toBe(true);
+    expect(updates[1]).toMatchObject({ headline: "Counting", articleBody: "Postal ballots.", url: expect.stringMatching(/\/hi\/india\/results-live-55#update-4$/) });
+  });
+
+  test("its markup cannot close the script element", () => {
+    const text = jsonLdText(liveBlogPosting(STORY, { endedAt: "2026-11-20T09:00:00Z", updates: [update("4", "</script><b>", "x")] }));
+    expect(text).not.toContain("</script>");
+    expect(JSON.parse(text).coverageEndTime).toBe("2026-11-20T09:00:00Z");
+  });
 });

@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
+import { forgetLive } from "@timesprime/server/services/front/live";
 import { editLiveUpdate, getLiveUpdate, type LiveUpdateRow } from "@timesprime/server/repositories/liveUpdates";
 import { auditedRecord, badRequest, deskFailure, gateStory, readBody, storyTarget, type Params } from "../../../../_lib/desk";
 import { closedLiveBlog, imageRefusal, liveFields, liveRecord } from "../../../../_lib/live";
@@ -52,5 +53,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     (u) => liveRecord(u)
   );
   if (!result.ok) return result.response;
+  await forgetLive(story.public_id);
   return NextResponse.json({ update: result.value });
 }

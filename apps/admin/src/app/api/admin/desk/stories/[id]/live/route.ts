@@ -3,6 +3,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_ROUTE_RULES } from "@timesprime/server/auth/adminRoutePolicy";
 import { listLiveUpdates, postLiveUpdate } from "@timesprime/server/repositories/liveUpdates";
+import { forgetLive } from "@timesprime/server/services/front/live";
 import { auditedRecord, badRequest, deskFailure, gateStory, readBody, storyTarget, type Params } from "../../../_lib/desk";
 import { closedLiveBlog, imageRefusal, liveFields, liveRecord } from "../../../_lib/live";
 
@@ -52,5 +53,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     (u) => ({ update: u.id, story: story.id, ...liveRecord(u) })
   );
   if (!result.ok) return result.response;
+  // Readers' pages see it at their next check, not when the feed's cache entry lapses.
+  await forgetLive(story.public_id);
   return NextResponse.json({ update: result.value });
 }
