@@ -14,11 +14,16 @@ import { Language, TRANSLATIONS } from "@timesprime/shared/config/translations";
 import { useTheme } from "@timesprime/ui/ThemeContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { assignPlaceholders } from "@timesprime/shared/config/categoryPlaceholders";
+import type { PinnedStory } from "@timesprime/shared/config/frontPage";
+import PinnedRow from "./PinnedRow";
 
 interface HomeClientProps {
   initialArticles: Article[];
   initialCategory: string;
   initialSearch: string;
+  /** Panel 3, M2: the page's English pins, read on the server, and its section (null: the home page). */
+  initialPins?: PinnedStory[];
+  pinSection?: string | null;
 }
 
 /** How often to silently check Supabase for newer stories. */
@@ -77,6 +82,8 @@ export default function HomeClient({
   initialArticles,
   initialCategory,
   initialSearch,
+  initialPins = [],
+  pinSection = null,
 }: HomeClientProps) {
   const { theme } = useTheme();
   const { language } = useLanguage();
@@ -400,6 +407,9 @@ export default function HomeClient({
             <div className="mt-2 h-1 w-12 rounded-full bg-red-600" aria-hidden="true" />
           </div>
         </div>
+
+        {/* The pinned row (Panel 3, M2): above the automatic order, but not in a search's results. */}
+        {!searchQuery && <PinnedRow initial={initialPins} section={pinSection} />}
 
         {/* Ad Slot: Below Title (responsive) */}
         <div className="w-full" id="ad-slot-below-title">

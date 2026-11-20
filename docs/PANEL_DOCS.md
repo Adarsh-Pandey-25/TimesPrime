@@ -205,7 +205,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
 | 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PRs #48 and #49) built; M4 (the shared password retired, PR #50) built; the definition of done checked: open are the owner's walk-through and a test project | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
-| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) approved 19 Nov 2026, started at the owner's request while Panels 1 and 2 have open items; [M1](#panel-3-front-page) (the banner's language, "Copy for WhatsApp") built | — | — |
+| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) approved 19 Nov 2026, started at the owner's request while Panels 1 and 2 have open items; [M1](#panel-3-front-page) (the banner's language, "Copy for WhatsApp", PR #57) built, front-1 applied; M2 (pinned slots and the Front page screen) built | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
 | 6 | Insights: read-only stats | Planned | — | — |
@@ -1283,16 +1283,32 @@ project). Assigning a writer from the screen waits for Panel 1's staff directory
 ### Panel 3: Front page
 
 **In progress.** [Design](#panel-3-design-front-page) approved on 19 Nov 2026. Built so far: **M1**,
-the banner's language and "Copy for WhatsApp" (branch `panel-3-banner-language`). Started while
-Panels 1 and 2 have open items (the design's §12).
+the banner's language and "Copy for WhatsApp" (PR #57, on `main`; front-1 applied by the owner on
+20 Nov 2026), and **M2**, pinned slots and the Front page screen (branch `panel-3-pinned-slots`).
+Started while Panels 1 and 2 have open items (the design's §12).
 
 #### Panel
 
 - **Name:** Front page.
-- **URLs (M1):**
-  - `GET`, `POST`, `DELETE /api/admin/breaking-news` (the manager; `POST` takes a `language`);
-  - `GET /api/news/breaking-news?language=en|hi` (the reader's banner, public);
-  - the story screen's "Copy for WhatsApp" (`/admin/desk/[id]`), which calls no route of its own.
+- **URLs:**
+  - `/admin/front-page` (M2): the Front page screen, in the top bar for holders of
+    `homepage.curate` or `breaking_banner.manage`; the dashboard links to it (decision 5);
+  - `GET`, `POST /api/admin/front-page/pins` (a page's pins; pinning a story),
+    `POST /api/admin/front-page/pins/[id]/end` (unpinning) and `GET /api/admin/front-page/stories`
+    (the picker) (M2);
+  - `GET`, `POST`, `DELETE /api/admin/breaking-news` (M1: the banner; `POST` takes a `language`);
+  - `GET /api/news/pins?language=en|hi&section=` (M2: the pinned row for a Hindi reader's browser,
+    public);
+  - `GET /api/news/breaking-news?language=en|hi` (M1: the reader's banner, public);
+  - the story screen's "Copy for WhatsApp" (`/admin/desk/[id]`, M1), which calls no route of its own.
+- **Code (M2):**
+  - `packages/shared/src/config/frontPage.ts` (the slots, the lengths, a page, the pinned row's card);
+  - `packages/server/src/repositories/frontPage.ts` (the pins' reads, and the two database functions);
+  - `packages/server/src/services/front/pins.ts` (the reader's pinned row and its cache entry);
+  - `apps/admin/src/app/api/admin/front-page/` and `components/front/` (the routes and the screen);
+  - `apps/web/src/components/home/PinnedRow.tsx` and `app/api/news/pins/route.ts`;
+  - the rules in `packages/server/src/auth/adminRoutePolicy.ts` (target `page`);
+  - the SQL in `database/migrations/2026-11-20-front-2-pins.sql`.
 - **Code (M1):**
   - `packages/shared/src/config/breakingNews.ts` (the languages, the label, who sees an item);
   - `packages/shared/src/lib/whatsApp.ts` (the WhatsApp message);
@@ -1312,21 +1328,44 @@ that take stories to WhatsApp and RSS readers.
 
 | Role | What they do here |
 |---|---|
-| Managing Editor | Sets and removes banner items in any language, and for both languages (an unscoped grant); later pins, live updates and pushes in every desk |
-| Desk Editor | Sets and removes their own language's banner items; later pins and live updates in their desk |
+| Managing Editor | Pins on every page in every language; sets and removes banner items in any language, and for both languages (an unscoped grant); later live updates and pushes in every desk |
+| Desk Editor | Pins on their own desk's pages: with a language and no section, that language's home page and every section page; with a section, only that section's page. Sets and removes their own language's banner items; later live updates in their desk |
 | Sub-editor | Later: live updates in their desk (decision 6) |
 | Anyone who can open a live story on the Desk | Copies it for WhatsApp |
 
 #### Features and functionality
 
+- **Pinned slots (M2):**
+  - each language's home page has 3 slots and each section page 2 (decision 2). A pin puts one
+    published Desk story (decision 1) in one slot, from now or from a set time up to 7 days ahead,
+    for 6 hours, 24 hours (the default), 72 hours or 7 days (decision 3);
+  - a new pin ends the slot's pin over its time: one already showing stops when the new one starts,
+    and one not started yet is cancelled. A story is in one slot of a page at a time. A pin's length
+    is changed by pinning the story again;
+  - **the Front page screen**, in the order it is used: the page (a language, and Home or a section);
+    its slots (what shows, until when and who pinned it; what starts later; Unpin, after a confirming
+    popup); "Pin a story" (search the page's published stories, then choose the slot, the start and
+    the length); then the breaking banner (decision 5). It starts on the caller's own language.
+    Where the caller may not pin, it shows the pins and offers nothing;
+  - **the reader's pinned row**, "Editors' picks" (Hindi: "संपादकों की पसंद"), above the automatic
+    order of the home page and each section page, but not in a search's results. Each card has the
+    story's 4:3 picture (or, without one, its section's 4:3 drawing: B-03), the headline, dek, byline
+    and time, and links to the story's page. The server renders the English pins; for a Hindi reader the row loads the Hindi
+    pins from `/api/news/pins` after the page loads. There is no row while no pin is live;
+  - the pins are read through a 60-second cache entry per page and language
+    (`front:pins:v1:<language>:<section or home>`). Every pin and unpin deletes its page's entry, and
+    a takedown deletes those of the story's language's home page and its section's page, so a change
+    shows at once. A pin set to start later shows within a minute of its start;
+  - before the owner applies front-2, the reader's read finds no table and shows no row; the
+    screen's list cannot load until then.
 - **The banner's language (M1):**
   - each item is for English, Hindi or both languages (`breaking_news.language`, NULL for both);
   - the manager asks for a language, starting on the caller's own; each item shows its language;
   - the reader's banner asks for the reader's language (`LanguageContext`), shows that language's
     items and those for both, and labels itself "BREAKING" or "ब्रेकिंग न्यूज़"; a change of language
     fetches again;
-  - before the owner applies front-1, the read falls back to the old columns (Postgres `42703`),
-    and an item for both languages can still be set; one language needs the column.
+  - on a database without front-1 (Postgres `42703`) the read falls back to the old columns, and an
+    item for both languages can still be set.
 - **Copy for WhatsApp (M1, decision 11):** on a published story's screen, a button copies the live
   version's headline in bold, its dek, and its address tagged
   `utm_source=whatsapp&utm_medium=social&utm_campaign=channel`, in the story's language. When a newer
@@ -1337,38 +1376,66 @@ that take stories to WhatsApp and RSS readers.
 
 | Route | Permission | Who, and how | Four-eyes | MFA (`aal2`) | Audited |
 |---|---|---|---|---|---|
+| `GET /api/admin/front-page/pins` | `homepage.curate`, read | Managing Editor, Desk Editor, in any scope: any page's pins; the answer says whether the caller may pin there | — | yes | denials |
+| `POST /api/admin/front-page/pins` | `homepage.curate`, act | Checked first in any scope, then in the page's: its language, and its section, NULL for the home page, so only a grant with no section covers it | — (a pin places an approved story) | yes | `homepage.pin`, with the page as the row's scope; before, the slot's pins it ends; after, the new pin and the ids it replaced |
+| `POST /api/admin/front-page/pins/[id]/end` | `homepage.curate`, act | The same, in the pin's page | — (single actor) | yes | `homepage.unpin`, with the pin before |
+| `GET /api/admin/front-page/stories` | `homepage.curate`, read | In any scope; empty for a page the caller may not pin | — | yes | denials |
+| `GET /api/news/pins` | none: public | Readers | — | — | — |
 | `GET /api/admin/breaking-news` | `breaking_banner.manage`, read | Managing Editor, Desk Editor: every item, in every language | — | yes | denials |
 | `POST`, `DELETE /api/admin/breaking-news` | `breaking_banner.manage`, act | Checked first in any scope, then in the item's: its language and every section; an item for both languages is site-wide, so only an unscoped grant covers it | — (single actor, for speed) | yes | `breaking_banner.set`, `breaking_banner.remove`, with the language as the row's scope; a removal records the item before |
 | `GET /api/news/breaking-news` | none: public | Readers | — | — | — |
 
-- **Refusals:** 403 for another language, or for both languages without an unscoped grant; 400 for a
-  language other than `en`, `hi` or null; 404 for an unknown item. Nothing is written for any of
-  them.
+- **Refusals, pins (M2):**
+  - 403 for a page outside the caller's scope (another language's, or the home page for a Desk
+    Editor limited to a section);
+  - 409 for a story that is not live (`not_published`), a slot the page does not have (`no_slot`),
+    a story already pinned in another slot of the page (`already_pinned`) or a pin that has ended
+    (`ended`);
+  - 422 for a story of another language or section (`wrong_page`);
+  - 400 for a malformed request; 404 for an unknown story or pin.
+
+  Nothing is written for any of them.
+- **Refusals, the banner (M1):** 403 for another language, or for both languages without an
+  unscoped grant; 400 for a language other than `en`, `hi` or null; 404 for an unknown item. Nothing
+  is written for any of them.
 
 #### Database changes
 
 | Migration file | What it does | Rollback | Applied by the owner |
 |---|---|---|---|
-| `database/migrations/2026-11-19-front-1-banner-language.sql` | `breaking_news.language`: `en`, `hi`, or NULL for both, with a CHECK; existing items keep NULL | At the end of the file, before the first item with a language | **Not yet** |
+| `database/migrations/2026-11-19-front-1-banner-language.sql` | `breaking_news.language`: `en`, `hi`, or NULL for both, with a CHECK; existing items keep NULL | At the end of the file, before the first item with a language | **Yes**, 20 Nov 2026 (the check: true, true) |
+| `database/migrations/2026-11-20-front-2-pins.sql` | `front_page_pins`, which is history: a pin is never deleted, only its end is set, and only moved earlier. A CHECK keeps the slots (3, or 2 on a section page) and an end at most 7 days after the start. `front_pin` pins in one transaction (the story published, of the page, not twice on a page; the slot's overlapping pin ended; one change per page at a time) and `front_unpin` ends a pin. RLS on: readers see six columns of the pins showing now; the app has no `DELETE` | At the end of the file, before the first pin | **Not yet** |
 
-No column changes meaning: an item with no language is for both, as every item was before.
+- No column changes meaning: an item with no language is for both, as every item was before.
+- front-2's reader policy reads the end too: a pin replaced by a later one keeps showing until the
+  new one starts, so a pin shows while `ended_at IS NULL OR ended_at > now()` (the design's §2 said
+  `ended_at IS NULL`).
 
 #### Tests and verification
 
 | Test file | What it proves | Denied cases covered |
 |---|---|---|
-| `apps/admin/src/app/api/admin/access.test.ts` (the route walk and "the banner's language") | A Hindi Desk Editor sets and removes a Hindi item; the Managing Editor (all) sets an item for both languages; the audit names the language | An English Desk Editor on a Hindi item; a scoped Desk Editor on an item for both, set or removed, or with no language given; a bad language; an unknown item. Nothing written in any |
-| `packages/server/src/services/news/breakingNews.test.ts` | A reader's language: that language's items and those for both, in order; the read before front-1 | Another database error is not retried |
+| `apps/admin/src/app/api/admin/access.test.ts` (the route walk and "the front page's pins") | A Hindi Desk Editor pins and unpins on the Hindi home page; one for Hindi sport pins the sport page; the audit names the page and the pin replaced; a change, and a takedown, forget the cached pins | An English Desk Editor on Hindi pages; a sport Desk Editor on the home page; a Sub-editor and a Writer; a story not live, under embargo, of another language or section; a slot the page lacks; a story already pinned on the page; a malformed request; an ended or unknown pin; the database's own refusal. Nothing written in any |
+| `packages/server/src/repositories/frontPage.test.ts`, `services/front/pins.test.ts`, `repositories/stories.test.ts` (the read by ids) | The reads apply the database's rules again (one page, live, one pin per slot); the writes are the two functions; the pinned row's card; the 60-second entry, forgotten on a change | A story not live or moved away; a pin that ends within the cache's minute; no table before front-2 |
+| `packages/server/src/repositories/frontSchema.test.ts` | front-1 and front-2, read as text: front-2's history rules, slots, 7-day end, the functions' checks, RLS, the readers' six columns, no `DELETE`, the rollback | — |
+| `apps/admin/src/components/front/front.test.tsx`, `AdminTopBar.test.tsx`, `app/admin/page.test.tsx` | The screen's loading, error and empty states; pinning, and unpinning after the popup; the banner below; the top bar's link; the dashboard's link to the screen | No Unpin and no form where the server says no; no front page parts for a role without them |
+| `apps/web/src/components/home/PinnedRow.test.tsx`, `app/api/news/pins/route.test.ts` | The English pins as rendered; a Hindi reader's Hindi pins; the 4:3 picture | No row with no live pin, or when the Hindi read fails; another language or an unknown section is 400 |
+| `packages/server/src/lib/cache.test.ts`, `cache.redis.test.ts` | `del` forgets an entry, in memory and in Redis | A Redis failure is logged, not thrown |
+| `e2e/reader.spec.ts`, `e2e/admin-access.spec.ts` (read-only) | `/api/news/pins` answers a list | Signed out, `/admin/front-page` goes to sign-in, and the four routes answer 401 |
+| `apps/admin/src/app/api/admin/access.test.ts` ("the banner's language") | A Hindi Desk Editor sets and removes a Hindi item; the Managing Editor (all) sets an item for both languages; the audit names the language | An English Desk Editor on a Hindi item; a scoped Desk Editor on an item for both, set or removed, or with no language given; a bad language; an unknown item. Nothing written in any |
+| `packages/server/src/services/news/breakingNews.test.ts` | A reader's language: that language's items and those for both, in order; the read without front-1 | Another database error is not retried |
 | `apps/web/src/app/api/news/breaking-news/route.test.ts`, `components/news/BreakingNewsBanner.test.tsx` | The reader's language is asked for; the label in English and Hindi | Anything but `en` or `hi` asks for every item; nothing live shows nothing |
-| `packages/server/src/repositories/frontSchema.test.ts` | front-1, read as text: one transaction, the CHECK, no grant or policy change, the rollback | — |
 | `packages/shared/src/lib/whatsApp.test.ts`, `apps/admin/src/components/desk/desk.test.tsx` | The message in English and Hindi; the live version copied, read from the server when a newer one is saved | Not offered before the story is live |
 
 #### Known limits and not yet built
 
-- **M2:** pinned slots and the Front page screen, to which the banner manager then moves (decision 5).
 - **M3:** live blogs, with `live_update.post` added to the matrix (decision 6).
 - **M4:** RSS. Web push waits for Panel 8's consent banner (decision 8).
-- **The owner's step:** applying front-1 ([the runbook](OPERATIONS.md#panel-3-applying-front-1)).
+- **Hindi pins** reach a Hindi reader from the browser, after the page loads, as the Hindi feed
+  does: `/hi` home and section pages are Phase F (design §0 and §8).
+- **The pinned row's only cache** is the app's Redis entry. CloudFront sends the pages `no-store`,
+  so no edge cache holds a pin (cache tags and purges: Phase F and I).
+- **The owner's step:** applying front-2 ([the runbook](OPERATIONS.md#panel-3-applying-front-2)).
 
 ## Panel 0 design: the access foundation
 

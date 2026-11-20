@@ -132,6 +132,10 @@ import * as personMfaReset from "./people/[id]/mfa-reset/route";
 import * as peopleAlerts from "./people/alerts/route";
 import * as breakGlass from "./people/break-glass/route";
 import * as accessReview from "./people/review/route";
+import * as frontPins from "./front-page/pins/route";
+import * as frontPinEnd from "./front-page/pins/[id]/end/route";
+import * as frontStories from "./front-page/stories/route";
+import { cache } from "@timesprime/server/lib/cache";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as {
   supabase: {
@@ -1601,6 +1605,175 @@ describe("people and their roles (Panel 1 design §3)", () => {
     expect(r.json.can).toMatchObject({ rename: "ask", suspend: "act", reactivate: null, grant: "ask", roles: { [ROW_ID]: { renew: "ask", revoke: "act" } } });
     const me = await call(c, HI_MANAGING, c.data);
     expect(me.json.can).toMatchObject({ rename: "act", suspend: "act", grant: "act", roles: { [ROW_ID]: { renew: "act", revoke: "act" } } });
+  });
+});
+
+// ---- Panel 3, the Front page (M2): pins on the Hindi home page (section NULL) and section pages ----
+// The least-privileged holder of homepage.curate is a Desk Editor (S). One with a language and no
+// section covers that language's home page and every section page; one limited to a section, only
+// that section's page; another language's, none of them.
+const HI_FRONT: Grantee = { role: "desk_editor", language: "hi" };
+const EN_FRONT: Grantee = { role: "desk_editor", language: "en" };
+const HI_SPORTS_FRONT: Grantee = { role: "desk_editor", language: "hi", section: "sports" };
+const LIVE_STORY = story({ workflow_state: "published", published_revision_id: "r-1", published_at: "2026-11-20T06:00:00Z" });
+const PIN_ROW = {
+  id: "p-1", language: "hi", section: null, slot: 1, story_id: "s-1", starts_at: "2026-11-19T06:00:00Z", ends_at: FUTURE_AT,
+  pinned_by: "u-9", pinned_at: "2026-11-20T06:00:00Z", ended_by: null, ended_at: null, end_reason: null,
+};
+const PIN_BODY = { language: "hi", section: null, slot: 1, story_id: "s-1", hours: 24 };
+const PINNED = { "rpc:front_pin": { data: { pin: { ...PIN_ROW, pinned_by: "u-1" }, replaced: [] }, error: null } };
+const onPin = (handler: DeskHandler) => withId(handler, { id: "p-1" });
+const FRONT_CASES: Case[] = [
+  {
+    path: "/api/admin/front-page/pins", method: "GET", handler: frontPins.GET, query: "?language=hi", allowed: HI_FRONT,
+    data: { front_page_pins: { data: [], error: null } }, changes: false,
+  },
+  {
+    path: "/api/admin/front-page/pins", method: "POST", handler: frontPins.POST, body: PIN_BODY, allowed: HI_FRONT, wrongScope: EN_FRONT,
+    data: { stories: LIVE_STORY, front_page_pins: { data: [], error: null }, ...PINNED }, changes: true,
+  },
+  {
+    path: "/api/admin/front-page/pins/[id]/end", method: "POST", handler: onPin(frontPinEnd.POST), allowed: HI_FRONT, wrongScope: EN_FRONT,
+    data: { front_page_pins: { data: PIN_ROW, error: null }, "rpc:front_unpin": { data: { ...PIN_ROW, ended_by: "u-1", ended_at: "2026-11-20T09:00:00Z", end_reason: "unpinned" }, error: null } },
+    changes: true,
+  },
+  {
+    path: "/api/admin/front-page/stories", method: "GET", handler: frontStories.GET, query: "?language=hi&q=match", allowed: HI_FRONT,
+    data: { stories: { data: [{ ...STORY_ROW, workflow_state: "published", revision: { headline: "Match report" } }], error: null } }, changes: false,
+  },
+];
+CASES.push(...FRONT_CASES);
+
+describe("the front page's pins (Panel 3 design §3, M2)", () => {
+  const caseFor = (method: Method, path: string) => FRONT_CASES.find((c) => c.method === method && c.path === path) as Case;
+  const PIN = caseFor("POST", "/api/admin/front-page/pins");
+  const END = caseFor("POST", "/api/admin/front-page/pins/[id]/end");
+  async function call(c: Case, caller: Grantee, data: Case["data"], over: Partial<Case> = {}) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, ...over }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const audits = () => (recordAudit as jest.Mock).mock.calls.map(([row]) => row);
+  const pinWith = (body: Record<string, unknown>, data: Case["data"] = PIN.data, caller: Grantee = HI_FRONT) => call(PIN, caller, data, { body: { ...PIN_BODY, ...body } });
+  const pinArgs = () => calls.find(([fn]) => fn === "front_pin")?.[2];
+
+  test("the home page has no section: a Desk Editor limited to sports is refused there, and pins the sports page", async () => {
+    expect((await pinWith({}, PIN.data, HI_SPORTS_FRONT)).status).toBe(403);
+    expect(wrote()).toEqual([]);
+    const sports = await pinWith({ section: "sports" }, PIN.data, HI_SPORTS_FRONT);
+    expect(sports.status).toBe(200);
+    expect(pinArgs()).toEqual([expect.objectContaining({ p_language: "hi", p_section: "sports", p_slot: 1, p_story: "s-1", p_hours: 24, p_starts_at: null })]);
+  });
+
+  test("without homepage.curate there is no pinning: a Sub-editor, a Writer", async () => {
+    for (const caller of [HI_SUB, HI_WRITER]) {
+      const r = await pinWith({}, PIN.data, caller);
+      expect(r.status).toBe(403);
+      expect(r.json.required).toBe("homepage.curate");
+    }
+    expect(wrote()).toEqual([]);
+  });
+
+  test("only a live story is pinned (409); one of another language or section is not of the page (422); nothing is written", async () => {
+    for (const state of ["draft", "unpublished", "retracted"]) {
+      const r = await pinWith({}, { ...PIN.data, stories: story({ workflow_state: state }) });
+      expect([r.status, r.json.code]).toEqual([409, "not_published"]);
+    }
+    const embargoed = await pinWith({}, { ...PIN.data, stories: story({ workflow_state: "published", published_revision_id: "r-1", embargo_until: FUTURE_AT }) });
+    expect(embargoed.status).toBe(409);
+    expect((await pinWith({ language: "en" }, PIN.data, { role: "desk_editor", language: null })).json.code).toBe("wrong_page");
+    expect((await pinWith({ section: "india" })).status).toBe(422);
+    expect(wrote()).toEqual([]);
+    // The home page takes a story of any section.
+    expect((await pinWith({})).status).toBe(200);
+  });
+
+  test("the request is checked before anything is read: page, slot, length, start", async () => {
+    for (const body of [{ language: "fr" }, { section: "politics" }, { slot: "1" }, { story_id: "" }, { hours: 12 }, { starts_at: "soon" }, { starts_at: "2099-01-01T00:00:00Z" }]) {
+      expect((await pinWith(body)).status).toBe(400);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  test("decision 2: 3 slots on the home page, 2 on a section page; another slot is 409", async () => {
+    expect((await pinWith({ slot: 3 })).status).toBe(200);
+    for (const body of [{ slot: 4 }, { slot: 0 }, { section: "sports", slot: 3 }]) {
+      const r = await pinWith(body);
+      expect([r.status, r.json.code]).toEqual([409, "no_slot"]);
+    }
+  });
+
+  test("a story already pinned in another slot of the page at that time is refused (409)", async () => {
+    const r = await pinWith({ slot: 2 }, { ...PIN.data, front_page_pins: { data: [PIN_ROW], error: null } });
+    expect([r.status, r.json.code]).toEqual([409, "already_pinned"]);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("the audit names the page and the slot's pin that the new one replaces", async () => {
+    const other = { ...PIN_ROW, id: "p-0", story_id: "s-0" };
+    const data = { ...PIN.data, front_page_pins: { data: [other], error: null }, "rpc:front_pin": { data: { pin: { ...PIN_ROW, id: "p-2" }, replaced: ["p-0"] }, error: null } };
+    const r = await pinWith({}, data);
+    expect(r.json.replaced).toEqual(["p-0"]);
+    const [attempt, done] = audits();
+    expect(attempt).toMatchObject({ action: "homepage.pin", outcome: "attempted", entity_type: "front_page_pin", language: "hi", section: null, before: { pins: [expect.objectContaining({ pin: "p-0", slot: 1 })] } });
+    expect(done).toMatchObject({ action: "homepage.pin", outcome: "succeeded", entity_id: "p-2", after: expect.objectContaining({ slot: 1, story_id: "s-1", replaced: ["p-0"] }) });
+  });
+
+  test("a start in the future is passed on; one already past means now", async () => {
+    const later = new Date(Date.now() + 3_600_000).toISOString();
+    await pinWith({ starts_at: later, hours: 6 });
+    expect(pinArgs()).toEqual([expect.objectContaining({ p_starts_at: later, p_hours: 6 })]);
+    calls = [];
+    await pinWith({ starts_at: "2020-01-01T00:00:00Z" });
+    expect(pinArgs()).toEqual([expect.objectContaining({ p_starts_at: null })]);
+  });
+
+  test("the database's refusal stands: a story taken down meanwhile is 409, and the attempt is recorded as failed", async () => {
+    const data = { ...PIN.data, "rpc:front_pin": { data: null, error: { code: "55000", message: "front_pin: story s-1 is unpublished, not published" } } };
+    expect((await pinWith({}, data)).status).toBe(409);
+    expect(audits().map((row) => row.outcome)).toEqual(["attempted", "failed"]);
+  });
+
+  test("unpinning is decided in the pin's page; an ended or unknown pin is refused, nothing written", async () => {
+    expect((await call(END, HI_SPORTS_FRONT, END.data)).status).toBe(403);
+    const ended = await call(END, HI_FRONT, { ...END.data, front_page_pins: { data: { ...PIN_ROW, ended_at: "2026-11-19T07:00:00Z", ended_by: "u-9", end_reason: "unpinned" }, error: null } });
+    expect([ended.status, ended.json.code]).toEqual([409, "ended"]);
+    expect((await call(END, HI_FRONT, { front_page_pins: { data: null, error: null } })).status).toBe(404);
+    expect(wrote()).toEqual([]);
+    const done = await call(END, HI_FRONT, END.data);
+    expect(done.status).toBe(200);
+    expect(audits().find((row) => row.outcome === "attempted")).toMatchObject({ action: "homepage.unpin", entity_id: "p-1", before: expect.objectContaining({ slot: 1, story_id: "s-1" }) });
+  });
+
+  test("the screen is told where the caller may pin; the picker offers nothing on another page", async () => {
+    const list = caseFor("GET", "/api/admin/front-page/pins");
+    expect((await call(list, HI_FRONT, list.data)).json).toMatchObject({ slots: 3, may_pin: true, page: { language: "hi", section: null } });
+    expect((await call(list, HI_SPORTS_FRONT, list.data)).json.may_pin).toBe(false);
+    expect((await call(list, HI_SPORTS_FRONT, list.data, { query: "?language=hi&section=sports" })).json).toMatchObject({ slots: 2, may_pin: true });
+    expect((await call(list, HI_FRONT, list.data, { query: "?language=fr" })).status).toBe(400);
+
+    const picker = caseFor("GET", "/api/admin/front-page/stories");
+    const offered = await call(picker, HI_FRONT, picker.data);
+    expect(offered.json).toEqual({ may_pin: true, stories: [expect.objectContaining({ id: "s-1", headline: "Match report" })] });
+    calls = [];
+    expect((await call(picker, EN_FRONT, picker.data)).json).toEqual({ stories: [], may_pin: false });
+    expect(calls.filter(([t]) => t === "stories")).toEqual([]);
+  });
+
+  test("a change forgets the page's cached pins, so readers see it at once", async () => {
+    const del = jest.spyOn(cache, "del");
+    await pinWith({ section: "sports" });
+    expect(del).toHaveBeenCalledWith("front:pins:v1:hi:sports");
+    await call(END, HI_FRONT, END.data);
+    expect(del).toHaveBeenCalledWith("front:pins:v1:hi:home");
+  });
+
+  test("a takedown forgets the cached pins of the story's pages: its language's home page and its section's", async () => {
+    const del = jest.spyOn(cache, "del");
+    const takedown = CASES.find((c) => c.path === "/api/admin/desk/stories/[id]/unpublish") as Case;
+    expect((await call(takedown, HI_DESK, takedown.data)).status).toBe(200);
+    expect(del.mock.calls.map(([key]) => key).sort()).toEqual(["front:pins:v1:hi:home", "front:pins:v1:hi:sports"]);
   });
 });
 

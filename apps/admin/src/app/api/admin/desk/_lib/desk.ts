@@ -8,6 +8,7 @@ import { auditUnavailable, beginAudit, finishAudit, requirePermission, requireTa
 import { mayApprove, mayReviewPostHoc } from "@timesprime/server/services/desk/fourEyes";
 import { publishFields, publishRefusal, storyTarget } from "@timesprime/server/services/desk/publish";
 import { checklistImages } from "@timesprime/server/services/desk/storyImages";
+import { forgetStoryPins } from "@timesprime/server/services/front/pins";
 import {
   DeskStoreError,
   getRevision,
@@ -292,5 +293,8 @@ export async function moveStory(request: NextRequest, { params }: Params, action
     (updated) => ({ state: updated.workflow_state, revision: updated.current_revision_id, published_revision: updated.published_revision_id })
   );
   if (!result.ok) return result.response;
+  // A story taken down leaves the front page's pinned rows at once (Panel 3, M2), not when the
+  // pins' 60-second cache lapses: its pin stays, and shows nothing while the story is not live.
+  if (action === "unpublish" || action === "retract") await forgetStoryPins(story);
   return NextResponse.json({ story: result.value });
 }

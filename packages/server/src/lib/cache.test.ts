@@ -38,6 +38,16 @@ describe("memory cache — unchanged behaviour", () => {
   test("ping reports not-configured without Upstash", async () => {
     await expect(cache.ping()).resolves.toBe("not-configured");
   });
+
+  test("del forgets an entry inside its TTL (Panel 3: a pin change); other keys stay", async () => {
+    const [key, other] = [freshKey(), freshKey()];
+    await cache.set(key, { title: "t" }, 60);
+    await cache.set(other, { title: "u" }, 60);
+    await cache.del(key);
+    await expect(cache.get(key)).resolves.toBeNull();
+    await expect(cache.get(other)).resolves.toEqual({ title: "u" });
+    await expect(cache.del(freshKey())).resolves.toBeUndefined();
+  });
 });
 
 describe("memory cache — expired entries are evicted without being read (BL-013)", () => {

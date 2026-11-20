@@ -1434,6 +1434,41 @@ keeps working, for both languages only.
 
 **Undo.** The rollback at the end of the file, before the first item with a language.
 
+**Applied** by the owner on 20 Nov 2026 (the check: true, true).
+
+### Panel 3: applying front-2
+
+For the owner, before editors pin stories to the front page (Panel 3, M2). Against the real
+database, in the Supabase SQL editor. No session applies SQL. Until it is applied, the reader's pages
+show no pinned row and the Front page screen cannot load its slots; the banner works as before.
+
+1. **Apply the migration.** SQL Editor → New query. Paste
+   `database/migrations/2026-11-20-front-2-pins.sql` whole, and run it. One transaction: if it fails,
+   nothing changed, and it is safe to run again. It needs desk-1 (Panel 2), which is applied.
+2. **Then run the check** (one query, one row):
+
+   ```sql
+   SELECT (SELECT rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tablename = 'front_page_pins') AS rls_on,
+          has_table_privilege('service_role', 'public.front_page_pins', 'DELETE') AS app_can_delete,
+          has_column_privilege('anon', 'public.front_page_pins', 'pinned_by', 'SELECT') AS readers_see_who,
+          has_column_privilege('anon', 'public.front_page_pins', 'story_id', 'SELECT') AS readers_see_story,
+          has_function_privilege('anon', 'public.front_pin(uuid,text,text,integer,uuid,timestamptz,integer)', 'EXECUTE') AS readers_can_pin,
+          has_function_privilege('service_role', 'public.front_pin(uuid,text,text,integer,uuid,timestamptz,integer)', 'EXECUTE') AS app_can_pin,
+          (SELECT count(*) FROM public.front_page_pins) AS pins;
+   ```
+
+   | Column | Expect |
+   |---|---|
+   | `rls_on` | true |
+   | `app_can_delete` | false |
+   | `readers_see_who` | false |
+   | `readers_see_story` | true |
+   | `readers_can_pin` | false |
+   | `app_can_pin` | true |
+   | `pins` | 0 |
+
+**Undo.** The rollback at the end of the file, before the first pin.
+
 ### Panel 1: emergency access (break-glass)
 
 For the Super Admins (Panel 1, M3). For the night a court order or a serious error needs a story
@@ -1874,8 +1909,9 @@ phases were done:
    19 Nov 2026 at the owner's request (PR #56), while Panels 1 and 2 have open items (the design's
    §12), and approved the same day with every recommended answer and "Copy for WhatsApp" moved into
    M1. The owner put the test Supabase project on hold until he says. **M1**, the banner's language
-   and "Copy for WhatsApp", is built (`panel-3-banner-language`); the owner
-   [applies front-1](#panel-3-applying-front-1).
+   and "Copy for WhatsApp", is on `main` (PR #57), and the owner applied front-1 on 20 Nov 2026.
+   **M2**, pinned slots and the Front page screen (`/admin/front-page`, which now holds the banner),
+   is built (`panel-3-pinned-slots`); the owner [applies front-2](#panel-3-applying-front-2).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

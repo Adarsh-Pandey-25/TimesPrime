@@ -76,6 +76,22 @@ test("a Writer is not offered People", async () => {
   expect(screen.queryByRole("link", { name: "People" })).not.toBeInTheDocument();
 });
 
+// Panel 3, M2: the Front page, for holders of homepage.curate or breaking_banner.manage.
+test("the Front page is offered to whoever arranges the front page or runs the banner, and to nobody else", async () => {
+  const editor = staff("Meera", [["desk_editor", "hi"]]);
+  for (const permissions of [{ "homepage.curate": "act" }, { "breaking_banner.manage": "act" }]) {
+    me = { ...editor, body: { ...editor.body, permissions } };
+    await renderBar();
+    expect(screen.getAllByRole("link", { name: "Front page" }).at(-1)).toHaveAttribute("href", "/admin/front-page");
+  }
+});
+
+test("a Writer is not offered the Front page", async () => {
+  me = staff("TEST Writer", [["writer", "en"]]);
+  await renderBar();
+  expect(screen.queryByRole("link", { name: "Front page" })).not.toBeInTheDocument();
+});
+
 // Panel 1, M3: a Super Admin sees emergency access in use, and a review that is due, on every page.
 describe("the Super Admins' alerts", () => {
   const superAdminMe = () => ({ ...staff("Adarsh Pandey", [["super_admin", null]]), body: { ...staff("Adarsh Pandey", [["super_admin", null]]).body, permissions: { "user.manage": "ask", "role.assign": "ask" } } });

@@ -341,7 +341,34 @@ export async function getPublishedStory(publicId: number, now: Date = new Date()
   if (error) throw storeError(error);
   // The select is built from parts, so supabase-js cannot type the row from it.
   const row = (data?.[0] ?? null) as unknown as ReaderRow | null;
-  if (!row || row.public_id !== publicId || row.workflow_state !== "published" || embargoed(row.embargo_until, now)) return null;
+  if (!row || row.public_id !== publicId) return null;
+  return readerStory(row, now);
+}
+
+/**
+ * Published stories by their ids, as readers may see them (the pinned row, Panel 3 design §5): the
+ * same columns and the same checks as getPublishedStory. An id that is unknown, not live or under
+ * embargo is left out. At most 20 ids.
+ */
+export async function getPublishedStoriesByIds(ids: readonly string[], now: Date = new Date()): Promise<PublishedStory[]> {
+  const wanted = [...new Set(ids)].slice(0, 20);
+  if (wanted.length === 0) return [];
+  const { data, error } = await supabase
+    .from("stories")
+    .select(READER_SELECT)
+    .in("id", wanted)
+    .eq("workflow_state", "published")
+    .or(`embargo_until.is.null,embargo_until.lte."${now.toISOString()}"`);
+  if (error) throw storeError(error);
+  return ((data ?? []) as unknown as ReaderRow[])
+    .filter((row) => wanted.includes(row.id))
+    .map((row) => readerStory(row, now))
+    .filter((story): story is PublishedStory => story !== null);
+}
+
+/** A reader's row as a story, or null when the reader policies would hide it (applied again here). */
+function readerStory(row: ReaderRow, now: Date): PublishedStory | null {
+  if (row.workflow_state !== "published" || embargoed(row.embargo_until, now)) return null;
   const revision = row.revision;
   if (!revision || revision.id !== row.published_revision_id || revision.story_id !== row.id) return null;
   const bylines = (row.bylines ?? [])
