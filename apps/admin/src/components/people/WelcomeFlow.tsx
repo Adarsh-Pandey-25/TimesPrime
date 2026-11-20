@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LINK_VALID_FOR, PASSWORD_MIN, passwordProblem } from "@timesprime/shared/config/people";
 import { KeyRound } from "lucide-react";
 import { deskCall } from "../desk/deskClient";
+import PasswordInput from "../ui/PasswordInput";
 import { authCard, authIcon, authPage, buttonBlock, fieldLarge } from "../ui/styles";
 
 // Where a one-time "set your password" link lands (Panel 1 design §4, M2b). The token is taken out
@@ -142,14 +143,15 @@ export default function WelcomeFlow() {
         {step === "password" && (
           <form onSubmit={(e) => void submitPassword(e)} className="space-y-4">
             <p className="text-xs text-slate-500">At least {PASSWORD_MIN} characters. A few words you will remember work well.</p>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-              New password
-              <input className={field} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </label>
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-              The same password again
-              <input className={field} type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
-            </label>
+            {/* Each field's label points to it, so the eye button beside it is not part of its name. */}
+            <div>
+              <label htmlFor="welcome-password" className="block text-xs font-semibold text-slate-600 dark:text-slate-400">New password</label>
+              <PasswordInput id="welcome-password" className={field.replace(" mt-1", "")} wrapperClassName="mt-1" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <div>
+              <label htmlFor="welcome-confirm" className="block text-xs font-semibold text-slate-600 dark:text-slate-400">The same password again</label>
+              <PasswordInput id="welcome-confirm" className={field.replace(" mt-1", "")} wrapperClassName="mt-1" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            </div>
             <button type="submit" className={primary} disabled={busy || !password || !confirm}>Set my password</button>
           </form>
         )}
