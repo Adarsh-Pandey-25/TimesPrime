@@ -29,7 +29,7 @@ export const ROLE_KEYS = [
 
 export type RoleKey = (typeof ROLE_KEYS)[number];
 
-/** The matrix's 33 rows, one key per verb a row names, in the matrix's order. */
+/** The matrix's 34 rows, one key per verb a row names, in the matrix's order. */
 export const PERMISSION_KEYS = [
   "article.view_admin",
   "article.create",
@@ -47,6 +47,8 @@ export const PERMISSION_KEYS = [
   "breaking_banner.manage",
   "push.send",
   "homepage.curate",
+  // Panel 3, M3 (decision 6): posting to a live blog without a second approver.
+  "live_update.post",
   "correction.publish",
   "sponsored.label_remove",
   "sponsored.approve",

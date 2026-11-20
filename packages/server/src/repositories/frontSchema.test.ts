@@ -127,3 +127,87 @@ describe("front-2: pinned slots (M2)", () => {
     expect(sql).toContain("--   DROP FUNCTION IF EXISTS public.front_page_pins_guard();");
   });
 });
+
+describe("front-3: live blogs (M3)", () => {
+  const sql = read("2026-11-20-front-3-live.sql");
+  const code = codeOf(sql);
+  const fn = (name: string) => {
+    const start = code.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+    return code.slice(start, code.indexOf("$$;", start));
+  };
+  const OPEN = /IF s\.format <> 'live_blog' OR s\.workflow_state <> 'published' OR s\.live_ended_at IS NOT NULL THEN\s+RAISE EXCEPTION[^;]*ERRCODE = 'object_not_in_prerequisite_state'/;
+
+  test("one transaction, re-runnable", () => {
+    expect(code.match(/^BEGIN;$/gm)).toHaveLength(1);
+    expect(code.match(/^COMMIT;$/gm)).toHaveLength(1);
+    expect(code).toContain("ALTER TABLE public.stories ADD COLUMN IF NOT EXISTS live_ended_at TIMESTAMPTZ NULL;");
+    expect(code).toContain("CREATE TABLE IF NOT EXISTS public.live_updates (");
+    for (const name of ["live_updates_guard", "live_updates_no_truncate"]) {
+      expect(code.indexOf(`DROP TRIGGER IF EXISTS ${name} ON public.live_updates;`)).toBeLessThan(code.indexOf(`CREATE TRIGGER ${name}`));
+    }
+    expect(code.indexOf("DROP POLICY IF EXISTS live_updates_read_published")).toBeLessThan(code.indexOf("CREATE POLICY live_updates_read_published"));
+  });
+
+  test("the table: a headline to 110 characters, a removal with who, when and why, one pinned update per story", () => {
+    expect(code).toContain("CHECK (headline IS NULL OR (length(trim(headline)) > 0 AND char_length(headline) <= 110))");
+    expect(code).toContain("CHECK ((removed_by IS NULL) = (removed_at IS NULL) AND (removed_at IS NULL) = (removed_reason IS NULL))");
+    expect(code).toContain("CHECK (removed_at IS NULL OR NOT is_pinned)");
+    expect(code).toContain("CREATE UNIQUE INDEX IF NOT EXISTS live_updates_one_pinned ON public.live_updates (story_id) WHERE is_pinned;");
+  });
+
+  test("history: never deleted or truncated; a removed update stays removed; its story, author and time never change", () => {
+    const guard = fn("live_updates_guard");
+    expect(guard).toMatch(/IF TG_OP = 'DELETE' THEN\s+RAISE EXCEPTION/);
+    expect(guard).toMatch(/IF OLD\.removed_at IS NOT NULL THEN\s+RAISE EXCEPTION/);
+    expect(guard).toContain("(NEW.id, NEW.story_id, NEW.posted_by, NEW.posted_at) IS DISTINCT FROM (OLD.id, OLD.story_id, OLD.posted_by, OLD.posted_at)");
+    expect(code).toMatch(/BEFORE UPDATE OR DELETE ON public\.live_updates\s+FOR EACH ROW EXECUTE FUNCTION public\.live_updates_guard\(\);/);
+    expect(code).toMatch(/BEFORE TRUNCATE ON public\.live_updates\s+FOR EACH STATEMENT EXECUTE FUNCTION public\.reject_change\(\);/);
+  });
+
+  test("posting, editing and ending need an open live blog, with the story's row locked", () => {
+    for (const name of ["live_post", "live_edit", "live_end"]) {
+      expect(fn(name)).toMatch(OPEN);
+      expect(fn(name)).toMatch(/FROM public\.stories WHERE id = [\w.]+ FOR UPDATE;/);
+    }
+  });
+
+  test("pinning an update unpins the story's other one; an edit of a removed update is refused", () => {
+    expect(fn("live_post")).toContain("UPDATE public.live_updates SET is_pinned = false WHERE story_id = p_story AND is_pinned;");
+    expect(fn("live_edit")).toContain("UPDATE public.live_updates SET is_pinned = false WHERE story_id = u.story_id AND is_pinned AND id <> p_update;");
+    expect(fn("live_edit")).toMatch(/IF u\.removed_at IS NOT NULL THEN\s+RAISE EXCEPTION/);
+  });
+
+  test("decision 7: removing keeps the update, with who, when and why, unpinned; at any time, also after the end", () => {
+    const remove = fn("live_remove");
+    expect(remove).toContain("SET removed_by = p_actor, removed_at = now(), removed_reason = p_reason, is_pinned = false");
+    expect(remove).not.toMatch(/live_ended_at/);
+  });
+
+  test("ending records the end on the story and in its history", () => {
+    const end = fn("live_end");
+    expect(end).toContain("UPDATE public.stories SET live_ended_at = now(), updated_at = now() WHERE id = p_story");
+    expect(end).toMatch(/INSERT INTO public\.workflow_transitions[\s\S]*'end_live', 'published', 'published'/);
+  });
+
+  test("RLS on; the app may read, post, change and remove but never DELETE; readers see a live story's updates, not who wrote them", () => {
+    expect(code).toContain("ALTER TABLE public.live_updates ENABLE ROW LEVEL SECURITY;");
+    expect(code).toContain("REVOKE ALL ON public.live_updates FROM anon, authenticated, service_role;");
+    expect(code).toContain("GRANT SELECT, INSERT, UPDATE ON public.live_updates TO service_role;");
+    expect(code).not.toMatch(/GRANT[^;]*DELETE[^;]*live_updates/);
+    expect(code).toMatch(/GRANT SELECT \(id, story_id, headline, body, is_key_event, is_pinned, posted_at, edited_at\)\s+ON public\.live_updates TO anon, authenticated;/);
+    expect(code).toContain("GRANT SELECT (live_ended_at) ON public.stories TO anon, authenticated;");
+    expect(code).toMatch(/USING \(removed_at IS NULL AND EXISTS \(SELECT 1 FROM public\.stories s[\s\S]*s\.workflow_state = 'published'[\s\S]*s\.embargo_until <= now\(\)\)\)\);/);
+  });
+
+  test("the functions are not RPC for readers: only the app may call them", () => {
+    expect(code).toMatch(/REVOKE ALL ON FUNCTION[\s\S]*?public\.live_end\(UUID, UUID\)\s+FROM PUBLIC, anon, authenticated;/);
+    expect(code).toMatch(/GRANT EXECUTE ON FUNCTION[\s\S]*?public\.live_end\(UUID, UUID\)\s+TO service_role;/);
+    for (const name of ["live_updates_guard", "live_post", "live_edit", "live_remove", "live_end"]) expect(fn(name)).toContain("SECURITY INVOKER SET search_path = ''");
+  });
+
+  test("a check query and a rollback that drops the table, the functions and the column", () => {
+    expect(sql).toContain("-- ---- Verify (one query; expect true, true, false, false, true, false, true, 0)");
+    expect(sql).toContain("--   DROP TABLE IF EXISTS public.live_updates;");
+    expect(sql).toContain("--   ALTER TABLE public.stories DROP COLUMN IF EXISTS live_ended_at;");
+  });
+});

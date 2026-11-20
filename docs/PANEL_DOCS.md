@@ -62,7 +62,8 @@ the four-eyes, takedown and MFA rules, and the data model behind them. The build
 **Where it came from:** the owner's `PANEL_PLAN.md` (2 Nov 2026), retired on 4 Nov 2026 when the
 owner approved `NEWSROOM_PLAN.md`. The sections below are copied from it unchanged, except where
 a note says otherwise. *Note (17 Nov 2026):* the rows `author.manage` and `media.manage` were added
-with the owner's approval of the Panel 2 design. The supporting publisher research is in [`RESEARCH.md`](RESEARCH.md) and in
+with the owner's approval of the Panel 2 design. *Note (20 Nov 2026):* the row `live_update.post` was
+added with the owner's approval of the Panel 3 design (decision 6). The supporting publisher research is in [`RESEARCH.md`](RESEARCH.md) and in
 git history (`git log --all -- docs/PANEL_PLAN.md`).
 
 **The matrix is canonical.** `scripts/generate-access-catalog.mjs` turns the matrix below into
@@ -111,6 +112,7 @@ The matrix uses these codes: **F** = full, **S** = within assigned language/sect
 | media.manage | — | F | S | — | — | — | — | — | — | — | — | — | — | — | — |
 | breaking_banner.manage / push.send | — | F | S | — | — | — | — | — | — | — | — | — | — | — | — |
 | homepage.curate | — | F | S | — | — | — | — | — | — | — | — | — | — | — | — |
+| live_update.post | — | F | S | S | — | — | — | — | — | — | — | — | — | — | — |
 | correction.publish | — | F | S | A | — | — | — | R | R | — | — | — | — | — | — |
 | sponsored.label_remove | — | — | — | — | — | — | — | — | F | — | — | — | — | — | — |
 | sponsored.approve | — | R | — | — | — | — | — | — | F | — | — | — | — | — | F |
@@ -205,7 +207,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
 | 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PRs #48 and #49) built; M4 (the shared password retired, PR #50) built; the definition of done checked: open are the owner's walk-through and a test project | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
-| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) approved 19 Nov 2026, started at the owner's request while Panels 1 and 2 have open items; [M1](#panel-3-front-page) (the banner's language, "Copy for WhatsApp", PR #57) built, front-1 applied; M2 (pinned slots and the Front page screen) built | — | — |
+| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) approved 19 Nov 2026, started at the owner's request while Panels 1 and 2 have open items; [M1](#panel-3-front-page) (the banner's language, "Copy for WhatsApp", PR #57) built, front-1 applied; M2 (pinned slots and the Front page screen, PRs #58 and #59) built, front-2 applied; M3 (live blogs) being built: the back end first | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
 | 6 | Insights: read-only stats | Planned | — | — |
@@ -1282,9 +1284,15 @@ project). Assigning a writer from the screen waits for Panel 1's staff directory
 
 ### Panel 3: Front page
 
-**In progress.** [Design](#panel-3-design-front-page) approved on 19 Nov 2026. Built so far: **M1**,
-the banner's language and "Copy for WhatsApp" (PR #57, on `main`; front-1 applied by the owner on
-20 Nov 2026), and **M2**, pinned slots and the Front page screen (branch `panel-3-pinned-slots`).
+**In progress.** [Design](#panel-3-design-front-page) approved on 19 Nov 2026. Built so far:
+- **M1**, the banner's language and "Copy for WhatsApp" (PR #57, on `main`; front-1 applied by the
+  owner on 20 Nov 2026);
+- **M2**, pinned slots and the Front page screen (PR #58, and #59 for front-2's syntax, on `main`;
+  front-2 applied by the owner on 20 Nov 2026);
+- **M3, first part:** the live blog's back end: front-3, `live_update.post` in the matrix, and the
+  Desk's five routes for updates (branch `panel-3-live-backend`). The story screen's "Live updates"
+  panel and the reader's live page follow, each in its own pull request.
+
 Started while Panels 1 and 2 have open items (the design's §12).
 
 #### Panel
@@ -1300,7 +1308,19 @@ Started while Panels 1 and 2 have open items (the design's §12).
   - `GET /api/news/pins?language=en|hi&section=` (M2: the pinned row for a Hindi reader's browser,
     public);
   - `GET /api/news/breaking-news?language=en|hi` (M1: the reader's banner, public);
-  - the story screen's "Copy for WhatsApp" (`/admin/desk/[id]`, M1), which calls no route of its own.
+  - the story screen's "Copy for WhatsApp" (`/admin/desk/[id]`, M1), which calls no route of its own;
+  - `GET`, `POST /api/admin/desk/stories/[id]/live` (a live blog's updates; posting one),
+    `PATCH /api/admin/desk/stories/[id]/live/[updateId]` (changing one),
+    `POST /api/admin/desk/stories/[id]/live/[updateId]/remove` (removing one) and
+    `POST /api/admin/desk/stories/[id]/end-live` (ending the blog) (M3).
+- **Code (M3, first part):**
+  - `packages/editor/src/live.ts` (what an update may hold: the smaller schema, checked before it is
+    stored);
+  - `packages/server/src/repositories/liveUpdates.ts` (the reads, and the four database functions);
+  - `apps/admin/src/app/api/admin/desk/stories/[id]/live/`, `end-live/` and `desk/_lib/live.ts`;
+  - the rules in `packages/server/src/auth/adminRoutePolicy.ts`, and `live_update.post` in
+    `packages/shared/src/config/permissions.ts` and the catalogue;
+  - the SQL in `database/migrations/2026-11-20-front-3-live.sql`.
 - **Code (M2):**
   - `packages/shared/src/config/frontPage.ts` (the slots, the lengths, a page, the pinned row's card);
   - `packages/server/src/repositories/frontPage.ts` (the pins' reads, and the two database functions);
@@ -1328,13 +1348,30 @@ that take stories to WhatsApp and RSS readers.
 
 | Role | What they do here |
 |---|---|
-| Managing Editor | Pins on every page in every language; sets and removes banner items in any language, and for both languages (an unscoped grant); later live updates and pushes in every desk |
-| Desk Editor | Pins on their own desk's pages: with a language and no section, that language's home page and every section page; with a section, only that section's page. Sets and removes their own language's banner items; later live updates in their desk |
-| Sub-editor | Later: live updates in their desk (decision 6) |
+| Managing Editor | Pins on every page in every language; sets and removes banner items in any language, and for both languages (an unscoped grant); posts and removes live updates and ends live blogs in every desk; later pushes |
+| Legal/Compliance | Removes a live update, with a reason (`article.unpublish` F, decision 7) |
+| Desk Editor | Pins on their own desk's pages: with a language and no section, that language's home page and every section page; with a section, only that section's page. Sets and removes their own language's banner items. Posts and removes live updates in their desk, and ends a live blog |
+| Sub-editor | Posts, changes and flags live updates in their desk (decision 6, `live_update.post` S); ends a live blog (`article.publish` S) |
 | Anyone who can open a live story on the Desk | Copies it for WhatsApp |
 
 #### Features and functionality
 
+- **Live blogs, the back end (M3, first part):**
+  - a story with the format `live_blog`, once published, takes updates until the desk ends it
+    (`stories.live_ended_at`). An update has an optional headline (up to 110 characters) and a short
+    text in a smaller schema than a story's: paragraphs whose text may be bold, italic or a link, and
+    at most one library image (`packages/editor/src/live.ts`, up to 30 paragraphs and 5,000
+    characters). An image must be ready for readers, as before publication: in the library, rights
+    cleared, alt text and caption in the story's language;
+  - an update is posted at once, with no second approver (decision 6), and may be marked a key event
+    or pinned. Pinning one unpins the story's other one;
+  - an update can be changed while the blog is open; its text before and after is kept in the audit
+    log (design §2);
+  - an update is removed, not deleted: one person, with a reason (decision 7), at any time, also
+    after the blog ended. It stays in the table with who, when and why;
+  - ending a blog is recorded on the story and in its history (`end_live`);
+  - the screens come next: "Live blog" in New story and the story screen's "Live updates" panel,
+    then the reader's live page.
 - **Pinned slots (M2):**
   - each language's home page has 3 slots and each section page 2 (decision 2). A pin puts one
     published Desk story (decision 1) in one slot, from now or from a set time up to 7 days ahead,
@@ -1381,6 +1418,11 @@ that take stories to WhatsApp and RSS readers.
 | `POST /api/admin/front-page/pins/[id]/end` | `homepage.curate`, act | The same, in the pin's page | — (single actor) | yes | `homepage.unpin`, with the pin before |
 | `GET /api/admin/front-page/stories` | `homepage.curate`, read | In any scope; empty for a page the caller may not pin | — | yes | denials |
 | `GET /api/news/pins` | none: public | Readers | — | — | — |
+| `GET /api/admin/desk/stories/[id]/live` | `article.view_admin`, read | Anyone on the Desk, in the story's desk: every update, removed ones too | — | as the role | denials |
+| `POST /api/admin/desk/stories/[id]/live` | `live_update.post`, act | Managing Editor F; Desk Editor and Sub-editor S, in the story's desk | — (decision 6) | yes | `live.post`, with the update after |
+| `PATCH /api/admin/desk/stories/[id]/live/[updateId]` | `live_update.post`, act | The same | — | yes | `live.edit`, with the update before and after |
+| `POST /api/admin/desk/stories/[id]/live/[updateId]/remove` | `article.unpublish`, act | Managing Editor and Legal F; Desk Editor S; a Super Admin on emergency access | — (single actor, decision 7) | yes | `live.remove`, with the reason and the update before |
+| `POST /api/admin/desk/stories/[id]/end-live` | `article.publish`, act | Managing Editor F; Desk Editor and Sub-editor S | — | yes | `live.end`, on the story |
 | `GET /api/admin/breaking-news` | `breaking_banner.manage`, read | Managing Editor, Desk Editor: every item, in every language | — | yes | denials |
 | `POST`, `DELETE /api/admin/breaking-news` | `breaking_banner.manage`, act | Checked first in any scope, then in the item's: its language and every section; an item for both languages is site-wide, so only an unscoped grant covers it | — (single actor, for speed) | yes | `breaking_banner.set`, `breaking_banner.remove`, with the language as the row's scope; a removal records the item before |
 | `GET /api/news/breaking-news` | none: public | Readers | — | — | — |
@@ -1395,6 +1437,16 @@ that take stories to WhatsApp and RSS readers.
   - 400 for a malformed request; 404 for an unknown story or pin.
 
   Nothing is written for any of them.
+- **Refusals, live updates (M3):**
+  - 403 for another desk's story, or a role without the permission (a Writer, or Legal, cannot post);
+  - 409 for a story that is not a live blog (`not_live_blog`), not published (`not_published`) or
+    has ended (`live_ended`), and for an update already removed (`removed`);
+  - 422 for an image that is not ready for readers (`image`, with the checklist's problems);
+  - 400 for a text outside the smaller schema, a headline over 110 characters, flags that are not
+    true or false, an edit that names nothing, or a removal without a reason (or over 500
+    characters); 404 for an unknown story or update, or an update of another story.
+
+  Nothing is written for any of them.
 - **Refusals, the banner (M1):** 403 for another language, or for both languages without an
   unscoped grant; 400 for a language other than `en`, `hi` or null; 404 for an unknown item. Nothing
   is written for any of them.
@@ -1404,7 +1456,9 @@ that take stories to WhatsApp and RSS readers.
 | Migration file | What it does | Rollback | Applied by the owner |
 |---|---|---|---|
 | `database/migrations/2026-11-19-front-1-banner-language.sql` | `breaking_news.language`: `en`, `hi`, or NULL for both, with a CHECK; existing items keep NULL | At the end of the file, before the first item with a language | **Yes**, 20 Nov 2026 (the check: true, true) |
-| `database/migrations/2026-11-20-front-2-pins.sql` | `front_page_pins`, which is history: a pin is never deleted, only its end is set, and only moved earlier. A CHECK keeps the slots (3, or 2 on a section page) and an end at most 7 days after the start. `front_pin` pins in one transaction (the story published, of the page, not twice on a page; the slot's overlapping pin ended; one change per page at a time) and `front_unpin` ends a pin. RLS on: readers see six columns of the pins showing now; the app has no `DELETE` | At the end of the file, before the first pin | **Not yet** |
+| `database/migrations/2026-11-20-front-2-pins.sql` | `front_page_pins`, which is history: a pin is never deleted, only its end is set, and only moved earlier. A CHECK keeps the slots (3, or 2 on a section page) and an end at most 7 days after the start. `front_pin` pins in one transaction (the story published, of the page, not twice on a page; the slot's overlapping pin ended; one change per page at a time) and `front_unpin` ends a pin. RLS on: readers see six columns of the pins showing now; the app has no `DELETE` | At the end of the file, before the first pin | **Yes**, 20 Nov 2026 (after #59 fixed its syntax) |
+| `database/migrations/2026-11-02-access-2-catalog.sql` (regenerated) | Adds `live_update.post`: Managing Editor F, Desk Editor S, Sub-editor S (42 permissions, 143 cells) | Re-apply the previous version | **Not yet** |
+| `database/migrations/2026-11-20-front-3-live.sql` | `stories.live_ended_at`; `live_updates`, which is history: never deleted, a removed update stays removed with who, when and why, its story, author and time never change; one pinned update per story. `live_post`, `live_edit`, `live_remove` and `live_end`, each one transaction, the first, second and last only on an open live blog with the story's row locked. RLS on: readers see a live story's updates that are not removed, without who wrote them; the app has no `DELETE` | At the end of the file, before the first update | **Not yet** |
 
 - No column changes meaning: an item with no language is for both, as every item was before.
 - front-2's reader policy reads the end too: a pin replaced by a later one keeps showing until the
@@ -1417,11 +1471,15 @@ that take stories to WhatsApp and RSS readers.
 |---|---|---|
 | `apps/admin/src/app/api/admin/access.test.ts` (the route walk and "the front page's pins") | A Hindi Desk Editor pins and unpins on the Hindi home page; one for Hindi sport pins the sport page; the audit names the page and the pin replaced; a change, and a takedown, forget the cached pins | An English Desk Editor on Hindi pages; a sport Desk Editor on the home page; a Sub-editor and a Writer; a story not live, under embargo, of another language or section; a slot the page lacks; a story already pinned on the page; a malformed request; an ended or unknown pin; the database's own refusal. Nothing written in any |
 | `packages/server/src/repositories/frontPage.test.ts`, `services/front/pins.test.ts`, `repositories/stories.test.ts` (the read by ids) | The reads apply the database's rules again (one page, live, one pin per slot); the writes are the two functions; the pinned row's card; the 60-second entry, forgotten on a change | A story not live or moved away; a pin that ends within the cache's minute; no table before front-2 |
+| `apps/admin/src/app/api/admin/access.test.ts` ("a live blog's updates") | A Sub-editor posts at once through `live_post`, pinned or not; an edit keeps what it does not name, with the text before and after in the audit; a Desk Editor removes with a reason, also after the end, and Legal too; a Sub-editor ends the blog | A Writer and Legal posting; another desk; a story that is not a live blog, not published or ended; a text outside the schema; an image not ready; an edit naming nothing, of another story's update, or of a removed one; a removal without a reason, by a Sub-editor, or of a removed update; a Writer ending; the database's own refusal. Nothing written in any |
+| `packages/editor/src/live.test.ts`, `packages/server/src/repositories/liveUpdates.test.ts` | The smaller schema: paragraphs, bold, italic, links, one library image; the limits; each write its own function; the refusals as statuses | Headings, lists, embeds, code, two images, an image not in the library, a `javascript:` or `http:` link, an unknown attribute |
+| `packages/server/src/repositories/frontSchema.test.ts` (front-3) | front-3, read as text: the history rules, the open-blog check with the row locked in each write, one pinned update, removal at any time, the end in the story's history, RLS and the readers' columns, no `DELETE`, the rollback | — |
+| `packages/server/src/repositories/schema.test.ts` | Every migration's `IF` and `ELSIF` conditions hold no CASE outside brackets (front-2's first run failed on one) | — |
 | `packages/server/src/repositories/frontSchema.test.ts` | front-1 and front-2, read as text: front-2's history rules, slots, 7-day end, the functions' checks, RLS, the readers' six columns, no `DELETE`, the rollback | — |
 | `apps/admin/src/components/front/front.test.tsx`, `AdminTopBar.test.tsx`, `app/admin/page.test.tsx` | The screen's loading, error and empty states; pinning, and unpinning after the popup; the banner below; the top bar's link; the dashboard's link to the screen | No Unpin and no form where the server says no; no front page parts for a role without them |
 | `apps/web/src/components/home/PinnedRow.test.tsx`, `app/api/news/pins/route.test.ts` | The English pins as rendered; a Hindi reader's Hindi pins; the 4:3 picture | No row with no live pin, or when the Hindi read fails; another language or an unknown section is 400 |
 | `packages/server/src/lib/cache.test.ts`, `cache.redis.test.ts` | `del` forgets an entry, in memory and in Redis | A Redis failure is logged, not thrown |
-| `e2e/reader.spec.ts`, `e2e/admin-access.spec.ts` (read-only) | `/api/news/pins` answers a list | Signed out, `/admin/front-page` goes to sign-in, and the four routes answer 401 |
+| `e2e/reader.spec.ts`, `e2e/admin-access.spec.ts` (read-only) | `/api/news/pins` answers a list | Signed out, `/admin/front-page` goes to sign-in, and the four front page routes and three live blog routes answer 401 |
 | `apps/admin/src/app/api/admin/access.test.ts` ("the banner's language") | A Hindi Desk Editor sets and removes a Hindi item; the Managing Editor (all) sets an item for both languages; the audit names the language | An English Desk Editor on a Hindi item; a scoped Desk Editor on an item for both, set or removed, or with no language given; a bad language; an unknown item. Nothing written in any |
 | `packages/server/src/services/news/breakingNews.test.ts` | A reader's language: that language's items and those for both, in order; the read without front-1 | Another database error is not retried |
 | `apps/web/src/app/api/news/breaking-news/route.test.ts`, `components/news/BreakingNewsBanner.test.tsx` | The reader's language is asked for; the label in English and Hindi | Anything but `en` or `hi` asks for every item; nothing live shows nothing |
@@ -1429,13 +1487,17 @@ that take stories to WhatsApp and RSS readers.
 
 #### Known limits and not yet built
 
-- **M3:** live blogs, with `live_update.post` added to the matrix (decision 6).
+- **M3, the rest:** "Live blog" in New story and the story screen's "Live updates" panel (it needs
+  the story screen's JS budget raised, which goes to the owner with numbers first); the reader's
+  live page, its 15-second JSON and its `LiveBlogPosting` markup. Until then a live blog cannot be
+  created from the Desk, and no update reaches readers.
 - **M4:** RSS. Web push waits for Panel 8's consent banner (decision 8).
 - **Hindi pins** reach a Hindi reader from the browser, after the page loads, as the Hindi feed
   does: `/hi` home and section pages are Phase F (design §0 and §8).
 - **The pinned row's only cache** is the app's Redis entry. CloudFront sends the pages `no-store`,
   so no edge cache holds a pin (cache tags and purges: Phase F and I).
-- **The owner's step:** applying front-2 ([the runbook](OPERATIONS.md#panel-3-applying-front-2)).
+- **The owner's step:** applying the catalogue and front-3
+  ([the runbook](OPERATIONS.md#panel-3-applying-front-3)).
 
 ## Panel 0 design: the access foundation
 

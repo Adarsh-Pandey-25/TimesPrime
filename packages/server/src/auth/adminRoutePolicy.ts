@@ -231,6 +231,22 @@ export const ADMIN_ROUTE_RULES = {
   "/api/admin/desk/stories/[id]/correct": {
     POST: { permissions: ["correction.publish"], mode: "act", target: "story", twoPerson: true },
   },
+  // ---- Panel 3, M3: a live blog's updates (design §3), each in the story's desk. Posting and
+  // changing one is live_update.post (decision 6: no second approver); removing one is a takedown's
+  // permission, with a reason (decision 7); ending the blog is article.publish.
+  "/api/admin/desk/stories/[id]/live": {
+    GET: { permissions: ["article.view_admin"], mode: "read", target: "story" },
+    POST: { permissions: ["live_update.post"], mode: "act", target: "story" },
+  },
+  "/api/admin/desk/stories/[id]/live/[updateId]": {
+    PATCH: { permissions: ["live_update.post"], mode: "act", target: "story" },
+  },
+  "/api/admin/desk/stories/[id]/live/[updateId]/remove": {
+    POST: { permissions: ["article.unpublish"], mode: "act", target: "story" },
+  },
+  "/api/admin/desk/stories/[id]/end-live": {
+    POST: { permissions: ["article.publish"], mode: "act", target: "story" },
+  },
   "/api/admin/desk/pending/[actionId]/decide": {
     POST: { permissions: ["article.restore"], mode: "act", target: "story", twoPerson: true },
   },

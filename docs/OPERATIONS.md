@@ -1469,6 +1469,55 @@ show no pinned row and the Front page screen cannot load its slots; the banner w
 
 **Undo.** The rollback at the end of the file, before the first pin.
 
+**Applied** by the owner on 20 Nov 2026, after #59 fixed its syntax (gotcha 3.40); the first run
+failed and changed nothing.
+
+### Panel 3: applying front-3
+
+For the owner, before the Desk's live blogs are used (Panel 3, M3). Against the real database, in the
+Supabase SQL editor. No session applies SQL. Until both steps are done, nobody holds
+`live_update.post` and no live blog takes updates; everything else works as before.
+
+1. **Re-apply the catalogue,** `database/migrations/2026-11-02-access-2-catalog.sql`, whole. It is
+   idempotent, and adds `live_update.post` (Managing Editor F, Desk Editor S, Sub-editor S). **Check,**
+   in one query:
+
+   ```sql
+   SELECT (SELECT count(*) FROM public.permissions) AS permissions,
+          (SELECT count(*) FROM public.role_permissions) AS cells,
+          (SELECT count(*) FROM public.role_permissions WHERE permission_key = 'live_update.post') AS live_cells;
+   ```
+
+   Expect 42, 143, 3.
+2. **Apply** `database/migrations/2026-11-20-front-3-live.sql`, whole. One transaction: if it fails,
+   nothing changed, and it is safe to run again. **Check** (one query, one row):
+
+   ```sql
+   SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'stories' AND column_name = 'live_ended_at') AS has_live_ended_at,
+          (SELECT rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tablename = 'live_updates') AS rls_on,
+          has_table_privilege('service_role', 'public.live_updates', 'DELETE') AS app_can_delete,
+          has_column_privilege('anon', 'public.live_updates', 'posted_by', 'SELECT') AS readers_see_who,
+          has_column_privilege('anon', 'public.live_updates', 'body', 'SELECT') AS readers_see_body,
+          has_function_privilege('anon', 'public.live_post(uuid,uuid,text,jsonb,boolean,boolean)', 'EXECUTE') AS readers_can_post,
+          has_function_privilege('service_role', 'public.live_post(uuid,uuid,text,jsonb,boolean,boolean)', 'EXECUTE') AS app_can_post,
+          (SELECT count(*) FROM public.live_updates) AS updates;
+   ```
+
+   | Column | Expect |
+   |---|---|
+   | `has_live_ended_at` | true |
+   | `rls_on` | true |
+   | `app_can_delete` | false |
+   | `readers_see_who` | false |
+   | `readers_see_body` | true |
+   | `readers_can_post` | false |
+   | `app_can_post` | true |
+   | `updates` | 0 |
+
+**Undo.** For front-3, the rollback at the end of the file, before the first update. For the
+catalogue, re-apply the previous version of the file.
+
 ### Panel 1: emergency access (break-glass)
 
 For the Super Admins (Panel 1, M3). For the night a court order or a serious error needs a story
@@ -1911,7 +1960,9 @@ phases were done:
    M1. The owner put the test Supabase project on hold until he says. **M1**, the banner's language
    and "Copy for WhatsApp", is on `main` (PR #57), and the owner applied front-1 on 20 Nov 2026.
    **M2**, pinned slots and the Front page screen (`/admin/front-page`, which now holds the banner),
-   is built (`panel-3-pinned-slots`); the owner [applies front-2](#panel-3-applying-front-2).
+   is on `main` (PRs #58 and #59), and the owner applied front-2 on 20 Nov 2026. **M3**, live
+   blogs, is being built in three pull requests: the back end first (`panel-3-live-backend`), for
+   which the owner [re-applies the catalogue and applies front-3](#panel-3-applying-front-3).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.
