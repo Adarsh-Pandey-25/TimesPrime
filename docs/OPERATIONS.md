@@ -1477,7 +1477,7 @@ show no pinned row and the Front page screen cannot load its slots; the banner w
 **Undo.** The rollback at the end of the file, before the first pin.
 
 **Applied** by the owner on 20 Nov 2026, after #59 fixed its syntax (gotcha 3.40); the first run
-failed and changed nothing.
+failed and changed nothing. The check: true, false, false, true, false, true, 0.
 
 ### Panel 3: applying front-3
 
