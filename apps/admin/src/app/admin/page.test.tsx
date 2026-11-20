@@ -10,7 +10,6 @@ jest.mock("next/navigation", () => ({ useRouter: () => ({ push: mockPush, refres
 // Each widget renders its name, so a test can see which ones the dashboard shows.
 jest.mock("@/components/ArticlesTable", () => ({ __esModule: true, default: () => "[ArticlesTable]" }));
 jest.mock("@/components/CategoryStatsCard", () => ({ __esModule: true, default: () => "[CategoryStatsCard]" }));
-jest.mock("@/components/BreakingNewsManager", () => ({ __esModule: true, default: () => "[BreakingNewsManager]" }));
 jest.mock("@/components/SyncDashboard", () => ({ __esModule: true, default: () => "[SyncDashboard]" }));
 jest.mock("@/components/ActivityLog", () => ({ __esModule: true, default: () => "[ActivityLog]" }));
 
@@ -167,7 +166,9 @@ describe("what the dashboard shows depends on /api/admin/me (Panel 0)", () => {
 
   test("everything held: every widget and both controls, and who is signed in", async () => {
     await renderDashboard();
-    for (const w of ["[SyncDashboard]", "[BreakingNewsManager]", "[CategoryStatsCard]", "[ArticlesTable]", "[ActivityLog]"]) expect(shown()).toContain(w);
+    for (const w of ["[SyncDashboard]", "[CategoryStatsCard]", "[ArticlesTable]", "[ActivityLog]"]) expect(shown()).toContain(w);
+    // Panel 3, M2 (decision 5): the banner is on the Front page screen; the dashboard links to it.
+    expect(screen.getByRole("link", { name: /Open the Front page/ })).toHaveAttribute("href", "/admin/front-page");
     expect(screen.getByRole("button", { name: SYNC })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: PURGE })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Publish Article/ })).toBeInTheDocument();
@@ -179,7 +180,8 @@ describe("what the dashboard shows depends on /api/admin/me (Panel 0)", () => {
     await renderDashboard();
     expect(shown()).toContain("[CategoryStatsCard]");
     expect(screen.getByText("120")).toBeInTheDocument();
-    for (const w of ["[SyncDashboard]", "[BreakingNewsManager]", "[ArticlesTable]", "[ActivityLog]"]) expect(shown()).not.toContain(w);
+    for (const w of ["[SyncDashboard]", "[ArticlesTable]", "[ActivityLog]"]) expect(shown()).not.toContain(w);
+    expect(screen.queryByRole("link", { name: /Open the Front page/ })).toBeNull();
     expect(screen.queryByRole("button", { name: SYNC })).toBeNull();
     expect(screen.queryByRole("button", { name: PURGE })).toBeNull();
     expect(screen.queryByRole("button", { name: /Publish Article/ })).toBeNull();

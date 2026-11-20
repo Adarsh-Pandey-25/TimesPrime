@@ -47,7 +47,9 @@ SERVE ─ per reader request (apps/web); readers read the database only (R1-12)
   Outside stories show headline + summary + source + a link out, with our own
   category drawings and noindex on their pages (Phase B).
   /api/news/breaking-news: the homepage banner's public read.
-  code: packages/server/src/services/news/topHeadlines.ts, breakingNews.ts
+  The pinned row (Panel 3): the home and section pages render the English pins; /api/news/pins
+  serves a Hindi reader's. Redis, 60 s per page and language, deleted by every pin change.
+  code: packages/server/src/services/news/topHeadlines.ts, breakingNews.ts, services/front/pins.ts
 
 AUTHORISE ─ every admin request (apps/admin, Panel 0)
   1. apps/admin/src/proxy.ts   matcher: /admin/*, /api/admin/*      OPTIMISTIC: is there a session?
@@ -163,9 +165,10 @@ apps/
                            hi/[section]/[story], through _story/), about, contact, grievance,
                            privacy, terms; media/ (the Desk's images from the local folder, on a
                            laptop only; the server's come from CloudFront);
-                           public APIs: /api/news/{top-headlines, breaking-news, check-new},
+                           public APIs: /api/news/{top-headlines, breaking-news, check-new, pins},
                            /api/chat, /api/health
-    src/components/        news/ (cards, masthead, footer, menu, ticker, banner), home/, article/,
+    src/components/        news/ (cards, masthead, footer, menu, ticker, banner), home/ (the feed and,
+                           Panel 3, the pinned row), article/,
                            chat/, seo/ (the JSON-LD script), ui/
     src/context/           LanguageContext
     src/lib/               bookmarks (saved articles, in the browser)
@@ -174,7 +177,8 @@ apps/
     src/app/admin/         the dashboard and the staff sign-in; panels arrive as route folders
     src/app/api/admin/     every admin route handler, each gated by requirePermission; desk/ is Panel 2,
                            people/ is Panel 1 (staff, roles, a Super Admin's requests), with welcome/ (public:
-                           opening a one-time link) and password/ (session-only: setting one's password)
+                           opening a one-time link) and password/ (session-only: setting one's password);
+                           front-page/ is Panel 3 (a page's pins, pinning, unpinning, the story picker)
     src/app/media/         the Desk's images from the local folder, on a laptop only (as in web)
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list
                            with its takedown alerts, a new story, the story editor with its revisions
@@ -186,7 +190,8 @@ apps/
                            (the back office's one look: styles.ts, the shared button, field, card and link
                            classes; Feedback.tsx, the popups (a dialog and toasts) in place of the browser's
                            confirm, prompt and alert boxes, provided once in the root layout;
-                           ActionMessage.tsx, an action's answer: a toast on success, a refusal inline)
+                           ActionMessage.tsx, an action's answer: a toast on success, a refusal inline),
+                           and front/ (Panel 3's Front page screen: the pinned slots, then the banner)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes);
@@ -198,16 +203,19 @@ packages/
     src/repositories/      Supabase queries: db.ts (articles), auditLog.ts, staff.ts, stories.ts (the Desk),
                            authors.ts (the Desk's author records), media.ts (the media library's records),
                            people.ts (Panel 1: profiles, role assignments, requests, Supabase Auth's accounts,
-                           and its admin steps: making an account, a one-time link's token, removing factors)
+                           and its admin steps: making an account, a one-time link's token, removing factors),
+                           frontPage.ts (Panel 3: the front page's pins)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
                            publishing's rules, the scheduler, the image renditions with sharp, a story's images),
                            people (Panel 1: who may grant, renew, revoke or ask, reach.ts; the access review,
-                           its flags and reminders, review.ts)
+                           its flags and reminders, review.ts), front (Panel 3: the reader's pinned row and its
+                           cache entry, pins.ts)
     src/lib/               domain-free infrastructure: cache, rateLimit, readJsonBody, supabase,
                            mediaStorage (the images' files: S3 on the server, a folder on a laptop;
                            only renditions are ever served publicly), …
   shared/                  @timesprime/shared: client-safe config (media.ts: the library's image types,
-                           limits and key shapes; breakingNews.ts: the banner's languages, Panel 3), types
+                           limits and key shapes; breakingNews.ts and frontPage.ts: the banner's languages
+                           and the pinned slots, Panel 3), types
                            and lib (urlValidation, sentryScrub, whatsApp: the "Copy for WhatsApp" message)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and
                            story.css, a Desk story's view for the reader's page and the Desk's preview)

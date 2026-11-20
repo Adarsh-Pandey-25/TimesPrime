@@ -12,6 +12,7 @@ import {
   DeskStoreError,
   DUE_BATCH,
   getPublishedStory,
+  getPublishedStoriesByIds,
   hasCounterpart,
   inScopes,
   listCredits,
@@ -236,6 +237,59 @@ describe("getPublishedStory: the reader's read", () => {
   test("a database error is thrown, not shown as a missing story", async () => {
     supabase.from.mockReturnValue(query({ data: null, error: { code: "57014", message: "timeout" } }, []));
     await expect(getPublishedStory(1024, NOW)).rejects.toBeInstanceOf(DeskStoreError);
+  });
+});
+
+describe("getPublishedStoriesByIds: the pinned row's read (Panel 3, M2)", () => {
+  const NOW = new Date("2026-11-20T10:00:00.000Z");
+  const row = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    public_id: 7,
+    language: "en",
+    section: "sports",
+    format: "news",
+    slug: "final",
+    correction_note: null,
+    first_published_at: "2026-11-20T08:00:00Z",
+    published_at: "2026-11-20T08:00:00Z",
+    workflow_state: "published",
+    embargo_until: null,
+    published_revision_id: `r-${id}`,
+    revision: { id: `r-${id}`, story_id: id, headline: `Headline ${id}`, dek: null, seo_title: null, seo_description: null, body: { type: "doc", content: [] } },
+    bylines: [],
+    ...over,
+  });
+
+  test("one read of the asked ids, published and past any embargo, with the reader's columns", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    supabase.from.mockReturnValue(query({ data: [row("a"), row("b")], error: null }, calls));
+    const stories = await getPublishedStoriesByIds(["a", "b", "a"], NOW);
+    expect(stories.map((s) => s.id)).toEqual(["a", "b"]);
+    expect(String(calls.find(([m]) => m === "select")![1][0])).not.toContain("*");
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        ["in", ["id", ["a", "b"]]],
+        ["eq", ["workflow_state", "published"]],
+        ["or", ['embargo_until.is.null,embargo_until.lte."2026-11-20T10:00:00.000Z"']],
+      ])
+    );
+  });
+
+  test("the reader policies are applied again: a story not asked for, not live, under embargo or with another revision is left out", async () => {
+    const rows = [
+      row("a"),
+      row("x"),
+      row("b", { workflow_state: "unpublished" }),
+      row("c", { embargo_until: "2026-11-20T11:00:00Z" }),
+      row("d", { published_revision_id: "r-other" }),
+    ];
+    supabase.from.mockReturnValue(query({ data: rows, error: null }, []));
+    expect((await getPublishedStoriesByIds(["a", "b", "c", "d"], NOW)).map((s) => s.id)).toEqual(["a"]);
+  });
+
+  test("no ids: no read", async () => {
+    expect(await getPublishedStoriesByIds([], NOW)).toEqual([]);
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 });
 

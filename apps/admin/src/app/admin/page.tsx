@@ -3,16 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdminTopBar from "@/components/AdminTopBar";
-import { Database, ShieldCheck, RefreshCw, Send } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Database, Megaphone, ShieldCheck, RefreshCw, Send } from "lucide-react";
 import ArticlesTable from "@/components/ArticlesTable";
 import CategoryStatsCard from "@/components/CategoryStatsCard";
-import BreakingNewsManager from "@/components/BreakingNewsManager";
 import SyncDashboard from "@/components/SyncDashboard";
 import ActivityLog from "@/components/ActivityLog";
 import ActionMessage from "@/components/ui/ActionMessage";
-import { badge, buttonDanger, buttonPrimary, card, cardTitle, field, hint, label, pageTitle, tone } from "@/components/ui/styles";
+import { badge, button, buttonDanger, buttonPrimary, card, cardTitle, field, hint, label, pageTitle, tone } from "@/components/ui/styles";
 import type { AdminMe } from "@timesprime/shared/types";
-import { isBannerLanguage } from "@timesprime/shared/config/breakingNews";
 
 // Panel 0: what this page shows depends on GET /api/admin/me, which says what the signed-in user
 // holds. Hiding is UX only, never the check: every admin route decides again on the server
@@ -20,7 +19,8 @@ import { isBannerLanguage } from "@timesprime/shared/config/breakingNews";
 //
 // In the order a visit needs it (the owner, 19 Nov 2026): the numbers (the live statistics beside
 // the 7-day retention); the articles list, the day's work; publishing (a new article beside the
-// breaking-news banner); the news sync; then the activity log.
+// way to the breaking-news banner, which is on the Front page screen since Panel 3's M2, decision 5);
+// the news sync; then the activity log.
 
 interface DbStats {
   configured: boolean;
@@ -217,8 +217,6 @@ export default function AdminDashboardPage() {
   const showRetention = canStats || can("sync.run", "act") || can("content.purge", "act");
   const canPublish = can("article.publish_direct", "act") && can("article.create", "act");
   const canBanner = can("breaking_banner.manage", "act");
-  // The banner form starts on the caller's own language, if a role of theirs has one (Panel 3, M1).
-  const ownLanguage = me?.roles.map((r) => r.language).find(isBannerLanguage) ?? null;
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900 dark:bg-[#1a1c1e] dark:text-slate-100">
@@ -385,7 +383,22 @@ export default function AdminDashboardPage() {
                   </section>
                 )}
 
-                {canBanner && <BreakingNewsManager ownLanguage={ownLanguage} />}
+                {/* Panel 3, M2 (decision 5): the banner is managed on the Front page screen. */}
+                {canBanner && (
+                  <section aria-label="Breaking news banner" className={`${card} space-y-3`}>
+                    <div className="flex items-center gap-3">
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone.red}`}>
+                        <Megaphone aria-hidden="true" className="h-5 w-5" />
+                      </span>
+                      <h2 className={cardTitle}>Breaking News Banner</h2>
+                    </div>
+                    <p className={hint}>The banner is set and removed on the Front page screen, beside the pinned stories.</p>
+                    <Link href="/admin/front-page" className={button}>
+                      Open the Front page
+                      <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                    </Link>
+                  </section>
+                )}
               </div>
             )}
 

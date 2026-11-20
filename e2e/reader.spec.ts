@@ -102,3 +102,13 @@ test("the home page describes the publisher as a NewsMediaOrganization", async (
   const types = texts.flatMap((t) => (JSON.parse(t)["@graph"] ?? []).map((n: { "@type": string }) => n["@type"]));
   expect(types).toEqual(expect.arrayContaining(["NewsMediaOrganization", "WebSite"]));
 });
+
+// Panel 3, M2: the pinned row's JSON, for a Hindi reader's browser. Read-only: it lists live pins.
+test("the pinned row's JSON answers a list in each language, and 400 for an unknown page", async ({ request }) => {
+  for (const query of ["?language=hi", "?language=en&section=sports", ""]) {
+    const res = await request.get(`/api/news/pins${query}`);
+    expect(res.status()).toBe(200);
+    expect(Array.isArray((await res.json()).pins)).toBe(true);
+  }
+  expect((await request.get("/api/news/pins?language=hi&section=no-such-section")).status()).toBe(400);
+});

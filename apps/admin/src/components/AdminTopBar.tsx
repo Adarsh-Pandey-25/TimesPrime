@@ -19,6 +19,7 @@ import { button } from "./ui/styles";
 const SECTIONS = [
   { href: "/admin", label: "Dashboard", here: (path: string) => path === "/admin" },
   { href: "/admin/desk", label: "Desk", here: (path: string) => path.startsWith("/admin/desk") },
+  { href: "/admin/front-page", label: "Front page", here: (path: string) => path.startsWith("/admin/front-page") },
   { href: "/admin/people", label: "People", here: (path: string) => path.startsWith("/admin/people") },
 ] as const;
 
@@ -31,8 +32,14 @@ export default function AdminTopBar() {
   // Panel 1, M3: Super Admins see, on every page, any emergency access in use and a review that is due.
   const superAdmin = me?.kind === "staff" && me.permissions["role.assign"] === "ask";
   const { alerts } = useAlerts(superAdmin);
-  // Panel 1: People is for holders of user.manage (a Super Admin asks, a Managing Editor acts). UX only.
-  const sections = SECTIONS.filter((s) => s.href !== "/admin/people" || (me?.kind === "staff" && me.permissions["user.manage"]));
+  // Panel 1: People is for holders of user.manage (a Super Admin asks, a Managing Editor acts).
+  // Panel 3: the Front page for holders of homepage.curate or breaking_banner.manage. UX only.
+  const holds = (permission: string) => me?.kind === "staff" && Boolean(me.permissions[permission]);
+  const sections = SECTIONS.filter((s) => {
+    if (s.href === "/admin/people") return holds("user.manage");
+    if (s.href === "/admin/front-page") return holds("homepage.curate") || holds("breaking_banner.manage");
+    return true;
+  });
 
   const signOut = async () => {
     try {

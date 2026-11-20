@@ -19,7 +19,9 @@ import type { Mode } from "./decide";
  * names, "person" a staff member (Panel 1: the route checks the caller's reach over the person's
  * roles, services/people/reach.ts), "request" a Super Admin's request (Panel 1: decided by another),
  * "banner" a breaking-news item (Panel 3: its language and every section; an item for both
- * languages is site-wide, so only an unscoped grant covers it).
+ * languages is site-wide, so only an unscoped grant covers it), "page" a front page being arranged
+ * (Panel 3, M2: its language, and its section, NULL for the home page, which only a grant with no
+ * section covers).
  */
 export interface RouteRule {
   permissions: readonly PermissionKey[];
@@ -38,7 +40,8 @@ export interface RouteRule {
     | "person"
     | "new_person"
     | "request"
-    | "banner";
+    | "banner"
+    | "page";
   /**
    * A two-person route (the matrix's A): a holder of A passes the gate, because the route only lets them
    * ask, or decide what someone else asked (Panel 2's restore). It still needs their second factor
@@ -100,6 +103,20 @@ export const ADMIN_ROUTE_RULES = {
     // Panel 3, M1: in the item's language, so a Desk Editor (S) runs their own desk's banner.
     POST: { permissions: ["breaking_banner.manage"], mode: "act", target: "banner" },
     DELETE: { permissions: ["breaking_banner.manage"], mode: "act", target: "banner" },
+  },
+  // ---- Panel 3, the Front page (design §3 and §4): a page is decided in its language and section ----
+  // A page's pins (current and set to start later), and pinning a story; the screen shows any page.
+  "/api/admin/front-page/pins": {
+    GET: { permissions: ["homepage.curate"], mode: "read", target: "none" },
+    POST: { permissions: ["homepage.curate"], mode: "act", target: "page" },
+  },
+  // Unpinning: the pin ends at once, in its page's scope.
+  "/api/admin/front-page/pins/[id]/end": {
+    POST: { permissions: ["homepage.curate"], mode: "act", target: "page" },
+  },
+  // The picker: the published stories a page can take, empty for a page the caller cannot pin.
+  "/api/admin/front-page/stories": {
+    GET: { permissions: ["homepage.curate"], mode: "read", target: "none" },
   },
   "/api/admin/db-stats": {
     GET: { permissions: ["stats.view"], mode: "read", target: "none" },

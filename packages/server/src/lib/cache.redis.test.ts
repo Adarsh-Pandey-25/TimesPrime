@@ -12,10 +12,11 @@ jest.mock("@upstash/redis", () => {
   const get = jest.fn();
   const set = jest.fn();
   const ping = jest.fn();
-  return { Redis: jest.fn(() => ({ get, set, ping })), __mock: { get, set, ping } };
+  const del = jest.fn();
+  return { Redis: jest.fn(() => ({ get, set, ping, del })), __mock: { get, set, ping, del } };
 });
 
-type RedisMock = { get: jest.Mock; set: jest.Mock; ping: jest.Mock };
+type RedisMock = { get: jest.Mock; set: jest.Mock; ping: jest.Mock; del: jest.Mock };
 let redis: RedisMock;
 const env = { ...process.env };
 const t0 = Date.parse("2026-11-16T10:00:00Z");
@@ -73,4 +74,21 @@ test("the health probe always asks Redis, so /api/health reports the outage", as
   redis.ping.mockRejectedValue(new Error("ECONNREFUSED"));
   await expect(cache.ping()).resolves.toBe("error");
   expect(redis.ping).toHaveBeenCalledTimes(1);
+});
+
+test("del deletes the key in Redis and in memory; a Redis failure is logged, not thrown (Panel 3)", async () => {
+  const { cache } = await load();
+  redis.set.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+  await cache.set("pins", { n: 1 }, 60); // lands in memory
+  jest.setSystemTime(t0 + 10_000); // the pause is over
+  redis.del.mockResolvedValueOnce(1);
+  await cache.del("pins");
+  expect(redis.del).toHaveBeenCalledWith("pins");
+  redis.get.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+  await expect(cache.get("pins")).resolves.toBeNull(); // memory forgot it too
+
+  jest.setSystemTime(t0 + 30_000);
+  redis.del.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+  await expect(cache.del("pins")).resolves.toBeUndefined();
+  expect(error).toHaveBeenCalledWith(expect.stringContaining("del() failed"), expect.any(Error));
 });

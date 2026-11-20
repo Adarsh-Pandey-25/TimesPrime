@@ -106,6 +106,24 @@ export const cache = {
     memorySet(key, data, ttlSeconds);
   },
 
+  /**
+   * Forgets an entry, so the next read goes to the database (Panel 3: the back office deletes the
+   * reader's pins entry on every pin change). Both stores: a value set while Redis was paused lives
+   * in memory. A Redis failure is logged and left to the entry's own TTL.
+   */
+  async del(key: string): Promise<void> {
+    memoryStore.delete(key);
+    if (redis && !breaker.isOpen()) {
+      try {
+        await redis.del(key);
+        breaker.recordSuccess();
+      } catch (err) {
+        breaker.recordFailure();
+        console.error("Upstash Redis del() failed; the entry lapses with its TTL:", err);
+      }
+    }
+  },
+
   /** Health probe: "not-configured" without Upstash, otherwise whether Redis answered a PING. */
   async ping(): Promise<"ok" | "error" | "not-configured"> {
     if (!redis) return "not-configured";
