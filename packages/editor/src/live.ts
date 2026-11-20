@@ -1,5 +1,7 @@
+import type { Extensions } from "@tiptap/core";
+import StarterKit from "@tiptap/starter-kit";
 import { isRenditionRatio, MEDIA_ID } from "@timesprime/shared/config/media";
-import { isAllowedHref } from "./schema";
+import { isAllowedHref, StoryImage } from "./schema";
 
 /**
  * A live blog's update (Panel 3 design §2, M3) is written in a smaller schema than a story: paragraphs
@@ -18,6 +20,36 @@ export const LIVE_IMAGES_MAX = 1;
 const MARKS = new Set(["bold", "italic", "link"]);
 /** A link mark's attributes, as Tiptap writes them; only the address is used. */
 const LINK_ATTRS = new Set(["href", "target", "rel", "class"]);
+
+/**
+ * The editor's extensions for an update: a story's, without headings, lists, quotes, code, rules,
+ * strike, underline, embeds, galleries or ad slots. What it can make, liveBodyProblem accepts.
+ */
+export function liveExtensions(): Extensions {
+  return [
+    StarterKit.configure({
+      heading: false,
+      bulletList: false,
+      orderedList: false,
+      listItem: false,
+      listKeymap: false,
+      blockquote: false,
+      code: false,
+      codeBlock: false,
+      horizontalRule: false,
+      strike: false,
+      underline: false,
+      link: {
+        openOnClick: false,
+        autolink: true,
+        defaultProtocol: "https",
+        isAllowedUri: (url) => isAllowedHref(url),
+        HTMLAttributes: { rel: "noopener noreferrer nofollow", target: null },
+      },
+    }),
+    StoryImage,
+  ];
+}
 
 type Json = Record<string, unknown>;
 const isObject = (value: unknown): value is Json => typeof value === "object" && value !== null && !Array.isArray(value);

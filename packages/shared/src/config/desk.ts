@@ -38,8 +38,8 @@ export const STORY_FORMATS = [
 ] as const;
 export type StoryFormat = (typeof STORY_FORMATS)[number];
 
-/** The formats the Desk accepts: sponsored waits for Panel 9, live blogs for Panel 3. */
-export const DESK_FORMATS: readonly StoryFormat[] = STORY_FORMATS.filter((f) => f !== "sponsored" && f !== "live_blog");
+/** The formats the Desk accepts: sponsored waits for Panel 9. Live blogs since Panel 3, M3. */
+export const DESK_FORMATS: readonly StoryFormat[] = STORY_FORMATS.filter((f) => f !== "sponsored");
 
 export const STORY_LANGUAGES = ["en", "hi"] as const;
 export type StoryLanguage = (typeof STORY_LANGUAGES)[number];

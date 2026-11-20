@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { Share2 } from "lucide-react";
@@ -29,6 +29,8 @@ interface Story {
   public_id: number;
   language: "en" | "hi";
   section: string;
+  /** "live_blog" shows the Live updates panel (Panel 3, M3). */
+  format: string;
   workflow_state: StoryState;
   slug: string | null;
   embargo_until: string | null;
@@ -171,6 +173,11 @@ function Toolbar({ editor, disabled, onImage, onGallery }: { editor: Editor | nu
     </div>
   );
 }
+
+// A live blog's updates (Panel 3, M3), loaded only when the story is one: other stories carry none
+// of the panel's code. React's own lazy: the screen renders only in the browser, once the story has
+// loaded, and React is already on the page.
+const LiveUpdatesPanel = lazy(() => import("./LiveUpdatesPanel"));
 
 export default function StoryEditor({ id }: { id: string }) {
   const { me, error: meError } = useAdminMe();
@@ -482,6 +489,24 @@ export default function StoryEditor({ id }: { id: string }) {
           </div>
         )}
 
+        {/* A live blog's updates, above its intro: the work of a running story (Panel 3, M3). */}
+        {story.format === "live_blog" && (
+          <Suspense fallback={<p role="status" className="text-sm text-slate-500">Loading the live updates…</p>}>
+            <LiveUpdatesPanel
+              storyId={story.id}
+              language={story.language}
+              published={story.workflow_state === "published"}
+              canPost={canAct(me, "live_update.post")}
+              canRemove={canAct(me, "article.unpublish")}
+              canEnd={canAct(me, "article.publish")}
+              onEnded={() => void load()}
+            />
+          </Suspense>
+        )}
+
+        {/* The story and its Save, together: Save sticks to the screen's foot only while the story
+            itself is in view, never over a live blog's updates above it. */}
+        <div className="space-y-4">
         {/* The story itself. */}
         <div className={card}>
           <label className={label}>
@@ -529,6 +554,8 @@ export default function StoryEditor({ id }: { id: string }) {
             <span className={`${hint} ml-auto`}>{wordCount(editor?.getJSON() ?? loaded.revision?.body)} words</span>
           </div>
           <ActionMessage message={editorMessage} />
+        </div>
+
         </div>
 
         <RevisionsPanel
