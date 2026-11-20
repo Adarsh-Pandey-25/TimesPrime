@@ -1949,11 +1949,21 @@ describe("the front page's pins (Panel 3 design §3, M2)", () => {
     expect(del).toHaveBeenCalledWith("front:pins:v1:hi:home");
   });
 
+  test("publishing a story, and taking one down, forget its RSS feeds (M4): its language's and its section's", async () => {
+    const del = jest.spyOn(cache, "del");
+    for (const path of ["/api/admin/desk/stories/[id]/publish", "/api/admin/desk/stories/[id]/unpublish"]) {
+      del.mockClear();
+      const c = CASES.find((x) => x.path === path) as Case;
+      expect((await call(c, c.allowed, c.data, { body: c.body })).status).toBe(200);
+      expect(del.mock.calls.map(([key]) => key)).toEqual(expect.arrayContaining(["rss:v1:hi:all", "rss:v1:hi:sports"]));
+    }
+  });
+
   test("a takedown forgets the cached pins of the story's pages: its language's home page and its section's", async () => {
     const del = jest.spyOn(cache, "del");
     const takedown = CASES.find((c) => c.path === "/api/admin/desk/stories/[id]/unpublish") as Case;
     expect((await call(takedown, HI_DESK, takedown.data)).status).toBe(200);
-    expect(del.mock.calls.map(([key]) => key).sort()).toEqual(["front:pins:v1:hi:home", "front:pins:v1:hi:sports"]);
+    expect(del.mock.calls.map(([key]) => key).filter((key) => key.startsWith("front:pins:")).sort()).toEqual(["front:pins:v1:hi:home", "front:pins:v1:hi:sports"]);
   });
 });
 

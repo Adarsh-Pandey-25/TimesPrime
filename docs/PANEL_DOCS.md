@@ -207,7 +207,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | 0 | Access foundation: staff accounts, roles, permissions, MFA, audit log, the permission check | **In progress**, paused for `release/v1`; on `main` since `chore/integrate` (4 Nov 2026): built and tested with mocks; its database-level checks are unverified (the owner verifies them against the real database when panels resume) | — | `e9bce19`..`f357d71`, then the second half through `chore/integrate`; [list](#commits) |
 | 1 | Administration: users, role assignments with scope and expiry, access review | **In progress:** [design](#panel-1-design-administration) approved 19 Nov 2026 (started at the owner's request while Panel 2's last items are open); [M1](#panel-1-administration) (people and roles, PRs #43 and #44) built; M2 (accounts: adding people, one-time links, lost factors, the welcome page; PRs #46 and #47) built; M3 (break-glass, the access review, roles ending soon; PRs #48 and #49) built; M4 (the shared password retired, PR #50) built; the definition of done checked: open are the owner's walk-through and a test project | — | — |
 | 2 | Desk: articles (write, review, approve, publish, unpublish) | **In progress:** [design](#panel-2-design-the-desk-publisher) approved 17 Nov 2026, started before Panel 1 at the owner's request; M1 (stories backend) being built | — | — |
-| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) approved 19 Nov 2026, started at the owner's request while Panels 1 and 2 have open items; [M1](#panel-3-front-page) (the banner's language, "Copy for WhatsApp", PR #57) built, front-1 applied; M2 (pinned slots and the Front page screen, PRs #58 and #59) built, front-2 applied; M3 (live blogs): the back end (PR #60), the Desk's panel (PR #61) and the reader's live page built, catalogue and front-3 applied; M4 (RSS) next | — | — |
+| 3 | Front page: breaking banner, pinned slots, curation | **In progress:** [design](#panel-3-design-front-page) approved 19 Nov 2026, started at the owner's request while Panels 1 and 2 have open items; [M1](#panel-3-front-page) (the banner's language, "Copy for WhatsApp", PR #57) built, front-1 applied; M2 (pinned slots and the Front page screen, PRs #58 and #59) built, front-2 applied; M3 (live blogs, PRs #60 to #62) built, catalogue and front-3 applied; M4 (RSS) built; the definition of done next | — | — |
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
 | 6 | Insights: read-only stats | Planned | — | — |
@@ -1295,7 +1295,10 @@ project). Assigning a writer from the screen waits for Panel 1's staff directory
 - **M3, second part:** "Live blog" in New story and the story screen's "Live updates" panel (PR #61,
   on `main`);
 - **M3, third part:** the reader's live page, its feed as JSON and its `LiveBlogPosting` markup
-  (branch `panel-3-live-page`). With it, M3 is complete; M4 (RSS) is next.
+  (PR #62, on `main`). M3 is complete;
+- **M4:** the RSS feeds, per language and per language and section (branch `panel-3-rss`). With it,
+  every milestone of the design is built; web push waits for Panel 8's consent banner (decision 8).
+  Panel 3's definition of done is checked next.
 
 Started while Panels 1 and 2 have open items (the design's §12).
 
@@ -1320,7 +1323,9 @@ Started while Panels 1 and 2 have open items (the design's §12).
   - the story screen's "Live updates" panel (`/admin/desk/[id]`, on a live blog), and "Live blog" in
     New story (`/admin/desk/new`) (M3);
   - a live blog's reader page, its own story page (`/[section]/[story]`, `/hi/[section]/[story]`),
-    and `GET /api/live/[publicId]`, its feed as JSON (M3, public).
+    and `GET /api/live/[publicId]`, its feed as JSON (M3, public);
+  - `GET /rss/en.xml`, `/rss/hi.xml`, `/rss/en/[section].xml` and `/rss/hi/[section].xml`, the RSS
+    feeds (M4, public), linked from the home and section pages.
 - **Code (M3, first part):**
   - `packages/shared/src/lib/liveBody.ts` (what an update may hold: the smaller schema, checked
     before it is stored and again before readers see it; with `href.ts`, the link rule the story
@@ -1330,6 +1335,12 @@ Started while Panels 1 and 2 have open items (the design's §12).
   - the rules in `packages/server/src/auth/adminRoutePolicy.ts`, and `live_update.post` in
     `packages/shared/src/config/permissions.ts` and the catalogue;
   - the SQL in `database/migrations/2026-11-20-front-3-live.sql`.
+- **Code (M4):**
+  - `packages/shared/src/config/rss.ts` (the feeds' addresses, names and timings);
+  - `packages/server/src/services/front/rss.ts` (RSS 2.0, through its cache entry) and
+    `listRecentPublished` in `repositories/stories.ts`;
+  - `apps/web/src/app/rss/` (the routes), and the `alternates.types` of `app/(feed)/page.tsx` and
+    `app/[section]/page.tsx`.
 - **Code (M3, third part):**
   - `packages/shared/src/config/liveBlog.ts` (the feed's shape, the timings, the labels) and
     `liveBlogPosting` in `packages/shared/src/lib/structuredData.ts`;
@@ -1380,6 +1391,19 @@ that take stories to WhatsApp and RSS readers.
 
 #### Features and functionality
 
+- **RSS (M4):**
+  - eighteen feeds: each language's (`/rss/en.xml`, `/rss/hi.xml`) and each section's in each
+    language (`/rss/en/sports.xml`, `/rss/hi/sports.xml`). Each holds the last 50 published Desk
+    stories, newest publication first: title, address, dek, date, and the address as a stable id.
+    The aggregator's items are not in them (Phase B: their pages are noindex);
+  - RSS 2.0, in the feed's language, with its own address (`atom:link`); every text is escaped, so
+    a headline with markup stays text;
+  - kept 5 minutes in Redis (`rss:v1:<language>:<section or all>`) and at the edge
+    (`s-maxage=300`, then served stale for 10 more while it refreshes). Publishing a story, or
+    taking one down, forgets its language's feed and its section's at once, so a takedown leaves
+    the feed at its next read. A story the worker publishes on schedule appears within 5 minutes;
+  - the home page points to both languages' feeds, and each section page to its section's, with
+    `<link rel="alternate" type="application/rss+xml">`.
 - **Live blogs, the back end (M3, first part):**
   - a story with the format `live_blog`, once published, takes updates until the desk ends it
     (`stories.live_ended_at`). An update has an optional headline (up to 110 characters) and a short
@@ -1474,6 +1498,7 @@ that take stories to WhatsApp and RSS readers.
 | `GET /api/admin/front-page/stories` | `homepage.curate`, read | In any scope; empty for a page the caller may not pin | — | yes | denials |
 | `GET /api/news/pins` | none: public | Readers | — | — | — |
 | `GET /api/live/[publicId]` | none: public | Readers: a published live blog's updates that are not removed | — | — | — |
+| `GET /rss/…` | none: public | Feed readers: published Desk stories only | — | — | — |
 | `GET /api/admin/desk/stories/[id]/live` | `article.view_admin`, read | Anyone on the Desk, in the story's desk: every update, removed ones too | — | as the role | denials |
 | `POST /api/admin/desk/stories/[id]/live` | `live_update.post`, act | Managing Editor F; Desk Editor and Sub-editor S, in the story's desk | — (decision 6) | yes | `live.post`, with the update after |
 | `PATCH /api/admin/desk/stories/[id]/live/[updateId]` | `live_update.post`, act | The same | — | yes | `live.edit`, with the update before and after |
@@ -1528,6 +1553,7 @@ that take stories to WhatsApp and RSS readers.
 | `apps/admin/src/app/api/admin/access.test.ts` (the route walk and "the front page's pins") | A Hindi Desk Editor pins and unpins on the Hindi home page; one for Hindi sport pins the sport page; the audit names the page and the pin replaced; a change, and a takedown, forget the cached pins | An English Desk Editor on Hindi pages; a sport Desk Editor on the home page; a Sub-editor and a Writer; a story not live, under embargo, of another language or section; a slot the page lacks; a story already pinned on the page; a malformed request; an ended or unknown pin; the database's own refusal. Nothing written in any |
 | `packages/server/src/repositories/frontPage.test.ts`, `services/front/pins.test.ts`, `repositories/stories.test.ts` (the read by ids) | The reads apply the database's rules again (one page, live, one pin per slot); the writes are the two functions; the pinned row's card; the 60-second entry, forgotten on a change | A story not live or moved away; a pin that ends within the cache's minute; no table before front-2 |
 | `apps/admin/src/app/api/admin/access.test.ts` ("a live blog's updates") | A Sub-editor posts at once through `live_post`, pinned or not; an edit keeps what it does not name, with the text before and after in the audit; a Desk Editor removes with a reason, also after the end, and Legal too; a Sub-editor ends the blog | A Writer and Legal posting; another desk; a story that is not a live blog, not published or ended; a text outside the schema; an image not ready; an edit naming nothing, of another story's update, or of a removed one; a removal without a reason, by a Sub-editor, or of a removed update; a Writer ending; the database's own refusal. Nothing written in any |
+| `packages/server/src/services/front/rss.test.ts`, `packages/shared/src/config/rss.test.ts`, `apps/web/src/app/rss/rss.test.ts`, `repositories/stories.test.ts` ("listRecentPublished"), `app/[section]/page.test.tsx` | RSS 2.0 that parses as XML (jsdom's DOMParser), its channel and items, newest first, a stable id each; 18 feeds whose addresses read back; RSS's content type and the edge's 5 minutes; the section page's links to its feeds; the access walk: publishing and a takedown forget the story's feeds | A headline with markup stays text; characters XML forbids are dropped; a story not live, under embargo, of another language or section, or with another revision is not listed; no such feed is 404, `no-store`; a failed read is 503 |
 | `apps/web/src/app/_story/storyPage.test.tsx` ("a live blog"), `apps/web/src/components/live/live.test.tsx`, `apps/web/src/app/api/live/[publicId]/route.test.ts` | The updates under the intro, newest first, with the key events as links and the pinned one first; runs, links and images; Hindi labels; `LiveBlogPosting`; the check every 15 seconds, its "new updates" button, and a removal or the end shown at once; the feed's edge header and its cache entry first | A feed that cannot be read leaves the intro; another story reads no feed; an ended blog is not checked; a hidden tab is not checked; the newest 50 shifting is not a removal; not a live blog, not live, or not a number is 404, `no-store`; a failed read is 503 |
 | `packages/server/src/services/front/live.test.ts`, `repositories/liveUpdates.test.ts`, `repositories/media.test.ts`, `packages/shared/src/lib/structuredData.test.ts` | The feed shaped for the page, read once per 5 seconds and forgotten on a change; readers' columns only; the image only while active with cleared rights; the markup's names and coverage | A body outside the schema, or a link outside the allowed addresses, is not drawn; a removed update never reaches readers; the markup cannot close its script |
 | `apps/admin/src/components/desk/desk.test.tsx` ("the live updates panel") | A live blog's panel: the updates newest first with Pinned, Key event and a removal's reason; changing one sends its whole text and flags; removing asks for a reason; ending asks first; New story offers a live blog | An empty update not sent; after the end, no form, Edit or End (Remove stays); no controls without the permissions; before publication, no form; no panel on another format; the list's refusal shown |
@@ -1538,7 +1564,7 @@ that take stories to WhatsApp and RSS readers.
 | `apps/admin/src/components/front/front.test.tsx`, `AdminTopBar.test.tsx`, `app/admin/page.test.tsx` | The screen's loading, error and empty states; pinning, and unpinning after the popup; the banner below; the top bar's link; the dashboard's link to the screen | No Unpin and no form where the server says no; no front page parts for a role without them |
 | `apps/web/src/components/home/PinnedRow.test.tsx`, `app/api/news/pins/route.test.ts` | The English pins as rendered; a Hindi reader's Hindi pins; the 4:3 picture | No row with no live pin, or when the Hindi read fails; another language or an unknown section is 400 |
 | `packages/server/src/lib/cache.test.ts`, `cache.redis.test.ts` | `del` forgets an entry, in memory and in Redis | A Redis failure is logged, not thrown |
-| `e2e/reader.spec.ts`, `e2e/admin-access.spec.ts` (read-only) | `/api/news/pins` answers a list; `/api/live/…` answers 404, `no-store`, for a story that is not a live blog | Signed out, `/admin/front-page` goes to sign-in, and the four front page routes and three live blog routes answer 401 |
+| `e2e/reader.spec.ts`, `e2e/admin-access.spec.ts` (read-only) | `/api/news/pins` answers a list; `/api/live/…` answers 404, `no-store`, for a story that is not a live blog; the RSS feeds are RSS 2.0 XML with their content type, `/rss/fr.xml` is 404, and the home page links two feeds | Signed out, `/admin/front-page` goes to sign-in, and the four front page routes and three live blog routes answer 401 |
 | `apps/admin/src/app/api/admin/access.test.ts` ("the banner's language") | A Hindi Desk Editor sets and removes a Hindi item; the Managing Editor (all) sets an item for both languages; the audit names the language | An English Desk Editor on a Hindi item; a scoped Desk Editor on an item for both, set or removed, or with no language given; a bad language; an unknown item. Nothing written in any |
 | `packages/server/src/services/news/breakingNews.test.ts` | A reader's language: that language's items and those for both, in order; the read without front-1 | Another database error is not retried |
 | `apps/web/src/app/api/news/breaking-news/route.test.ts`, `components/news/BreakingNewsBanner.test.tsx` | The reader's language is asked for; the label in English and Hindi | Anything but `en` or `hi` asks for every item; nothing live shows nothing |
@@ -1546,7 +1572,9 @@ that take stories to WhatsApp and RSS readers.
 
 #### Known limits and not yet built
 
-- **M4:** RSS. Web push waits for Panel 8's consent banner (decision 8).
+- **Web push** waits for Panel 8's consent banner (decision 8).
+- **The RSS feeds carry no full text and no images:** a title, a dek, a date and the address, as
+  the design has it; readers open the story on the site.
 - **A live blog's page shows its newest 50 updates.** Older ones stay in the table and the record;
   readers do not page back through them yet.
 - **The edge's copy of the feed needs its CloudFront behaviour** at the AWS deploy (`/api/live/*`,

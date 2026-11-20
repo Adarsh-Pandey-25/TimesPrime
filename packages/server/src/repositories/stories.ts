@@ -368,6 +368,51 @@ export async function getPublishedStoriesByIds(ids: readonly string[], now: Date
     .filter((story): story is PublishedStory => story !== null);
 }
 
+/** A story as a feed lists it (Panel 3, M4): its address, headline, dek and times. */
+export interface FeedStory {
+  id: string;
+  public_id: number;
+  language: StoryLanguage;
+  section: string;
+  slug: string | null;
+  headline: string;
+  dek: string | null;
+  first_published_at: string | null;
+  published_at: string | null;
+}
+
+/**
+ * The newest published stories of a language, or of a language and section (the RSS feeds, Panel 3
+ * design §5): live, past any embargo, newest publication first. The reader policies are applied in
+ * the query and again on the rows, and only readers' columns are read.
+ */
+export async function listRecentPublished(language: StoryLanguage, section: string | null, limit: number, now: Date = new Date()): Promise<FeedStory[]> {
+  let query = supabase
+    .from("stories")
+    .select("id, public_id, language, section, slug, first_published_at, published_at, workflow_state, embargo_until, published_revision_id, revision:story_revisions!stories_published_revision_fk(id, story_id, headline, dek)")
+    .eq("workflow_state", "published")
+    .eq("language", language)
+    .or(`embargo_until.is.null,embargo_until.lte."${now.toISOString()}"`);
+  if (section !== null) query = query.eq("section", section);
+  const { data, error } = await query.order("first_published_at", { ascending: false }).limit(limit);
+  if (error) throw storeError(error);
+  type Row = Omit<FeedStory, "headline" | "dek"> & { workflow_state: string; embargo_until: string | null; published_revision_id: string | null; revision: { id: string; story_id: string; headline: string; dek: string | null } | null };
+  return ((data ?? []) as unknown as Row[])
+    .filter((row) => row.workflow_state === "published" && !embargoed(row.embargo_until, now) && row.language === language && (section === null || row.section === section))
+    .filter((row) => row.revision && row.revision.id === row.published_revision_id && row.revision.story_id === row.id)
+    .map((row) => ({
+      id: row.id,
+      public_id: row.public_id,
+      language: row.language,
+      section: row.section,
+      slug: row.slug,
+      headline: row.revision!.headline,
+      dek: row.revision!.dek,
+      first_published_at: row.first_published_at,
+      published_at: row.published_at,
+    }));
+}
+
 /** A reader's row as a story, or null when the reader policies would hide it (applied again here). */
 function readerStory(row: ReaderRow, now: Date): PublishedStory | null {
   if (row.workflow_state !== "published" || embargoed(row.embargo_until, now)) return null;

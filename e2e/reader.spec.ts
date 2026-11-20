@@ -121,3 +121,21 @@ test("the live feed answers 404 for a story that is not a live blog", async ({ r
     expect(res.headers()["cache-control"]).toBe("no-store");
   }
 });
+
+
+// Panel 3, M4: the RSS feeds. Read-only: they list published stories.
+test("the RSS feeds are RSS 2.0 XML, and the home page points to them", async ({ page, request }) => {
+  for (const path of ["/rss/en.xml", "/rss/hi.xml", "/rss/en/sports.xml"]) {
+    const res = await request.get(path);
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toBe("application/rss+xml; charset=utf-8");
+    const body = await res.text();
+    expect(body.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
+    expect(body).toContain('<rss version="2.0"');
+    expect(body.trim().endsWith("</rss>")).toBe(true);
+  }
+  expect((await request.get("/rss/fr.xml")).status()).toBe(404);
+  await page.goto("/");
+  await expect(page.locator('link[rel="alternate"][type="application/rss+xml"]')).toHaveCount(2);
+});
+

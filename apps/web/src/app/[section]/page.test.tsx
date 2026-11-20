@@ -35,6 +35,13 @@ test("its metadata: a title, a description, and a canonical link without the que
   expect(metadata.description).toMatch(/technology headlines/);
   expect(metadata.alternates?.canonical).toBe("/tech");
   expect(metadata.openGraph?.url).toBe("/tech");
+  // Panel 3, M4: the section's RSS feeds, in both languages.
+  expect(metadata.alternates?.types).toEqual({
+    "application/rss+xml": [
+      { url: "/rss/en/tech.xml", title: "TimesPrime: Technology" },
+      { url: "/rss/hi/tech.xml", title: "TimesPrime: तकनीक" },
+    ],
+  });
 });
 
 test("an unknown section is not found", async () => {

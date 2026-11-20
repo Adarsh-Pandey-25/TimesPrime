@@ -14,6 +14,7 @@ import {
   getPublishedStory,
   getPublishedStoriesByIds,
   hasCounterpart,
+  listRecentPublished,
   inScopes,
   listCredits,
   listDueScheduled,
@@ -291,6 +292,48 @@ describe("getPublishedStoriesByIds: the pinned row's read (Panel 3, M2)", () => 
   test("no ids: no read", async () => {
     expect(await getPublishedStoriesByIds([], NOW)).toEqual([]);
     expect(supabase.from).not.toHaveBeenCalled();
+  });
+});
+
+describe("listRecentPublished: the RSS feeds' read (Panel 3, M4)", () => {
+  const NOW = new Date("2026-11-20T10:00:00.000Z");
+  const row = (id: string, over: Record<string, unknown> = {}) => ({
+    id, public_id: 5, language: "en", section: "sports", slug: "final", first_published_at: "2026-11-20T08:00:00Z", published_at: "2026-11-20T08:00:00Z",
+    workflow_state: "published", embargo_until: null, published_revision_id: `r-${id}`, revision: { id: `r-${id}`, story_id: id, headline: `Headline ${id}`, dek: null }, ...over,
+  });
+
+  test("live stories of the language and section, newest publication first, readers' columns only", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    supabase.from.mockReturnValue(query({ data: [row("a")], error: null }, calls));
+    expect(await listRecentPublished("en", "sports", 50, NOW)).toEqual([
+      { id: "a", public_id: 5, language: "en", section: "sports", slug: "final", headline: "Headline a", dek: null, first_published_at: "2026-11-20T08:00:00Z", published_at: "2026-11-20T08:00:00Z" },
+    ]);
+    expect(String(calls.find(([m]) => m === "select")![1][0])).not.toMatch(/created_by|editor_id|approved_by/);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        ["eq", ["workflow_state", "published"]],
+        ["eq", ["language", "en"]],
+        ["eq", ["section", "sports"]],
+        ["or", ['embargo_until.is.null,embargo_until.lte."2026-11-20T10:00:00.000Z"']],
+        ["order", ["first_published_at", { ascending: false }]],
+        ["limit", [50]],
+      ])
+    );
+  });
+
+  test("the rules again on the rows: not live, under embargo, another language or section, or another revision is left out", async () => {
+    const rows = [
+      row("a"),
+      row("b", { workflow_state: "unpublished" }),
+      row("c", { embargo_until: "2026-11-21T00:00:00Z" }),
+      row("d", { language: "hi" }),
+      row("e", { section: "india" }),
+      row("f", { published_revision_id: "r-other" }),
+    ];
+    supabase.from.mockReturnValue(query({ data: rows, error: null }, []));
+    expect((await listRecentPublished("en", "sports", 50, NOW)).map((s) => s.id)).toEqual(["a"]);
+    supabase.from.mockReturnValue(query({ data: rows, error: null }, []));
+    expect((await listRecentPublished("en", null, 50, NOW)).map((s) => s.id)).toEqual(["a", "e"]);
   });
 });
 
