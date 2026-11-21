@@ -4,6 +4,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import Header from "@/components/news/Header";
 import Footer from "@/components/news/Footer";
 import StoryArticle from "@timesprime/ui/StoryArticle";
+import { publicCorrections } from "@timesprime/server/repositories/corrections";
 import { getPublishedStory } from "@timesprime/server/repositories/stories";
 import { bylinePhotos, publishedImages } from "@timesprime/server/services/desk/storyImages";
 import { liveFeed } from "@timesprime/server/services/front/live";
@@ -92,6 +93,22 @@ async function readLiveFeed(story: PublishedStory): Promise<LiveFeed> {
   }
 }
 
+/**
+ * Every correction of the story, oldest first (Panel 7, M2). A story with no correction note has none,
+ * so it is not read. Without compliance-2, or when the read fails, the page shows the one note.
+ */
+async function readCorrections(story: PublishedStory): Promise<PublishedStory["corrections"]> {
+  if (!story.correction_note) return undefined;
+  try {
+    const list = await publicCorrections({ storyId: story.id, limit: 100 });
+    return list ? list.map(({ id, kind, text, published_at }) => ({ id, kind, text, published_at })).reverse() : undefined;
+  } catch (err) {
+    console.error("Corrections read failed:", err);
+    reportFallback("corrections_unavailable", { story: story.public_id });
+    return undefined;
+  }
+}
+
 export async function renderStoryPage(language: StoryPageLanguage, { params }: StoryPageProps) {
   const { section, story: segment } = await params;
   const [{ story, redirectTo }, headlines] = await Promise.all([resolveStory(language, section, segment), menuHeadlines()]);
@@ -100,13 +117,18 @@ export async function renderStoryPage(language: StoryPageLanguage, { params }: S
   // The published revision's images and the authors' photos, with their renditions (design §7,
   // desk-8): only what readers may see.
   const live = story.format === "live_blog";
-  const [images, photos, feed] = await Promise.all([publishedImages(story), bylinePhotos(story), live ? readLiveFeed(story) : Promise.resolve(null)]);
+  const [images, photos, feed, corrections] = await Promise.all([
+    publishedImages(story),
+    bylinePhotos(story),
+    live ? readLiveFeed(story) : Promise.resolve(null),
+    readCorrections(story),
+  ]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#1a1c1e] text-slate-900 dark:text-slate-100 transition-colors duration-200">
       <Header articles={headlines} activeCategory={story.section} />
       <main className="flex-1">
-        <StoryArticle story={{ ...story, images, photos }} />
+        <StoryArticle story={{ ...story, images, photos, corrections }} />
         {/* A live blog's updates, under its intro (Panel 3, M3), and its search-engine markup. */}
         {feed && (
           <>

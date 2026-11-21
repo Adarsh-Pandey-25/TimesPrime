@@ -13,6 +13,7 @@ import { ThemeProvider } from "@timesprime/ui/ThemeContext";
 import { FeedbackProvider } from "../ui/Feedback";
 import ComplianceScreen from "./ComplianceScreen";
 import GrievanceDetail from "./GrievanceDetail";
+import CorrectionsLog from "./CorrectionsLog";
 
 const staffMe = (permissions: Record<string, "act" | "read" | "ask">, role = "grievance_officer") => ({
   kind: "staff",
@@ -239,5 +240,68 @@ describe("one grievance", () => {
     await act(async () => void render(<GrievanceDetail id="g-9" />));
     expect(screen.getAllByRole("alert").at(-1)).toHaveTextContent("Grievance not found.");
     expect(screen.getAllByRole("link", { name: "← Compliance" }).at(-1)).toHaveAttribute("href", "/admin/compliance");
+  });
+});
+
+// ---- M2: the corrections log, and a grievance's corrections ------------------------------------
+
+describe("the corrections log (M2)", () => {
+  const LOG_ROW = {
+    id: "c-1", story_id: "s-1", language: "hi", kind: "clarification", text: "मतदान सोमवार को हुआ था।", headline: "संसद में बजट पास",
+    published_at: "2026-11-21T06:00:00Z", published_by_name: "Meera", requested_by_name: "Ravi", ticket: "G-2026-00042",
+  };
+  const WITH_LOG = staffMe({ "grievance.handle": "act", "correction.publish": "read" });
+
+  test("for a holder of correction.publish: each correction's kind, story, text, who published and asked, and its grievance", async () => {
+    route = (url) => {
+      if (url === "/api/admin/me") return { status: 200, body: WITH_LOG };
+      if (url.startsWith("/api/admin/compliance/grievances?")) return queue({ grievances: [] });
+      if (url === "/api/admin/compliance/corrections") return { status: 200, body: { corrections: [LOG_ROW], applied: true, more: true } };
+      if (url.startsWith("/api/admin/compliance/corrections?before=")) return { status: 200, body: { corrections: [{ ...LOG_ROW, id: "c-0", ticket: null, requested_by_name: null }], applied: true, more: false } };
+    };
+    await show();
+    const log = screen.getByRole("list", { name: "Corrections, newest first" });
+    expect(within(log).getByText("Clarification")).toBeInTheDocument();
+    expect(within(log).getByRole("link", { name: "संसद में बजट पास" })).toHaveAttribute("href", "/admin/desk/s-1");
+    expect(within(log).getByText("Grievance G-2026-00042")).toBeInTheDocument();
+    expect(within(log).getByText("Published by Meera, asked for by Ravi")).toBeInTheDocument();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Older corrections" })));
+    expect(sent.some((s) => s.url === `/api/admin/compliance/corrections?before=${encodeURIComponent("2026-11-21T06:00:00Z")}`)).toBe(true);
+    expect(within(log).getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Older corrections" })).not.toBeInTheDocument();
+  });
+
+  test("before compliance-2 the log says it is waiting; empty, it says so; a failure has Try again", async () => {
+    let answer: Answer = { status: 200, body: { corrections: [], applied: false, more: false } };
+    route = (url) => {
+      if (url === "/api/admin/me") return { status: 200, body: staffMe({ "correction.publish": "read" }, "sub_editor") };
+      if (url === "/api/admin/compliance/corrections") return answer;
+    };
+    await show();
+    expect(screen.getByText(/compliance-2 is waiting to be applied/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Grievances" })).not.toBeInTheDocument();
+    answer = { status: 500, body: { error: "The Desk could not do this. Nothing was changed." } };
+    await act(async () => void render(wrap(<CorrectionsLog />)));
+    expect(screen.getAllByRole("alert").at(-1)).toHaveTextContent("The Desk could not do this.");
+    answer = { status: 200, body: { corrections: [], applied: true, more: false } };
+    await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Try again" }).at(-1) as HTMLElement));
+    expect(screen.getAllByText("No corrections yet.").length).toBeGreaterThan(0);
+  });
+
+  test("a grievance's page lists the corrections it caused", async () => {
+    route = (url) =>
+      url === "/api/admin/compliance/grievances/g-1"
+        ? {
+            status: 200,
+            body: {
+              grievance: GRIEVANCE, notes: [], story: null, may_handle: true, yours: false,
+              corrections: [{ id: "c-1", story_id: "s-1", kind: "correction", text: "स्कोर सुधार दिया गया।", headline: "भारत ने मैच जीता", published_at: "2026-11-22T06:00:00Z" }],
+            },
+          }
+        : undefined;
+    await act(async () => void render(wrap(<GrievanceDetail id="g-1" />)));
+    const section = screen.getByRole("region", { name: "Corrections it caused" });
+    expect(within(section).getByText("स्कोर सुधार दिया गया।")).toBeInTheDocument();
+    expect(within(section).getByRole("link", { name: "भारत ने मैच जीता" })).toHaveAttribute("href", "/admin/desk/s-1");
   });
 });

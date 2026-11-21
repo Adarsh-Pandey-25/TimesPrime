@@ -8,6 +8,8 @@
  */
 
 jest.mock("@timesprime/server/repositories/stories", () => ({ getPublishedStory: jest.fn() }));
+jest.mock("@timesprime/server/repositories/corrections", () => ({ publicCorrections: jest.fn() }));
+jest.mock("@timesprime/server/lib/reportFallback", () => ({ reportFallback: jest.fn() }));
 // The published revision's images (design §7); none unless a test gives some.
 jest.mock("@timesprime/server/services/desk/storyImages", () => ({ publishedImages: jest.fn(async () => ({})), bylinePhotos: jest.fn(async () => ({})) }));
 jest.mock("@timesprime/server/services/news/topHeadlines", () => ({
@@ -27,6 +29,7 @@ import HindiStoryPage, * as hindi from "../hi/[section]/[story]/page";
 
 const { getPublishedStory } = jest.requireMock("@timesprime/server/repositories/stories") as { getPublishedStory: jest.Mock };
 const { liveFeed } = jest.requireMock("@timesprime/server/services/front/live") as { liveFeed: jest.Mock };
+const { publicCorrections } = jest.requireMock("@timesprime/server/repositories/corrections") as { publicCorrections: jest.Mock };
 
 const story = (over: Partial<PublishedStory> = {}): PublishedStory => ({
   id: "s-1",
@@ -192,5 +195,42 @@ describe("a live blog (Panel 3, M3)", () => {
     const plain = renderToStaticMarkup(await EnglishStoryPage(props("india", "budget-passes-1024")));
     expect(liveFeed).not.toHaveBeenCalled();
     expect(plain).not.toContain("LiveBlogPosting");
+  });
+});
+
+// Panel 7, M2: a story's corrections come from the log, oldest first.
+describe("a story's corrections", () => {
+  const NOTE = "The vote was on Monday, not Tuesday.";
+  const LOG = [
+    { id: "c-2", kind: "clarification", text: NOTE, language: "en", published_at: "2026-11-19T06:00:00Z", story_live: true, headline: "Budget passes", section: "india", slug: "budget-passes", public_id: 1024 },
+    { id: "c-1", kind: "correction", text: "An earlier version gave the wrong count.", language: "en", published_at: "2026-11-18T06:00:00Z", story_live: true, headline: "Budget passes", section: "india", slug: "budget-passes", public_id: 1024 },
+  ];
+  beforeEach(() => {
+    publicCorrections.mockReset();
+    getPublishedStory.mockImplementation(async () => story({ correction_note: NOTE }));
+  });
+
+  test("read for a story with a correction note, and shown oldest first", async () => {
+    publicCorrections.mockResolvedValue(LOG);
+    const html = renderToStaticMarkup(await EnglishStoryPage(props("india", "budget-passes-1024")));
+    expect(publicCorrections).toHaveBeenCalledWith({ storyId: "s-1", limit: 100 });
+    expect(html).toContain(">Corrections</h2>");
+    expect(html.indexOf("wrong count")).toBeLessThan(html.indexOf("not Tuesday"));
+  });
+
+  test("not read for a story with no correction note", async () => {
+    getPublishedStory.mockImplementation(async () => story());
+    renderToStaticMarkup(await EnglishStoryPage(props("india", "budget-passes-1024")));
+    expect(publicCorrections).not.toHaveBeenCalled();
+  });
+
+  test("before compliance-2, or when the read fails, the one note shows", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    for (const answer of [() => publicCorrections.mockResolvedValue(null), () => publicCorrections.mockRejectedValue(new Error("down"))]) {
+      answer();
+      const html = renderToStaticMarkup(await EnglishStoryPage(props("india", "budget-passes-1024")));
+      expect(html).toContain(">Correction</h2>");
+      expect(html).toContain(NOTE);
+    }
   });
 });

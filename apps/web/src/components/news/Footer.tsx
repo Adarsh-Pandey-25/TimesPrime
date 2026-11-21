@@ -172,6 +172,9 @@ export default function Footer({ language: propsLang }: FooterProps) {
                 <Link href="/grievance" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
                   <span>›</span> {t.footer.grievance}
                 </Link>
+                <Link href="/corrections" className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors">
+                  <span>›</span> {t.footer.corrections}
+                </Link>
               </div>
             </div>
           </div>

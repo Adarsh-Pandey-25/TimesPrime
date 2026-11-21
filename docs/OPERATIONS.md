@@ -1575,6 +1575,46 @@ false, `readers_can_read_notes` false, `readers_can_send` true, `readers_can_ask
 `readers_can_decide` false, `app_can_decide` true, `grievances` 0 (the first three columns were off
 the screen's edge).
 
+### Panel 7: applying compliance-2
+
+For the owner, for the corrections log (Panel 7, M2). Against the real database, in the Supabase SQL
+editor, **after the PR is merged** (the new code and this file go together). No session applies SQL.
+Until it is applied, a story shows its one correction note, as before, and `/corrections` is empty.
+
+1. **Apply** `database/migrations/2026-11-21-compliance-2-corrections.sql`, whole. One transaction:
+   if it fails, nothing changed, and it is safe to run again. It copies every correction already
+   published into the log. **Check** (one query, one row):
+
+   ```sql
+   SELECT (SELECT rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tablename = 'corrections') AS rls_on,
+          has_table_privilege('service_role', 'public.corrections', 'UPDATE') AS app_can_change,
+          has_table_privilege('service_role', 'public.corrections', 'DELETE') AS app_can_delete,
+          has_table_privilege('anon', 'public.corrections', 'SELECT') AS readers_can_read_table,
+          has_function_privilege('anon', 'public.corrections_log(uuid,timestamptz,integer)', 'EXECUTE') AS readers_can_read_log,
+          has_function_privilege('anon', 'public.desk_correct(uuid,uuid,text,text,text,uuid)', 'EXECUTE') AS readers_can_correct,
+          has_function_privilege('service_role', 'public.desk_correct(uuid,uuid,text,text,text,uuid)', 'EXECUTE') AS app_can_correct,
+          (SELECT count(*) FROM public.corrections) =
+            (SELECT count(*) FROM public.workflow_transitions WHERE action = 'correct') AS every_correction_copied;
+   ```
+
+   | Column | Expect |
+   |---|---|
+   | `rls_on` | true |
+   | `app_can_change` | false |
+   | `app_can_delete` | false |
+   | `readers_can_read_table` | false |
+   | `readers_can_read_log` | true |
+   | `readers_can_correct` | false |
+   | `app_can_correct` | true |
+   | `every_correction_copied` | true |
+
+   If `every_correction_copied` is false, a correction was made by the old code between the merge
+   and this step: run the file again (it copies only what is missing) and check again.
+
+**Undo.** The rollback at the end of the file, before the first correction made through it, then
+`2026-11-17-desk-3-corrections.sql` again (it puts back desk-3's `desk_decide_pending`). After that
+the log is the public record and is kept.
+
 ### Panel 1: emergency access (break-glass)
 
 For the Super Admins (Panel 1, M3). For the night a court order or a serious error needs a story
@@ -2091,8 +2131,10 @@ phases were done:
     grievances, is built in two parts. The first, the back office's queue and compliance-1, is on
     `main` (PR #68), and the owner [applied compliance-1](#panel-7-applying-compliance-1) on 20 Nov
     2026. The second, the reader's form on `/grievance`, the status page and the dashboard's card,
-    is built on `panel-7-grievance-form`; it needs no SQL. The Grievance Officer's account (the role,
-    with no language) is the owner's step before grievances can be decided.
+    is on `main` (PR #69). The Grievance Officer's account (the role, with no language) is the
+    owner's step before grievances can be decided. **M2**, the corrections log, is built on
+    `panel-7-corrections`; after its merge the owner
+    [applies compliance-2](#panel-7-applying-compliance-2).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

@@ -141,6 +141,11 @@ export const ADMIN_ROUTE_RULES = {
   "/api/admin/compliance/grievances/[id]/decide": {
     POST: { permissions: ["grievance.handle"], mode: "act", target: "site" },
   },
+  // M2: the corrections log, read-only here (corrections are published on the Desk). Corrections are
+  // public, so every holder of correction.publish reads all of them, in any scope.
+  "/api/admin/compliance/corrections": {
+    GET: { permissions: ["correction.publish"], mode: "read", target: "none" },
+  },
   "/api/admin/db-stats": {
     GET: { permissions: ["stats.view"], mode: "read", target: "none" },
     // Both holders have A (two people); the approval flow is Panel 4, so this is refused (Q5).

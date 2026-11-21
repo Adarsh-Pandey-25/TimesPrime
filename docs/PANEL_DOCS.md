@@ -214,7 +214,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
 | 6 | Insights: read-only stats | Planned | — | — |
-| 7 | Compliance: grievances, corrections, legal orders, content records | **In progress:** [design](#panel-7-design-compliance-launch-minimum) approved 20 Nov 2026 (PR #67), started at the owner's request while the walk-through of Panels 1 to 3 is open; [M1](#panel-7-compliance) (grievances: the back office, PR #68, and the reader's form and status page) built, compliance-1 applied | — | — |
+| 7 | Compliance: grievances, corrections, legal orders, content records | **In progress:** [design](#panel-7-design-compliance-launch-minimum) approved 20 Nov 2026 (PR #67), started at the owner's request while the walk-through of Panels 1 to 3 is open; [M1](#panel-7-compliance) (grievances, PRs #68 and #69) built, compliance-1 applied; M2 (the corrections log) built, compliance-2 to apply | — | — |
 | 8 | Privacy & security: data-rights requests, incidents, audit viewer | Planned | — | — |
 | 9 | Commercial: only once ads or subscriptions exist | Planned | — | — |
 
@@ -1634,8 +1634,13 @@ Web push is not open here: decision 8 moved it after Panel 8's consent banner.
   post (PR #68, on `main`). compliance-1 was [applied](OPERATIONS.md#panel-7-applying-compliance-1)
   by the owner on 20 Nov 2026;
 - **M1, second part:** the reader's form on `/grievance`, the status page `/grievance/status`, their
-  two public routes, and the dashboard's grievance card (branch `panel-7-grievance-form`). It needs
-  no SQL. With it, M1 is complete.
+  two public routes, and the dashboard's grievance card (PR #69, on `main`). M1 is complete;
+- **M2:** the corrections log: compliance-2 (the `corrections` table, the Desk's two ways to correct
+  writing it, the earlier corrections copied in, the readers' `corrections_log`), every correction
+  under its story, `/corrections`, the kind and the grievance on the Desk's correction form, and the
+  log on the Compliance screen (branch `panel-7-corrections`). **compliance-2 is for the owner to
+  apply** ([runbook](OPERATIONS.md#panel-7-applying-compliance-2)); until then a story shows its one
+  correction note, as before, and `/corrections` is empty.
 
 Started while Panels 1 to 3 have open items (the design's §12).
 
@@ -1652,7 +1657,11 @@ Started while Panels 1 to 3 have open items (the design's §12).
   - the dashboard's grievance card (`/admin`): the open grievances and the late ones (M1);
   - `/grievance` (the form, beside the officer and the email) and `/grievance/status` (a
     grievance's status, `noindex`) on the reader site; `POST /api/grievances` and
-    `POST /api/grievances/status`, public (M1).
+    `POST /api/grievances/status`, public (M1);
+  - `/corrections` on the reader site, every correction newest first, linked from the footer, the
+    sitemap and each story's corrections (M2, public);
+  - `GET /api/admin/compliance/corrections`, the log on the Compliance screen (M2); and the Desk's
+    `POST /api/admin/desk/stories/[id]/correct`, which takes a kind and a grievance ticket (M2).
 - **Code (M1, first part):**
   - `packages/shared/src/config/grievances.ts` (the categories, outcomes, limits and clocks; the
     fields' check; the masked email) and `deskStoryNumberFrom` in `packages/shared/src/lib/storyUrl.ts`
@@ -1671,6 +1680,16 @@ Started while Panels 1 to 3 have open items (the design's §12).
     words in English and Hindi);
   - `apps/admin/src/components/compliance/GrievancesCard.tsx`, on the dashboard;
   - `apps/web/src/readerWrites.test.ts`, which allows the reader this one write.
+- **Code (M2):**
+  - `packages/shared/src/config/corrections.ts` (the kinds and their labels in English and Hindi);
+  - `packages/server/src/repositories/corrections.ts` (`desk_correct`, the readers' log, the back
+    office's reads), and the kind and grievance in `requestCorrection` (`repositories/stories.ts`);
+  - `apps/admin/src/app/api/admin/desk/stories/[id]/correct/route.ts` (the kind and the ticket),
+    `apps/admin/src/app/api/admin/compliance/corrections/route.ts`, and
+    `components/compliance/CorrectionsLog.tsx`; the Desk's form in `components/desk/StoryEditor.tsx`;
+  - `packages/ui/src/StoryArticle.tsx` (every correction under the story), `apps/web/src/app/_story/storyPage.tsx`
+    and `apps/web/src/app/corrections/page.tsx`;
+  - the SQL in `database/migrations/2026-11-21-compliance-2-corrections.sql`.
 
 #### Purpose
 
@@ -1684,7 +1703,9 @@ each stands against its clocks.
 |---|---|
 | Grievance Officer | Reads every grievance with the complainant's email; types in one received by email or post; acknowledges, takes, notes and decides each (`grievance.handle` F) |
 | Legal/Compliance | The same (`grievance.handle` F) |
-| Managing Editor | Reads the queue and each grievance, with the email masked; acts on none (`grievance.handle` R, decision 4) |
+| Managing Editor | Reads the queue and each grievance, with the email masked; acts on none (`grievance.handle` R, decision 4). Publishes corrections, with their kind and grievance (`correction.publish` F) |
+| Desk Editor | Publishes corrections in their desk, with their kind and grievance (`correction.publish` S, Panel 2) |
+| Sub-editor | Asks for a correction in their desk; a Desk Editor or the Managing Editor decides (`correction.publish` A, Panel 2) |
 
 #### Features and functionality
 
@@ -1719,6 +1740,19 @@ each stands against its clocks.
   the reply, in the reader's language. A wrong email answers as an unknown ticket does.
 - **The dashboard's card:** for holders of `grievance.handle`, how many grievances are open, past
   their 15 days, and (typed in) not acknowledged in 24 hours, with the way to the queue.
+- **The corrections log (M2):**
+  - **On the Desk:** a live story's correction (Panel 2) gains its kind (correction, clarification,
+    update, editor's note, retraction; decision 6) and, optionally, the ticket of the grievance that
+    caused it; an unknown ticket is refused. A Sub-editor's request carries both, and the decision
+    writes them.
+  - **Under the story:** every correction, oldest first, each with its kind and date in the
+    story's language, and a link to all corrections. Without compliance-2, the one correction note
+    shows, as before.
+  - **`/corrections`:** every correction, newest first, 30 to a page with "Older corrections": its
+    kind and date, its text, and the story's headline linked while the story is live. A withdrawn
+    story shows "A story we have withdrawn" instead of its headline.
+  - **On the Compliance screen:** the same log with who published each, who asked for it, and its
+    grievance's ticket; and on a grievance's page, the corrections it caused.
 - **Typing one in** ("Add a grievance"): how it arrived (email, post, another way), when (the clocks
   run from then; within the past year), its language, the complainant's name and email, its category,
   the story's address (a Desk story's address links the story, in any state), the text, and whether
@@ -1737,6 +1771,9 @@ each stands against its clocks.
 | `POST .../grievances/[id]/decide` | `grievance.handle`, act | Site-wide | — (the officer's own decision) | yes | `grievance.decide`, with the outcome, the reply and whether it was on time |
 | `POST /api/grievances` | none: public | Readers. The fields are checked first; then per address 3 an hour and 10 a day, and 500 a day across the site (decision 3; the database holds that cap too); a filled hidden field is refused. Through `grievance_submit` only | — | — | no row: the grievance is its own record; failures reach Sentry |
 | `POST /api/grievances/status` | none: public | Whoever has the ticket and the email; 20 an hour per address, counted before anything is read. Through `grievance_status` only | — | — | — |
+| `GET /api/admin/compliance/corrections` | `correction.publish`, read | Every holder (Managing Editor, Desk Editor, Sub-editor, Grievance Officer, Legal), every correction: they are public | — | yes | denials |
+| `POST /api/admin/desk/stories/[id]/correct` (Panel 2's, M2's additions) | `correction.publish`, act or ask | As in Panel 2; the ticket is looked up, and only whether it exists is learned | A for a Sub-editor (Panel 2) | yes | `story.correct` with the correction, its kind and ticket; `story.correct_request` with the kind and ticket |
+| `GET /corrections` | none: public | Readers, through `corrections_log` | — | — | — |
 
 - **Every audit row is site-wide** (no language or section, so a desk's `audit.read` does not reach
   it) and names the ticket, never the complainant's name or email (design §7).
@@ -1746,6 +1783,9 @@ each stands against its clocks.
   malformed request (a channel of `web`, an arrival in the future or over a year ago, a bad email,
   an unknown outcome, an empty or over-long note or reply, a bad ticket or filter); 404 for an
   unknown grievance. Nothing is written for any of them.
+- **Refusals, corrections (M2):** 400 for an unknown kind or a malformed ticket; 422
+  `unknown_ticket` for a ticket no grievance has; 409 for a story no longer live (also when it stops
+  being live meanwhile: the database refuses); 403 for a Writer on the log. Nothing is written for any.
 - **Refusals, the reader's routes:** each answer carries a `code` the page words in the reader's
   language: `invalid` (400: a field, the hidden field, not JSON; 413 over 16 KB), `too_many` (429,
   with `Retry-After`), `closed_today` (429: the site's 500 a day, the app's count or the
@@ -1757,6 +1797,7 @@ each stands against its clocks.
 | Migration file | What it does | Rollback | Applied by the owner |
 |---|---|---|---|
 | `database/migrations/2026-11-20-compliance-1-grievances.sql` | `grievances` and `grievance_notes`, and the ticket sequence. A grievance is history: never deleted; what was sent, when it arrived and its two clocks never change; an acknowledgement stands; a decision is final. The form's grievances are acknowledged on the spot; an officer's name who typed them in and who acknowledged them. Notes are append-only. `grievance_submit` (at most 500 a day from the form) and `grievance_status` are the readers' only access (decision 1); `grievance_enter`, `_acknowledge`, `_assign`, `_note` and `_decide` are the app's, each one transaction with the row locked. RLS on, no reader grant or policy on either table; the app has no `DELETE` | At the end of the file, before the first grievance | **Yes**, 20 Nov 2026 (the check's columns on the owner's screen: `readers_can_read` false, `readers_can_read_notes` false, `readers_can_send` true, `readers_can_ask` true, `readers_can_decide` false, `app_can_decide` true, `grievances` 0; the first three were off the screen's edge) |
+| `database/migrations/2026-11-21-compliance-2-corrections.sql` | `corrections`, which is history: never changed or deleted. Each row is one history row of the story (`transition_id`, unique), with its kind, text (600 characters), the live headline then, the grievance and who published it; `requested_by` names the Sub-editor who asked (the design's §2 called the second person `approved_by`: here `published_by` is whoever made it public). Every correction already published is copied in, as `correction`, once. `desk_correct` makes a correction in one transaction (the note, the history row, the log's row) on a live story only; `desk_decide_pending` (desk-3's) writes the log's row for an approved request with its kind and grievance. `corrections_log` is the readers' only access: newest first, at most 100, the story's headline and address only while it is live, no staff. RLS on, no reader grant or policy on the table; the app reads and adds only | At the end of the file, before the first correction made through it; then desk-3 again | **Not yet** |
 
 #### Tests and verification
 
@@ -1772,6 +1813,9 @@ each stands against its clocks.
 | `apps/web/src/components/grievance/grievance.test.tsx`, `app/grievance/page.test.tsx`, `app/grievance/status/page.test.tsx` | The form in English and Hindi, what it sends, the ticket and due date on success; the hints as descriptions; the status page's open and decided states, in Hindi too; the pages, `noindex` for the status page | Each refusal and failure worded by its code, the form kept |
 | `apps/web/src/readerWrites.test.ts` | No reader file reaches a write; the grievance form's route is the only file with `submitGrievance`, which calls only `grievance_submit` | The back office's grievance writes are named, so a reader file using one fails |
 | `packages/server/src/repositories/grievances.test.ts` ("the readers' two functions"), `apps/admin/src/app/admin/page.test.tsx` | `grievance_submit` and `grievance_status` with their fields; the dashboard's card and its counts | The database's cap as 429; no card without the permission; the card's failed read |
+| `apps/admin/src/app/api/admin/access.test.ts` ("corrections on a live story", "the corrections log in the back office") | A correction through `desk_correct` with its kind and the grievance a ticket names; a request with both in its payload; the log for every holder of `correction.publish`, with names and tickets, paged; a grievance's corrections | An unknown kind, a malformed or unknown ticket, the story no longer live, a Writer on the log; before compliance-2, an empty log that says so. Nothing written in any |
+| `packages/server/src/repositories/corrections.test.ts`, `complianceSchema.test.ts` (compliance-2), `packages/shared/src/config/corrections.test.ts`, `repositories/stories.test.ts` | `desk_correct` and `corrections_log` with their fields; the reads before compliance-2; compliance-2 as text (the history rule, the copy, the two functions, the readers' log without staff, the grants, the check and rollback); the kinds agree with the SQL | The database's refusals as 409, 422 and 500 |
+| `packages/ui/src/StoryArticle.test.tsx`, `apps/web/src/app/_story/storyPage.test.tsx`, `apps/web/src/app/corrections/page.test.tsx`, `apps/admin/src/components/compliance/compliance.test.tsx`, `components/desk/desk.test.tsx` | Every correction under its story, oldest first, in English and Hindi; read only for a story with a note; `/corrections` with its links, kinds, withdrawn stories and pages; the back office's log and a grievance's corrections; the Desk's kind and ticket | The one note before compliance-2 or on a failed read; an empty or failed log |
 | `e2e/reader.spec.ts` (read-only) | `/grievance` shows the form and the way to the status page; `/grievance/status` is `noindex`; an empty grievance is refused with 400, before any limit or the database | Nothing is sent: that would write |
 
 #### Known limits and not yet built
@@ -1785,8 +1829,10 @@ each stands against its clocks.
 - **Nothing is emailed** (decision 2): the officer replies from the grievance address by hand.
 - **"I'll handle this" assigns the caller only;** handing one to a named colleague is not built.
 - **The category is the complainant's own** and is not changed by the officer.
-- **M2 to M4** (the corrections log, the monthly report, legal orders and the content record) are
-  not started.
+- **A retraction** is published as a correction of the kind `retraction` while the story is live,
+  then the story is retracted on the Desk; the log keeps it, without the headline.
+- **The earlier corrections** are copied in as `correction`, without who asked for them.
+- **M3 and M4** (the monthly report, legal orders and the content record) are not started.
 
 ## Panel 0 design: the access foundation
 

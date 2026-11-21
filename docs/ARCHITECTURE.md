@@ -167,8 +167,8 @@ apps/
     src/app/               (feed)/ (home and saved, under the one loading file), [section]/ (R2),
                            article/[slug] (/article/{headline-slug}-{article_id}), _feed/ (the
                            feed's server component), the Desk's stories ([section]/[story] and
-                           hi/[section]/[story], through _story/), about, contact, grievance,
-                           privacy, terms; media/ (the Desk's images from the local folder, on a
+                           hi/[section]/[story], through _story/), about, contact, grievance (with
+                           grievance/status, Panel 7), corrections (Panel 7's log), privacy, terms; media/ (the Desk's images from the local folder, on a
                            laptop only; the server's come from CloudFront);
                            public APIs: /api/news/{top-headlines, breaking-news, check-new, pins},
                            /api/live/[publicId] (a live blog's feed); rss/ (the RSS feeds, Panel 3),
@@ -206,7 +206,7 @@ apps/
                            ActionMessage.tsx, an action's answer: a toast on success, a refusal inline),
                            and front/ (Panel 3's Front page screen: the pinned slots, then the banner),
                            and compliance/ (Panel 7's screens: the grievance queue with its clocks, one
-                           grievance, typing one in, and the dashboard's grievance card)
+                           grievance, typing one in, the dashboard's grievance card, and the corrections log)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes);
@@ -221,7 +221,8 @@ packages/
                            and its admin steps: making an account, a one-time link's token, removing factors),
                            frontPage.ts (Panel 3: the front page's pins), liveUpdates.ts (Panel 3: a live
                            blog's updates), grievances.ts (Panel 7: readers' grievances, their notes, and
-                           the officers' five database functions)
+                           the officers' five database functions), corrections.ts (Panel 7: the corrections
+                           log, desk_correct and the readers' corrections_log)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
                            publishing's rules, the scheduler, the image renditions with sharp, a story's images),
                            people (Panel 1: who may grant, renew, revoke or ask, reach.ts; the access review,
@@ -234,7 +235,7 @@ packages/
                            limits and key shapes; breakingNews.ts, frontPage.ts, liveBlog.ts and rss.ts: the
                            banner's languages, the pinned slots, a live blog's feed and the RSS feeds,
                            Panel 3; grievances.ts: a grievance's categories, outcomes, limits and clocks,
-                           Panel 7), types
+                           and corrections.ts: a correction's kinds, Panel 7), types
                            and lib (urlValidation, sentryScrub, whatsApp: the "Copy for WhatsApp" message;
                            href: what a link may point to; liveBody: what a live update may hold, Panel 3)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and

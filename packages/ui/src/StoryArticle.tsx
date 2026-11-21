@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { isImageUrl, isSrcSet, renderStory } from "@timesprime/editor/render";
 import { TRANSLATIONS } from "@timesprime/shared/config/translations";
+import { CORRECTION_KIND_LABELS, isCorrectionKind } from "@timesprime/shared/config/corrections";
 import { isSection } from "@timesprime/shared/config/sections";
 import type { PublishedStory, StoryImageData } from "@timesprime/shared/types";
 
@@ -10,8 +11,8 @@ import type { PublishedStory, StoryImageData } from "@timesprime/shared/types";
 // same view in the back office (owner decision 7), so an editor sees what readers will.
 
 const LABELS = {
-  en: { by: "By", and: "and", additional_reporting: "Additional reporting by", translated_by: "Translated by", published: "Published", updated: "Updated", correction: "Correction" },
-  hi: { by: "", and: "और", additional_reporting: "अतिरिक्त रिपोर्टिंग:", translated_by: "अनुवाद:", published: "प्रकाशित", updated: "अपडेट", correction: "सुधार" },
+  en: { by: "By", and: "and", additional_reporting: "Additional reporting by", translated_by: "Translated by", published: "Published", updated: "Updated", correction: "Correction", corrections: "Corrections", allCorrections: "All our corrections" },
+  hi: { by: "", and: "और", additional_reporting: "अतिरिक्त रिपोर्टिंग:", translated_by: "अनुवाद:", published: "प्रकाशित", updated: "अपडेट", correction: "सुधार", corrections: "सुधार", allCorrections: "हमारे सभी सुधार" },
 } as const;
 
 /** "A", "A and B", "A, B and C", in the story's language. */
@@ -110,11 +111,34 @@ export default function StoryArticle({ story, sectionLink = true }: { story: Pub
         </div>
       )}
 
-      {story.correction_note && (
-        <aside aria-labelledby="correction-heading" className="mt-8 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 dark:bg-amber-950/30">
-          <h2 id="correction-heading" className="text-sm font-bold uppercase tracking-wide">{labels.correction}</h2>
-          <p className="mt-1 text-sm">{story.correction_note}</p>
+      {/* Panel 7, M2: every correction, oldest first, each with its kind and date; before compliance-2,
+          the story's one correction note. */}
+      {story.corrections && story.corrections.length > 0 ? (
+        <aside aria-labelledby="correction-heading" className="mt-8 space-y-3 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 dark:bg-amber-950/30">
+          <h2 id="correction-heading" className="text-sm font-bold uppercase tracking-wide">{labels.corrections}</h2>
+          <ol className="space-y-3">
+            {story.corrections.map((c) => (
+              <li key={c.id} className="text-sm">
+                <p className="font-semibold">
+                  {isCorrectionKind(c.kind) ? CORRECTION_KIND_LABELS[c.kind][language] : labels.correction} · <time dateTime={c.published_at}>{when(c.published_at, language)}</time>
+                </p>
+                <p className="mt-0.5">{c.text}</p>
+              </li>
+            ))}
+          </ol>
+          <p className="text-xs">
+            <Link href="/corrections" className="underline">
+              {labels.allCorrections}
+            </Link>
+          </p>
         </aside>
+      ) : (
+        story.correction_note && (
+          <aside aria-labelledby="correction-heading" className="mt-8 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 dark:bg-amber-950/30">
+            <h2 id="correction-heading" className="text-sm font-bold uppercase tracking-wide">{labels.correction}</h2>
+            <p className="mt-1 text-sm">{story.correction_note}</p>
+          </aside>
+        )
       )}
     </article>
   );

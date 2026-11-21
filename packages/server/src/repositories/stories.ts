@@ -593,10 +593,19 @@ export async function requestRestore(storyId: string, requestedBy: string, reaso
  * Asks for a public correction note on a live story (the matrix's A: a Sub-editor). The note is the
  * request's payload, and its reason. A second open correction request for the story answers 409.
  */
-export async function requestCorrection(storyId: string, requestedBy: string, note: string): Promise<PendingRow> {
+export async function requestCorrection(
+  storyId: string,
+  requestedBy: string,
+  note: string,
+  extra: { kind: string; grievanceId: string | null } = { kind: "correction", grievanceId: null }
+): Promise<PendingRow> {
+  // Panel 7, M2: the kind and the grievance ride in the payload; desk_decide_pending (compliance-2)
+  // writes them to the corrections log when the request is approved.
+  const payload: Record<string, string> = { note, kind: extra.kind };
+  if (extra.grievanceId) payload.grievance_id = extra.grievanceId;
   const { data, error } = await supabase
     .from("pending_actions")
-    .insert({ story_id: storyId, action: "correction", requested_by: requestedBy, reason: note, payload: { note } })
+    .insert({ story_id: storyId, action: "correction", requested_by: requestedBy, reason: note, payload })
     .select("*")
     .single();
   if (error) throw storeError(error);

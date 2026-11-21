@@ -145,6 +145,7 @@ import * as grievanceAcknowledge from "./compliance/grievances/[id]/acknowledge/
 import * as grievanceAssign from "./compliance/grievances/[id]/assign/route";
 import * as grievanceNotes from "./compliance/grievances/[id]/notes/route";
 import * as grievanceDecide from "./compliance/grievances/[id]/decide/route";
+import * as correctionsLog from "./compliance/corrections/route";
 import { cache } from "@timesprime/server/lib/cache";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as {
@@ -789,18 +790,46 @@ describe("corrections on a live story (Panel 2 design §3)", () => {
   }
   const actions = () => (recordAudit as jest.Mock).mock.calls.map(([row]) => [row.action, row.outcome]);
 
-  test("a Desk Editor (S) publishes the note at once, through a move that keeps the story live", async () => {
-    const r = await call(CORRECT_CASE, { ...LIVE, "rpc:desk_transition": story({ workflow_state: "published", correction_note: NOTE }) }, { note: ` ${NOTE} ` }, HI_DESK);
+  // Panel 7, M2: one database function makes the note, its history row and the log's row together.
+  const CORRECTION_ROW = { id: "c-1", story_id: "s-1", language: "hi", kind: "correction", text: NOTE, headline: "Old", revision_id: "r-1", grievance_id: null, transition_id: 7, published_by: "u-1", requested_by: null, published_at: "2026-11-21T06:00:00Z" };
+  const CORRECTED = { "rpc:desk_correct": { data: CORRECTION_ROW, error: null } };
+
+  test("a Desk Editor (S) publishes the correction at once, through desk_correct, which keeps the story live", async () => {
+    const r = await call(CORRECT_CASE, { ...LIVE, ...CORRECTED }, { note: ` ${NOTE} ` }, HI_DESK);
     expect(r.status).toBe(200);
-    expect(supabase.rpc).toHaveBeenCalledWith(
-      "desk_transition",
-      expect.objectContaining({ p_action: "correct", p_from: "published", p_to: "published", p_reason: NOTE, p_fields: { correction_note: NOTE } })
-    );
+    expect(r.json).toMatchObject({ story: { correction_note: NOTE }, correction: { id: "c-1", kind: "correction" } });
+    expect(supabase.rpc).toHaveBeenCalledWith("desk_correct", {
+      p_story: "s-1", p_actor: "u-1", p_actor_label: "staff:u-1", p_kind: "correction", p_text: NOTE, p_grievance: null,
+    });
     expect(actions()).toEqual([
       ["story.correct", "attempted"],
       ["story.correct", "succeeded"],
     ]);
+    expect((recordAudit as jest.Mock).mock.calls[1][0].after).toMatchObject({ correction: "c-1", kind: "correction", grievance: null, correction_note: NOTE });
     expect(calls.some(([t]) => t === "pending_actions")).toBe(false);
+  });
+
+  test("Panel 7, M2: a kind, and a grievance named by its ticket (as typed), go with the correction", async () => {
+    const data = { ...LIVE, ...CORRECTED, grievances: { data: { id: "g-1" }, error: null } };
+    const r = await call(CORRECT_CASE, data, { note: NOTE, kind: "clarification", grievance: " g-2026-00042 " }, HI_DESK);
+    expect(r.status).toBe(200);
+    expect(calls).toContainEqual(["grievances", "eq", ["ticket", "G-2026-00042"]]);
+    expect(supabase.rpc).toHaveBeenCalledWith("desk_correct", expect.objectContaining({ p_kind: "clarification", p_grievance: "g-1" }));
+    expect((recordAudit as jest.Mock).mock.calls[1][0].after).toMatchObject({ grievance: "G-2026-00042" });
+  });
+
+  test("Panel 7, M2: an unknown kind or a malformed ticket is 400; a ticket no grievance has is 422; nothing is written", async () => {
+    expect((await call(CORRECT_CASE, LIVE, { note: NOTE, kind: "apology" }, HI_DESK)).status).toBe(400);
+    expect((await call(CORRECT_CASE, LIVE, { note: NOTE, grievance: "42" }, HI_DESK)).status).toBe(400);
+    expect((await call(CORRECT_CASE, LIVE, { note: NOTE, grievance: 42 }, HI_DESK)).status).toBe(400);
+    const unknown = await call(CORRECT_CASE, { ...LIVE, grievances: { data: null, error: null } }, { note: NOTE, grievance: "G-2026-00999" }, HI_DESK);
+    expect(unknown).toMatchObject({ status: 422, json: { code: "unknown_ticket" } });
+    expect(wrote()).toEqual([]);
+  });
+
+  test("Panel 7, M2: the story stopped being live meanwhile: the database's refusal is 409", async () => {
+    const raced = { ...LIVE, "rpc:desk_correct": { data: null, error: { code: "40001", message: "desk_correct: story s-1 is not published" } } };
+    expect((await call(CORRECT_CASE, raced, { note: NOTE }, HI_DESK)).status).toBe(409);
   });
 
   test("a Sub-editor (A) asks: a request with the note, for a second person to decide", async () => {
@@ -808,7 +837,7 @@ describe("corrections on a live story (Panel 2 design §3)", () => {
     expect(r.status).toBe(201);
     expect(r.json.request.id).toBe("p-2");
     const insert = calls.find(([t, m]) => t === "pending_actions" && m === "insert");
-    expect(insert?.[2][0]).toEqual({ story_id: "s-1", action: "correction", requested_by: "u-1", reason: NOTE, payload: { note: NOTE } });
+    expect(insert?.[2][0]).toEqual({ story_id: "s-1", action: "correction", requested_by: "u-1", reason: NOTE, payload: { note: NOTE, kind: "correction" } });
     expect(supabase.rpc).not.toHaveBeenCalled();
     expect(actions()).toEqual([
       ["story.correct_request", "attempted"],
@@ -2148,6 +2177,66 @@ describe("grievances (Panel 7 design §3, M1)", () => {
     const raced = await call(DECIDE, OFFICER, { ...DECIDE.data, "rpc:grievance_decide": { data: null, error: { code: "55000", message: "grievance_decide: grievance G-2026-00042 is decided" } } });
     expect(raced.status).toBe(409);
     expect(audits().map((r) => r.outcome)).toEqual(["attempted", "failed"]);
+  });
+});
+
+// ---- Panel 7, Compliance: the corrections log (design §4, M2) ----------------------------------
+
+const LOG_ROW = {
+  id: "c-1", story_id: "s-1", language: "hi", kind: "clarification", text: "The date was 12 May.", headline: "Old", revision_id: "r-1",
+  grievance_id: "g-1", transition_id: 7, published_by: "u-9", requested_by: "u-8", published_at: "2026-11-21T06:00:00Z",
+};
+const CORRECTIONS_LOG: Case = {
+  path: "/api/admin/compliance/corrections", method: "GET", handler: correctionsLog.GET, allowed: HI_SUB,
+  data: {
+    corrections: { data: [LOG_ROW], error: null },
+    staff_profiles: { data: [{ user_id: "u-9", display_name: "Meera" }, { user_id: "u-8", display_name: "Ravi" }], error: null },
+    grievances: { data: [{ id: "g-1", ticket: "G-2026-00042" }], error: null },
+  },
+  changes: false,
+};
+CASES.push(CORRECTIONS_LOG);
+
+describe("the corrections log in the back office (Panel 7 design §4, M2)", () => {
+  async function call(caller: Grantee, data: Case["data"], query = "") {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...CORRECTIONS_LOG, allowed: caller });
+    const res = await CORRECTIONS_LOG.handler(request({ ...CORRECTIONS_LOG, query }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+
+  test("every holder of correction.publish reads every correction, with who published, who asked, and the grievance's ticket", async () => {
+    for (const caller of [HI_SUB, OFFICER, EDITOR_IN_CHIEF, LEGAL]) {
+      const r = await call(caller, CORRECTIONS_LOG.data);
+      expect(r.status).toBe(200);
+      expect(r.json).toMatchObject({ applied: true, more: false });
+      expect(r.json.corrections[0]).toMatchObject({ id: "c-1", kind: "clarification", published_by_name: "Meera", requested_by_name: "Ravi", ticket: "G-2026-00042" });
+    }
+    expect(calls).toContainEqual(["corrections", "order", ["published_at", { ascending: false }]]);
+  });
+
+  test("a Writer (no correction.publish) is refused", async () => {
+    expect((await call(HI_WRITER, CORRECTIONS_LOG.data)).status).toBe(403);
+  });
+
+  test("?before= pages back; a malformed one is 400", async () => {
+    expect((await call(HI_SUB, CORRECTIONS_LOG.data, "?before=2026-11-21T06:00:00Z")).status).toBe(200);
+    expect(calls).toContainEqual(["corrections", "lt", ["published_at", "2026-11-21T06:00:00.000Z"]]);
+    expect((await call(HI_SUB, CORRECTIONS_LOG.data, "?before=yesterday")).status).toBe(400);
+  });
+
+  test("before compliance-2 is applied: an empty log that says so, not an error", async () => {
+    const r = await call(HI_SUB, { corrections: { data: null, error: { code: "42P01", message: "relation does not exist" } } });
+    expect(r).toMatchObject({ status: 200, json: { corrections: [], applied: false } });
+  });
+
+  test("a grievance's page lists the corrections it caused", async () => {
+    tables = { grievances: { data: GRIEVANCE_ROW, error: null }, grievance_notes: { data: [], error: null }, staff_profiles: { data: [], error: null }, corrections: { data: [LOG_ROW], error: null } };
+    const one = GRIEVANCE_CASES.find((c) => c.path === G && c.method === "GET") as Case;
+    signIn("allowed", { ...one, allowed: OFFICER });
+    const res = await one.handler(request(one));
+    expect((await res.json()).corrections).toEqual([{ id: "c-1", story_id: "s-1", kind: "clarification", text: "The date was 12 May.", headline: "Old", published_at: "2026-11-21T06:00:00Z" }]);
+    expect(calls).toContainEqual(["corrections", "eq", ["grievance_id", "g-1"]]);
   });
 });
 

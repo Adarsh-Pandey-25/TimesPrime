@@ -371,7 +371,18 @@ describe("requestCorrection: a Sub-editor's request (the matrix's A)", () => {
       action: "correction",
       requested_by: "u-3",
       reason: "An earlier version gave the wrong score.",
-      payload: { note: "An earlier version gave the wrong score." },
+      payload: { note: "An earlier version gave the wrong score.", kind: "correction" },
+    });
+  });
+
+  test("Panel 7, M2: the request carries the correction's kind and the grievance that caused it", async () => {
+    const calls: Array<[string, unknown[]]> = [];
+    supabase.from.mockReturnValue(query({ data: { id: "p-3" }, error: null }, calls));
+    await requestCorrection("s-1", "u-3", "We have clarified the date.", { kind: "clarification", grievanceId: "g-1" });
+    expect((calls.find(([m]) => m === "insert")?.[1][0] as { payload: unknown }).payload).toEqual({
+      note: "We have clarified the date.",
+      kind: "clarification",
+      grievance_id: "g-1",
     });
   });
 

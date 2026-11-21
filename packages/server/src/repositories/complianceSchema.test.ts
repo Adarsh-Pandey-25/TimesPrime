@@ -123,3 +123,80 @@ describe("compliance-1: grievances (M1)", () => {
     expect(sql).toContain("--   DROP SEQUENCE IF EXISTS public.grievance_tickets;");
   });
 });
+
+describe("compliance-2: the corrections log (M2)", () => {
+  const sql = read("2026-11-21-compliance-2-corrections.sql");
+  const code = codeOf(sql);
+  const fn = (name: string) => {
+    const start = code.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+    expect(start).toBeGreaterThan(-1);
+    return code.slice(start, code.indexOf("$$;", start));
+  };
+
+  test("one transaction, re-runnable: the copy of earlier corrections skips what it already copied", () => {
+    expect(code.match(/^BEGIN;$/gm)).toHaveLength(1);
+    expect(code.match(/^COMMIT;$/gm)).toHaveLength(1);
+    expect(code).toContain("CREATE TABLE IF NOT EXISTS public.corrections (");
+    for (const name of ["corrections_append_only", "corrections_no_truncate"]) {
+      expect(code.indexOf(`DROP TRIGGER IF EXISTS ${name} ON public.corrections;`)).toBeLessThan(code.indexOf(`CREATE TRIGGER ${name}`));
+    }
+    expect(code).toMatch(/FROM public\.workflow_transitions t[\s\S]*WHERE t\.action = 'correct'[\s\S]*ON CONFLICT \(transition_id\) DO NOTHING;/);
+  });
+
+  test("decision 6: five kinds, the text to 600 characters, one history row each, a request names who asked", () => {
+    expect(code).toContain("kind IN ('correction', 'clarification', 'update', 'editors_note', 'retraction')");
+    expect(code).toContain("char_length(text) <= 600");
+    expect(code).toContain("transition_id BIGINT NOT NULL UNIQUE REFERENCES public.workflow_transitions (id)");
+    expect(code).toContain("grievance_id UUID NULL REFERENCES public.grievances (id)");
+    expect(code).toContain("CHECK (requested_by IS NULL OR requested_by <> published_by)");
+  });
+
+  test("history: never changed, deleted or truncated", () => {
+    expect(code).toMatch(/BEFORE UPDATE OR DELETE ON public\.corrections\s+FOR EACH ROW EXECUTE FUNCTION public\.reject_change\(\);/);
+    expect(code).toMatch(/BEFORE TRUNCATE ON public\.corrections\s+FOR EACH STATEMENT EXECUTE FUNCTION public\.reject_change\(\);/);
+  });
+
+  test("desk_correct: only a live story; the note, its history row and the log's row in one transaction", () => {
+    const correct = fn("desk_correct");
+    expect(correct).toContain("WHERE id = p_story AND workflow_state = 'published'");
+    expect(correct).toMatch(/IF NOT FOUND THEN\s+RAISE EXCEPTION[^;]*ERRCODE = 'serialization_failure'/);
+    expect(correct).toContain("SET correction_note = v_text");
+    expect(correct).toMatch(/INSERT INTO public\.workflow_transitions[\s\S]*'correct', 'published', 'published'[\s\S]*RETURNING id INTO v_transition;/);
+    expect(correct).toMatch(/INSERT INTO public\.corrections[\s\S]*p_grievance, v_transition, p_actor\)/);
+  });
+
+  test("an approved request writes the log's row with its kind, grievance and who asked; a restore is unchanged", () => {
+    const decide = fn("desk_decide_pending");
+    expect(decide).toContain("v_kind := coalesce(a.payload ->> 'kind', 'correction');");
+    expect(decide).toContain("v_grievance := nullif(a.payload ->> 'grievance_id', '')::uuid;");
+    expect(decide).toMatch(/v_grievance, v_transition, p_decider, a\.requested_by\);/);
+    expect(decide).toContain("IF a.requested_by = p_decider THEN");
+    expect(decide).toContain("WHERE id = a.story_id AND workflow_state = 'unpublished' AND published_revision_id IS NOT NULL");
+  });
+
+  test("readers' log: one function, run as its owner; headline and address only while the story is live; no staff", () => {
+    const log = fn("corrections_log");
+    expect(log).toContain("SECURITY DEFINER SET search_path = ''");
+    expect(log).toContain("(s.workflow_state = 'published' AND (s.embargo_until IS NULL OR s.embargo_until <= now())) AS live");
+    for (const column of ["live_headline", "section", "slug", "public_id"]) expect(log).toContain(`CASE WHEN p.live THEN p.${column} END`);
+    expect(log).toContain("LIMIT least(greatest(coalesce(p_limit, 30), 1), 100)");
+    expect(log).not.toMatch(/published_by|requested_by|grievance_id/);
+    for (const name of ["desk_correct", "desk_decide_pending"]) expect(fn(name)).toContain("SECURITY INVOKER SET search_path = ''");
+  });
+
+  test("RLS on, no reader grant or policy on the table; the app reads and adds only; readers run the log alone", () => {
+    expect(code).toContain("ALTER TABLE public.corrections ENABLE ROW LEVEL SECURITY;");
+    expect(code).toContain("REVOKE ALL ON public.corrections FROM anon, authenticated, service_role;");
+    expect(code).toContain("GRANT SELECT, INSERT ON public.corrections TO service_role;");
+    expect(code).not.toMatch(/GRANT[^;]*(UPDATE|DELETE)[^;]*corrections/);
+    expect(code).not.toMatch(/CREATE POLICY/);
+    expect(code).toContain("GRANT EXECUTE ON FUNCTION public.corrections_log(UUID, TIMESTAMPTZ, INTEGER) TO anon, service_role;");
+    expect(code).toMatch(/GRANT EXECUTE ON FUNCTION\s+public\.desk_correct\(UUID, UUID, TEXT, TEXT, TEXT, UUID\),\s+public\.desk_decide_pending\(UUID, UUID, TEXT, TEXT, TEXT\)\s+TO service_role;/);
+  });
+
+  test("a check query and a rollback that drops the table and functions, and puts desk-3's function back", () => {
+    expect(sql).toContain("-- ---- Verify (one query; expect true, false, false, false, true, false, true, true)");
+    expect(sql).toContain("--   DROP TABLE IF EXISTS public.corrections;");
+    expect(sql).toContain("--   -- then run 2026-11-17-desk-3-corrections.sql whole.");
+  });
+});
