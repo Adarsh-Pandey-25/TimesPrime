@@ -146,6 +146,12 @@ export const ADMIN_ROUTE_RULES = {
   "/api/admin/compliance/corrections": {
     GET: { permissions: ["correction.publish"], mode: "read", target: "none" },
   },
+  // M3: the monthly grievance report. grievance.report is F for the Grievance Officer and Legal, who
+  // publish it, site-wide; R for the Managing Editor, who reads the draft and the published versions.
+  "/api/admin/compliance/reports": {
+    GET: { permissions: ["grievance.report"], mode: "read", target: "none" },
+    POST: { permissions: ["grievance.report"], mode: "act", target: "site" },
+  },
   "/api/admin/db-stats": {
     GET: { permissions: ["stats.view"], mode: "read", target: "none" },
     // Both holders have A (two people); the approval flow is Panel 4, so this is refused (Q5).

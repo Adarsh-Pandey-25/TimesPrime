@@ -60,6 +60,7 @@ test("the sitemap lists the site's own pages, on its origin; a trailing slash on
     "https://news.example/terms",
     "https://news.example/grievance",
     "https://news.example/corrections",
+    "https://news.example/grievance-report",
   ]);
 });
 

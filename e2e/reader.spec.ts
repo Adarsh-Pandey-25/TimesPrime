@@ -166,3 +166,11 @@ test("/corrections answers 200 with its heading, and the footer links it", async
   await expect(page.getByRole("heading", { level: 1, name: "Corrections" })).toBeVisible();
   await expect(page.locator('footer a[href="/corrections"]')).toHaveCount(1);
 });
+
+// Panel 7, M3: the monthly grievance reports.
+test("/grievance-report answers 200 with its heading; an address that is not a month is 404", async ({ page, request }) => {
+  const res = await page.goto("/grievance-report");
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { level: 1, name: "Monthly grievance reports" })).toBeVisible();
+  expect((await request.get("/grievance-report/november")).status()).toBe(404);
+});

@@ -146,6 +146,7 @@ import * as grievanceAssign from "./compliance/grievances/[id]/assign/route";
 import * as grievanceNotes from "./compliance/grievances/[id]/notes/route";
 import * as grievanceDecide from "./compliance/grievances/[id]/decide/route";
 import * as correctionsLog from "./compliance/corrections/route";
+import * as reports from "./compliance/reports/route";
 import { cache } from "@timesprime/server/lib/cache";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as {
@@ -2237,6 +2238,84 @@ describe("the corrections log in the back office (Panel 7 design §4, M2)", () =
     const res = await one.handler(request(one));
     expect((await res.json()).corrections).toEqual([{ id: "c-1", story_id: "s-1", kind: "clarification", text: "The date was 12 May.", headline: "Old", published_at: "2026-11-21T06:00:00Z" }]);
     expect(calls).toContainEqual(["corrections", "eq", ["grievance_id", "g-1"]]);
+  });
+});
+
+// ---- Panel 7, Compliance: the monthly report (design §5, M3) -----------------------------------
+
+const FIGURES = {
+  month: "2025-01", as_of: "2026-11-21T06:00:00Z",
+  received: { total: 4, by_category: { factual_error: 3, defamation_privacy: 1, obscene_harmful: 0, copyright: 0, other: 0 }, by_language: { en: 3, hi: 1 }, by_channel: { web: 4, email: 0, post: 0, other: 0 } },
+  decided: { total: 3, by_outcome: { upheld: 2, partly_upheld: 0, not_upheld: 1, outside_scope: 0, withdrawn: 0, duplicate: 0, spam: 0 }, within_15_days: 3, late: 0, median_days: 4.5 },
+  open: { total: 1, late: 0 },
+  corrections: { total: 2, by_kind: { correction: 2, clarification: 0, update: 0, editors_note: 0, retraction: 0 } },
+};
+const REPORT_ROW = { id: "rep-1", month: "2025-01-01", version: 1, figures: FIGURES, note: null, published_by: "u-9", published_at: "2025-02-05T06:00:00Z" };
+const R = "/api/admin/compliance/reports" as const;
+const REPORT_CASES: Case[] = [
+  {
+    path: R, method: "GET", handler: reports.GET, query: "?month=2025-01", allowed: EDITOR_IN_CHIEF,
+    data: { "rpc:grievance_month_figures": { data: FIGURES, error: null }, grievance_reports: { data: [], error: null }, staff_profiles: { data: [], error: null } }, changes: false,
+  },
+  {
+    path: R, method: "POST", handler: reports.POST, body: { month: "2025-01", note: " Three were about one story. " }, allowed: OFFICER, wrongScope: HI_OFFICER,
+    data: { "rpc:grievance_report_publish": { data: { ...REPORT_ROW, published_by: "u-1", note: "Three were about one story." }, error: null } }, changes: true,
+  },
+];
+CASES.push(...REPORT_CASES);
+
+describe("the monthly report (Panel 7 design §5, M3)", () => {
+  const [GET_CASE, POST_CASE] = REPORT_CASES;
+  async function call(c: Case, caller: Grantee, data: Case["data"], over: Partial<Case> = {}) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, ...over }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const rpcArgs = (fn: string) => calls.filter(([name]) => name === fn).map(([, , args]) => args[0]);
+
+  test("the draft for an ended month, its versions, when it was due; the Managing Editor (R) may not publish, the officer may", async () => {
+    const editor = await call(GET_CASE, EDITOR_IN_CHIEF, GET_CASE.data);
+    expect(editor.json).toMatchObject({ month: "2025-01", applied: true, draft: FIGURES, published: [], due_at: "2025-02-07T18:29:59.000Z", overdue: true, may_publish: false });
+    expect(editor.json.months).toHaveLength(12);
+    expect(rpcArgs("grievance_month_figures")).toEqual([{ p_month: "2025-01-01" }]);
+    const officer = await call(GET_CASE, OFFICER, { ...GET_CASE.data, grievance_reports: { data: [REPORT_ROW], error: null }, staff_profiles: { data: [{ user_id: "u-9", display_name: "Meera" }], error: null } });
+    expect(officer.json).toMatchObject({ may_publish: true, overdue: false, published: [{ version: 1, published_by_name: "Meera" }] });
+  });
+
+  test("with no month asked, last month; a month not ended, or not a month, is 400", async () => {
+    expect((await call(GET_CASE, OFFICER, GET_CASE.data, { query: "" })).status).toBe(200);
+    expect((await call(GET_CASE, OFFICER, GET_CASE.data, { query: "?month=2099-01" })).status).toBe(400);
+    expect((await call(GET_CASE, OFFICER, GET_CASE.data, { query: "?month=2025-13" })).status).toBe(400);
+  });
+
+  test("before compliance-3 is applied: no draft, and it says so", async () => {
+    const r = await call(GET_CASE, OFFICER, { "rpc:grievance_month_figures": { data: null, error: { code: "42883", message: "no function" } }, grievance_reports: { data: null, error: { code: "42P01", message: "no table" } } });
+    expect(r).toMatchObject({ status: 200, json: { applied: false, draft: null, published: [] } });
+  });
+
+  test("publishing: the database computes and stores the next version; audited with the totals, not the figures' detail", async () => {
+    const r = await call(POST_CASE, OFFICER, POST_CASE.data);
+    expect(r.status).toBe(201);
+    expect(rpcArgs("grievance_report_publish")).toEqual([{ p_month: "2025-01-01", p_actor: "u-1", p_note: "Three were about one story." }]);
+    const done = (recordAudit as jest.Mock).mock.calls.map(([row]) => row);
+    expect(done.map((row) => `${row.action}:${row.outcome}`)).toEqual(["grievance.report_publish:attempted", "grievance.report_publish:succeeded"]);
+    expect(done[1]).toMatchObject({ entity_type: "grievance_report", language: null, section: null, after: { month: "2025-01", version: 1, received: 4, decided: 3, open: 1 } });
+  });
+
+  test("refused, nothing written: the Managing Editor (R); a month not ended (409); not a month; a note too long", async () => {
+    expect((await call(POST_CASE, EDITOR_IN_CHIEF, POST_CASE.data)).status).toBe(403);
+    expect(await call(POST_CASE, OFFICER, POST_CASE.data, { body: { month: "2099-01" } })).toMatchObject({ status: 409, json: { code: "not_ended" } });
+    expect((await call(POST_CASE, OFFICER, POST_CASE.data, { body: { month: "Nov 2025" } })).status).toBe(400);
+    expect((await call(POST_CASE, OFFICER, POST_CASE.data, { body: { month: "2025-01", note: "x".repeat(1001) } })).status).toBe(400);
+    expect((await call(POST_CASE, OFFICER, POST_CASE.data, { body: { month: "2025-01", note: 5 } })).status).toBe(400);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("the database's own refusal (the month not ended by its clock) is 409, audited as failed", async () => {
+    const r = await call(POST_CASE, OFFICER, { "rpc:grievance_report_publish": { data: null, error: { code: "55000", message: "grievance_report_publish: 2025-01 has not ended yet" } } });
+    expect(r.status).toBe(409);
+    expect((recordAudit as jest.Mock).mock.calls.map(([row]) => row.outcome)).toEqual(["attempted", "failed"]);
   });
 });
 
