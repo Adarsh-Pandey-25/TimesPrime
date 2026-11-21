@@ -172,10 +172,13 @@ apps/
                            laptop only; the server's come from CloudFront);
                            public APIs: /api/news/{top-headlines, breaking-news, check-new, pins},
                            /api/live/[publicId] (a live blog's feed); rss/ (the RSS feeds, Panel 3),
+                           /api/grievances and /api/grievances/status (Panel 7: the grievance form and a
+                           grievance's status, the reader's one write, through grievance_submit),
                            /api/chat, /api/health
     src/components/        news/ (cards, masthead, footer, menu, ticker, banner), home/ (the feed and,
                            Panel 3, the pinned row), live/ (Panel 3: a live blog's updates and the
-                           page's check for new ones), article/,
+                           page's check for new ones), grievance/ (Panel 7: the form and the status
+                           lookup, in English and Hindi), article/,
                            chat/, seo/ (the JSON-LD script), ui/
     src/context/           LanguageContext
     src/lib/               bookmarks (saved articles, in the browser)
@@ -203,7 +206,7 @@ apps/
                            ActionMessage.tsx, an action's answer: a toast on success, a refusal inline),
                            and front/ (Panel 3's Front page screen: the pinned slots, then the banner),
                            and compliance/ (Panel 7's screens: the grievance queue with its clocks, one
-                           grievance, typing one in)
+                           grievance, typing one in, and the dashboard's grievance card)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes);

@@ -6,7 +6,7 @@
 jest.mock("@/components/news/Header", () => ({ __esModule: true, default: () => null }));
 jest.mock("@/components/news/Footer", () => ({ __esModule: true, default: () => null }));
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import GrievancePage, { metadata } from "./page";
 
 test("it names the officer, links the email and shows the office address", () => {
@@ -20,8 +20,18 @@ test("it names the officer, links the email and shows the office address", () =>
 
 test("it says a grievance is acknowledged within 24 hours and decided within 15 days", () => {
   render(<GrievancePage />);
-  expect(screen.getByText(/within 24 hours/)).toBeInTheDocument();
-  expect(screen.getByText(/within 15 days/)).toBeInTheDocument();
+  expect(screen.getByText(/acknowledge every grievance within 24 hours/)).toBeInTheDocument();
+  expect(screen.getByText(/decide on it within 15 days, and tell you the decision by email/)).toBeInTheDocument();
+});
+
+// Panel 7, M1: the form, and the way to a grievance's status; email stays the other way in.
+test("it offers the form, the status page, and still the email", () => {
+  render(<GrievancePage />);
+  const form = screen.getByRole("form", { name: "Send a grievance" });
+  for (const name of ["Your name", "Your email, for our reply", "Your grievance"]) expect(within(form).getByRole("textbox", { name })).toBeRequired();
+  expect(within(form).getByRole("combobox", { name: "What is it about?" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "check your grievance's status" })).toHaveAttribute("href", "/grievance/status");
+  expect(screen.getByRole("heading", { name: "Or by email" })).toBeInTheDocument();
 });
 
 test("it publishes no phone number", () => {

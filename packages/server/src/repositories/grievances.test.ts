@@ -15,11 +15,13 @@ import {
   decideGrievance,
   enterGrievance,
   grievanceError,
+  grievanceStatus,
   GrievanceStoreError,
   listGrievanceNotes,
   listGrievances,
   staffNames,
   storyIdByNumber,
+  submitGrievance,
 } from "./grievances";
 
 const { supabase } = jest.requireMock("../lib/supabase") as { supabase: { from: jest.Mock; rpc: jest.Mock } };
@@ -148,4 +150,28 @@ test("a story by its number: in any state for an officer, published only for the
   supabase.from.mockReturnValue(query({ data: null, error: null }, published));
   expect(await storyIdByNumber(12, true)).toBeNull();
   expect(published).toEqual(expect.arrayContaining([["eq", ["public_id", 12]], ["eq", ["workflow_state", "published"]]]));
+});
+
+describe("the readers' two functions (decision 1)", () => {
+  test("the form's grievance is grievance_submit, with its fields named and the story", async () => {
+    supabase.rpc.mockResolvedValue({ data: { ticket: "G-2026-00042", received_at: "2026-11-21T06:00:00Z", decide_due_at: "2026-12-06T06:00:00Z" }, error: null });
+    expect(await submitGrievance(FIELDS, "s-1")).toEqual({ ticket: "G-2026-00042", received_at: "2026-11-21T06:00:00Z", decide_due_at: "2026-12-06T06:00:00Z" });
+    expect(supabase.rpc.mock.calls).toEqual([
+      ["grievance_submit", { p_language: "en", p_name: "Asha", p_email: "asha@example.com", p_about_url: null, p_story: "s-1", p_category: "factual_error", p_body: "Wrong score." }],
+    ]);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  test("the form's daily cap in the database is a 429", async () => {
+    supabase.rpc.mockResolvedValue({ data: null, error: { code: "54000", message: "grievance_submit: the form takes at most 500 grievances a day" } });
+    await expect(submitGrievance(FIELDS, null)).rejects.toMatchObject({ status: 429 });
+  });
+
+  test("a status is grievance_status, null for a pair that matches nothing", async () => {
+    supabase.rpc.mockResolvedValueOnce({ data: { ticket: "G-2026-00042", state: "open" }, error: null });
+    expect(await grievanceStatus("G-2026-00042", "asha@example.com")).toMatchObject({ state: "open" });
+    supabase.rpc.mockResolvedValueOnce({ data: null, error: null });
+    expect(await grievanceStatus("G-2026-00042", "other@example.com")).toBeNull();
+    expect(supabase.rpc.mock.calls[0]).toEqual(["grievance_status", { p_ticket: "G-2026-00042", p_email: "asha@example.com" }]);
+  });
 });

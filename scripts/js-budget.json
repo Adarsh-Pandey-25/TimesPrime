@@ -7,6 +7,7 @@
     "/article/[slug]/page": 766976,
     "/contact/page": 723968,
     "/grievance/page": 718848,
+    "/grievance/status/page": 722944,
     "/(feed)/page": 750592,
     "/[section]/page": 745472,
     "/[section]/[story]/page": 711680,

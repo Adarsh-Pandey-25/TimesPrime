@@ -139,3 +139,22 @@ test("the RSS feeds are RSS 2.0 XML, and the home page points to them", async ({
   await expect(page.locator('link[rel="alternate"][type="application/rss+xml"]')).toHaveCount(2);
 });
 
+
+// Panel 7, M1: the grievance form and the status page. Read-only: nothing is sent, as sending writes.
+test("the grievance page offers the form and the status page; a partial grievance is refused before anything is written", async ({ page, request }) => {
+  await page.goto("/grievance");
+  const form = page.getByRole("form", { name: "Send a grievance" });
+  await expect(form.getByRole("textbox", { name: "Your name" })).toBeVisible();
+  await expect(form.getByRole("button", { name: "Send the grievance" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "check your grievance's status" })).toHaveAttribute("href", "/grievance/status");
+
+  await page.goto("/grievance/status");
+  await expect(page.getByRole("heading", { level: 1, name: "Grievance status" })).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+
+  // An empty body fails the fields' check, which runs before the rate limit and the database.
+  const refused = await request.post("/api/grievances", { data: {} });
+  expect(refused.status()).toBe(400);
+  expect(refused.headers()["cache-control"]).toBe("no-store");
+  expect(await refused.json()).toMatchObject({ code: "invalid" });
+});

@@ -13,7 +13,7 @@ jest.mock("@/components/CategoryStatsCard", () => ({ __esModule: true, default: 
 jest.mock("@/components/SyncDashboard", () => ({ __esModule: true, default: () => "[SyncDashboard]" }));
 jest.mock("@/components/ActivityLog", () => ({ __esModule: true, default: () => "[ActivityLog]" }));
 
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import AdminDashboardPage from "./page";
 import { ThemeProvider } from "@timesprime/ui/ThemeContext";
 
@@ -185,6 +185,28 @@ describe("what the dashboard shows depends on /api/admin/me (Panel 0)", () => {
     expect(screen.queryByRole("button", { name: SYNC })).toBeNull();
     expect(screen.queryByRole("button", { name: PURGE })).toBeNull();
     expect(screen.queryByRole("button", { name: /Publish Article/ })).toBeNull();
+  });
+
+  // Panel 7, M1: the open grievances and the late ones, for whoever holds grievance.handle.
+  test("a holder of grievance.handle sees the grievance card: the open and late counts, and the way to the queue", async () => {
+    answers["GET /api/admin/me"] = { status: 200, body: staffMe({ "grievance.handle": "read" }) };
+    answers["GET /api/admin/compliance/grievances?state=open"] = { status: 200, body: { grievances: [], counts: { open: 3, late: 1, ackLate: 0 }, may_handle: false } };
+    await renderDashboard();
+    const card = screen.getByRole("region", { name: "Grievances" });
+    expect(card).toHaveTextContent("3 open · 1 past their 15 days");
+    expect(within(card).getByRole("link", { name: /Open the grievances/ })).toHaveAttribute("href", "/admin/compliance");
+  });
+
+  test("the grievance card says when the count cannot be read", async () => {
+    answers["GET /api/admin/me"] = { status: 200, body: staffMe({ "grievance.handle": "act" }) };
+    answers["GET /api/admin/compliance/grievances?state=open"] = { status: 500, body: { error: "This could not be done. Nothing was changed." } };
+    await renderDashboard();
+    expect(within(screen.getByRole("region", { name: "Grievances" })).getByRole("alert")).toHaveTextContent("This could not be done.");
+  });
+
+  test("without grievance.handle there is no grievance card", async () => {
+    await renderDashboard();
+    expect(screen.queryByRole("region", { name: "Grievances" })).toBeNull();
   });
 
   test("without content.purge (every real role, until Panel 4) the purge button is hidden", async () => {
