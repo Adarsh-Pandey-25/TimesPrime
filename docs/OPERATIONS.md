@@ -1615,6 +1615,43 @@ Until it is applied, a story shows its one correction note, as before, and `/cor
 `2026-11-17-desk-3-corrections.sql` again (it puts back desk-3's `desk_decide_pending`). After that
 the log is the public record and is kept.
 
+**Applied** by the owner on 21 Nov 2026: true, false, false, false, true, false, true, true.
+
+### Panel 7: applying compliance-3
+
+For the owner, for the monthly grievance report (Panel 7, M3). Against the real database, in the
+Supabase SQL editor, after the PR is merged. No session applies SQL. Until it is applied, the
+Compliance screen says the report is waiting, and `/grievance-report` lists none.
+
+1. **Apply** `database/migrations/2026-11-21-compliance-3-reports.sql`, whole. One transaction: if it
+   fails, nothing changed, and it is safe to run again. **Check** (one query, one row):
+
+   ```sql
+   SELECT (SELECT rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tablename = 'grievance_reports') AS rls_on,
+          has_table_privilege('service_role', 'public.grievance_reports', 'UPDATE') AS app_can_change,
+          has_column_privilege('anon', 'public.grievance_reports', 'figures', 'SELECT') AS readers_see_figures,
+          has_column_privilege('anon', 'public.grievance_reports', 'published_by', 'SELECT') AS readers_see_who,
+          has_function_privilege('anon', 'public.grievance_report_publish(date,uuid,text)', 'EXECUTE') AS readers_can_publish,
+          has_function_privilege('service_role', 'public.grievance_report_publish(date,uuid,text)', 'EXECUTE') AS app_can_publish,
+          (SELECT count(*) FROM public.grievance_reports) AS reports;
+   ```
+
+   | Column | Expect |
+   |---|---|
+   | `rls_on` | true |
+   | `app_can_change` | false |
+   | `readers_see_figures` | true |
+   | `readers_see_who` | false |
+   | `readers_can_publish` | false |
+   | `app_can_publish` | true |
+   | `reports` | 0 |
+
+2. **Each month, by the 7th:** the Grievance Officer (or Legal) opens Compliance, checks last
+   month's figures, adds a note if one is needed, and publishes. The screen says when it is late.
+
+**Undo.** The rollback at the end of the file, before the first report. After that the reports are a
+public record and are kept.
+
 ### Panel 1: emergency access (break-glass)
 
 For the Super Admins (Panel 1, M3). For the night a court order or a serious error needs a story
@@ -2132,9 +2169,11 @@ phases were done:
     `main` (PR #68), and the owner [applied compliance-1](#panel-7-applying-compliance-1) on 20 Nov
     2026. The second, the reader's form on `/grievance`, the status page and the dashboard's card,
     is on `main` (PR #69). The Grievance Officer's account (the role, with no language) is the
-    owner's step before grievances can be decided. **M2**, the corrections log, is built on
-    `panel-7-corrections`; after its merge the owner
-    [applies compliance-2](#panel-7-applying-compliance-2).
+    owner's step before grievances can be decided (the owner chose a separate account with its own
+    email, to make later). **M2**, the corrections log, is on `main` (PR #70), and the owner
+    [applied compliance-2](#panel-7-applying-compliance-2) on 21 Nov 2026. **M3**, the monthly
+    report, is built on `panel-7-monthly-report`; after its merge the owner
+    [applies compliance-3](#panel-7-applying-compliance-3).
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

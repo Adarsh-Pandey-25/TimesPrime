@@ -105,6 +105,10 @@ export default function GrievancePage() {
                   <Link href="/grievance/status" className="font-semibold text-red-600 dark:text-red-400 hover:underline">
                     check your grievance&apos;s status
                   </Link>
+                  . Each month we publish the{" "}
+                  <Link href="/grievance-report" className="font-semibold text-red-600 dark:text-red-400 hover:underline">
+                    grievances received and the action taken
+                  </Link>
                   .
                 </p>
                 <p>

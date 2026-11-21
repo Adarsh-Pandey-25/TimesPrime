@@ -200,3 +200,66 @@ describe("compliance-2: the corrections log (M2)", () => {
     expect(sql).toContain("--   -- then run 2026-11-17-desk-3-corrections.sql whole.");
   });
 });
+
+describe("compliance-3: the monthly report (M3)", () => {
+  const sql = read("2026-11-21-compliance-3-reports.sql");
+  const code = codeOf(sql);
+  const fn = (name: string) => {
+    const start = code.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+    expect(start).toBeGreaterThan(-1);
+    return code.slice(start, code.indexOf("$$;", start));
+  };
+
+  test("one transaction, re-runnable", () => {
+    expect(code.match(/^BEGIN;$/gm)).toHaveLength(1);
+    expect(code.match(/^COMMIT;$/gm)).toHaveLength(1);
+    expect(code).toContain("CREATE TABLE IF NOT EXISTS public.grievance_reports (");
+    for (const name of ["grievance_reports_append_only", "grievance_reports_no_truncate"]) {
+      expect(code.indexOf(`DROP TRIGGER IF EXISTS ${name} ON public.grievance_reports;`)).toBeLessThan(code.indexOf(`CREATE TRIGGER ${name}`));
+    }
+    expect(code.indexOf("DROP POLICY IF EXISTS grievance_reports_public")).toBeLessThan(code.indexOf("CREATE POLICY grievance_reports_public"));
+  });
+
+  test("a report is a month's first day and a version; one row per version; never changed or deleted", () => {
+    expect(code).toContain("CHECK (month = date_trunc('month', month)::date)");
+    expect(code).toContain("CONSTRAINT grievance_reports_month_version UNIQUE (month, version)");
+    expect(code).toMatch(/BEFORE UPDATE OR DELETE ON public\.grievance_reports\s+FOR EACH ROW EXECUTE FUNCTION public\.reject_change\(\);/);
+    expect(code).toMatch(/BEFORE TRUNCATE ON public\.grievance_reports\s+FOR EACH STATEMENT EXECUTE FUNCTION public\.reject_change\(\);/);
+  });
+
+  test("the figures: the month in India; every category, language, channel, outcome and kind; counts only", () => {
+    const figures = fn("grievance_month_figures");
+    expect(figures).toContain("(date_trunc('month', p_month)::timestamp AT TIME ZONE 'Asia/Kolkata') AS starts");
+    expect(figures).toContain("((date_trunc('month', p_month) + interval '1 month')::timestamp AT TIME ZONE 'Asia/Kolkata') AS ends");
+    expect(figures).toContain("ARRAY['factual_error', 'defamation_privacy', 'obscene_harmful', 'copyright', 'other']");
+    expect(figures).toContain("ARRAY['upheld', 'partly_upheld', 'not_upheld', 'outside_scope', 'withdrawn', 'duplicate', 'spam']");
+    expect(figures).toContain("ARRAY['correction', 'clarification', 'update', 'editors_note', 'retraction']");
+    expect(figures).toContain("g.decided_at <= g.decide_due_at");
+    expect(figures).toContain("percentile_cont(0.5)");
+    expect(figures).not.toMatch(/\bx\.(name|email|body|ticket|reply)\b/);
+  });
+
+  test("publishing: only an ended month, one at a time, the next version, figures computed in the same transaction", () => {
+    const publish = fn("grievance_report_publish");
+    expect(publish).toMatch(/IF v_month >= date_trunc\('month', now\(\) AT TIME ZONE 'Asia\/Kolkata'\)::date THEN\s+RAISE EXCEPTION[^;]*ERRCODE = 'object_not_in_prerequisite_state'/);
+    expect(publish).toContain("PERFORM pg_advisory_xact_lock(hashtext('grievance_report:' || v_month::text));");
+    expect(publish).toContain("SELECT coalesce(max(x.version), 0) + 1 INTO v_version");
+    expect(publish).toContain("public.grievance_month_figures(v_month)");
+  });
+
+  test("RLS on; readers see every report without who published it; the app reads and publishes only; the functions are the app's", () => {
+    expect(code).toContain("ALTER TABLE public.grievance_reports ENABLE ROW LEVEL SECURITY;");
+    expect(code).toContain("REVOKE ALL ON public.grievance_reports FROM anon, authenticated, service_role;");
+    expect(code).toContain("GRANT SELECT, INSERT ON public.grievance_reports TO service_role;");
+    expect(code).toContain("GRANT SELECT (id, month, version, figures, note, published_at) ON public.grievance_reports TO anon, authenticated;");
+    expect(code).not.toMatch(/GRANT[^;]*(UPDATE|DELETE)[^;]*grievance_reports/);
+    expect(code).toMatch(/REVOKE ALL ON FUNCTION[\s\S]*?public\.grievance_report_publish\(DATE, UUID, TEXT\)\s+FROM PUBLIC, anon, authenticated;/);
+    expect(code).toMatch(/GRANT EXECUTE ON FUNCTION\s+public\.grievance_month_figures\(DATE\),\s+public\.grievance_report_publish\(DATE, UUID, TEXT\)\s+TO service_role;/);
+    for (const name of ["grievance_month_figures", "grievance_report_publish"]) expect(fn(name)).toContain("SECURITY INVOKER SET search_path = ''");
+  });
+
+  test("a check query and a rollback that drops the table and its functions", () => {
+    expect(sql).toContain("-- ---- Verify (one query; expect true, false, true, false, false, true, 0)");
+    expect(sql).toContain("--   DROP TABLE IF EXISTS public.grievance_reports;");
+  });
+});

@@ -14,6 +14,7 @@ import { FeedbackProvider } from "../ui/Feedback";
 import ComplianceScreen from "./ComplianceScreen";
 import GrievanceDetail from "./GrievanceDetail";
 import CorrectionsLog from "./CorrectionsLog";
+import MonthlyReport from "./MonthlyReport";
 
 const staffMe = (permissions: Record<string, "act" | "read" | "ask">, role = "grievance_officer") => ({
   kind: "staff",
@@ -303,5 +304,78 @@ describe("the corrections log (M2)", () => {
     const section = screen.getByRole("region", { name: "Corrections it caused" });
     expect(within(section).getByText("स्कोर सुधार दिया गया।")).toBeInTheDocument();
     expect(within(section).getByRole("link", { name: "भारत ने मैच जीता" })).toHaveAttribute("href", "/admin/desk/s-1");
+  });
+});
+
+// ---- M3: the monthly report ----------------------------------------------------------------------
+
+describe("the monthly report (M3)", () => {
+  const FIGS = {
+    month: "2026-10", as_of: "2026-11-21T06:00:00Z",
+    received: { total: 4, by_category: { factual_error: 4, defamation_privacy: 0, obscene_harmful: 0, copyright: 0, other: 0 }, by_language: { en: 4, hi: 0 }, by_channel: { web: 4, email: 0, post: 0, other: 0 } },
+    decided: { total: 3, by_outcome: { upheld: 3, partly_upheld: 0, not_upheld: 0, outside_scope: 0, withdrawn: 0, duplicate: 0, spam: 0 }, within_15_days: 3, late: 0, median_days: 2 },
+    open: { total: 1, late: 0 },
+    corrections: { total: 0, by_kind: { correction: 0, clarification: 0, update: 0, editors_note: 0, retraction: 0 } },
+  };
+  const view = (over: Record<string, unknown> = {}) => ({
+    status: 200,
+    body: { month: "2026-10", months: ["2026-10", "2026-09"], applied: true, draft: FIGS, published: [], due_at: "2026-11-07T18:29:59.000Z", overdue: true, may_publish: true, ...over },
+  });
+  const REPORTER = staffMe({ "grievance.report": "act" });
+
+  test("an officer sees the draft and when it was due, and publishes it after confirming, with a note", async () => {
+    let state = view();
+    route = (url, init) => {
+      if (url === "/api/admin/me") return { status: 200, body: REPORTER };
+      if (url.startsWith("/api/admin/compliance/reports") && init?.method === "POST") return { status: 201, body: { report: { id: "rep-1", version: 1 } } };
+      if (url.startsWith("/api/admin/compliance/reports")) return state;
+    };
+    await show();
+    expect(screen.getByRole("combobox", { name: "Month" })).toHaveValue("2026-10");
+    expect(screen.getByText(/^Not published: it was due/)).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Grievances received" })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: /A note readers see/ }), { target: { value: "All four were about one story." } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Publish" })));
+    const confirm = screen.getByRole("dialog");
+    expect(confirm).toHaveTextContent("Published figures never change");
+    state = view({ published: [{ id: "rep-1", version: 1, figures: FIGS, note: "All four were about one story.", published_at: "2026-11-21T06:00:00Z", published_by_name: "Asha" }], overdue: false });
+    await act(async () => fireEvent.click(within(confirm).getByRole("button", { name: "Publish" })));
+    expect(posted("/api/admin/compliance/reports")).toEqual([{ month: "2026-10", note: "All four were about one story." }]);
+    expect(screen.getByText("Published, version 1")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Published versions, newest first" })).getByText(/Version 1, .* by Asha/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Publish again (new version)" })).toBeInTheDocument();
+  });
+
+  test("another month asks the server again; the Managing Editor reads it and cannot publish", async () => {
+    route = (url) => {
+      if (url === "/api/admin/me") return { status: 200, body: staffMe({ "grievance.report": "read" }, "managing_editor") };
+      if (url.startsWith("/api/admin/compliance/reports")) return view({ may_publish: false, overdue: false });
+    };
+    await show();
+    expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
+    expect(screen.getByText(/The Grievance Officer and Legal publish it/)).toBeInTheDocument();
+    await act(async () => fireEvent.change(screen.getByRole("combobox", { name: "Month" }), { target: { value: "2026-09" } }));
+    expect(sent.some((s) => s.url === "/api/admin/compliance/reports?month=2026-09")).toBe(true);
+  });
+
+  test("before compliance-3 it says it is waiting; a refused publication stays on screen", async () => {
+    route = (url, init) => {
+      if (url === "/api/admin/me") return { status: 200, body: REPORTER };
+      if (url.startsWith("/api/admin/compliance/reports") && init?.method === "POST") return { status: 409, body: { error: "A month's report is published once the month has ended." } };
+      if (url.startsWith("/api/admin/compliance/reports")) return view({ applied: false, draft: null });
+    };
+    await show();
+    expect(screen.getByText(/compliance-3 is waiting to be applied/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
+
+    route = (url, init) => {
+      if (url === "/api/admin/me") return { status: 200, body: REPORTER };
+      if (url.startsWith("/api/admin/compliance/reports") && init?.method === "POST") return { status: 409, body: { error: "A month's report is published once the month has ended." } };
+      if (url.startsWith("/api/admin/compliance/reports")) return view();
+    };
+    await act(async () => void render(wrap(<MonthlyReport />)));
+    await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Publish" }).at(-1) as HTMLElement));
+    await act(async () => fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Publish" })));
+    expect(screen.getAllByRole("alert").at(-1)).toHaveTextContent("once the month has ended");
   });
 });
