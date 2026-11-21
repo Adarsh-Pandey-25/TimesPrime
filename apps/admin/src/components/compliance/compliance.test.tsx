@@ -15,6 +15,7 @@ import ComplianceScreen from "./ComplianceScreen";
 import GrievanceDetail from "./GrievanceDetail";
 import CorrectionsLog from "./CorrectionsLog";
 import MonthlyReport from "./MonthlyReport";
+import LegalOrderDetail from "./LegalOrderDetail";
 
 const staffMe = (permissions: Record<string, "act" | "read" | "ask">, role = "grievance_officer") => ({
   kind: "staff",
@@ -377,5 +378,87 @@ describe("the monthly report (M3)", () => {
     await act(async () => fireEvent.click(screen.getAllByRole("button", { name: "Publish" }).at(-1) as HTMLElement));
     await act(async () => fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Publish" })));
     expect(screen.getAllByRole("alert").at(-1)).toHaveTextContent("once the month has ended");
+  });
+});
+
+// ---- M4: the legal-orders register ---------------------------------------------------------------
+
+describe("the legal-orders register (M4)", () => {
+  const ORDER = {
+    id: "o-1", reference: "W.P.(C) 1234/2026", authority_type: "court", authority: "Delhi High Court", order_date: "2026-11-19", received_at: "2026-11-20T10:00:00Z",
+    received_via: "email", asks: ["remove_or_block"], summary: "Take down the story within 36 hours.", story_ids: ["s-1"], due_at: "2020-01-01T00:00:00Z", status: "open",
+    original_kept_at: "Legal's drive", created_by: "u-9", created_at: "2026-11-20T11:00:00Z", updated_by: null, updated_at: null, created_by_name: "Meera", updated_by_name: null,
+  };
+  const LEGAL_ME = staffMe({ "legal_order.manage": "act" }, "legal_compliance");
+
+  test("Legal sees the orders with their state and deadline, and adds one with what it asks", async () => {
+    route = (url, init) => {
+      if (url === "/api/admin/me") return { status: 200, body: LEGAL_ME };
+      if (url === "/api/admin/compliance/legal-orders" && init?.method === "POST") return { status: 201, body: { order: ORDER } };
+      if (url.startsWith("/api/admin/compliance/legal-orders?")) return { status: 200, body: { orders: [ORDER], applied: true, may_manage: true } };
+    };
+    await show();
+    const list = screen.getByRole("list", { name: "Legal orders" });
+    expect(within(list).getByRole("link", { name: "W.P.(C) 1234/2026" })).toHaveAttribute("href", "/admin/compliance/legal-orders/o-1");
+    expect(within(list).getByText("Open")).toBeInTheDocument();
+    expect(within(list).getByText(/^Late: due/)).toBeInTheDocument();
+    expect(within(list).getByText(/Delhi High Court · Remove or block content/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add an order" }));
+    const form = screen.getByRole("form", { name: "Add an order" });
+    expect(within(form).getByRole("button", { name: "Add the order" })).toBeDisabled();
+    fireEvent.change(within(form).getByRole("textbox", { name: "Its reference" }), { target: { value: "CR 9/2026" } });
+    fireEvent.change(within(form).getByRole("combobox", { name: "Who made it" }), { target: { value: "police" } });
+    fireEvent.change(within(form).getByRole("textbox", { name: "Its name" }), { target: { value: "Cyber Cell, Delhi" } });
+    fireEvent.change(within(form).getByLabelText(/When it reached us/), { target: { value: "2026-11-20T10:00" } });
+    fireEvent.click(within(form).getByRole("checkbox", { name: "Preserve records" }));
+    fireEvent.change(within(form).getByRole("textbox", { name: "What it says, in a few lines" }), { target: { value: "Keep the records of story 12." } });
+    fireEvent.change(within(form).getByRole("textbox", { name: "Where the original is kept" }), { target: { value: "Legal's drive" } });
+    fireEvent.change(within(form).getByRole("textbox", { name: /The stories it is about/ }), { target: { value: " /india/x-12 \n\n" } });
+    await act(async () => fireEvent.click(within(form).getByRole("button", { name: "Add the order" })));
+    expect(posted("/api/admin/compliance/legal-orders")).toEqual([
+      {
+        reference: "CR 9/2026", authority_type: "police", authority: "Cyber Cell, Delhi", order_date: null, received_at: new Date("2026-11-20T10:00").toISOString(),
+        received_via: "email", asks: ["preserve_records"], summary: "Keep the records of story 12.", due_at: null, original_kept_at: "Legal's drive", stories: ["/india/x-12"],
+      },
+    ]);
+    expect(screen.queryByRole("form", { name: "Add an order" })).not.toBeInTheDocument();
+  });
+
+  test("the Managing Editor reads it, with no Add; before compliance-4 it says so", async () => {
+    route = (url) => {
+      if (url === "/api/admin/me") return { status: 200, body: staffMe({ "legal_order.manage": "read" }, "managing_editor") };
+      if (url.startsWith("/api/admin/compliance/legal-orders?")) return { status: 200, body: { orders: [], applied: false, may_manage: false } };
+    };
+    await show();
+    expect(screen.getByText(/compliance-4 is waiting to be applied/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add an order" })).not.toBeInTheDocument();
+  });
+
+  test("one order: what it is, its story, its actions; Legal records an action, and closing is confirmed", async () => {
+    let detail = { order: ORDER, actions: [], stories: [{ id: "s-1", workflow_state: "unpublished", headline: "The story" }], may_manage: true };
+    route = (url, init) => {
+      if (url === "/api/admin/compliance/legal-orders/o-1" && !init?.method) return { status: 200, body: detail };
+      if (init?.method) return { status: init.method === "POST" ? 201 : 200, body: {} };
+    };
+    await act(async () => void render(wrap(<LegalOrderDetail id="o-1" />)));
+    expect(screen.getByRole("heading", { name: "W.P.(C) 1234/2026" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "The story" })).toHaveAttribute("href", "/admin/desk/s-1");
+    expect(screen.getByText("Take down the story within 36 hours.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing recorded yet.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "An action" }), { target: { value: "Took the story down." } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Record the action" })));
+    expect(posted("/api/admin/compliance/legal-orders/o-1/actions")).toEqual([{ body: "Took the story down." }]);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "State" }), { target: { value: "closed" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Save" })));
+    const confirm = screen.getByRole("dialog");
+    expect(confirm).toHaveTextContent("A closed order is final");
+    detail = { ...detail, order: { ...ORDER, status: "closed" } };
+    await act(async () => fireEvent.click(within(confirm).getByRole("button", { name: "Close it" })));
+    expect(sent.filter((s) => s.init?.method === "PATCH").map((s) => JSON.parse(String(s.init?.body)))).toEqual([{ status: "closed" }]);
+    expect(screen.getByText(/This order is closed: it is final/)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "State" })).not.toBeInTheDocument();
   });
 });

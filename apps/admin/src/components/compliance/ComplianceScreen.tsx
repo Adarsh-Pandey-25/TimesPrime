@@ -4,11 +4,12 @@ import { useAdminMe } from "../desk/deskClient";
 import { pageTitle } from "../ui/styles";
 import CorrectionsLog from "./CorrectionsLog";
 import GrievanceQueue from "./GrievanceQueue";
+import LegalOrders from "./LegalOrders";
 import MonthlyReport from "./MonthlyReport";
 
 // The Compliance screen (Panel 7 design §4): the duties that apply from the first public day. M1
-// brings the grievance queue, M2 the corrections log, M3 the monthly report; the legal-orders register
-// and the content record join them in M4. Each part shows for the permission its routes need;
+// brings the grievance queue, M2 the corrections log, M3 the monthly report, M4 the legal-orders
+// register (confidential: legal_order.manage only); the content record joins them in M4's second part. Each part shows for the permission its routes need;
 // hiding is UX, the server decides.
 
 export default function ComplianceScreen() {
@@ -17,6 +18,7 @@ export default function ComplianceScreen() {
   const canGrievances = held("grievance.handle");
   const canCorrections = held("correction.publish");
   const canReport = held("grievance.report");
+  const canOrders = held("legal_order.manage");
   const needsCode = me?.kind === "staff" && me.aal === "aal1" && me.mfa.required;
 
   return (
@@ -39,12 +41,13 @@ export default function ComplianceScreen() {
           Your account needs a second factor. <a href="/admin/login" className="underline">Finish signing in</a> with your authenticator code.
         </p>
       )}
-      {me && !needsCode && !canGrievances && !canCorrections && !canReport && (
+      {me && !needsCode && !canGrievances && !canCorrections && !canReport && !canOrders && (
         <p className="text-sm text-slate-600 dark:text-slate-300">Your roles do not include compliance. The Grievance Officer and Legal handle it.</p>
       )}
 
       {me && !needsCode && canGrievances && <GrievanceQueue />}
       {me && !needsCode && canReport && <MonthlyReport />}
+      {me && !needsCode && canOrders && <LegalOrders />}
       {me && !needsCode && canCorrections && <CorrectionsLog />}
     </div>
   );

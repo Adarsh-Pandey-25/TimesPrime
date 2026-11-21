@@ -32,10 +32,12 @@ test.describe("signed out", () => {
   });
 
   // Panel 7: the Compliance screens too.
-  test("/admin/compliance and a grievance's page redirect to the sign-in page", async ({ page }) => {
+  test("/admin/compliance, a grievance's page and a legal order's page redirect to the sign-in page", async ({ page }) => {
     await page.goto("/admin/compliance");
     await expect(page).toHaveURL(/\/admin\/login$/);
     await page.goto("/admin/compliance/grievances/00000000-0000-4000-8000-000000000001");
+    await expect(page).toHaveURL(/\/admin\/login$/);
+    await page.goto("/admin/compliance/legal-orders/00000000-0000-4000-8000-000000000001");
     await expect(page).toHaveURL(/\/admin\/login$/);
   });
 
@@ -100,6 +102,11 @@ test.describe("signed out", () => {
     ["GET", "/api/admin/compliance/corrections"],
     ["GET", "/api/admin/compliance/reports"],
     ["POST", "/api/admin/compliance/reports"],
+    ["GET", "/api/admin/compliance/legal-orders"],
+    ["POST", "/api/admin/compliance/legal-orders"],
+    ["GET", "/api/admin/compliance/legal-orders/00000000-0000-4000-8000-000000000001"],
+    ["PATCH", "/api/admin/compliance/legal-orders/00000000-0000-4000-8000-000000000001"],
+    ["POST", "/api/admin/compliance/legal-orders/00000000-0000-4000-8000-000000000001/actions"],
   ]) {
     test(`${method} ${path} answers 401 and changes nothing`, async ({ request }) => {
       const res = await request.fetch(path, { method, data: method === "POST" ? {} : undefined });

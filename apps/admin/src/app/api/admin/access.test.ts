@@ -147,6 +147,9 @@ import * as grievanceNotes from "./compliance/grievances/[id]/notes/route";
 import * as grievanceDecide from "./compliance/grievances/[id]/decide/route";
 import * as correctionsLog from "./compliance/corrections/route";
 import * as reports from "./compliance/reports/route";
+import * as legalOrders from "./compliance/legal-orders/route";
+import * as legalOrder from "./compliance/legal-orders/[id]/route";
+import * as legalOrderActions from "./compliance/legal-orders/[id]/actions/route";
 import { cache } from "@timesprime/server/lib/cache";
 
 const { supabase } = jest.requireMock("@timesprime/server/lib/supabase") as {
@@ -2316,6 +2319,114 @@ describe("the monthly report (Panel 7 design §5, M3)", () => {
     const r = await call(POST_CASE, OFFICER, { "rpc:grievance_report_publish": { data: null, error: { code: "55000", message: "grievance_report_publish: 2025-01 has not ended yet" } } });
     expect(r.status).toBe(409);
     expect((recordAudit as jest.Mock).mock.calls.map(([row]) => row.outcome)).toEqual(["attempted", "failed"]);
+  });
+});
+
+// ---- Panel 7, Compliance: the legal-orders register (design §3 and §4, M4) ----------------------
+
+const LEGAL_FULL: Grantee = { role: "legal_compliance", language: null };
+const HI_LEGAL: Grantee = { role: "legal_compliance", language: "hi" };
+const ORDER_ROW = {
+  id: "o-1", reference: "W.P.(C) 1234/2026", authority_type: "court", authority: "Delhi High Court", order_date: "2026-11-19", received_at: "2026-11-20T10:00:00Z",
+  received_via: "email", asks: ["remove_or_block"], summary: "Take down the story within 36 hours.", story_ids: [], due_at: "2026-11-22T10:00:00Z", status: "open",
+  original_kept_at: "Legal's drive", created_by: "u-9", created_at: "2026-11-20T11:00:00Z", updated_by: null, updated_at: null,
+};
+const ORDER_BODY = {
+  reference: "W.P.(C) 1234/2026", authority_type: "court", authority: "Delhi High Court", received_at: "2026-11-20T10:00:00Z", received_via: "email",
+  asks: ["remove_or_block"], summary: "Take down the story within 36 hours.", original_kept_at: "Legal's drive",
+};
+const O = "/api/admin/compliance/legal-orders/[id]" as const;
+const onOrder = (handler: DeskHandler) => withId(handler, { id: "o-1" });
+const anOrder = (row: Record<string, unknown> = ORDER_ROW) => ({ legal_orders: { data: row, error: null } });
+const ORDER_CASES: Case[] = [
+  { path: "/api/admin/compliance/legal-orders", method: "GET", handler: legalOrders.GET, allowed: EDITOR_IN_CHIEF, data: { legal_orders: { data: [ORDER_ROW], error: null } }, changes: false },
+  { path: "/api/admin/compliance/legal-orders", method: "POST", handler: legalOrders.POST, body: ORDER_BODY, allowed: LEGAL_FULL, wrongScope: HI_LEGAL, data: anOrder(), changes: true },
+  {
+    path: O, method: "GET", handler: onOrder(legalOrder.GET), allowed: EDITOR_IN_CHIEF,
+    data: { ...anOrder(), legal_order_actions: { data: [], error: null }, staff_profiles: { data: [], error: null } }, changes: false,
+  },
+  { path: O, method: "PATCH", handler: onOrder(legalOrder.PATCH), body: { status: "complied" }, allowed: LEGAL_FULL, wrongScope: HI_LEGAL, data: anOrder(), changes: true },
+  {
+    path: `${O}/actions`, method: "POST", handler: onOrder(legalOrderActions.POST), body: { body: "Took the story down; replied to the court." }, allowed: LEGAL_FULL, wrongScope: HI_LEGAL,
+    data: { ...anOrder(), legal_order_actions: { data: { id: "a-1", order_id: "o-1", body: "Took the story down; replied to the court.", author_id: "u-1", created_at: "2026-11-21T06:00:00Z" }, error: null } },
+    changes: true,
+  },
+];
+CASES.push(...ORDER_CASES);
+
+describe("the legal-orders register (Panel 7 design §3, M4)", () => {
+  const caseFor = (method: Method, path: string) => ORDER_CASES.find((c) => c.method === method && c.path === path) as Case;
+  const LIST = caseFor("GET", "/api/admin/compliance/legal-orders");
+  const ADD = caseFor("POST", "/api/admin/compliance/legal-orders");
+  const ONE = caseFor("GET", O);
+  const CHANGE = caseFor("PATCH", O);
+  const ACT = caseFor("POST", `${O}/actions`);
+  async function call(c: Case, caller: Grantee, data: Case["data"], over: Partial<Case> = {}) {
+    tables = { ...(data ?? {}) };
+    signIn("allowed", { ...c, allowed: caller });
+    const res = await c.handler(request({ ...c, ...over }));
+    return { status: res.status, json: await res.json().catch(() => null) };
+  }
+  const audits = () => (recordAudit as jest.Mock).mock.calls.map(([row]) => row);
+
+  test("confidential: Legal (F) acts, the Managing Editor (R) reads; the Grievance Officer, a Desk Editor and the Privacy Officer see nothing", async () => {
+    expect((await call(LIST, EDITOR_IN_CHIEF, LIST.data)).json).toMatchObject({ applied: true, may_manage: false, orders: [{ id: "o-1" }] });
+    expect((await call(LIST, LEGAL_FULL, LIST.data)).json).toMatchObject({ may_manage: true });
+    for (const caller of [OFFICER, HI_DESK, { role: "privacy_officer", language: null } as Grantee]) {
+      expect((await call(LIST, caller, LIST.data)).status).toBe(403);
+      expect((await call(ONE, caller, ONE.data)).status).toBe(403);
+    }
+    for (const c of [ADD, CHANGE, ACT]) expect((await call(c, EDITOR_IN_CHIEF, c.data)).status).toBe(403);
+    expect(wrote()).toEqual([]);
+  });
+
+  test("audit rows never carry what an order says: its id, status and deadline only, site-wide", async () => {
+    await call(ADD, LEGAL_FULL, ADD.data);
+    await call(CHANGE, LEGAL_FULL, CHANGE.data);
+    await call(ACT, LEGAL_FULL, ACT.data);
+    const rows = audits();
+    expect(rows.map((r) => `${r.action}:${r.outcome}`)).toEqual([
+      "legal_order.create:attempted", "legal_order.create:succeeded",
+      "legal_order.update:attempted", "legal_order.update:succeeded",
+      "legal_order.action:attempted", "legal_order.action:succeeded",
+    ]);
+    for (const row of rows) {
+      expect(row).toMatchObject({ entity_type: "legal_order", language: null, section: null });
+      expect(JSON.stringify(row)).not.toMatch(/36 hours|Delhi High Court|W\.P\.|replied to the court/);
+    }
+  });
+
+  test("entering one: its fields checked; story addresses become the Desk's stories, in any state; an unknown one is 422", async () => {
+    expect((await call(ADD, LEGAL_FULL, ADD.data, { body: { ...ORDER_BODY, asks: [] } })).status).toBe(400);
+    expect((await call(ADD, LEGAL_FULL, ADD.data, { body: { ...ORDER_BODY, received_at: "2099-01-01T00:00:00Z" } })).status).toBe(400);
+    const unknown = await call(ADD, LEGAL_FULL, { ...ADD.data, stories: { data: null, error: null } }, { body: { ...ORDER_BODY, stories: ["https://timesprime247.com/india/x-12"] } });
+    expect(unknown).toMatchObject({ status: 422, json: { code: "unknown_story" } });
+    expect(wrote()).toEqual([]);
+    const linked = await call(ADD, LEGAL_FULL, { ...ADD.data, stories: { data: { id: "s-1" }, error: null } }, { body: { ...ORDER_BODY, stories: ["/india/x-12"] } });
+    expect(linked.status).toBe(201);
+    expect(calls.find(([t, m]) => t === "legal_orders" && m === "insert")?.[2][0]).toMatchObject({ story_ids: ["s-1"], created_by: "u-1" });
+    expect(calls.filter(([t, m, a]) => t === "stories" && m === "eq" && a[0] === "workflow_state")).toEqual([]);
+  });
+
+  test("changing one: a listed state, a deadline or none; something to change; a closed order is 409", async () => {
+    expect((await call(CHANGE, LEGAL_FULL, CHANGE.data, { body: { status: "won" } })).status).toBe(400);
+    expect((await call(CHANGE, LEGAL_FULL, CHANGE.data, { body: { due_at: "soon" } })).status).toBe(400);
+    expect((await call(CHANGE, LEGAL_FULL, CHANGE.data, { body: {} })).status).toBe(400);
+    expect((await call(CHANGE, LEGAL_FULL, anOrder({ ...ORDER_ROW, status: "closed" }), { body: { status: "open" } })).status).toBe(409);
+    expect(wrote()).toEqual([]);
+    expect((await call(CHANGE, LEGAL_FULL, CHANGE.data, { body: { status: "closed", due_at: null } })).status).toBe(200);
+    expect(calls.find(([t, m]) => t === "legal_orders" && m === "update")?.[2][0]).toMatchObject({ status: "closed", due_at: null, updated_by: "u-1" });
+  });
+
+  test("an action is 1 to 2000 characters, also on a closed order; an unknown order is 404", async () => {
+    expect((await call(ACT, LEGAL_FULL, ACT.data, { body: { body: " " } })).status).toBe(400);
+    expect((await call(ACT, LEGAL_FULL, ACT.data, { body: { body: "x".repeat(2001) } })).status).toBe(400);
+    expect((await call(ACT, LEGAL_FULL, { ...ACT.data, ...anOrder({ ...ORDER_ROW, status: "closed" }) })).status).toBe(201);
+    expect((await call(ONE, LEGAL_FULL, { legal_orders: { data: null, error: null } })).status).toBe(404);
+  });
+
+  test("before compliance-4 is applied: an empty register that says so", async () => {
+    expect((await call(LIST, LEGAL_FULL, { legal_orders: { data: null, error: { code: "42P01", message: "no table" } } })).json).toMatchObject({ orders: [], applied: false });
   });
 });
 
