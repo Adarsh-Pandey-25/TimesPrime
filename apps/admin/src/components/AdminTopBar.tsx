@@ -36,12 +36,12 @@ export default function AdminTopBar() {
   // Panel 1: People is for holders of user.manage (a Super Admin asks, a Managing Editor acts).
   // Panel 3: the Front page for holders of homepage.curate or breaking_banner.manage.
   // Panel 7: Compliance for holders of grievance.handle (the Grievance Officer, Legal, the Managing
-  // Editor's read). UX only.
+  // Editor's read) or legal_order.manage. UX only.
   const holds = (permission: string) => me?.kind === "staff" && Boolean(me.permissions[permission]);
   const sections = SECTIONS.filter((s) => {
     if (s.href === "/admin/people") return holds("user.manage");
     if (s.href === "/admin/front-page") return holds("homepage.curate") || holds("breaking_banner.manage");
-    if (s.href === "/admin/compliance") return holds("grievance.handle");
+    if (s.href === "/admin/compliance") return holds("grievance.handle") || holds("legal_order.manage");
     return true;
   });
 

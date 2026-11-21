@@ -263,3 +263,62 @@ describe("compliance-3: the monthly report (M3)", () => {
     expect(sql).toContain("--   DROP TABLE IF EXISTS public.grievance_reports;");
   });
 });
+
+describe("compliance-4: the legal-orders register (M4)", () => {
+  const sql = read("2026-11-21-compliance-4-legal-orders.sql");
+  const code = codeOf(sql);
+  const fn = (name: string) => {
+    const start = code.indexOf(`CREATE OR REPLACE FUNCTION public.${name}(`);
+    expect(start).toBeGreaterThan(-1);
+    return code.slice(start, code.indexOf("$$;", start));
+  };
+
+  test("one transaction, re-runnable", () => {
+    expect(code.match(/^BEGIN;$/gm)).toHaveLength(1);
+    expect(code.match(/^COMMIT;$/gm)).toHaveLength(1);
+    for (const table of ["legal_orders", "legal_order_actions"]) expect(code).toContain(`CREATE TABLE IF NOT EXISTS public.${table} (`);
+    for (const [name, table] of [
+      ["legal_orders_guard", "legal_orders"],
+      ["legal_orders_no_truncate", "legal_orders"],
+      ["legal_order_actions_append_only", "legal_order_actions"],
+      ["legal_order_actions_no_truncate", "legal_order_actions"],
+    ]) {
+      expect(code.indexOf(`DROP TRIGGER IF EXISTS ${name} ON public.${table};`)).toBeLessThan(code.indexOf(`CREATE TRIGGER ${name}`));
+    }
+  });
+
+  test("an order: its kinds, what it asks (at least one), its state, where the original is kept (decision 8: no uploads)", () => {
+    expect(code).toContain("authority_type IN ('court', 'government', 'police', 'self_regulatory_body', 'other')");
+    expect(code).toContain("received_via IN ('email', 'post', 'portal', 'in_person', 'other')");
+    expect(code).toMatch(/cardinality\(asks\) >= 1\s+AND asks <@ ARRAY\['remove_or_block', 'preserve_records', 'give_information', 'publish_correction_or_apology', 'other'\]::TEXT\[\]/);
+    expect(code).toContain("status IN ('open', 'complied', 'partly_complied', 'challenged', 'closed')");
+    expect(code).toContain("original_kept_at TEXT NOT NULL");
+    expect(code).toContain("CHECK (received_at <= created_at)");
+  });
+
+  test("history: never deleted; what an order is never changes; a closed order is final; a change names who and when", () => {
+    const guard = fn("legal_orders_guard");
+    expect(guard).toMatch(/IF TG_OP = 'DELETE' THEN\s+RAISE EXCEPTION/);
+    expect(guard).toMatch(/IF OLD\.status = 'closed' THEN\s+RAISE EXCEPTION/);
+    for (const column of ["reference", "authority_type", "authority", "order_date", "received_at", "received_via", "asks", "summary", "created_by"]) expect(guard).toContain(`NEW.${column}`);
+    expect(guard).toMatch(/IF NEW\.updated_by IS NULL OR NEW\.updated_at IS NULL THEN\s+RAISE EXCEPTION/);
+    expect(code).toMatch(/BEFORE UPDATE OR DELETE ON public\.legal_order_actions\s+FOR EACH ROW EXECUTE FUNCTION public\.reject_change\(\);/);
+  });
+
+  test("confidential: RLS on, no grant and no policy for readers or the signed-in; the app has no DELETE", () => {
+    expect(code).toContain("ALTER TABLE public.legal_orders ENABLE ROW LEVEL SECURITY;");
+    expect(code).toContain("ALTER TABLE public.legal_order_actions ENABLE ROW LEVEL SECURITY;");
+    expect(code).toContain("REVOKE ALL ON public.legal_orders, public.legal_order_actions FROM anon, authenticated, service_role;");
+    expect(code).toContain("GRANT SELECT, INSERT, UPDATE ON public.legal_orders TO service_role;");
+    expect(code).toContain("GRANT SELECT, INSERT ON public.legal_order_actions TO service_role;");
+    expect(code).not.toMatch(/GRANT[^;]*\b(anon|authenticated)\b/);
+    expect(code).not.toMatch(/GRANT[^;]*DELETE/);
+    expect(code).not.toMatch(/CREATE POLICY/);
+  });
+
+  test("a check query and a rollback that drops both tables and the guard", () => {
+    expect(sql).toContain("-- ---- Verify (one query; expect true, true, false, false, false, 0)");
+    expect(sql).toContain("--   DROP TABLE IF EXISTS public.legal_orders;");
+    expect(sql).toContain("--   DROP TABLE IF EXISTS public.legal_order_actions;");
+  });
+});

@@ -191,7 +191,8 @@ apps/
                            opening a one-time link) and password/ (session-only: setting one's password);
                            front-page/ is Panel 3 (a page's pins, pinning, unpinning, the story picker);
                            compliance/ is Panel 7 (the grievance queue, one grievance, and typing one in,
-                           acknowledging, taking, a note and the decision)
+                           acknowledging, taking, a note and the decision; the corrections log; the monthly
+                           report; the legal-orders register)
     src/app/media/         the Desk's images from the local folder, on a laptop only (as in web)
     src/components/        the dashboard widgets, AdminTopBar, and desk/ (Panel 2's screens: the list
                            with its takedown alerts, a new story, the story editor with its revisions
@@ -208,7 +209,7 @@ apps/
                            and front/ (Panel 3's Front page screen: the pinned slots, then the banner),
                            and compliance/ (Panel 7's screens: the grievance queue with its clocks, one
                            grievance, typing one in, the dashboard's grievance card, the corrections log,
-                           and the monthly report)
+                           the monthly report, and the legal-orders register with an order's page)
   worker/                  scheduled jobs (plain Node + TypeScript via tsx, no Next.js)
     src/jobs.ts            the jobs by name: refresh-news; refresh-news-dry-run (R12-05, by hand);
                            publish-scheduled (Panel 2: the Desk's scheduled stories, every 5 minutes);
@@ -225,7 +226,8 @@ packages/
                            blog's updates), grievances.ts (Panel 7: readers' grievances, their notes, and
                            the officers' five database functions), corrections.ts (Panel 7: the corrections
                            log, desk_correct and the readers' corrections_log), grievanceReports.ts (Panel 7:
-                           the monthly report's figures, publishing, the published versions)
+                           the monthly report's figures, publishing, the published versions), legalOrders.ts
+                           (Panel 7: the confidential legal-orders register and its actions)
     src/services/          news (feed read path, breaking news, refresh), classify, health, desk (four-eyes,
                            publishing's rules, the scheduler, the image renditions with sharp, a story's images),
                            people (Panel 1: who may grant, renew, revoke or ask, reach.ts; the access review,
@@ -239,7 +241,7 @@ packages/
                            banner's languages, the pinned slots, a live blog's feed and the RSS feeds,
                            Panel 3; grievances.ts: a grievance's categories, outcomes, limits and clocks,
                            corrections.ts: a correction's kinds; grievanceReports.ts: the report's months and
-                           due day, Panel 7), types
+                           due day; legalOrders.ts: an order's kinds, asks and states, Panel 7), types
                            and lib (urlValidation, sentryScrub, whatsApp: the "Copy for WhatsApp" message;
                            href: what a link may point to; liveBody: what a live update may hold, Panel 3)
   ui/                      @timesprime/ui: React shared by both apps (ThemeContext; StoryArticle and

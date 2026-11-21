@@ -1652,6 +1652,41 @@ Compliance screen says the report is waiting, and `/grievance-report` lists none
 **Undo.** The rollback at the end of the file, before the first report. After that the reports are a
 public record and are kept.
 
+**Applied** by the owner on 21 Nov 2026: true, false, true, false, false, true, 0.
+
+### Panel 7: applying compliance-4
+
+For the owner, for the legal-orders register (Panel 7, M4). Against the real database, in the
+Supabase SQL editor, after the PR is merged. No session applies SQL. Until it is applied, the
+Compliance screen says the register is waiting.
+
+1. **Apply** `database/migrations/2026-11-21-compliance-4-legal-orders.sql`, whole. One transaction:
+   if it fails, nothing changed, and it is safe to run again. **Check** (one query, one row):
+
+   ```sql
+   SELECT (SELECT rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tablename = 'legal_orders') AS rls_on,
+          (SELECT rowsecurity FROM pg_tables WHERE schemaname = 'public' AND tablename = 'legal_order_actions') AS actions_rls_on,
+          has_table_privilege('service_role', 'public.legal_orders', 'DELETE') AS app_can_delete,
+          has_table_privilege('anon', 'public.legal_orders', 'SELECT') AS readers_can_read,
+          has_table_privilege('authenticated', 'public.legal_order_actions', 'SELECT') AS signed_in_can_read_actions,
+          (SELECT count(*) FROM public.legal_orders) AS orders;
+   ```
+
+   | Column | Expect |
+   |---|---|
+   | `rls_on` | true |
+   | `actions_rls_on` | true |
+   | `app_can_delete` | false |
+   | `readers_can_read` | false |
+   | `signed_in_can_read_actions` | false |
+   | `orders` | 0 |
+
+2. **Who keeps it:** Legal's account, with the Legal/Compliance role and no language (People). Until
+   then the Managing Editor can read the register, and nobody can enter an order.
+
+**Undo.** The rollback at the end of the file, before the first order. After that the register is a
+legal record and is kept.
+
 ### Panel 1: emergency access (break-glass)
 
 For the Super Admins (Panel 1, M3). For the night a court order or a serious error needs a story
@@ -2172,8 +2207,11 @@ phases were done:
     owner's step before grievances can be decided (the owner chose a separate account with its own
     email, to make later). **M2**, the corrections log, is on `main` (PR #70), and the owner
     [applied compliance-2](#panel-7-applying-compliance-2) on 21 Nov 2026. **M3**, the monthly
-    report, is built on `panel-7-monthly-report`; after its merge the owner
-    [applies compliance-3](#panel-7-applying-compliance-3).
+    report, is on `main` (PR #71), and the owner [applied compliance-3](#panel-7-applying-compliance-3)
+    on 21 Nov 2026. **M4** is built in two parts: the first, the confidential legal-orders register,
+    on `panel-7-legal-orders`; after its merge the owner
+    [applies compliance-4](#panel-7-applying-compliance-4). The second, the content record and its
+    export (compliance-5), comes next.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

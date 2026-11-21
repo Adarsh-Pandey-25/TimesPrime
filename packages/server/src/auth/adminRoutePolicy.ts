@@ -152,6 +152,19 @@ export const ADMIN_ROUTE_RULES = {
     GET: { permissions: ["grievance.report"], mode: "read", target: "none" },
     POST: { permissions: ["grievance.report"], mode: "act", target: "site" },
   },
+  // M4: the legal-orders register, confidential. legal_order.manage is F for Legal, who enters and
+  // updates orders site-wide; R for the Managing Editor, who reads them. Nobody else.
+  "/api/admin/compliance/legal-orders": {
+    GET: { permissions: ["legal_order.manage"], mode: "read", target: "none" },
+    POST: { permissions: ["legal_order.manage"], mode: "act", target: "site" },
+  },
+  "/api/admin/compliance/legal-orders/[id]": {
+    GET: { permissions: ["legal_order.manage"], mode: "read", target: "none" },
+    PATCH: { permissions: ["legal_order.manage"], mode: "act", target: "site" },
+  },
+  "/api/admin/compliance/legal-orders/[id]/actions": {
+    POST: { permissions: ["legal_order.manage"], mode: "act", target: "site" },
+  },
   "/api/admin/db-stats": {
     GET: { permissions: ["stats.view"], mode: "read", target: "none" },
     // Both holders have A (two people); the approval flow is Panel 4, so this is refused (Q5).
