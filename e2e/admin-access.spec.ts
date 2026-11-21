@@ -97,6 +97,7 @@ test.describe("signed out", () => {
     ["POST", "/api/admin/compliance/grievances/00000000-0000-4000-8000-000000000001/assign"],
     ["POST", "/api/admin/compliance/grievances/00000000-0000-4000-8000-000000000001/notes"],
     ["POST", "/api/admin/compliance/grievances/00000000-0000-4000-8000-000000000001/decide"],
+    ["GET", "/api/admin/compliance/corrections"],
   ]) {
     test(`${method} ${path} answers 401 and changes nothing`, async ({ request }) => {
       const res = await request.fetch(path, { method, data: method === "POST" ? {} : undefined });

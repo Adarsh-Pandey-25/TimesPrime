@@ -130,3 +130,31 @@ test("a photo whose address is not https or a site path is not drawn", () => {
   expect(html).not.toContain("<img");
   expect(html).not.toContain("javascript:");
 });
+
+// Panel 7, M2: every correction, from the log, oldest first; the one note before compliance-2.
+const CORRECTIONS = [
+  { id: "c-1", kind: "correction", text: "An earlier version gave the wrong vote count.", published_at: "2026-11-18T06:00:00Z" },
+  { id: "c-2", kind: "clarification", text: "The vote was on Monday, not Tuesday.", published_at: "2026-11-19T06:00:00Z" },
+];
+
+test("every correction is shown in order, each with its kind and date, with the way to all corrections", () => {
+  const out = html(story({ correction_note: CORRECTIONS[1].text, corrections: CORRECTIONS }));
+  expect(out).toContain(">Corrections</h2>");
+  expect(out.indexOf("wrong vote count")).toBeLessThan(out.indexOf("not Tuesday"));
+  expect(out).toMatch(/Clarification · <time dateTime="2026-11-19T06:00:00Z">/);
+  expect(out).toContain('href="/corrections"');
+  expect(out).toContain("All our corrections");
+});
+
+test("in Hindi, the kinds and the link are in Hindi", () => {
+  const out = html(story({ language: "hi", correction_note: "x", corrections: [{ ...CORRECTIONS[1], text: "मतदान सोमवार को हुआ था।" }] }));
+  expect(out).toContain("स्पष्टीकरण · <time");
+  expect(out).toContain("हमारे सभी सुधार");
+  expect(out).not.toContain("Clarification");
+});
+
+test("with no corrections from the log, the one correction note is shown as before", () => {
+  const out = html(story({ correction_note: "An earlier version gave the wrong vote count.", corrections: undefined }));
+  expect(out).toContain(">Correction</h2>");
+  expect(out).not.toContain('href="/corrections"');
+});

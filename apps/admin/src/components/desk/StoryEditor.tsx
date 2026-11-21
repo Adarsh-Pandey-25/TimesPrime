@@ -6,6 +6,7 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { Share2 } from "lucide-react";
 import { embedProvider, isAllowedHref, EMPTY_DOC } from "@timesprime/editor/schema";
 import { wordCount } from "@timesprime/editor/text";
+import { CORRECTION_KIND_LABELS, CORRECTION_KINDS, type CorrectionKind } from "@timesprime/shared/config/corrections";
 import { checklist, CORRECTION_NOTE_MAX, holdsDeskReview, move, PRE_PUBLISH_STATES, PUBLISH_TICK_MINUTES, TAKEDOWN_REASONS, type ChecklistProblem, type DeskAction, type StoryState } from "@timesprime/shared/config/desk";
 import { storyImageIds } from "@timesprime/shared/config/media";
 import { SITE_URL } from "@timesprime/shared/config/site";
@@ -202,6 +203,9 @@ export default function StoryEditor({ id }: { id: string }) {
   const [slug, setSlug] = useState("");
   const [embargo, setEmbargo] = useState("");
   const [correction, setCorrection] = useState("");
+  // Panel 7, M2: what the correction is (decision 6), and the grievance that caused it, by its ticket.
+  const [correctionKind, setCorrectionKind] = useState<CorrectionKind>("correction");
+  const [correctionTicket, setCorrectionTicket] = useState("");
 
   // The text fields follow the story's current revision, as the editor's body does (it is rebuilt
   // when that revision changes). A details change or a move adds no revision, so it leaves unsaved
@@ -415,7 +419,10 @@ export default function StoryEditor({ id }: { id: string }) {
   /** A live story's public correction note: published at once (S or F), or asked for (A). */
   async function publishCorrection() {
     setBusy(true);
-    const res = await deskCall(`/api/admin/desk/stories/${id}/correct`, { method: "POST", body: JSON.stringify({ note: correction }) });
+    const res = await deskCall(`/api/admin/desk/stories/${id}/correct`, {
+      method: "POST",
+      body: JSON.stringify({ note: correction, kind: correctionKind, grievance: correctionTicket.trim() || null }),
+    });
     setBusy(false);
     if (!res.ok) return say("side", { ok: false, text: res.error ?? "Not done." });
     say("side", {
@@ -423,6 +430,7 @@ export default function StoryEditor({ id }: { id: string }) {
       text: res.status === 201 ? "Correction requested. A Desk Editor or the Managing Editor decides it." : "Correction published. Readers see it under the story.",
     });
     setCorrection("");
+    setCorrectionTicket("");
     await load();
   }
 
@@ -681,8 +689,22 @@ export default function StoryEditor({ id }: { id: string }) {
               <p className="text-sm text-slate-500">No correction note on this story.</p>
             )}
             <label className={`${label} font-normal`}>
-              Correction note, shown to readers under the story
+              Kind
+              <select className={`${field} mt-1`} value={correctionKind} onChange={(e) => setCorrectionKind(e.target.value as CorrectionKind)}>
+                {CORRECTION_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {CORRECTION_KIND_LABELS[k].en}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={`${label} font-normal`}>
+              Correction note, shown to readers under the story and on /corrections
               <textarea className={`${field} mt-1`} rows={3} lang={story.language} maxLength={CORRECTION_NOTE_MAX} value={correction} onChange={(e) => setCorrection(e.target.value)} />
+            </label>
+            <label className={`${label} font-normal`}>
+              Grievance ticket, if a grievance caused it (optional)
+              <input className={`${field} mt-1`} value={correctionTicket} onChange={(e) => setCorrectionTicket(e.target.value)} placeholder="G-2026-00042" maxLength={20} />
             </label>
             <button type="button" className={buttonPrimary} disabled={busy || !correction.trim()} onClick={() => void publishCorrection()}>
               {canAct(me, "correction.publish") ? "Publish correction" : "Ask for a correction"}

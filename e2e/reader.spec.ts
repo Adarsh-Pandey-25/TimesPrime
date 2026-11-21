@@ -158,3 +158,11 @@ test("the grievance page offers the form and the status page; a partial grievanc
   expect(refused.headers()["cache-control"]).toBe("no-store");
   expect(await refused.json()).toMatchObject({ code: "invalid" });
 });
+
+// Panel 7, M2: the corrections log, and the footer's way to it.
+test("/corrections answers 200 with its heading, and the footer links it", async ({ page }) => {
+  const res = await page.goto("/corrections");
+  expect(res?.status()).toBe(200);
+  await expect(page.getByRole("heading", { level: 1, name: "Corrections" })).toBeVisible();
+  await expect(page.locator('footer a[href="/corrections"]')).toHaveCount(1);
+});

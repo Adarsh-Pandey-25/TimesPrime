@@ -15,6 +15,9 @@ export interface PublishedStory {
   published_at: string | null;
   /** A live blog's end (Panel 3, M3, front-3); null while it is live, and for every other story. */
   live_ended_at?: string | null;
+  /** Every public correction of the story, oldest first (Panel 7, M2); absent before compliance-2, when
+   * correction_note alone is shown. */
+  corrections?: Array<{ id: string; kind: string; text: string; published_at: string }>;
   revision: {
     id: string;
     headline: string;

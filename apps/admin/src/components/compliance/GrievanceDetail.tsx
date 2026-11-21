@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Gavel, MessageSquarePlus, UserCheck } from "lucide-react";
+import { CORRECTION_KIND_LABELS, isCorrectionKind } from "@timesprime/shared/config/corrections";
 import { GRIEVANCE_LIMITS, GRIEVANCE_OUTCOMES, type GrievanceOutcome } from "@timesprime/shared/config/grievances";
 import { deskCall, STATE_LABELS, when } from "../desk/deskClient";
 import ActionMessage, { type Message } from "../ui/ActionMessage";
@@ -25,6 +26,8 @@ interface Detail {
   grievance: Grievance;
   notes: Note[];
   story: { id: string; workflow_state: keyof typeof STATE_LABELS; headline: string | null } | null;
+  /** The corrections it caused (M2), published on the Desk with this grievance's ticket. */
+  corrections?: Array<{ id: string; story_id: string; kind: string; text: string; headline: string | null; published_at: string }>;
   may_handle: boolean;
   yours: boolean;
 }
@@ -173,6 +176,27 @@ export default function GrievanceDetail({ id }: { id: string }) {
               <p className="whitespace-pre-wrap text-sm" lang={g.language}>
                 {g.reply}
               </p>
+            </section>
+          )}
+
+          {data.corrections && data.corrections.length > 0 && (
+            <section aria-labelledby="corrections-title" className={`${card} space-y-2`}>
+              <h2 id="corrections-title" className={cardTitle}>
+                Corrections it caused
+              </h2>
+              <ol className="space-y-2">
+                {data.corrections.map((c) => (
+                  <li key={c.id} className={`${item} space-y-1`}>
+                    <p className={hint}>
+                      {isCorrectionKind(c.kind) ? CORRECTION_KIND_LABELS[c.kind].en : c.kind}, {when(c.published_at)} ·{" "}
+                      <Link href={`/admin/desk/${c.story_id}`} className={link}>
+                        {c.headline ?? "The Desk story"}
+                      </Link>
+                    </p>
+                    <p className="text-sm">{c.text}</p>
+                  </li>
+                ))}
+              </ol>
             </section>
           )}
 

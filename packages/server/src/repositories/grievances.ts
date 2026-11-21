@@ -161,6 +161,24 @@ export async function grievanceStory(storyId: string): Promise<GrievanceStory | 
   return { id: row.id, workflow_state: row.workflow_state, headline: row.revision?.headline ?? null };
 }
 
+/** The id of the grievance with this ticket, if any (Panel 7, M2: a correction names the grievance by its ticket). */
+export async function grievanceIdByTicket(ticket: string): Promise<string | null> {
+  const { data, error } = await supabase.from("grievances").select("id").eq("ticket", ticket).maybeSingle();
+  if (error) throw grievanceError(error);
+  return (data as { id: string } | null)?.id ?? null;
+}
+
+/** The tickets of these grievances, by id. */
+export async function ticketsOf(ids: ReadonlyArray<string | null>): Promise<Map<string, string>> {
+  const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  const tickets = new Map<string, string>();
+  if (wanted.length === 0) return tickets;
+  const { data, error } = await supabase.from("grievances").select("id, ticket").in("id", wanted);
+  if (error) throw grievanceError(error);
+  for (const g of (data ?? []) as Array<{ id: string; ticket: string }>) tickets.set(g.id, g.ticket);
+  return tickets;
+}
+
 /** The Desk story with this public number, if any (published only, for the form). */
 export async function storyIdByNumber(publicId: number, publishedOnly: boolean): Promise<string | null> {
   let query = supabase.from("stories").select("id").eq("public_id", publicId);

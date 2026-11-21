@@ -586,8 +586,23 @@ describe("the story screen", () => {
       expect(await screen.findByText("An older note.")).toBeInTheDocument();
       fireEvent.change(screen.getByRole("textbox", { name: /Correction note/ }), { target: { value: NOTE } });
       await act(async () => fireEvent.click(screen.getByRole("button", { name: "Publish correction" })));
-      expect(JSON.parse(corrections()[0][1].body)).toEqual({ note: NOTE });
+      expect(JSON.parse(corrections()[0][1].body)).toEqual({ note: NOTE, kind: "correction", grievance: null });
       expect(await screen.findByText("Correction published. Readers see it under the story.")).toBeInTheDocument();
+    });
+
+    // Panel 7, M2: what the correction is (decision 6), and the grievance that caused it.
+    test("the correction's kind and a grievance ticket go with it", async () => {
+      serveStory({ "article.view_admin": "read", "correction.publish": "act" }, LIVE, (url, init) =>
+        url === "/api/admin/desk/stories/s-1/correct" && init?.method === "POST" ? { status: 200, body: { story: STORY } } : undefined
+      );
+      await act(async () => render(<StoryEditor id="s-1" />));
+      const kind = await screen.findByRole("combobox", { name: "Kind" });
+      expect(Array.from((kind as HTMLSelectElement).options).map((o) => o.textContent)).toEqual(["Correction", "Clarification", "Update", "Editor's note", "Retraction"]);
+      fireEvent.change(kind, { target: { value: "clarification" } });
+      fireEvent.change(screen.getByRole("textbox", { name: /Correction note/ }), { target: { value: NOTE } });
+      fireEvent.change(screen.getByRole("textbox", { name: /Grievance ticket/ }), { target: { value: " G-2026-00042 " } });
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Publish correction" })));
+      expect(JSON.parse(corrections()[0][1].body)).toEqual({ note: NOTE, kind: "clarification", grievance: "G-2026-00042" });
     });
 
     test("a Sub-editor (A) asks instead, and is told a second person decides", async () => {
