@@ -4,11 +4,12 @@ import Footer from "@/components/news/Footer";
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import { GRIEVANCE_OFFICER, OFFICE_ADDRESS } from "@timesprime/shared/config/site";
+import GrievanceForm from "@/components/grievance/GrievanceForm";
 
 // R3: the Grievance Officer, published as the IT Rules, 2021 require of a news publisher, with the
-// 24-hour acknowledgement and the 15-day decision the plan sets (docs/NEWSROOM_PLAN.md). The
-// grievance form with ticket ids comes with Panel 7; until then grievances arrive by email. The
-// wording is for the owner's legal review (BL-008).
+// 24-hour acknowledgement and the 15-day decision the plan sets (docs/NEWSROOM_PLAN.md). Panel 7, M1:
+// the form, which gives a ticket at once (components/grievance/GrievanceForm.tsx), and the status
+// page; email stays the other way in. The wording is for the owner's legal review (BL-008).
 export const metadata: Metadata = {
   title: "Grievance Redressal",
   alternates: { canonical: "/grievance" },
@@ -71,9 +72,18 @@ export default function GrievancePage() {
               </address>
             </section>
 
+            <section className="py-6" aria-labelledby="grievance-form-title">
+              <h2 id="grievance-form-title" className="font-serif text-lg sm:text-xl font-bold border-l-4 border-red-600 pl-3 mb-3">
+                Send a grievance
+              </h2>
+              <div className="pl-3">
+                <GrievanceForm />
+              </div>
+            </section>
+
             <section className="py-6">
               <h2 className="font-serif text-lg sm:text-xl font-bold border-l-4 border-red-600 pl-3 mb-3">
-                How to raise a grievance
+                Or by email
               </h2>
               <p className="pl-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">Email the Grievance Officer with:</p>
               <ul className="mt-2 list-disc space-y-1 pl-8 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
@@ -88,8 +98,15 @@ export default function GrievancePage() {
                 What happens next
               </h2>
               <div className="space-y-3 pl-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                <p>We acknowledge every grievance within 24 hours of receiving it.</p>
+                <p>We acknowledge every grievance within 24 hours of receiving it. The form acknowledges it at once, with a ticket number.</p>
                 <p>We decide on it within 15 days, and tell you the decision by email.</p>
+                <p>
+                  With the ticket and your email, you can{" "}
+                  <Link href="/grievance/status" className="font-semibold text-red-600 dark:text-red-400 hover:underline">
+                    check your grievance&apos;s status
+                  </Link>
+                  .
+                </p>
                 <p>
                   To report a security issue on this site, write to the same address: the Grievance Officer is also our
                   point of contact for CERT-In.

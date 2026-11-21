@@ -9,6 +9,7 @@ import ArticlesTable from "@/components/ArticlesTable";
 import CategoryStatsCard from "@/components/CategoryStatsCard";
 import SyncDashboard from "@/components/SyncDashboard";
 import ActivityLog from "@/components/ActivityLog";
+import GrievancesCard from "@/components/compliance/GrievancesCard";
 import ActionMessage from "@/components/ui/ActionMessage";
 import { badge, button, buttonDanger, buttonPrimary, card, cardTitle, field, hint, label, pageTitle, tone } from "@/components/ui/styles";
 import type { AdminMe } from "@timesprime/shared/types";
@@ -401,6 +402,9 @@ export default function AdminDashboardPage() {
                 )}
               </div>
             )}
+
+            {/* Panel 7, M1: the open grievances and the late ones, for whoever holds grievance.handle. */}
+            {can("grievance.handle") && <GrievancesCard />}
 
             {/* 4. The news sync. */}
             {can("sync.view") && <SyncDashboard />}

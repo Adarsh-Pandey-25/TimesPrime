@@ -1570,6 +1570,11 @@ screen cannot load its grievances (a 500, in Sentry); grievances still arrive by
 **Undo.** The rollback at the end of the file, before the first grievance. After that the tables are
 a legal record and are kept.
 
+**Applied** by the owner on 20 Nov 2026. The check's columns on the owner's screen: `readers_can_read`
+false, `readers_can_read_notes` false, `readers_can_send` true, `readers_can_ask` true,
+`readers_can_decide` false, `app_can_decide` true, `grievances` 0 (the first three columns were off
+the screen's edge).
+
 ### Panel 1: emergency access (break-glass)
 
 For the Super Admins (Panel 1, M3). For the night a court order or a serious error needs a story
@@ -2083,9 +2088,11 @@ phases were done:
     [design](PANEL_DOCS.md#panel-7-design-compliance-launch-minimum) was proposed on 20 Nov 2026 at
     the owner's request (PR #67), while the walk-through of Panels 1 to 3 is open (the design's
     §12), and approved the same day with every recommended answer. The matrix is unchanged. **M1**,
-    grievances, is built in two parts. The first, the back office's queue and compliance-1, is built
-    on `panel-7-grievances`; the owner [applies compliance-1](#panel-7-applying-compliance-1). The
-    second, the reader's form and status page, comes next.
+    grievances, is built in two parts. The first, the back office's queue and compliance-1, is on
+    `main` (PR #68), and the owner [applied compliance-1](#panel-7-applying-compliance-1) on 20 Nov
+    2026. The second, the reader's form on `/grievance`, the status page and the dashboard's card,
+    is built on `panel-7-grievance-form`; it needs no SQL. The Grievance Officer's account (the role,
+    with no language) is the owner's step before grievances can be decided.
 
 The plan is [`NEWSROOM_PLAN.md`](NEWSROOM_PLAN.md); the access rules are in [PANEL_DOCS.md](PANEL_DOCS.md#access-rules); the panels, one at a time, are in
 [`PANEL_DOCS.md`](PANEL_DOCS.md). Run `git log --oneline -20` on the branch for the exact head.

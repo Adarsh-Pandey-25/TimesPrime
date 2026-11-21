@@ -214,7 +214,7 @@ Retention settings follow from the statutes. Audit and access logs should be kep
 | 4 | Ingestion: sync, source registry, licence controls, kill switch, purge | Planned | — | — |
 | 5 | AI assistant | Planned | — | — |
 | 6 | Insights: read-only stats | Planned | — | — |
-| 7 | Compliance: grievances, corrections, legal orders, content records | **In progress:** [design](#panel-7-design-compliance-launch-minimum) approved 20 Nov 2026 (PR #67), started at the owner's request while the walk-through of Panels 1 to 3 is open; [M1](#panel-7-compliance), first part (grievances in the back office, compliance-1) built, compliance-1 to apply | — | — |
+| 7 | Compliance: grievances, corrections, legal orders, content records | **In progress:** [design](#panel-7-design-compliance-launch-minimum) approved 20 Nov 2026 (PR #67), started at the owner's request while the walk-through of Panels 1 to 3 is open; [M1](#panel-7-compliance) (grievances: the back office, PR #68, and the reader's form and status page) built, compliance-1 applied | — | — |
 | 8 | Privacy & security: data-rights requests, incidents, audit viewer | Planned | — | — |
 | 9 | Commercial: only once ads or subscriptions exist | Planned | — | — |
 
@@ -1631,9 +1631,11 @@ Web push is not open here: decision 8 moved it after Panel 8's consent banner.
 (PR #67). Built so far:
 - **M1, first part:** grievances in the back office: compliance-1 (the tables, the clocks, the
   readers' two functions), the queue, a grievance's page, and typing in one received by email or
-  post (branch `panel-7-grievances`). **compliance-1 is for the owner to apply**
-  ([runbook](OPERATIONS.md#panel-7-applying-compliance-1)). The reader's form and status page are
-  M1's second part.
+  post (PR #68, on `main`). compliance-1 was [applied](OPERATIONS.md#panel-7-applying-compliance-1)
+  by the owner on 20 Nov 2026;
+- **M1, second part:** the reader's form on `/grievance`, the status page `/grievance/status`, their
+  two public routes, and the dashboard's grievance card (branch `panel-7-grievance-form`). It needs
+  no SQL. With it, M1 is complete.
 
 Started while Panels 1 to 3 have open items (the design's §12).
 
@@ -1646,7 +1648,11 @@ Started while Panels 1 to 3 have open items (the design's §12).
   - `/admin/compliance/grievances/[id]` (M1): one grievance;
   - `GET`, `POST /api/admin/compliance/grievances` (the queue; typing one in),
     `GET /api/admin/compliance/grievances/[id]`, and `POST` on its `acknowledge`, `assign`,
-    `notes` and `decide` (M1).
+    `notes` and `decide` (M1);
+  - the dashboard's grievance card (`/admin`): the open grievances and the late ones (M1);
+  - `/grievance` (the form, beside the officer and the email) and `/grievance/status` (a
+    grievance's status, `noindex`) on the reader site; `POST /api/grievances` and
+    `POST /api/grievances/status`, public (M1).
 - **Code (M1, first part):**
   - `packages/shared/src/config/grievances.ts` (the categories, outcomes, limits and clocks; the
     fields' check; the masked email) and `deskStoryNumberFrom` in `packages/shared/src/lib/storyUrl.ts`
@@ -1657,6 +1663,14 @@ Started while Panels 1 to 3 have open items (the design's §12).
     `components/compliance/` (the screens);
   - the rules in `packages/server/src/auth/adminRoutePolicy.ts` (target `site` for every change);
   - the SQL in `database/migrations/2026-11-20-compliance-1-grievances.sql`.
+- **Code (M1, second part):**
+  - `submitGrievance` and `grievanceStatus` in `packages/server/src/repositories/grievances.ts` (the
+    readers' two database functions);
+  - `apps/web/src/app/api/grievances/` (the routes), `app/grievance/page.tsx` and
+    `app/grievance/status/page.tsx`, and `components/grievance/` (the form, the lookup and their
+    words in English and Hindi);
+  - `apps/admin/src/components/compliance/GrievancesCard.tsx`, on the dashboard;
+  - `apps/web/src/readerWrites.test.ts`, which allows the reader this one write.
 
 #### Purpose
 
@@ -1694,6 +1708,17 @@ each stands against its clocks.
     a duplicate, spam) and the reply told to the complainant, confirmed first because a decision is
     final. The reply shows on the complainant's status page (M1's second part); the officer also
     emails it (decision 2).
+- **The reader's form** (`/grievance`), in the reader's language (English or Hindi): name, email,
+  the story's address (optional), what it is about, the grievance (up to 5,000 characters), and a
+  short notice of what is kept and why. On sending, the reader gets the ticket, is told the
+  grievance is acknowledged and when the decision is due, and is shown the way to the status page.
+  The officer's email and the office address stay on the page, as the other way in. A Desk story's
+  address links the story when it is published.
+- **The status page** (`/grievance/status`, `noindex`): the ticket and the email in; the state,
+  when it arrived and was acknowledged, when the decision is due, and once decided the outcome and
+  the reply, in the reader's language. A wrong email answers as an unknown ticket does.
+- **The dashboard's card:** for holders of `grievance.handle`, how many grievances are open, past
+  their 15 days, and (typed in) not acknowledged in 24 hours, with the way to the queue.
 - **Typing one in** ("Add a grievance"): how it arrived (email, post, another way), when (the clocks
   run from then; within the past year), its language, the complainant's name and email, its category,
   the story's address (a Desk story's address links the story, in any state), the text, and whether
@@ -1710,6 +1735,8 @@ each stands against its clocks.
 | `POST .../grievances/[id]/assign` | `grievance.handle`, act | Site-wide; the caller takes it | — | yes | `grievance.assign`, with who had it before |
 | `POST .../grievances/[id]/notes` | `grievance.handle`, act | Site-wide | — | yes | `grievance.note`, with the note's text |
 | `POST .../grievances/[id]/decide` | `grievance.handle`, act | Site-wide | — (the officer's own decision) | yes | `grievance.decide`, with the outcome, the reply and whether it was on time |
+| `POST /api/grievances` | none: public | Readers. The fields are checked first; then per address 3 an hour and 10 a day, and 500 a day across the site (decision 3; the database holds that cap too); a filled hidden field is refused. Through `grievance_submit` only | — | — | no row: the grievance is its own record; failures reach Sentry |
+| `POST /api/grievances/status` | none: public | Whoever has the ticket and the email; 20 an hour per address, counted before anything is read. Through `grievance_status` only | — | — | — |
 
 - **Every audit row is site-wide** (no language or section, so a desk's `audit.read` does not reach
   it) and names the ticket, never the complainant's name or email (design §7).
@@ -1719,12 +1746,17 @@ each stands against its clocks.
   malformed request (a channel of `web`, an arrival in the future or over a year ago, a bad email,
   an unknown outcome, an empty or over-long note or reply, a bad ticket or filter); 404 for an
   unknown grievance. Nothing is written for any of them.
+- **Refusals, the reader's routes:** each answer carries a `code` the page words in the reader's
+  language: `invalid` (400: a field, the hidden field, not JSON; 413 over 16 KB), `too_many` (429,
+  with `Retry-After`), `closed_today` (429: the site's 500 a day, the app's count or the
+  database's), `not_found` (404, the status page) and `failed` (503, and Sentry). Every answer is
+  `no-store`.
 
 #### Database changes
 
 | Migration file | What it does | Rollback | Applied by the owner |
 |---|---|---|---|
-| `database/migrations/2026-11-20-compliance-1-grievances.sql` | `grievances` and `grievance_notes`, and the ticket sequence. A grievance is history: never deleted; what was sent, when it arrived and its two clocks never change; an acknowledgement stands; a decision is final. The form's grievances are acknowledged on the spot; an officer's name who typed them in and who acknowledged them. Notes are append-only. `grievance_submit` (at most 500 a day from the form) and `grievance_status` are the readers' only access (decision 1); `grievance_enter`, `_acknowledge`, `_assign`, `_note` and `_decide` are the app's, each one transaction with the row locked. RLS on, no reader grant or policy on either table; the app has no `DELETE` | At the end of the file, before the first grievance | **Not yet** |
+| `database/migrations/2026-11-20-compliance-1-grievances.sql` | `grievances` and `grievance_notes`, and the ticket sequence. A grievance is history: never deleted; what was sent, when it arrived and its two clocks never change; an acknowledgement stands; a decision is final. The form's grievances are acknowledged on the spot; an officer's name who typed them in and who acknowledged them. Notes are append-only. `grievance_submit` (at most 500 a day from the form) and `grievance_status` are the readers' only access (decision 1); `grievance_enter`, `_acknowledge`, `_assign`, `_note` and `_decide` are the app's, each one transaction with the row locked. RLS on, no reader grant or policy on either table; the app has no `DELETE` | At the end of the file, before the first grievance | **Yes**, 20 Nov 2026 (the check's columns on the owner's screen: `readers_can_read` false, `readers_can_read_notes` false, `readers_can_send` true, `readers_can_ask` true, `readers_can_decide` false, `app_can_decide` true, `grievances` 0; the first three were off the screen's edge) |
 
 #### Tests and verification
 
@@ -1736,11 +1768,20 @@ each stands against its clocks.
 | `packages/shared/src/config/grievances.test.ts`, `packages/shared/src/lib/storyUrl.test.ts` | The fields' check; the clocks; the masked email; the ticket; the limits agree with the SQL; a story's number from an address | Every malformed field; an address that is not a Desk story's |
 | `apps/admin/src/components/compliance/compliance.test.tsx`, `AdminTopBar.test.tsx` | The queue's loading, error and empty states, clocks and counts; the filters and ticket search; typing one in; a grievance's page, its actions and the confirmed decision; the top bar's link | No Add, actions or email for the Managing Editor; nothing read for a role without the permission; a refusal kept on screen |
 | `e2e/admin-access.spec.ts` (read-only) | Signed out, `/admin/compliance` and a grievance's page go to sign-in | The seven grievance routes answer 401 |
+| `apps/web/src/app/api/grievances/route.test.ts` | The form's grievance through `submitGrievance`, with the story its address names (published only); the limits and their order; the status by ticket (as typed) and email; `no-store` | A partial grievance, the hidden field filled, not JSON, over 16 KB; over a limit (429, `Retry-After`); the database's cap and its refusals; a wrong pair (404); a failure (503, Sentry). Nothing counted or written for an invalid one |
+| `apps/web/src/components/grievance/grievance.test.tsx`, `app/grievance/page.test.tsx`, `app/grievance/status/page.test.tsx` | The form in English and Hindi, what it sends, the ticket and due date on success; the hints as descriptions; the status page's open and decided states, in Hindi too; the pages, `noindex` for the status page | Each refusal and failure worded by its code, the form kept |
+| `apps/web/src/readerWrites.test.ts` | No reader file reaches a write; the grievance form's route is the only file with `submitGrievance`, which calls only `grievance_submit` | The back office's grievance writes are named, so a reader file using one fails |
+| `packages/server/src/repositories/grievances.test.ts` ("the readers' two functions"), `apps/admin/src/app/admin/page.test.tsx` | `grievance_submit` and `grievance_status` with their fields; the dashboard's card and its counts | The database's cap as 429; no card without the permission; the card's failed read |
+| `e2e/reader.spec.ts` (read-only) | `/grievance` shows the form and the way to the status page; `/grievance/status` is `noindex`; an empty grievance is refused with 400, before any limit or the database | Nothing is sent: that would write |
 
 #### Known limits and not yet built
 
-- **M1's second part:** the reader's form on `/grievance`, the status page, and the dashboard's
-  card. Until then grievances arrive by email, as today, and the officer types them in.
+- **The Grievance Officer's account:** the officer named on `/grievance` must hold the Grievance
+  Officer role with no language. If that person is a Super Admin, the request needs a third Super
+  Admin to approve it, as nobody decides a request about themselves (Panel 1). Until someone holds
+  the role, the Managing Editor reads the queue and nobody decides a grievance.
+- **No appeal line yet** under a decision: the self-regulatory body is named once it is joined
+  (design §9, owner action 4).
 - **Nothing is emailed** (decision 2): the officer replies from the grievance address by hand.
 - **"I'll handle this" assigns the caller only;** handing one to a named colleague is not built.
 - **The category is the complainant's own** and is not changed by the officer.

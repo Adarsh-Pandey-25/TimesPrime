@@ -178,6 +178,50 @@ async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
   return row as T;
 }
 
+// ---- the readers' two functions (decision 1): the only grievance calls the reader site makes ----
+
+/** What the form's sender is told: the ticket, when it arrived, and when the decision is due. */
+export interface SubmittedGrievance {
+  ticket: string;
+  received_at: string;
+  decide_due_at: string;
+}
+
+/**
+ * A grievance from the form (grievance_submit), acknowledged on the spot. The story is kept only if
+ * it is published. The one write the reader site makes (apps/web/src/readerWrites.test.ts).
+ */
+export function submitGrievance(fields: GrievanceFields, storyId: string | null): Promise<SubmittedGrievance> {
+  return call("grievance_submit", {
+    p_language: fields.language,
+    p_name: fields.name,
+    p_email: fields.email,
+    p_about_url: fields.aboutUrl,
+    p_story: storyId,
+    p_category: fields.category,
+    p_body: fields.body,
+  });
+}
+
+/** A grievance as its sender sees it on the status page: no notes, no staff. */
+export interface GrievanceStatus {
+  ticket: string;
+  state: "open" | "decided";
+  received_at: string;
+  acknowledged_at: string | null;
+  decide_due_at: string;
+  outcome: GrievanceOutcome | null;
+  reply: string | null;
+  decided_at: string | null;
+}
+
+/** The grievance with this ticket and email (grievance_status), or null for any other pair. */
+export async function grievanceStatus(ticket: string, email: string): Promise<GrievanceStatus | null> {
+  const { data, error } = await supabase.rpc("grievance_status", { p_ticket: ticket, p_email: email });
+  if (error) throw grievanceError(error);
+  return (data as GrievanceStatus | null) ?? null;
+}
+
 /** A grievance received by email, post or another way, typed in by an officer (grievance_enter). */
 export function enterGrievance(input: {
   actorId: string;
